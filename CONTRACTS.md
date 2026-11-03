@@ -1,0 +1,284 @@
+# Lazy Print — module contracts
+
+Native printing app for Windows, macOS and the iPhone, the sister of Lazy Scan (`../LazyScan`, whose layout, conventions and much of whose code it shares). SwiftUI, macOS 14+ and iOS 18+, `swift-tools-version: 6.0` with the Swift 5 language mode (`swiftLanguageModes: [.v5]`), SwiftPM, **system frameworks only** (AppKit, SwiftUI, PDFKit, CoreGraphics, ImageIO, UniformTypeIdentifiers, CryptoKit, Security, Network and the DNS-SD library; UIKit on iOS). The Windows app is .NET 10 and WPF, with a Core library that has no dependencies. No third-party code anywhere except ZXing.Net for the pairing QR code on Windows, as in Lazy Scan. UIKit only in `LazyPrintIOS`; AppKit, SwiftUI and UIKit never in `LazyPrintKit`, and `LazyPrintKit` keeps CoreGraphics to the files that draw and the app state (`Render/`, `App/`), so its protocol and layout code needs Foundation alone.
+
+The package's targets:
+- `LazyPrintKit` (`Sources/LazyPrintKit/`): everything the Mac and the iPhone share: `Core` (tasks, settings, printers, problems, the troubleshooter), `Layout` (paper, page placement, N-up, booklets, photo sizes, two-sided by hand, the test page), `Ipp` (driverless printers: the IPP codec, attributes, jobs, PWG raster, addresses, trust, the client), `Companion` (the phone link, from Lazy Scan's), `Persistence`, `Render` (drawing a sheet with CoreGraphics), the demo printer, `AppState` and the protocols of the system services an app shell passes in.
+- `LazyPrintMac` (`Sources/LazyPrintMac/`): the Mac's views and its system services (printing to the printers macOS has set up, the troubleshooter's system checks, file actions). Every file is wrapped whole in `#if os(macOS)`.
+- `LazyPrintIOS` (`Sources/LazyPrintIOS/`): the iPhone's views and services. Every file is wrapped whole in `#if os(iOS)`.
+- `LazyPrint` (`Sources/LazyPrint/main.swift`): the Mac app.
+- `ios/`: the iPhone app's Xcode project, written by XcodeGen from `ios/project.yml` (not checked in); its app target `LazyPrintiOS` only starts `LazyPrintIOSApp`.
+- Tests: `Tests/LazyPrintTests` (shared, `@testable import LazyPrintKit`), `Tests/LazyPrintMacTests`, `Tests/LazyPrintIOSTests`; fixtures both suites read in `Tests/Fixtures/`.
+
+The Windows solution (`windows/LazyPrint.sln`):
+- `LazyPrint.Core` (`net10.0`, no dependencies): the twins of `LazyPrintKit`'s Core, Layout, Ipp, Companion and Persistence, plus the protocol logic only Windows has (the print spooler's states and the Windows service checks).
+- `LazyPrint.Core.Tests` (xUnit): the same cases as `Tests/LazyPrintTests`, reading the same fixtures.
+- `LazyPrint.App` (`net10.0-windows10.0.19041.0`, WPF): the shell, reading PDFs with `Windows.Data.Pdf`, printing through the spooler (XPS) and straight to IPP printers, finding printers on the network, the phone link's Windows pieces.
+- `LazyPrint.App.Tests` (xUnit): what the app does with the system, against files and stand-ins (an XPS file instead of a printer, a loopback IPP printer).
+
+## Global rules
+
+1. Platform parity. Every change to shared logic (Core, Layout, Ipp, Companion, Persistence) lands in C# and Swift in the same change, with mirrored tests: `windows/LazyPrint.Core.Tests` and `Tests/LazyPrintTests`, same cases, same names (`ImpositionTests`, `IppCodecTests`). A C# file and its Swift twin use the same words (`IppCodec.cs`, `IppCodec.swift`; `PwgRaster.cs`, `PWGRaster.swift`) and start with a line naming the twin. Byte formats (IPP requests, PWG raster, the print package) are pinned by golden files that C# writes and Swift checks. CI must be green on both (`.github/workflows/ci.yml`) before a change counts as done.
+2. Any helper not listed in this document is `private`/`fileprivate` (Swift) or `private`/`internal` (C#).
+3. Coordinates:
+   - Layout: points (1/72 inch), origin TOP-LEFT of the sheet as it goes into the printer (portrait, short edge first), x right, y down. A quarter turn is clockwise as seen on the sheet.
+   - Source pages: points, origin top-left of the page as it is shown (after a PDF page's `/Rotate` or a photo's orientation tag).
+   - Pixels (rasters, bitmaps): origin top-left, x right, y down.
+   - PDF user space and CoreGraphics: origin bottom-left; converted only where a sheet is drawn (`Render/`, the Windows `SheetRenderer`).
+4. Errors thrown across modules are `PrintError` (C# `PrintException` carrying a `PrintError`).
+5. Settings files load across versions, by Lazy Scan's rules (its CONTRACTS.md, Global rule 6) unchanged: optional-with-default fields decoded leniently, the first case of a persisted enum is its default, unknown raw values decode as the default, keys never change, an unreadable file is moved aside as `<name>.unreadable-<yyyyMMdd-HHmmss>.json` and one that cannot be read at all is never overwritten. `Persistence` (`StoreFiles`) is Lazy Scan's, renamed. Settings live in `%APPDATA%\Lazy Print` and `~/Library/Application Support/Lazy Print`.
+6. User-facing text: short. A status line is six words at most, with the full sentence for screen readers (Lazy Scan's `StatusLine`). A problem is titled by what is wrong ("Out of paper", "Paper jam") and says what to do. Texts both platforms show live in Core, in a `...Text` type, the same words on both.
+
+## Names
+
+The product is "Lazy Print" in text, `LazyPrint` in code. Lazy Scan's identifiers with Print for Scan: `com.lazyprint.lazyprint` (iPhone), `local.lazyprint.app` (the Mac app `scripts/make_app.sh` builds), `LAZYPRINT_*` environment flags, the prefix `lp-`. The phone link: DNS-SD `_lazyprint._tcp`, port 52732 (Lazy Scan has 52731, so both can run on one PC), pairing codes `lazyprint://pair?...`, the mutex `Local\LazyPrint.PhoneLink`. The two apps find each other by the URL schemes `lazyprint:` and `lazyscan:` (see "Hand-off").
+
+## Layout/ (paper, placement, N-up, booklets, photos)
+
+Pure functions over sizes; nothing here reads a file or draws. `PaperSize` is Lazy Scan's (`Core/PaperSize.swift`, `PaperSize.cs`) with its regional default; `PrintCopies` and the ruler page (`PrintCalibration`) come from Lazy Scan's `PrintLayout` unchanged.
+
+```swift
+public struct LayoutSize: Equatable, Sendable { public var width: Double; public var height: Double }   // points
+public struct LayoutRect: Equatable, Sendable { public var x, y, width, height: Double }               // points, top-left
+public struct LayoutInsets: Equatable, Sendable { public var top, left, bottom, right: Double }
+public struct LayoutPoint: Equatable, Sendable { public var x, y: Double }
+
+/// Where a printer can put ink on its paper.
+public struct PrintableArea: Equatable, Sendable {
+    public var paper: LayoutSize          // portrait: width <= height
+    public var margins: LayoutInsets      // the printer's unprintable edges; zero for borderless
+    public var printable: LayoutRect { get }
+    /// Each margin raised to the larger of it and its opposite, so a side turned 180° lands in the same box.
+    public var symmetric: PrintableArea { get }
+}
+
+/// One page of one document, at the size it is shown.
+public struct SourcePage: Equatable, Sendable { public var document: Int; public var index: Int; public var size: LayoutSize }
+
+public enum Scaling: String, Codable, CaseIterable, Sendable {
+    case shrinkToFit   // the default: a page larger than the printable area is made smaller, others print at real size
+    case fit           // made as large as fits
+    case actualSize    // 100 %, cut by the margins if it must be (PlanWarning.clipped)
+    case fill          // fills its frame, cropped in the middle (photos)
+}
+
+/// The paper edge the sheet turns over on, as in IPP and print dialogs.
+public enum Sides: String, Codable, CaseIterable, Sendable { case oneSided, longEdge, shortEdge }
+
+public struct LayoutOptions: Equatable, Sendable {
+    public var pagesPerSheet: Int = 1              // 1, 2, 4, 6, 9 or 16
+    public var booklet: Bool = false               // two pages per side, in booklet order, folded in the middle
+    public var rightToLeft: Bool = false           // booklets and N-up read right to left
+    public var scaling: Scaling = .shrinkToFit
+    public var sides: Sides = .oneSided
+    public var pageBorders: Bool = false           // a thin line around each page when there are several on a side
+}
+
+public struct Placement: Equatable, Sendable {
+    public var page: SourcePage
+    public var frame: LayoutRect        // on the sheet, the box the page's shown area fills after turning
+    public var turns: Int               // quarter turns clockwise applied to the page, 0...3 (3 = a quarter counterclockwise)
+    public var crop: LayoutRect?        // the part of the page shown (page points), for .fill; nil = whole page
+}
+public struct SheetSide: Equatable, Sendable { public var placements: [Placement]; public var borders: Bool }
+public struct Sheet: Equatable, Sendable { public var front: SheetSide; public var back: SheetSide? }
+
+public enum PlanWarning: Equatable, Sendable { case clipped(points: Double), paddedWithBlanks(count: Int), shrunk(percent: Int) }
+
+public struct SheetPlan: Equatable, Sendable {
+    public var area: PrintableArea       // the area actually used (symmetric when backs may turn)
+    public var sheets: [Sheet]
+    public var duplex: Bool              // every sheet has a back (blank if need be), so sideCount is even
+    public var warnings: [PlanWarning]
+    public var sideCount: Int { get }
+}
+
+public enum Imposition {
+    public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan
+}
+```
+
+Rules `Imposition.plan` keeps (each has a test):
+- Paper is always fed portrait. A side that reads landscape (a landscape page alone, a 2- or 6-up grid that comes out landscape, a booklet spread) is worked out on a landscape "reading view" and turned onto the paper a quarter turn counterclockwise: the reading view's top goes to the paper's left edge, and its pages get `turns = 3`. The printer never needs an orientation setting.
+- Backs are given as the back looks after the sheet is turned over on its long edge, top edge still at the top: the page image of a `two-sided-long-edge` job. A back is turned 180° exactly when the sheet turns over on its short edge: `shortEdge`, and every booklet back. The reading view does not change this. Worked cases (front's top edge T, bottom B, left L, right R; each a test): portrait long edge, back's top at T, no turn; portrait short edge, top at B, turn; landscape long edge (a calendar's flip), top at R, no turn; landscape short edge (a book's flip), top at L, turn; booklet, turn. So the duplex request is always long edge.
+- When any back may be turned (two-sided, booklets, manual duplex), both sides are laid out in `area.symmetric`, so the front and the back line up and a turned back is not cut by an uneven margin.
+- One page per side: the page is placed by `scaling` in the printable area, centred, and turned a quarter counterclockwise when it is landscape on portrait paper.
+- Several per side: the grid (2, 4, 6, 9, 16 pages: 1×2, 2×2, 2×3, 3×3, 4×4, its longer count along the reading view's longer side, so 2 per side are two rows in the portrait view and two columns in the landscape one) is chosen once per job, from the first page: portrait or landscape reading view, whichever makes that page larger; on a tie the view where pages need no turn wins. Pages are read left to right, top to bottom in the reading view (right to left with `rightToLeft`). Each page is fitted to its cell (`fit`; `fill` crops it to the cell; `actualSize` and `shrinkToFit` mean `fit` here) and turned a quarter counterclockwise only when that makes it strictly larger.
+- Booklet: always two-sided (`sides` is ignored). The pages are padded with blanks after the last page to a multiple of 4 (`paddedWithBlanks`); sheet k of n/4 has front (left, right) = (n−1−2k, 2k) and back = (2k+1, n−2−2k), swapped for `rightToLeft`; folded sheets nest in order. The spread's two halves are split at the paper's centre line (the fold), each half met with the printable area. `pagesPerSheet` is ignored.
+- Several documents run on as one; a document does not start a new sheet.
+- A blank page has no placement; with `duplex` every sheet has a back, so copies of a two-sided job never start on a back.
+
+### Layout/PhotoLayout
+
+```swift
+public struct PhotoSize: Equatable, Sendable {
+    public var id: String                  // "4x6", "5x7", "8x10", "3.5x5", "wallet", "10x15cm", "13x18cm", "page"
+    public var title: String               // "4 × 6 in", "10 × 15 cm", "Whole page"
+    public var size: LayoutSize?           // portrait; nil = the whole printable area
+    public static let all: [PhotoSize]
+}
+public struct PhotoOptions: Equatable, Sendable {
+    public var size: PhotoSize
+    public var copiesEach: Int = 1
+    public var fill: Bool = true           // crop to fill the size; false fits the whole photo with white bands
+    public var cutMarks: Bool = true       // short gray marks at the corners when several fit on a sheet
+}
+public enum PhotoLayout {
+    /// As many prints of the size as fit on each sheet (the cells turned when more fit), 3 mm apart, in photo order;
+    /// a photo whose orientation differs from its cell is turned a quarter counterclockwise.
+    public static func plan(_ photos: [SourcePage], options: PhotoOptions, area: PrintableArea) -> SheetPlan
+    /// The cut marks of a planned side, as lines for the renderer: at the corners of its print cells, when more than one fits.
+    public static func cutMarks(_ side: SheetSide, options: PhotoOptions, area: PrintableArea) -> [TestPageItem]
+}
+```
+
+### Layout/PageRange
+
+`PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
+
+### Layout/ManualDuplex (two-sided on a printer that prints one side)
+
+Both sides of every sheet in two passes: the fronts, then, once the user has put the stack back, the backs. Each pass is a one-sided job. How the stack must go back depends on the printer's paper path, which Lazy Print learns once per printer with one sheet (the two-sided check); until then it assumes the usual one (turn the stack over, backs upright).
+
+```swift
+public struct PaperPath: Codable, Equatable, Sendable {
+    public var turnStackOver: Bool = true      // the user turns the stack over to reload it (false: reloads it as it lies)
+    public var turnBacks: Bool = false         // backs come out upside down unless turned 180°
+    public var checked: Bool = false           // the two-sided check was printed and answered
+}
+public struct DuplexPass: Equatable, Sendable {
+    public var sides: [SheetSide]              // in the order sent to the printer
+    public var marked: [Int]                   // indices in `sides` of blank backs that get the near-white dot
+}
+public enum ManualDuplex {
+    public static func passes(_ plan: SheetPlan, path: PaperPath) -> (fronts: DuplexPass, backs: DuplexPass)
+    /// The check sheet's two sides: a big "1" on the front and "2" on the back, each with an arrow to its top edge.
+    public static func checkSheet(area: PrintableArea) -> (front: [TestPageItem], back: [TestPageItem])
+    /// The answer to "Do the arrows on both sides point to the same edge?" turned into a paper path.
+    public static func learn(_ answer: DuplexCheckAnswer, from path: PaperPath) -> PaperPath
+}
+public enum DuplexCheckAnswer: String, Sendable { case sameEdge, oppositeEdges, bothOnOneSide }
+```
+
+- Sheets stack in the output tray in the order they were printed, whichever way up they land, and the tray feeds its top sheet first: turning the stack over puts the first sheet on top, so the backs go in sheet order; reloading it as it lies puts the last sheet on top, so they go in reverse. Both passes are sent with the page order forced normal (the spooler's `JobPageOrder` Standard, CUPS `outputorder=normal`), so a driver set to reverse order cannot undo this.
+- Every front gets a back. In reverse order a blank back gets one near-white dot (0.5 pt, gray 250) in a corner, so a driver that skips blank pages cannot put the backs out of step.
+- `learn`: `sameEdge` keeps the path and marks it checked; `oppositeEdges` toggles `turnBacks`; `bothOnOneSide` toggles `turnStackOver` and leaves `checked` false, so the check runs again with the other reloading.
+- `ManualDuplexText` holds the step card's words, the same on all three platforms: "Printing the fronts", "Take the 7 printed sheets out. Turn the stack over and put it back in the tray, top edge first." or, for the other paper path, "Put the stack back in the tray as it is, top edge first.", "Print the backs", "Check with one sheet", the check's question and its three answers. Counts are of sheets.
+
+### Layout/TestPage
+
+`TestPage.make(area:, info: TestPageInfo) -> [TestPageItem]`: what a test page shows, as drawing primitives the platforms render the same way (`.rect(LayoutRect, fill: TestColor)`, `.line(from:to:width:color:)`, `.text(String, at:, size:, bold:)`, `.arrow(LayoutRect, up: Bool)`): the printer's name, model, address and the date; cyan, magenta, yellow, black, red, green and blue bars; a gray ramp in 10 % steps; a fine-line grid for clogged nozzles; a 1-inch square and a 10 cm ruler to check real size (Lazy Scan's ruler); the printable area's edge drawn 2 mm inside it.
+
+## Ipp/ (driverless printers)
+
+IPP over HTTP (RFC 8010, 8011; PWG 5100.12 IPP Everywhere, 5100.7 media-col), as IPP Everywhere, AirPrint and Mopria printers speak it, with the transport conventions of Lazy Scan's `Escl/`: an ephemeral session, no proxy, 10 s requests, trust on first use for `ipps` pinned by `SpkiFingerprint`, busy printers retried with Lazy Scan's `EsclRetry` schedule.
+
+### Ipp/IppCodec
+
+```swift
+public struct IppVersion: Equatable, Sendable { public var major: UInt8; public var minor: UInt8 }   // 2.0 sent; 1.x and 2.x read
+public enum IppValue: Equatable, Sendable {
+    case integer(Int32), boolean(Bool), enumValue(Int32), octets(Data), dateTime(Data), resolution(x: Int32, y: Int32, units: UInt8)
+    case range(Int32, Int32), text(String), name(String), keyword(String), uri(String), uriScheme(String), charset(String)
+    case language(String), mimeType(String), collection([IppAttribute]), outOfBand(UInt8)   // 0x10 unsupported, 0x12 unknown, 0x13 no-value
+    case unknown(tag: UInt8, Data)        // a value tag this codec does not know, kept as it came
+}
+public struct IppAttribute: Equatable, Sendable { public var name: String; public var values: [IppValue] }
+public struct IppGroup: Equatable, Sendable { public var tag: UInt8; public var attributes: [IppAttribute] }   // 0x01 operation, 0x02 job, 0x04 printer, 0x05 unsupported, any 0x00-0x0F delimiter kept
+public struct IppMessage: Equatable, Sendable {
+    public var version: IppVersion
+    public var code: UInt16                              // operation id in a request, status code in a response
+    public var requestId: Int32
+    public var groups: [IppGroup]
+    public var isSuccess: Bool { get }                   // code < 0x0100 (0x0001 and 0x0002 are successes too)
+    public func encoded() -> Data
+    public static func decode(_ data: Data) throws -> (message: IppMessage, documentOffset: Int)   // PrintError.badResponse
+    /// The first attribute of that name outside the unsupported-attributes group.
+    public subscript(_ name: String) -> IppAttribute? { get }
+}
+public enum IppOperation: UInt16 { case printJob = 0x0002, validateJob = 0x0004, cancelJob = 0x0008, getJobAttributes = 0x0009, getJobs = 0x000A, getPrinterAttributes = 0x000B }
+```
+
+`textWithLanguage` and `nameWithLanguage` decode to `.text` and `.name` (the language is dropped); the codec never writes them. Collections encode as `begCollection`, then per member a `memberAttrName` and its values, then `endCollection`, as RFC 8010 §3.1.6.
+
+### Ipp/IppRequests
+
+The requests both platforms send, byte for byte (golden files in `Tests/Fixtures/Ipp/requests/`, written by C#). Every request: version 2.0, then the operation group in this order: `attributes-charset` utf-8, `attributes-natural-language` en, `printer-uri` (always `ipp://` or `ipps://`, even for an address typed as http), `requesting-user-name`, then the operation's own attributes; then the job group for Print-Job; then the end tag. `requesting-user-name` is the account name on Windows and the Mac, "iPhone" on the iPhone (the same name for Cancel-Job, or printers refuse it). Names (`job-name`, `document-name`) are cut to 255 bytes at a UTF-8 boundary.
+
+- `getPrinterAttributes(printerUri:)`: `requested-attributes` = `all`, `media-col-database`.
+- `printJob(printerUri:, ticket: IppJobTicket)`: operation group adds `job-name`, `document-format`; job group, in this order: `copies` (only when > 1), `sides`, `print-color-mode`, `media-col` (or `media`, see below), `print-quality` (when chosen), `print-scaling` (when the printer lists it), `multiple-document-handling` (when the printer makes the copies).
+- `getJobAttributes(printerUri:, jobId:)`: adds `job-id`, `requested-attributes` = `job-state`, `job-state-reasons`, `job-impressions-completed`.
+- `cancelJob(printerUri:, jobId:)`: adds `job-id`.
+
+On `0x0503` (version not supported), or when `ipp-versions-supported` lacks 2.0, the request goes again as 1.1, and the printer is remembered as 1.1 for the session.
+
+```swift
+public struct IppMediaChoice: Equatable, Sendable {
+    public var entry: [IppAttribute]?        // a media-col-database entry, sent verbatim as media-col (size, margins, media-type, media-source)
+    public var name: String                  // a PWG self-describing name, "na_letter_8.5x11in"; sent as media only without media-col-supported
+}
+public struct IppJobTicket: Equatable, Sendable {
+    public var jobName: String
+    public var documentFormat: String         // "application/pdf", "image/pwg-raster", "image/urf", "image/jpeg"
+    public var copies: Int
+    public var sides: String                  // "one-sided", "two-sided-long-edge"; "two-sided-short-edge" only for a document sent as is
+    public var colorMode: String              // "color" or "monochrome"
+    public var media: IppMediaChoice
+    public var quality: Int?                  // print-quality 3/4/5, when chosen
+    public var scaling: String?               // print-scaling "none" for imposed sheets, "fit" or "auto" for a document sent as is
+    public var collatedCopies: Bool           // multiple-document-handling separate-documents-collated-copies
+}
+```
+
+The margins the layout assumed are the ones of the `media-col-database` entry sent, so the printer cannot use others; borderless is an entry with zero margins (often only with a photo `media-type`, which the entry carries).
+
+### Ipp/PrinterCapabilities, IppProblems
+
+`PrinterCapabilities` is what Get-Printer-Attributes says, read leniently (a missing attribute gives the default): name (`printer-name`, else `printer-info`), `printer-make-and-model`, `printer-uuid`, `ipp-versions-supported`, `printer-state` (idle, processing, stopped), `printer-state-reasons`, `printer-state-message`, `printer-is-accepting-jobs`, `document-format-supported`, `sides-supported`, `print-color-mode-supported`, `copies-supported`, `multiple-document-handling-supported`, `media-col-supported`, `media-col-ready` and `media-col-database` (sizes in hundredths of a millimetre, with margins, type and source), `media-ready`, `media-type-supported`, `media-source-supported`, `print-quality-supported`, `print-scaling-supported`, `output-bin-default` and `printer-output-tray`, `pwg-raster-document-resolution-supported`, `-type-supported` and `-sheet-back`, `urf-supported`, the supplies (`marker-names`, `-colors`, `-levels`, `-types`, `-low-levels`, `-high-levels`), `printer-more-info` and `printer-supply-info-uri`. A `PrintableArea` for a paper comes from the matching database entry, never from rounding points. Fixtures in `Tests/Fixtures/Ipp/printers/` are Get-Printer-Attributes responses: some written by `scripts/make_ipp_fixtures.py` (standard library only) from the attribute lists beside them, and at least one captured byte for byte from a real printer.
+
+`IppProblems.describe(reasons:, message:, reachable:) -> [PrinterProblem]`: the state reasons a user can act on, worst first. A reason ending `-error` stops jobs, `-warning` and `-report` do not; a reason without a suffix is an error (RFC 8011 §5.4.12), except those ending in `-low` or `-needed`, which are warnings; `none` is nothing. `PrinterProblem` has Lazy Scan's `ScannerProblem` shape: `title` ("Out of paper", "Paper jam", "Cover open", "Ink empty", "Ink low", "Printer paused", "Output tray full", and "Printer offline" for a printer that does not answer, which is not an IPP reason), `advice` ("Load paper in the tray, then press Resume."), `isError`.
+
+### Ipp/DocumentFormats
+
+```swift
+public enum DocumentKind: Sendable { case pdf(encrypted: Bool), photo, imposed }
+public enum DocumentFormats {
+    /// The format a job goes in. A PDF goes as itself only when it is printed as it is: one page per side,
+    /// every page once in order, fit or shrink to fit, no booklet, no manual duplex, not encrypted. One photo goes
+    /// as JPEG only when it is printed whole on paper of its own size. Everything else is sheets drawn by
+    /// Lazy Print: `application/pdf` where the platform can write one (`canWritePDF`: the Mac and the iPhone,
+    /// CoreGraphics), else `image/pwg-raster`, then `image/urf`. Nil when the printer takes none of them.
+    public static func choose(supported: [String], kind: DocumentKind, canWritePDF: Bool) -> String?
+}
+```
+
+A job the printer refuses with `client-error-document-format-not-supported` (0x040A), `-document-format-error` (0x0411) or `-document-unprintable-error` (0x041B) is sent once more as raster. `IppStatus` names the status codes of RFC 8011 §B and PWG 5100.13 with their numbers. Nil gives `PrintError.needsDriver` ("This printer needs its driver").
+
+### Ipp/PwgRaster, Ipp/UrfRaster
+
+`PwgRaster` writes PWG 5102.4 raster, big-endian: the `RaS2` sync word, then per page a 1796-byte header (the CUPS v2 header with PWG's fields: `MediaClass` "PwgRaster", `HWResolution`, `PageSize` in points, `cupsWidth`, `cupsHeight`, `cupsBitsPerColor` 8, `cupsBitsPerPixel` 8 or 24, `cupsBytesPerLine`, `cupsColorOrder` 0, `cupsColorSpace` 18 sGray or 19 sRGB, `cupsNumColors`, `Duplex`, `Tumble` false, `cupsInteger[0]` TotalPageCount, `[1]` CrossFeedTransform, `[2]` FeedTransform, `[8]` PrintQuality, `cupsPageSizeName` the PWG media name) and the page's lines. Each line is a line-repeat byte (n means n+1 identical lines) and runs of whole pixels: a byte 0–127 repeats the next pixel n+1 times, 129–255 is followed by 257−n literal pixels. The resolution is one of `pwg-raster-document-resolution-supported` (300 dpi when listed, else the lowest).
+
+`UrfRaster` writes Apple raster for printers that list `urf-supported` and not `image/pwg-raster` (AirPrint-only): `UNIRAST\0`, the page count, then per page its 32-byte header (bits per pixel, color space, duplex, quality, width, height, resolution) and lines with the same line-repeat and run codes as PWG, chosen from the `urf-supported` tokens (`RS300`, `W8`, `SRGB24`, `DM1`–`DM4`). Both are pinned by golden files, and the tests decode what is written with a separate reader.
+
+Backs (the even pages of a two-sided raster job) are reordered for the printer's sheet-back keyword before they are written, on top of the planner's 180° turns, and the header carries the same transforms: `normal` and `manual-tumble` as they are (1, 1); `rotated` turned 180° (−1, −1); `flipped` lines reversed bottom to top (1, −1). Cross-feed −1 means each line is written right to left, feed −1 that the lines are written bottom to top. URF's `DM1`–`DM4` map to normal, flipped, rotated and manual-tumble. A manual-duplex pass is one-sided: `Duplex` false, no transform.
+
+`PwgRaster.writePage(header:, rows:)` and `UrfRaster.writePage` take the sheet a row at a time, so a job never holds more than one sheet in memory.
+
+### Ipp/ addresses, discovery seam, trust
+
+From Lazy Scan's `Escl/` with the protocol changed: `IppService` (the seam a platform's DNS-SD browser hands over: name, host, port, service type `_ipp._tcp` or `_ipps._tcp`, addresses, TXT), `IppTxtRecord` (`rp` default `ipp/print`, `ty`, `product`, `pdl`, `Color`, `Duplex`, `UUID`, `adminurl`, `note`, `URF`, `TLS`, `kind`, `PaperMax`), `IppEndpoint.choose` (one printer per UUID, `ipps` first, then IPv4, the `.local` name, IPv6), `PrinterAddress` (Lazy Scan's `ScannerAddress` for `ipp://`, `ipps://`, `http(s)://`, `host`, `host:port`; port 631 and path `/ipp/print` by default), `IppHostList` (`ipp-hosts.json`), `IppTrust` (`ipp-trust.json`), `IppRetry`.
+
+### Ipp/IppClient
+
+`IppClient(endpoint:, trust:, session:)` with `capabilities() async throws -> PrinterCapabilities`, `print(_ document: URL, ticket:) async throws -> IppJob`, `job(_ id:)`, `cancel(_ id:)`.
+
+- A job's document is first spooled to a temporary file a sheet at a time; the Print-Job request (the encoded operation, then the file) is sent with `Content-Length` and `Content-Type: application/ipp`, never chunked and never with `Expect: 100-continue`, which many printers' web servers mishandle. A retry sends the file again; the file is deleted when the job is done or abandoned. Print-Job's timeout counts from the last byte sent (120 s).
+- A busy printer (HTTP 503, or IPP `server-error-busy` 0x0507) is retried with `IppRetry`; `server-error-not-accepting-jobs` (0x0506) is reported as the printer's problem.
+- HTTP 426 (upgrade required) moves the printer to `ipps`. An `ipps` handshake that fails before any certificate is seen falls back to `ipp`, marked "Not encrypted", never after a certificate was refused (Lazy Scan's rule).
+- Get-Job-Attributes answering `client-error-not-found` after a job was accepted means the printer finished and forgot it: the job counts as completed.
+- Errors: `PrintError.unreachable(name, reason)`, `.refused(status, message)`, `.needsDriver`, `.busy`, `.certificateChanged`, `.needsSignIn` (HTTP 401, or `job-password` required: refused with "This printer asks for a sign-in, which Lazy Print can't do yet").
+- Tests run against a loopback IPP printer (`LoopbackIppPrinter` in each test suite) that records what it gets and answers from the fixtures.
+
+## Printing through the system
+
+The printers the system has set up are printed to without the system's dialog, with the job's settings forced so a driver's defaults cannot impose the sheets a second time: Windows' spooler ticket always sets `PageMediaSize`, `PageOrientation` Portrait, `PageScaling` None, one page per sheet, no booklet, `JobPageOrder` Standard, and `Duplexing` TwoSidedLongEdge or OneSided (manual passes); the Mac sets portrait, 100 %, no fit to page, `number-up` 1, `outputorder` normal and long-edge duplex or none. Copies are the printer's when it can collate them (`PrintCopies`), else repeated in the job.
