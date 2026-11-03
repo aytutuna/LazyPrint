@@ -1,5 +1,6 @@
 """Writes the small documents the app's tests open (Tests/Fixtures/Documents): PDFs written by hand, so no PDF library
-decides what they contain, pictures with Pillow, and a locked PDF made by pypdf from one of them.
+decides what they contain, pictures with Pillow, and PDFs encrypted by pypdf (cryptography does the AES) from one of them: one that wants a
+password to open, and two that have only an owner password and open for anyone.
 
 Usage: python scripts/make_document_fixtures.py [directory]
 """
@@ -60,7 +61,12 @@ def main():
         (612, 792, 90, banded),
         (595, 842, 0, fill(BLUE, 0, 0, 595, 842)),
     ]))
-    write("locked.pdf", locked(pdf([(612, 792, 0, fill(RED, 0, 0, 612, 792))])))
+    red = pdf([(612, 792, 0, fill(RED, 0, 0, 612, 792))])
+    # Encryption is random, so these are written only when missing: a rerun leaves the checked-in files as they are.
+    for name, user, algorithm in [("locked.pdf", "secret", "RC4-128"), ("owner-only-rc4.pdf", "", "RC4-128"),
+                                  ("owner-only-aes.pdf", "", "AES-128")]:
+        if not os.path.exists(os.path.join(target, name)):
+            write(name, encrypted(red, user, algorithm))
 
     # Left half red, right half blue: 600 x 300 pixels at 300 dpi is 144 x 72 points.
     halves = Image.new("RGB", (600, 300), (255, 0, 0))
@@ -79,9 +85,9 @@ def main():
         f.write("Not a document Lazy Print prints.\n")
 
 
-def locked(data):
+def encrypted(data, user, algorithm):
     writer = PdfWriter(clone_from=PdfReader(io.BytesIO(data)))
-    writer.encrypt("secret", algorithm="RC4-128")
+    writer.encrypt(user, "owner", algorithm=algorithm)
     out = io.BytesIO()
     writer.write(out)
     return out.getvalue()

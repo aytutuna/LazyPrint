@@ -164,6 +164,18 @@ public class DocumentLoaderTests
         Assert.Equal("This PDF is locked. Open it in a PDF app and print it from there.", error.Message);
     }
 
+    [Theory]
+    [InlineData("owner-only-rc4.pdf")]
+    [InlineData("owner-only-aes.pdf")]
+    public async Task APdfWithOnlyAnOwnerPasswordOpensAndDraws(string name)
+    {
+        var document = await Open(name);
+
+        Assert.Equal(new DocumentKind.Pdf(true), document.Kind);
+        AssertSize(new LayoutSize(612, 792), Assert.Single(document.Pages));
+        Pixels.AssertColor(Pixels.Red, _loader.Render(document, 0, null, 61, 79), 30, 40);
+    }
+
     [Fact]
     public async Task AFileOfAnotherKindIsRefused()
     {

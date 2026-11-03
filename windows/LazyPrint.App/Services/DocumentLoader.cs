@@ -83,11 +83,11 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         public bool Protected { get; }
         public IReadOnlyList<LayoutSize> PageSizes { get; }
 
-        private PdfSource(Windows.Data.Pdf.PdfDocument document, Windows.Storage.Streams.IRandomAccessStream stream)
+        private PdfSource(Windows.Data.Pdf.PdfDocument document, Windows.Storage.Streams.IRandomAccessStream stream, bool encrypted)
         {
             _document = document;
             _stream = stream;
-            Protected = document.IsPasswordProtected;
+            Protected = encrypted;
             var sizes = new List<LayoutSize>();
             for (uint i = 0; i < document.PageCount; i++)
             {
@@ -104,7 +104,8 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             {
                 var document = await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(stream);
                 if (document.PageCount == 0) throw new InvalidOperationException(DocumentText.NoPages);
-                return new PdfSource(document, stream);
+                // IsPasswordProtected stays false for an owner password, and a printer may refuse such a file as it is.
+                return new PdfSource(document, stream, bytes.AsSpan().IndexOf("/Encrypt"u8) >= 0);
             }
             catch (Exception e) when (e is not InvalidOperationException)
             {
