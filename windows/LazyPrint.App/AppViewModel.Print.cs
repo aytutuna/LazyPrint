@@ -113,11 +113,18 @@ public sealed partial class AppViewModel
         return PrintJobs.Plan([.. Documents], PageRangeIndexes(), Settings, SelectedTask, SelectedCapabilities, SelectedPrefs);
     }
 
-    /// <summary>The cut marks a photo print shows on the sheet, as the renderer draws them; none for other tasks.</summary>
+    /// <summary>The cut marks a photo print or a photo sheet shows on the sheet, as the renderer draws them; none for other tasks.</summary>
     public IReadOnlyList<TestPageItem> CutMarks(SheetSide side, PrintableArea area)
     {
-        return MarksOf(SelectedTask, Settings) is { } options ? PhotoLayout.CutMarks(side, options, area) : [];
+        if (MarksOf(SelectedTask, Settings) is { } options) return PhotoLayout.CutMarks(side, options, area);
+        return FrameMarksOf(SelectedTask, Settings) ? PhotoLayout.FrameMarks(side) : [];
     }
+
+    /// <summary>Whether the cut marks are asked for, of either kind.</summary>
+    public bool DrawsCutMarks => (SelectedTask == PrintTask.Photos || FrameMarksOf(SelectedTask, Settings)) && Settings.CutMarks;
+
+    /// <summary>A photo sheet's marks are at the frames its photos were planned into.</summary>
+    private static bool FrameMarksOf(PrintTask? task, PrintSettings settings) => task == PrintTask.PhotoSheet && settings.CutMarks;
 
     /// <summary>What the cut marks of a photo print are laid out from; null when the task or the settings draw none.</summary>
     private static PhotoOptions? MarksOf(PrintTask? task, PrintSettings settings)
@@ -167,7 +174,8 @@ public sealed partial class AppViewModel
         var printer = inputs.Printer;
         var plan = PrintJobs.Plan(inputs.Documents, inputs.Range, inputs.Settings, inputs.Task, inputs.Capabilities, PrefsOf(printer));
         string id = Guid.NewGuid().ToString("N");
-        var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Task, inputs.Settings));
+        var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Task, inputs.Settings),
+                                FrameMarksOf(inputs.Task, inputs.Settings));
         var record = Record(job);
         KeepAgain(id, () => PrintDocumentsAsync(inputs));
 

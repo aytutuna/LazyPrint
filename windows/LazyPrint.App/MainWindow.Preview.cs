@@ -85,7 +85,7 @@ public partial class MainWindow
         var area = plan.Plan.Area;
         int dpi = PreviewDpi(area.Paper);
         var documents = ViewModel.Documents.ToList();
-        bool marks = ViewModel.SelectedTask == PrintTask.Photos && ViewModel.Settings.CutMarks;
+        bool marks = ViewModel.DrawsCutMarks;
         SyncPreviewBar(plan);
         ShowNotes(plan);
 

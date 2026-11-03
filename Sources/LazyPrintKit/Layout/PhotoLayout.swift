@@ -91,11 +91,21 @@ public enum PhotoLayout {
     /// The cut marks of a planned side, as lines for the renderer: at the corners of the print cells the
     /// side uses, none when only one print fits on a sheet.
     public static func cutMarks(_ side: SheetSide, options: PhotoOptions, area: PrintableArea) -> [TestPageItem] {
-        var marks: [TestPageItem] = []
         let cells = layoutCells(for: options.size.size, printable: area.printable)
-        if cells.count < 2 { return marks }
+        if cells.count < 2 { return [] }
+        return corners(of: Array(cells.prefix(side.placements.count)))
+    }
+
+    /// The cut marks of a photo sheet's side, which `Imposition` planned: at the corners of the frames its photos
+    /// are in, none for a side with one photo.
+    public static func frameMarks(_ side: SheetSide) -> [TestPageItem] {
+        side.placements.count < 2 ? [] : corners(of: side.placements.map { $0.frame })
+    }
+
+    private static func corners(of frames: [LayoutRect]) -> [TestPageItem] {
+        var marks: [TestPageItem] = []
         let gray = TestColor.gray(128)
-        for f in cells.prefix(side.placements.count) {
+        for f in frames {
             for (x, dx) in [(f.x, -1.0), (f.x + f.width, 1.0)] {
                 for (y, dy) in [(f.y, -1.0), (f.y + f.height, 1.0)] {
                     marks.append(.line(from: LayoutPoint(x: x, y: y), to: LayoutPoint(x: x + dx * markLength, y: y), width: 0.5, color: gray))

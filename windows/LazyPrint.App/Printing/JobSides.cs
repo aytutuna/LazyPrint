@@ -19,7 +19,8 @@ internal static class JobSides
     public static int Copies(SheetJob job) => Math.Max(Repeats(job), job.Plan.CopiesInJob);
 
     private static IReadOnlyList<TestPageItem>? CutMarks(SheetJob job, SheetSide side) =>
-        job.Marks is { } options ? PhotoLayout.CutMarks(side, options, job.Plan.Plan.Area) : null;
+        job.Marks is { } options ? PhotoLayout.CutMarks(side, options, job.Plan.Plan.Area)
+        : job.FrameMarks ? PhotoLayout.FrameMarks(side) : null;
 
     /// <summary>The sides of a pass in the order they are sent, the pages repeated for the copies the job carries itself.</summary>
     public static List<DrawnSide> Of(SheetJob job, int pass)

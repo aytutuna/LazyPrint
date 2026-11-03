@@ -177,4 +177,21 @@ final class PhotoLayoutTests: XCTestCase {
         let plan = PhotoLayout.plan(photos(3), options: options, area: wholePaper(layoutLetter))
         XCTAssertEqual(PhotoLayout.cutMarks(plan.sheets[1].front, options: options, area: plan.area).count, 8)
     }
+
+    func test_frameMarks_aPhotoSheet_marksTheCornersOfEachFrame() {
+        let plan = Imposition.plan(photos(4), options: LayoutOptions(pagesPerSheet: 4, scaling: .fill), area: wholePaper(layoutLetter))
+        let side = plan.sheets[0].front
+        let lines = drawnLines(PhotoLayout.frameMarks(side))
+        XCTAssertEqual(lines.count, 32)
+        for placement in side.placements {
+            let frame = placement.frame
+            let corner = lines.filter { $0.from.x == frame.x && $0.from.y == frame.y }
+            XCTAssertGreaterThanOrEqual(corner.count, 2)
+        }
+    }
+
+    func test_frameMarks_onePhoto_hasNone() {
+        let plan = Imposition.plan(photos(1), options: LayoutOptions(pagesPerSheet: 4, scaling: .fill), area: wholePaper(layoutLetter))
+        XCTAssertTrue(PhotoLayout.frameMarks(plan.sheets[0].front).isEmpty)
+    }
 }

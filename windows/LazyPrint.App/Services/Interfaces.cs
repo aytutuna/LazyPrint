@@ -32,11 +32,12 @@ public sealed record DrawnItems(IReadOnlyList<TestPageItem> Items, bool Turned =
 /// A job as it goes to a printer: what the plan laid out, and what it was laid out from. <paramref name="Id"/> is the
 /// job record's, so a printer that keeps files for a job finds them again for its second pass. A job made of
 /// <paramref name="Items"/> (the test page, the two-sided check) has no documents: each side of its one pass is drawn from
-/// the items at the same index. <paramref name="Marks"/> asks for the cut marks of photo prints on the sides of documents.
+/// the items at the same index. <paramref name="Marks"/> asks for the cut marks of photo prints on the sides of documents,
+/// <paramref name="FrameMarks"/> for those of a photo sheet.
 /// </summary>
 public sealed record SheetJob(string Name, PrinterInfo Printer, PrinterCapabilities? Capabilities, PrintSettings Settings,
                               JobPlan Plan, IReadOnlyList<LoadedDocument> Documents, string Id = "",
-                              IReadOnlyList<DrawnItems>? Items = null, PhotoOptions? Marks = null)
+                              IReadOnlyList<DrawnItems>? Items = null, PhotoOptions? Marks = null, bool FrameMarks = false)
 {
     /// <summary>A one-sided job of sides drawn from drawing items alone, one sheet each.</summary>
     public static SheetJob OfItems(string id, string name, PrinterInfo printer, PrinterCapabilities? capabilities, PrintableArea area,

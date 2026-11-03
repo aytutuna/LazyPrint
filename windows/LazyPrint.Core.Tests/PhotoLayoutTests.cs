@@ -211,4 +211,25 @@ public class PhotoLayoutTests
         var marks = PhotoLayout.CutMarks(plan.Sheets[1].Front, options, plan.Area);
         Assert.Equal(8, marks.Count);
     }
+
+    [Fact]
+    public void FrameMarks_APhotoSheet_MarksTheCornersOfEachFrame()
+    {
+        var plan = Imposition.Plan(Photos(4), new LayoutOptions { PagesPerSheet = 4, Scaling = Scaling.Fill }, Whole(Letter));
+        var side = plan.Sheets[0].Front;
+        var lines = PhotoLayout.FrameMarks(side).OfType<TestPageItem.Line>().ToList();
+        Assert.Equal(32, lines.Count);
+        foreach (var placement in side.Placements)
+        {
+            var frame = placement.Frame;
+            Assert.True(lines.Count(l => l.From.X == frame.X && l.From.Y == frame.Y) >= 2);
+        }
+    }
+
+    [Fact]
+    public void FrameMarks_OnePhoto_HasNone()
+    {
+        var plan = Imposition.Plan(Photos(1), new LayoutOptions { PagesPerSheet = 4, Scaling = Scaling.Fill }, Whole(Letter));
+        Assert.Empty(PhotoLayout.FrameMarks(plan.Sheets[0].Front));
+    }
 }

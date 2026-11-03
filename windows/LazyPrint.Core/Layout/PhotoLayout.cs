@@ -73,11 +73,22 @@ public static class PhotoLayout
     /// </summary>
     public static IReadOnlyList<TestPageItem> CutMarks(SheetSide side, PhotoOptions options, PrintableArea area)
     {
-        var marks = new List<TestPageItem>();
         var cells = Cells(options.Size.Size, area.Printable);
-        if (cells.Count < 2) return marks;
+        return cells.Count < 2 ? [] : Corners(cells.Take(side.Placements.Count));
+    }
+
+    /// <summary>
+    /// The cut marks of a photo sheet's side, which <c>Imposition</c> planned: at the corners of the frames its
+    /// photos are in, none for a side with one photo.
+    /// </summary>
+    public static IReadOnlyList<TestPageItem> FrameMarks(SheetSide side) =>
+        side.Placements.Count < 2 ? [] : Corners(side.Placements.Select(p => p.Frame));
+
+    private static List<TestPageItem> Corners(IEnumerable<LayoutRect> frames)
+    {
+        var marks = new List<TestPageItem>();
         var gray = TestColor.Gray(128);
-        foreach (var f in cells.Take(side.Placements.Count))
+        foreach (var f in frames)
         {
             foreach (var (x, dx) in new[] { (f.X, -1), (f.X + f.Width, 1) })
             {

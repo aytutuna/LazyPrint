@@ -338,6 +338,21 @@ public sealed class PrintFlowTests
     }
 
     [Fact]
+    public async Task TheCutMarksOfAPhotoSheetAreInTheSidesTheJobSends()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.StartTaskAsync(PrintTask.PhotoSheet);
+        rig.Model.Settings.PaperId = "letter";
+        await rig.Model.AddFilesAsync(["a.png", "b.png", "c.png", "d.png"]);
+        await rig.Model.PrintAsync();
+
+        var side = JobSides.Of(rig.Sheets.Jobs.Single(), 0)[0];
+
+        Assert.Equal(32, side.Items!.Count);
+    }
+
+    [Fact]
     public async Task TheReloadCardCountsTheCopiesThePrinterMakes()
     {
         using var rig = await ManualRig();
