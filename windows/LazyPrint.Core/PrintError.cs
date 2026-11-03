@@ -49,6 +49,17 @@ public abstract record PrintError
     {
         public override string Message => "This printer asks for a sign-in, which Lazy Print can't do yet";
     }
+
+    /// <summary>A file that can't be printed; the sentence says why (<see cref="DocumentText"/>).</summary>
+    public sealed record Unreadable(string Sentence) : PrintError
+    {
+        public override string Message => Sentence;
+    }
+
+    public sealed record NoPrinter : PrintError
+    {
+        public override string Message => PrintText.NoPrinterMessage;
+    }
 }
 
 /// <summary>A <see cref="PrintError"/> as an exception.</summary>

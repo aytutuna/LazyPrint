@@ -15,6 +15,9 @@ public enum PrintError: LocalizedError, Equatable, Sendable {
     case needsSignIn
     /// A sheet was drawn with the wrong line length for its raster header (a bug, not the printer's doing).
     case badRaster(line: Int, length: Int, expected: Int)
+    /// A file that can't be printed; the sentence says why (`DocumentText`).
+    case unreadable(String)
+    case noPrinter
 
     public var errorDescription: String? {
         switch self {
@@ -27,6 +30,8 @@ public enum PrintError: LocalizedError, Equatable, Sendable {
         case .certificateChanged: return "The printer's certificate has changed"
         case .needsSignIn: return "This printer asks for a sign-in, which Lazy Print can't do yet"
         case .badRaster: return "A page could not be prepared for the printer"
+        case .unreadable(let sentence): return sentence
+        case .noPrinter: return PrintText.noPrinterMessage
         }
     }
 }

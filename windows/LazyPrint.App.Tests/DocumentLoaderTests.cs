@@ -181,7 +181,7 @@ public class DocumentLoaderTests
         {
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(path, CancellationToken.None));
 
-            Assert.Equal(DocumentLoader.Unreadable, error.Message);
+            Assert.Equal(DocumentText.Unreadable, error.Message);
         }
         finally
         {
@@ -194,7 +194,7 @@ public class DocumentLoaderTests
     {
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(DocumentFixtures.PathOf("missing.png"), CancellationToken.None));
 
-        Assert.Equal(DocumentLoader.Unreadable, error.Message);
+        Assert.Equal(DocumentText.Unreadable, error.Message);
     }
 
     [Fact]

@@ -128,7 +128,7 @@ public sealed record PrinterFailure(string PrinterName, string Message, PrinterP
 
     public static PrinterFailure? From(string printerName, PrintError error) => error switch
     {
-        PrintError.BadRaster => null,
+        PrintError.BadRaster or PrintError.Unreadable => null,
         PrintError.Busy => new PrinterFailure(printerName, error.Message, Busy),
         PrintError.NeedsDriver => new PrinterFailure(printerName, error.Message, NeedsDriver),
         PrintError.NeedsSignIn => new PrinterFailure(printerName, error.Message, NeedsSignIn),

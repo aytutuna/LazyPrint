@@ -141,6 +141,7 @@ public class TroubleshooterTests
         [
             new PrintError.BadResponse(), new PrintError.Unreachable("Office MFP", "no answer"), new PrintError.Refused(0x0400, ""),
             new PrintError.NeedsDriver(), new PrintError.Busy(), new PrintError.CertificateChanged(), new PrintError.NeedsSignIn(),
+            new PrintError.NoPrinter(),
         ];
         foreach (var error in errors)
         {
@@ -408,6 +409,8 @@ public class TroubleshooterTests
 
         // A page that could not be prepared says nothing about reaching the printer.
         Assert.Null(PrinterFailure.From("Acme", new PrintError.BadRaster(1, 2, 3)));
+        // Nor does a file that can't be read.
+        Assert.Null(PrinterFailure.From("Acme", new PrintError.Unreadable(DocumentText.Unreadable)));
         Assert.Equal(busy, PrinterFailure.From("Acme", new PrintException(new PrintError.Busy())));
     }
 

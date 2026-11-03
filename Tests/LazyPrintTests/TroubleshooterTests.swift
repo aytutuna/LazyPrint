@@ -128,6 +128,7 @@ final class TroubleshooterTests: XCTestCase {
         let errors: [PrintError] = [
             .badResponse, .unreachable(name: "Office MFP", reason: "no answer"), .refused(status: 0x0400, detail: ""),
             .needsDriver, .busy, .certificateChanged, .needsSignIn,
+            .noPrinter,
         ]
         for error in errors {
             for platform in platforms {
@@ -359,6 +360,8 @@ final class TroubleshooterTests: XCTestCase {
 
         // A page that could not be prepared says nothing about reaching the printer.
         XCTAssertNil(PrinterFailure.from(printerName: "Acme", error: PrintError.badRaster(line: 1, length: 2, expected: 3)))
+        // Nor does a file that can't be read.
+        XCTAssertNil(PrinterFailure.from(printerName: "Acme", error: PrintError.unreadable(DocumentText.unreadable)))
     }
 
     func test_failureFrom_mapsCertificateErrors() throws {

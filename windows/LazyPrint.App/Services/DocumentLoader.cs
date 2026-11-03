@@ -14,10 +14,6 @@ namespace LazyPrint.App.Services;
 /// </summary>
 public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFiles
 {
-    public const string LockedPdf = "This PDF is locked. Open it in a PDF app and print it from there.";
-    public const string NotSupported = "Lazy Print prints PDFs and pictures. Save it as a PDF first.";
-    public const string Unreadable = "Lazy Print can't read this file.";
-
     /// <summary>The pictures the picker offers; HEIC opens only where Windows has the extension for it.</summary>
     public static readonly string[] PictureExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".heic", ".heif"];
 
@@ -33,7 +29,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     {
         string name = Path.GetFileName(path);
         string extension = Path.GetExtension(path).ToLowerInvariant();
-        if (extension != ".pdf" && !PictureExtensions.Contains(extension)) throw new InvalidOperationException(NotSupported);
+        if (extension != ".pdf" && !PictureExtensions.Contains(extension)) throw new InvalidOperationException(DocumentText.NotSupported);
 
         Source source;
         LoadedDocument document;
@@ -57,7 +53,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         }
         catch (Exception e) when (e is not (InvalidOperationException or OperationCanceledException))
         {
-            throw new InvalidOperationException(Unreadable, e);
+            throw new InvalidOperationException(DocumentText.Unreadable, e);
         }
         _sources.Add(document, source);
         return document;
@@ -107,14 +103,14 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             try
             {
                 var document = await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(stream);
-                if (document.PageCount == 0) throw new InvalidOperationException("This PDF has no pages.");
+                if (document.PageCount == 0) throw new InvalidOperationException(DocumentText.NoPages);
                 return new PdfSource(document, stream);
             }
             catch (Exception e) when (e is not InvalidOperationException)
             {
                 stream.Dispose();
                 // A PDF that wants a password to open says so with ERROR_WRONG_PASSWORD (0x8007052B).
-                if (e.HResult == unchecked((int)0x8007052B)) throw new InvalidOperationException(LockedPdf, e);
+                if (e.HResult == unchecked((int)0x8007052B)) throw new InvalidOperationException(DocumentText.LockedPdf, e);
                 throw;
             }
         }

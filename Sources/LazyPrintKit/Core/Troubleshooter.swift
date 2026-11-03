@@ -146,12 +146,12 @@ public struct PrinterFailure: Equatable, Sendable {
         let message = error.localizedDescription
         guard let printError = error as? PrintError else { return PrinterFailure(printerName: printerName, message: message) }
         switch printError {
-        case .badRaster: return nil
+        case .badRaster, .unreadable: return nil
         case .busy: return PrinterFailure(printerName: printerName, message: message, problem: busy)
         case .needsDriver: return PrinterFailure(printerName: printerName, message: message, problem: needsDriver)
         case .needsSignIn: return PrinterFailure(printerName: printerName, message: message, problem: needsSignIn)
         case .certificateChanged: return PrinterFailure(printerName: printerName, message: message, problem: certificateChanged)
-        case .badResponse, .unreachable, .refused: return PrinterFailure(printerName: printerName, message: message)
+        case .badResponse, .unreachable, .refused, .noPrinter: return PrinterFailure(printerName: printerName, message: message)
         }
     }
 }
