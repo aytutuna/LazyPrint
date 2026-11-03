@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazyPrint.Core", "LazyPrint
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazyPrint.Core.Tests", "LazyPrint.Core.Tests\LazyPrint.Core.Tests.csproj", "{CEEBD81B-FE71-424B-887A-2BAAA5C98794}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LazyPrint.App", "LazyPrint.App\LazyPrint.App.csproj", "{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,18 @@ Global
 		{CEEBD81B-FE71-424B-887A-2BAAA5C98794}.Release|x64.Build.0 = Release|Any CPU
 		{CEEBD81B-FE71-424B-887A-2BAAA5C98794}.Release|x86.ActiveCfg = Release|Any CPU
 		{CEEBD81B-FE71-424B-887A-2BAAA5C98794}.Release|x86.Build.0 = Release|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Debug|x64.Build.0 = Debug|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Debug|x86.Build.0 = Debug|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Release|x64.ActiveCfg = Release|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Release|x64.Build.0 = Release|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Release|x86.ActiveCfg = Release|Any CPU
+		{8EBB0A8F-A379-4BA9-B391-74FCDE97E02B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

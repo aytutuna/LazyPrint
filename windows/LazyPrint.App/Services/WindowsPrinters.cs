@@ -1,0 +1,245 @@
+using System.Diagnostics;
+using System.Printing;
+using LazyPrint.Core;
+
+namespace LazyPrint.App.Services;
+
+/// <summary>
+/// What the spooler says, turned into Core's words. These are plain functions over System.Printing's enums and
+/// numbers, so they run without a printer; <see cref="WindowsPrinters"/> only reads the queues and calls them.
+/// </summary>
+internal static class PrinterMapping
+{
+    /// <summary>The queue's status flags as states, in <see cref="SystemQueueState"/> order, each once.</summary>
+    public static IReadOnlyList<SystemQueueState> QueueStates(PrintQueueStatus status)
+    {
+        var states = new HashSet<SystemQueueState>();
+        void When(PrintQueueStatus flag, SystemQueueState state)
+        {
+            if (status.HasFlag(flag)) states.Add(state);
+        }
+
+        When(PrintQueueStatus.Paused, SystemQueueState.Paused);
+        When(PrintQueueStatus.Error, SystemQueueState.Error);
+        When(PrintQueueStatus.PaperProblem, SystemQueueState.Error);
+        When(PrintQueueStatus.OutOfMemory, SystemQueueState.Error);
+        When(PrintQueueStatus.PagePunt, SystemQueueState.Error);
+        When(PrintQueueStatus.Offline, SystemQueueState.Offline);
+        When(PrintQueueStatus.NotAvailable, SystemQueueState.Offline);
+        When(PrintQueueStatus.PaperOut, SystemQueueState.PaperOut);
+        When(PrintQueueStatus.PaperJam, SystemQueueState.PaperJam);
+        When(PrintQueueStatus.DoorOpen, SystemQueueState.DoorOpen);
+        When(PrintQueueStatus.TonerLow, SystemQueueState.TonerLow);
+        When(PrintQueueStatus.NoToner, SystemQueueState.NoToner);
+        When(PrintQueueStatus.UserIntervention, SystemQueueState.UserIntervention);
+        When(PrintQueueStatus.ManualFeed, SystemQueueState.UserIntervention);
+        When(PrintQueueStatus.OutputBinFull, SystemQueueState.UserIntervention);
+        When(PrintQueueStatus.Busy, SystemQueueState.Busy);
+        When(PrintQueueStatus.Printing, SystemQueueState.Busy);
+        When(PrintQueueStatus.Processing, SystemQueueState.Busy);
+        When(PrintQueueStatus.IOActive, SystemQueueState.Busy);
+        return [.. states.OrderBy(state => state)];
+    }
+
+    /// <summary>The jobs of a queue: how many, whether one is in error, and how long the oldest has waited.</summary>
+    public static SystemQueueJobs Jobs(IReadOnlyList<(PrintJobStatus Status, DateTime Submitted)> jobs, DateTime now)
+    {
+        if (jobs.Count == 0) return SystemQueueJobs.None;
+        const PrintJobStatus Trouble = PrintJobStatus.Error | PrintJobStatus.Offline | PrintJobStatus.PaperOut
+            | PrintJobStatus.UserIntervention | PrintJobStatus.Blocked;
+        bool anyInError = jobs.Any(job => (job.Status & Trouble) != 0);
+        int oldest = (int)Math.Max(0, (now - jobs.Min(job => job.Submitted)).TotalMinutes);
+        return new SystemQueueJobs(jobs.Count, anyInError, oldest);
+    }
+
+    /// <summary>A port that prints to no device: a file, the "ask me" port, null.</summary>
+    public static bool IsVirtualPort(string? port) =>
+        port is not null && (port.StartsWith("FILE:", StringComparison.OrdinalIgnoreCase)
+                             || port.StartsWith("PORTPROMPT:", StringComparison.OrdinalIgnoreCase)
+                             || port.StartsWith("nul", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A size or an offset from the spooler's 1/96 inch to points.</summary>
+    public static double Points(double deviceIndependentUnits) => deviceIndependentUnits * 72 / 96;
+
+    private static int Hundredths(double deviceIndependentUnits) => (int)Math.Round(deviceIndependentUnits * 2540 / 96);
+
+    /// <summary>
+    /// A paper the printer takes and where it prints on it, in the units of a media-col-database entry. Sizes and the
+    /// imageable area are in 1/96 inch; the area is the box inside the paper, so the margins are what is left around it.
+    /// </summary>
+    public static MediaEntry Entry(double width, double height, double originWidth, double originHeight, double extentWidth, double extentHeight)
+    {
+        var margins = new MediaMargins(
+            Top: Hundredths(Math.Max(0, originHeight)),
+            Left: Hundredths(Math.Max(0, originWidth)),
+            Bottom: Hundredths(Math.Max(0, height - originHeight - extentHeight)),
+            Right: Hundredths(Math.Max(0, width - originWidth - extentWidth)));
+        return new MediaEntry([], Hundredths(width), Hundredths(height), false, margins, null, null);
+    }
+
+    /// <summary>
+    /// The papers worth asking the driver an imageable area for: the named sizes and the photo sizes, portrait. A driver can
+    /// list a hundred papers, and each area is a call into it.
+    /// </summary>
+    public static bool IsUsefulPaper(double width, double height)
+    {
+        if (width <= 0 || height <= 0 || width > height) return false;
+        var points = new LayoutSize(Points(width), Points(height));
+        return PaperSizes.Match(points) is not null
+               || PhotoSize.All.Any(photo => photo.Size is { } size
+                   && Math.Abs(size.Width - points.Width) <= PaperSizes.FitTolerance
+                   && Math.Abs(size.Height - points.Height) <= PaperSizes.FitTolerance);
+    }
+
+    /// <summary>What a driver lists, as the capabilities the layout and the job read.</summary>
+    public static PrinterCapabilities Capabilities(
+        string name, string? model, IEnumerable<Duplexing> duplex, IEnumerable<OutputColor> colors, int? maxCopies,
+        IEnumerable<Collation> collation, IEnumerable<OutputQuality> quality, IReadOnlyList<MediaEntry> papers)
+    {
+        var sides = new List<string> { "one-sided" };
+        var duplexList = duplex.ToList();
+        if (duplexList.Contains(Duplexing.TwoSidedLongEdge)) sides.Add("two-sided-long-edge");
+        if (duplexList.Contains(Duplexing.TwoSidedShortEdge)) sides.Add("two-sided-short-edge");
+
+        var colorList = colors.ToList();
+        var modes = new List<string>();
+        if (colorList.Contains(OutputColor.Color)) modes.Add("color");
+        if (colorList.Any(c => c is OutputColor.Monochrome or OutputColor.Grayscale)) modes.Add("monochrome");
+
+        var qualities = new List<int>();
+        foreach (var q in quality)
+        {
+            int value = q switch { OutputQuality.Draft => 3, OutputQuality.Normal => 4, OutputQuality.High or OutputQuality.Photographic => 5, _ => 0 };
+            if (value > 0 && !qualities.Contains(value)) qualities.Add(value);
+        }
+
+        return new PrinterCapabilities
+        {
+            Name = name,
+            MakeAndModel = model ?? "",
+            SidesSupported = sides,
+            PrintColorModesSupported = modes,
+            CopiesSupported = (1, Math.Max(1, maxCopies ?? 1)),
+            MultipleDocumentHandlingSupported = collation.Contains(Collation.Collated) ? ["separate-documents-collated-copies"] : [],
+            PrintQualitySupported = qualities,
+            MediaColDatabase = papers,
+        };
+    }
+}
+
+/// <summary>
+/// The spooler's queues through System.Printing (<see cref="IPrinterSystem"/>): the local queues and the ones connected
+/// from a print server. Every call reads fresh from the spooler; the view model polls.
+/// </summary>
+public sealed class WindowsPrinters : IPrinterSystem
+{
+    public IReadOnlyList<SystemPrinter> Queues()
+    {
+        var found = new List<SystemPrinter>();
+        using var server = new LocalPrintServer();
+        string? defaultName = DefaultQueueName(server);
+        foreach (var queue in server.GetPrintQueues([EnumeratedPrintQueueTypes.Local, EnumeratedPrintQueueTypes.Connections]))
+        {
+            using (queue)
+            {
+                try
+                {
+                    found.Add(Describe(queue, defaultName));
+                }
+                catch (Exception e) when (e is PrintSystemException or InvalidOperationException)
+                {
+                    // A queue that vanished between listing and reading is left out of this round.
+                    Trace.TraceWarning($"Could not read the print queue {queue.Name}: {e.Message}");
+                }
+            }
+        }
+        return found;
+    }
+
+    private static string? DefaultQueueName(LocalPrintServer server)
+    {
+        try
+        {
+            using var queue = LocalPrintServer.GetDefaultPrintQueue();
+            return queue.FullName;
+        }
+        catch (PrintSystemException)
+        {
+            // No default printer is set.
+            return null;
+        }
+    }
+
+    private static SystemPrinter Describe(PrintQueue queue, string? defaultName)
+    {
+        string? port = queue.QueuePort?.Name;
+        var states = PrinterMapping.QueueStates(queue.QueueStatus);
+        var jobs = SystemQueueJobs.None;
+        if (queue.NumberOfJobs > 0)
+        {
+            var list = new List<(PrintJobStatus, DateTime)>();
+            foreach (var job in queue.GetPrintJobInfoCollection())
+            {
+                list.Add((job.JobStatus, job.TimeJobSubmitted));
+                job.Dispose();
+            }
+            jobs = PrinterMapping.Jobs(list, DateTime.Now);
+        }
+        return new SystemPrinter(
+            queue.FullName,
+            queue.QueueDriver?.Name,
+            port,
+            string.Equals(queue.FullName, defaultName, StringComparison.OrdinalIgnoreCase),
+            PrinterMapping.IsVirtualPort(port),
+            states,
+            jobs);
+    }
+
+    public PrinterCapabilities? Capabilities(string queueName)
+    {
+        try
+        {
+            using var server = new LocalPrintServer();
+            using var queue = server.GetPrintQueue(queueName);
+            var capabilities = queue.GetPrintCapabilities();
+            var papers = new List<MediaEntry>();
+            foreach (var size in capabilities.PageMediaSizeCapability)
+            {
+                if (size.Width is not { } width || size.Height is not { } height || !PrinterMapping.IsUsefulPaper(width, height)) continue;
+                try
+                {
+                    // The imageable area belongs to the paper in the ticket, so each paper is asked for on its own.
+                    var area = queue.GetPrintCapabilities(new PrintTicket { PageMediaSize = size }).PageImageableArea;
+                    if (area is null) continue;
+                    papers.Add(PrinterMapping.Entry(width, height, area.OriginWidth, area.OriginHeight, area.ExtentWidth, area.ExtentHeight));
+                }
+                catch (Exception e) when (e is PrintQueueException or PrintSystemException or InvalidOperationException)
+                {
+                    Trace.TraceWarning($"No imageable area for a paper of {queueName}: {e.Message}");
+                }
+            }
+            return PrinterMapping.Capabilities(
+                queueName, queue.QueueDriver?.Name, capabilities.DuplexingCapability, capabilities.OutputColorCapability,
+                capabilities.MaxCopyCount, capabilities.CollationCapability, capabilities.OutputQualityCapability, papers);
+        }
+        catch (Exception e) when (e is PrintQueueException or PrintSystemException or InvalidOperationException)
+        {
+            Trace.TraceWarning($"Could not read the capabilities of {queueName}: {e.Message}");
+            return null;
+        }
+    }
+
+    public void ClearJobs(string queueName)
+    {
+        using var server = new LocalPrintServer();
+        using var queue = new PrintQueue(server, queueName, PrintSystemDesiredAccess.AdministratePrinter);
+        queue.Purge();
+    }
+
+    public void Resume(string queueName)
+    {
+        using var server = new LocalPrintServer();
+        using var queue = new PrintQueue(server, queueName, PrintSystemDesiredAccess.AdministratePrinter);
+        queue.Resume();
+    }
+}

@@ -10,6 +10,7 @@ troubleshooter's checks. No UI and no OS-specific APIs.</Description>
 
   <ItemGroup>
     <InternalsVisibleTo Include="LazyPrint.Core.Tests" />
+    <InternalsVisibleTo Include="LazyPrint" />
   </ItemGroup>
 
 </Project>

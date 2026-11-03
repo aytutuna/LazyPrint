@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 10.0.19041.0 gives access to WinRT APIs (Windows.Data.Pdf, device watchers) from WPF via CsWinRT. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>LazyPrint.App</RootNamespace>
+    <AssemblyName>LazyPrint</AssemblyName>
+    <NeutralLanguage>en</NeutralLanguage>
+    <Product>Lazy Print</Product>
+    <AssemblyTitle>Lazy Print</AssemblyTitle>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- Explorer, the taskbar and Alt+Tab; the windows load the same file as a resource. -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LazyPrint.Core\LazyPrint.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LazyPrint.App.Tests" />
+  </ItemGroup>
+
+</Project>
