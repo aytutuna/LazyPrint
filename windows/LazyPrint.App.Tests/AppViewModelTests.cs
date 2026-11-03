@@ -1,0 +1,472 @@
+using System.IO;
+using LazyPrint.App;
+using LazyPrint.Core;
+using Xunit;
+
+namespace LazyPrint.App.Tests;
+
+public sealed class AppViewModelTests
+{
+    // MARK: The printer list
+
+    [Fact]
+    public async Task PrinterListIsTheSpoolersQueuesThenTheDemoPrinter()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Queue.Add(Rig.Queue("Brother"));
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(["system:HP LaserJet", "system:Brother", "demo"], rig.Model.Printers.Select(p => p.Id));
+        Assert.True(rig.Model.HasRealPrinters);
+    }
+
+    [Fact]
+    public async Task VirtualQueuesAreLeftOut()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("Microsoft Print to PDF"));
+        rig.Spooler.Queue.Add(Rig.Queue("OneNote (Desktop)"));
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(["demo"], rig.Model.Printers.Select(p => p.Id));
+        Assert.False(rig.Model.HasRealPrinters);
+    }
+
+    [Fact]
+    public async Task DemoPrinterIsUsedWhenNothingElseIsListed()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal("demo", rig.Model.SelectedPrinter?.Id);
+        Assert.NotNull(rig.Model.SelectedCapabilities);
+    }
+
+    [Fact]
+    public async Task TheDefaultPrinterIsUsedUntilOneIsChosen()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet"));
+        rig.Spooler.Queue.Add(Rig.Queue("Brother", isDefault: true));
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Equal("system:Brother", rig.Model.SelectedPrinter?.Id);
+
+        await rig.Model.SelectPrinterAsync("system:HP LaserJet");
+        Assert.Equal("system:HP LaserJet", rig.Model.SelectedPrinter?.Id);
+    }
+
+    [Fact]
+    public async Task APrinterThatWentAwayIsNotUsed()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Queue.Add(Rig.Queue("Brother"));
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.SelectPrinterAsync("system:Brother");
+
+        rig.Spooler.Queue.RemoveAt(1);
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal("system:HP LaserJet", rig.Model.SelectedPrinter?.Id);
+    }
+
+    [Fact]
+    public async Task ARowSaysWhatIsWrongWithItsPrinter()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", true, SystemQueueState.PaperOut));
+        await rig.Model.RefreshPrintersAsync();
+
+        var row = rig.Model.Printers[0];
+        Assert.Equal("Out of paper", row.Problem);
+        Assert.Contains("Out of paper", row.Description);
+    }
+
+    [Fact]
+    public async Task ASpoolerThatDoesNotAnswerKeepsTheQueuesLastRead()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        await rig.Model.RefreshPrintersAsync();
+
+        rig.Spooler.Throws = true;
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(["system:HP LaserJet", "demo"], rig.Model.Printers.Select(p => p.Id));
+    }
+
+    [Fact]
+    public async Task ThePrintersCapabilitiesAreReadOnceAndKept()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Contains("two-sided-long-edge", rig.Model.SelectedCapabilities!.SidesSupported);
+    }
+
+    // MARK: Tasks
+
+    [Fact]
+    public async Task ABookletTileSetsTheBookletAndKeepsTheRest()
+    {
+        using var rig = new Rig();
+        rig.Model.Settings.Copies = 3;
+        await rig.Model.StartTaskAsync(PrintTask.Booklet);
+
+        var s = rig.Model.Settings;
+        Assert.True(s.Booklet);
+        Assert.Equal(Sides.LongEdge, s.Sides);
+        Assert.Equal("booklet", s.TaskId);
+        Assert.Equal(PrintTask.Booklet, rig.Model.SelectedTask);
+        Assert.Equal(3, s.Copies);
+    }
+
+    [Fact]
+    public async Task AHandoutsTileSetsTwoPerSideWithBorders()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Handouts);
+
+        Assert.Equal(2, rig.Model.Settings.PagesPerSheet);
+        Assert.True(rig.Model.Settings.PageBorders);
+    }
+
+    [Fact]
+    public async Task APhotoTileSetsTheSizeAndTheBestQuality()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Photos);
+
+        Assert.Equal("4x6", rig.Model.Settings.PhotoSizeId);
+        Assert.Equal(QualityChoice.Best, rig.Model.Settings.Quality);
+    }
+
+    [Fact]
+    public async Task ADocumentIsTwoSidedOnlyWhenThePrinterCanTurnTheSheet()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
+
+        await rig.Model.SelectPrinterAsync("demo");
+        rig.Model.Settings.Sides = Sides.OneSided;
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+        // The demo printer prints both sides too.
+        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
+    }
+
+    [Fact]
+    public async Task EveryTileIsThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        var cards = rig.Model.TaskCards;
+
+        Assert.Equal(TaskCatalog.Tasks(AppPlatform.Windows).Select(d => d.Task), cards.Select(c => c.Task));
+        var scan = Assert.Single(cards, c => !c.IsAvailable);
+        Assert.Equal(PrintTask.ScanAndPrint, scan.Task);
+        Assert.Equal("Needs Lazy Scan", scan.ShortReason);
+    }
+
+    [Fact]
+    public void TheTestPageWaitsForAPrinter()
+    {
+        using var rig = new Rig();
+        var card = rig.Model.TaskCards.Single(c => c.Task == PrintTask.TestPage);
+
+        Assert.False(card.IsAvailable);
+        Assert.Equal("Needs a printer", card.ShortReason);
+    }
+
+    [Fact]
+    public async Task ScanAndPrintOpensLazyScanWhenItIsInstalled()
+    {
+        using var rig = new Rig();
+        rig.Diagnostics.LazyScan = true;
+        var model = rig.Open();
+
+        Assert.True(model.TaskCards.Single(c => c.Task == PrintTask.ScanAndPrint).IsAvailable);
+        await model.StartTaskAsync(PrintTask.ScanAndPrint);
+
+        Assert.True(rig.Diagnostics.LazyScanOpened);
+        Assert.Null(model.SelectedTask);
+    }
+
+    [Fact]
+    public async Task AGreyedTileDoesNothing()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.ScanAndPrint);
+
+        Assert.False(rig.Diagnostics.LazyScanOpened);
+        Assert.Null(rig.Model.SelectedTask);
+    }
+
+    [Fact]
+    public async Task TheTestPagePrintsAtOnceOnThePrinterInUse()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.StartTaskAsync(PrintTask.TestPage);
+
+        var test = Assert.Single(rig.Sheets.Jobs);
+        Assert.Equal("demo", test.Printer.Id);
+        Assert.NotEmpty(Assert.Single(test.Items!).Items);
+        Assert.Null(rig.Model.SelectedTask);
+        Assert.Equal("Sent 1 sheet to Demo Printer", rig.Model.SentMessage);
+    }
+
+    [Fact]
+    public async Task APhoneTaskSaysItIsNotReadyAndChangesNothing()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.FromPhone);
+
+        Assert.True(rig.Model.ErrorIsNotice);
+        Assert.Null(rig.Model.SelectedTask);
+    }
+
+    [Fact]
+    public void ATileSummaryIsWhatTheTaskSets()
+    {
+        using var rig = new Rig();
+        var handouts = rig.Model.TaskCards.Single(c => c.Task == PrintTask.Handouts);
+
+        Assert.Equal("2 per side · Borders", handouts.Summary);
+    }
+
+    [Fact]
+    public async Task LeavingTheTaskKeepsTheSettings()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Handouts);
+        rig.Model.ClearTask();
+
+        Assert.Null(rig.Model.SelectedTask);
+        Assert.Equal(2, rig.Model.Settings.PagesPerSheet);
+    }
+
+    // MARK: Settings
+
+    [Fact]
+    public async Task SettingsAreSavedAndComeBackOnTheNextStart()
+    {
+        using var rig = new Rig();
+        Assert.True(rig.Model.IsFirstRun);
+        await rig.Model.StartTaskAsync(PrintTask.Handouts);
+        rig.Model.Settings.Copies = 4;
+        rig.Model.SettingsEdited();
+        rig.Model.FlushSettings();
+
+        var next = rig.Open();
+        Assert.False(next.IsFirstRun);
+        Assert.Equal(4, next.Settings.Copies);
+        Assert.Equal(2, next.Settings.PagesPerSheet);
+        Assert.Equal(PrintTask.Handouts, next.SelectedTask);
+    }
+
+    [Fact]
+    public async Task TheChosenPrinterIsRemembered()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet"));
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.SelectPrinterAsync("system:HP LaserJet");
+        rig.Model.FlushSettings();
+
+        Assert.Equal("system:HP LaserJet", rig.Open().Settings.PrinterId);
+    }
+
+    [Fact]
+    public void ACopyCountIsKeptInRange()
+    {
+        using var rig = new Rig();
+        rig.Model.Settings.Copies = 500;
+        rig.Model.SettingsEdited();
+
+        Assert.Equal(PrintCopies.MaxCount, rig.Model.Settings.Copies);
+    }
+
+    // MARK: Documents and printing
+
+    [Fact]
+    public async Task PrintNeedsADocument()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.False(rig.Model.CanPrint);
+        Assert.Equal("Add files to print", rig.Model.PrintDisabledReason);
+        Assert.Equal("Print", rig.Model.PrintLabel);
+    }
+
+    [Fact]
+    public async Task PrintSaysHowManySheetsItWillUse()
+    {
+        using var rig = new Rig();
+        rig.Loader.Pages = [new LayoutSize(612, 792), new LayoutSize(612, 792), new LayoutSize(612, 792)];
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+
+        Assert.True(rig.Model.CanPrint);
+        Assert.Equal("Print 3 sheets", rig.Model.PrintLabel);
+        rig.Model.SetPageRange("1-2");
+        Assert.Equal("Print 2 sheets", rig.Model.PrintLabel);
+    }
+
+    [Fact]
+    public async Task APageRangePastTheEndIsReportedAndStopsPrint()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Model.SetPageRange("9");
+
+        Assert.NotNull(rig.Model.PageRangeError);
+        Assert.False(rig.Model.CanPrint);
+    }
+
+    [Fact]
+    public async Task AFileThatCannotBeReadIsReportedAndTheOthersGoIn()
+    {
+        using var rig = new Rig();
+        await rig.Model.AddFilesAsync(["a.bad", "b.pdf"]);
+
+        Assert.Equal(["b.pdf"], rig.Model.Documents.Select(d => d.Name));
+        Assert.Contains("PDFs and pictures", rig.Model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task APrintedJobIsRecordedAndSaysWhatWasSent()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        await rig.Model.PrintAsync();
+
+        var job = Assert.Single(rig.Sheets.Jobs);
+        Assert.Equal("a.pdf", job.Name);
+        Assert.Equal("demo", job.Printer.Id);
+        Assert.Equal("Sent 1 sheet to Demo Printer", rig.Model.SentMessage);
+        Assert.Equal(JobState.Done, Assert.Single(rig.Model.Jobs).State);
+        Assert.False(rig.Model.IsBusy);
+    }
+
+    [Fact]
+    public async Task AFailedJobPutsItsProblemInTheErrorBar()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Sheets.Fails = new PrintException(new PrintError.Unreachable("Demo Printer", "no answer"));
+        await rig.Model.PrintAsync();
+
+        Assert.Equal("Couldn't print", rig.Model.ErrorTitle);
+        Assert.Contains("Demo Printer", rig.Model.ErrorMessage);
+        Assert.True(rig.Model.ErrorSuggestsTroubleshooter);
+        Assert.Null(rig.Model.SentMessage);
+        Assert.Equal(JobState.Failed, Assert.Single(rig.Model.Jobs).State);
+        Assert.False(rig.Model.IsBusy);
+    }
+
+    [Fact]
+    public async Task AJobThatIsNotAboutReachingThePrinterDoesNotOfferTheTroubleshooter()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Sheets.Fails = new IOException("The disk is full.");
+        await rig.Model.PrintAsync();
+
+        Assert.False(rig.Model.ErrorSuggestsTroubleshooter);
+    }
+
+    [Fact]
+    public async Task DismissingTheErrorAndTheSentBarClearsThem()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.bad"]);
+        Assert.NotNull(rig.Model.ErrorMessage);
+        rig.Model.DismissError();
+        Assert.Null(rig.Model.ErrorMessage);
+
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        await rig.Model.PrintAsync();
+        Assert.NotNull(rig.Model.SentMessage);
+        rig.Model.DismissSent();
+        Assert.Null(rig.Model.SentMessage);
+    }
+
+    // MARK: Troubleshooter
+
+    [Fact]
+    public async Task TheSnapshotHoldsThePrintersAndWhatTheSystemSaid()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", true, SystemQueueState.PaperOut));
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.ReadSystemStateAsync();
+
+        var snapshot = rig.Model.TroubleshootSnapshot();
+        Assert.Equal(ServiceStatus.Running, snapshot.Spooler);
+        Assert.Equal(NetworkStatus.PrivateNetwork, snapshot.Network);
+        Assert.Equal(1, snapshot.ListedPrinterCount);
+        Assert.Contains(Troubleshooter.Diagnose(snapshot), c => c.Id.StartsWith("printer:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CopyingTheDiagnosticsPutsTheChecksOnTheClipboard()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.True(rig.Model.CopyDiagnostics(rig.Model.TroubleshootSnapshot()));
+        Assert.StartsWith("Why isn't my printer listed?", rig.Diagnostics.Copied);
+    }
+
+    [Fact]
+    public async Task ClearingStuckJobsAsksTheSpoolerForThatQueue()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet"));
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.True(await rig.Model.ClearStuckJobsAsync("system:HP LaserJet"));
+        Assert.Equal(["HP LaserJet"], rig.Spooler.Cleared);
+        Assert.False(await rig.Model.ClearStuckJobsAsync("demo"));
+    }
+
+    [Fact]
+    public async Task ResumingAPrinterAsksTheSpoolerForThatQueue()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet"));
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.True(await rig.Model.ResumePrinterAsync("system:HP LaserJet"));
+        Assert.Equal(["HP LaserJet"], rig.Spooler.Resumed);
+    }
+
+    // MARK: Status line
+
+    [Fact]
+    public async Task TheStatusNamesThePrinterThenTheTask()
+    {
+        using var rig = new Rig();
+        Assert.Equal("Looking for printers…", rig.Model.StatusMessage);
+
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Equal("Demo Printer", rig.Model.StatusMessage);
+
+        await rig.Model.StartTaskAsync(PrintTask.Booklet);
+        Assert.Equal("Ready for “Booklet”.", rig.Model.StatusMessage);
+        Assert.Equal("Ready — Demo Printer", StatusLine.Short(rig.Model.StatusMessage, "Demo Printer"));
+    }
+}

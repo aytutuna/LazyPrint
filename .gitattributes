@@ -5,3 +5,6 @@
 *.pwg binary
 *.urf binary
 *.p12 binary
+*.pdf binary
+*.png binary
+*.jpg binary
