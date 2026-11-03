@@ -8,3 +8,5 @@ dist/
 windows/**/bin/
 windows/**/obj/
 windows/.vs/
+
+__pycache__/
