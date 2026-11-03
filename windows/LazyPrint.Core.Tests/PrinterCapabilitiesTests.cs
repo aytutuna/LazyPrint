@@ -19,7 +19,7 @@ public class PrinterCapabilitiesTests
         Assert.Equal("HP LaserJet Pro M404dn", caps.MakeAndModel);
         Assert.Equal("4509a320-00a0-008f-00b6-9c93b9a1c2d3", caps.Uuid);
         Assert.True(caps.Speaks20);
-        Assert.Equal(PrinterState.Idle, caps.State);
+        Assert.Equal(IppPrinterState.Idle, caps.State);
         Assert.Equal(["none"], caps.StateReasons);
         Assert.True(caps.IsAcceptingJobs);
         Assert.Contains("application/pdf", caps.DocumentFormatsSupported);
@@ -45,7 +45,7 @@ public class PrinterCapabilitiesTests
         Assert.NotNull(caps.SupplyInfoUri);
 
         var supply = Assert.Single(caps.Supplies);
-        Assert.Equal(new Supply("Black Cartridge HP CF259A", "#000000", "toner-cartridge", 60, 10, 100), supply);
+        Assert.Equal(new MarkerSupply("Black Cartridge HP CF259A", "#000000", "toner-cartridge", 60, 10, 100), supply);
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class PrinterCapabilitiesTests
         var caps = PrinterCapabilities.From(new IppMessage(IppVersion.V20, 0, 1, []));
         Assert.Equal("", caps.Name);
         Assert.Null(caps.Uuid);
-        Assert.Equal(PrinterState.Idle, caps.State);
+        Assert.Equal(IppPrinterState.Idle, caps.State);
         Assert.True(caps.IsAcceptingJobs);
         Assert.Equal((1, 1), caps.CopiesSupported);
         Assert.Empty(caps.DocumentFormatsSupported);
@@ -221,7 +221,7 @@ public class PrinterCapabilitiesTests
         ]);
         var caps = PrinterCapabilities.From(message);
         Assert.Equal("Office", caps.Name);
-        Assert.Equal(PrinterState.Stopped, caps.State);
+        Assert.Equal(IppPrinterState.Stopped, caps.State);
         Assert.False(caps.IsAcceptingJobs);
         Assert.Equal((1, 20), caps.CopiesSupported);
         Assert.Equal([new IppVersion(2, 0)], caps.IppVersionsSupported);

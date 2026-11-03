@@ -43,12 +43,15 @@ public struct IppEndpoint: Equatable, Sendable {
     /// Where to connect, best first: every ipps address before every ipp one, and within each, IPv4
     /// addresses, then the host name, then IPv6 addresses.
     public var addresses: [PrinterAddress]
+    /// The service instance names it was advertised under, e.g. "HP LaserJet Pro M404dn (A1B2C3)", without repeats.
+    public var instanceNames: [String]
 
-    public init(key: String, name: String, txt: IppTxtRecord, addresses: [PrinterAddress]) {
+    public init(key: String, name: String, txt: IppTxtRecord, addresses: [PrinterAddress], instanceNames: [String] = []) {
         self.key = key
         self.name = name
         self.txt = txt
         self.addresses = addresses
+        self.instanceNames = instanceNames
     }
 
     /// The printer UUID from the TXT record, as advertised; nil when there is none.
@@ -117,7 +120,11 @@ public struct IppEndpoint: Equatable, Sendable {
             }
             let first = ordered[0]
             let name = ordered.compactMap { $0.txt.model }.first ?? first.service.instanceName
-            endpoints.append(IppEndpoint(key: key, name: name, txt: first.txt, addresses: addresses))
+            var instanceNames: [String] = []
+            for member in ordered where !instanceNames.contains(where: { $0.lowercased() == member.service.instanceName.lowercased() }) {
+                instanceNames.append(member.service.instanceName)
+            }
+            endpoints.append(IppEndpoint(key: key, name: name, txt: first.txt, addresses: addresses, instanceNames: instanceNames))
         }
         return endpoints
     }

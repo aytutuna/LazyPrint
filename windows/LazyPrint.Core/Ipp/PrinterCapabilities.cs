@@ -4,7 +4,7 @@ namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Ipp/PrinterCapabilities.swift: what a printer says about itself in Get-Printer-Attributes.
 
-public enum PrinterState { Idle, Processing, Stopped }
+public enum IppPrinterState { Idle, Processing, Stopped }
 
 /// <summary>The margins of a media-col entry, in hundredths of a millimetre.</summary>
 public readonly record struct MediaMargins(int Top, int Left, int Bottom, int Right)
@@ -51,7 +51,7 @@ public sealed record MediaEntry(
 }
 
 /// <summary>One ink or toner supply. The level is a percent; -1 is unknown, -2 unavailable, -3 some left.</summary>
-public sealed record Supply(string Name, string Color, string Type, int Level, int? LowLevel, int? HighLevel);
+public sealed record MarkerSupply(string Name, string Color, string Type, int Level, int? LowLevel, int? HighLevel);
 
 public sealed class PrinterCapabilities
 {
@@ -60,7 +60,7 @@ public sealed class PrinterCapabilities
     /// <summary>The printer-uuid without "urn:uuid:", lower case.</summary>
     public string? Uuid { get; init; }
     public IReadOnlyList<IppVersion> IppVersionsSupported { get; init; } = [];
-    public PrinterState State { get; init; } = PrinterState.Idle;
+    public IppPrinterState State { get; init; } = IppPrinterState.Idle;
     public IReadOnlyList<string> StateReasons { get; init; } = [];
     public string StateMessage { get; init; } = "";
     public bool IsAcceptingJobs { get; init; } = true;
@@ -86,7 +86,7 @@ public sealed class PrinterCapabilities
     public IReadOnlyList<string> PwgRasterTypes { get; init; } = [];
     public string? PwgRasterSheetBack { get; init; }
     public IReadOnlyList<string> UrfSupported { get; init; } = [];
-    public IReadOnlyList<Supply> Supplies { get; init; } = [];
+    public IReadOnlyList<MarkerSupply> Supplies { get; init; } = [];
     public string? MoreInfo { get; init; }
     public string? SupplyInfoUri { get; init; }
 
@@ -137,9 +137,9 @@ public sealed class PrinterCapabilities
             IppVersionsSupported = [.. Strings("ipp-versions-supported").Select(Version).OfType<IppVersion>()],
             State = message["printer-state"]?.Values.FirstOrDefault() switch
             {
-                IppValue.EnumValue { Value: 4 } => PrinterState.Processing,
-                IppValue.EnumValue { Value: 5 } => PrinterState.Stopped,
-                _ => PrinterState.Idle,
+                IppValue.EnumValue { Value: 4 } => IppPrinterState.Processing,
+                IppValue.EnumValue { Value: 5 } => IppPrinterState.Stopped,
+                _ => IppPrinterState.Idle,
             },
             StateReasons = Strings("printer-state-reasons"),
             StateMessage = First("printer-state-message") ?? "",
@@ -177,11 +177,11 @@ public sealed class PrinterCapabilities
         };
     }
 
-    private static List<Supply> MakeSupplies(IReadOnlyList<string> names, IReadOnlyList<string> colors,
+    private static List<MarkerSupply> MakeSupplies(IReadOnlyList<string> names, IReadOnlyList<string> colors,
         IReadOnlyList<string> types, IReadOnlyList<int> levels, IReadOnlyList<int> lows, IReadOnlyList<int> highs)
     {
         static int? At(IReadOnlyList<int> list, int i) => i < list.Count ? list[i] : null;
-        return [.. names.Select((name, i) => new Supply(
+        return [.. names.Select((name, i) => new MarkerSupply(
             name,
             i < colors.Count ? colors[i] : "",
             i < types.Count ? types[i] : "",

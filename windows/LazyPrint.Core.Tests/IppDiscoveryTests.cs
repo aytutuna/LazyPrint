@@ -212,6 +212,7 @@ public class IppDiscoveryTests
         Assert.Equal("uuid:564e4333423035383930a0b3cce51a2b", endpoint.Key);
         Assert.Equal("HP Color LaserJet MFP M479fdw", endpoint.Name);
         Assert.Equal("564e4333-4230-3538-3930-a0b3cce51a2b", endpoint.Uuid);
+        Assert.Equal(["HP M479 (A1B2C3)"], endpoint.InstanceNames);
         // ipps first; IPv4, then the host name, then IPv6; link-local without a zone skipped.
         Assert.Equal(
         [

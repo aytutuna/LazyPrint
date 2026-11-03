@@ -41,7 +41,7 @@ final class PrinterCapabilitiesTests: XCTestCase {
         XCTAssertNotNil(caps.supplyInfoUri)
 
         let supply = try onlyElement(caps.supplies)
-        XCTAssertEqual(supply, Supply(name: "Black Cartridge HP CF259A", color: "#000000", type: "toner-cartridge",
+        XCTAssertEqual(supply, MarkerSupply(name: "Black Cartridge HP CF259A", color: "#000000", type: "toner-cartridge",
                                       level: 60, lowLevel: 10, highLevel: 100))
     }
 

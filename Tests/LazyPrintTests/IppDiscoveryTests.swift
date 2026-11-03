@@ -218,6 +218,7 @@ final class IppDiscoveryTests: XCTestCase {
         XCTAssertEqual(endpoint.key, "uuid:564e4333423035383930a0b3cce51a2b")
         XCTAssertEqual(endpoint.name, "HP Color LaserJet MFP M479fdw")
         XCTAssertEqual(endpoint.uuid, "564e4333-4230-3538-3930-a0b3cce51a2b")
+        XCTAssertEqual(endpoint.instanceNames, ["HP M479 (A1B2C3)"])
         // ipps first; IPv4, then the host name, then IPv6; link-local without a zone skipped.
         XCTAssertEqual(endpoint.addresses.map { $0.description }, [
             "ipps://192.168.1.20", "ipps://hpa1b2c3.local",

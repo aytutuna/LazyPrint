@@ -2,7 +2,7 @@ import Foundation
 
 // Twin of windows/LazyPrint.Core/Ipp/PrinterCapabilities.cs: what a printer says about itself in Get-Printer-Attributes.
 
-public enum PrinterState: Equatable, Sendable {
+public enum IppPrinterState: Equatable, Sendable {
     case idle, processing, stopped
 }
 
@@ -63,7 +63,7 @@ public struct MediaEntry: Equatable, Sendable {
 }
 
 /// One ink or toner supply. The level is a percent; -1 is unknown, -2 unavailable, -3 some left.
-public struct Supply: Equatable, Sendable {
+public struct MarkerSupply: Equatable, Sendable {
     public var name: String
     public var color: String
     public var type: String
@@ -109,7 +109,7 @@ public struct PrinterCapabilities: Equatable, Sendable {
     /// The printer-uuid without "urn:uuid:", lower case.
     public var uuid: String?
     public var ippVersionsSupported = [IppVersion]()
-    public var state = PrinterState.idle
+    public var state = IppPrinterState.idle
     public var stateReasons = [String]()
     public var stateMessage = ""
     public var isAcceptingJobs = true
@@ -134,7 +134,7 @@ public struct PrinterCapabilities: Equatable, Sendable {
     public var pwgRasterTypes = [String]()
     public var pwgRasterSheetBack: String?
     public var urfSupported = [String]()
-    public var supplies = [Supply]()
+    public var supplies = [MarkerSupply]()
     public var moreInfo: String?
     public var supplyInfoUri: String?
 
@@ -225,10 +225,10 @@ public struct PrinterCapabilities: Equatable, Sendable {
     }
 
     private static func makeSupplies(_ names: [String], _ colors: [String], _ types: [String], _ levels: [Int],
-                                     _ lows: [Int], _ highs: [Int]) -> [Supply] {
+                                     _ lows: [Int], _ highs: [Int]) -> [MarkerSupply] {
         func at(_ list: [Int], _ i: Int) -> Int? { i < list.count ? list[i] : nil }
         return names.enumerated().map { i, name in
-            Supply(name: name,
+            MarkerSupply(name: name,
                    color: i < colors.count ? colors[i] : "",
                    type: i < types.count ? types[i] : "",
                    level: at(levels, i) ?? -1,

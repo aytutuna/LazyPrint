@@ -37,6 +37,8 @@ public sealed class IppEndpoint
     /// each, IPv4 addresses, then the host name, then IPv6 addresses.
     /// </summary>
     public required IReadOnlyList<PrinterAddress> Addresses { get; init; }
+    /// <summary>The service instance names it was advertised under, e.g. "HP LaserJet Pro M404dn (A1B2C3)", without repeats.</summary>
+    public IReadOnlyList<string> InstanceNames { get; init; } = [];
 
     /// <summary>The printer UUID from the TXT record, as advertised; null when there is none.</summary>
     public string? Uuid => Txt.Uuid;
@@ -94,6 +96,7 @@ public sealed class IppEndpoint
                 Name = ordered.Select(m => m.Txt.Model).FirstOrDefault(m => m is not null) ?? first.Service.InstanceName,
                 Txt = first.Txt,
                 Addresses = addresses,
+                InstanceNames = [.. ordered.Select(m => m.Service.InstanceName).Distinct(StringComparer.OrdinalIgnoreCase)],
             });
         }
         return endpoints;
