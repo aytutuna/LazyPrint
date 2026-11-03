@@ -1,0 +1,38 @@
+#if os(macOS)
+import AppKit
+import LazyPrintKit
+
+/// The app's delegate (`LazyPrintApp`'s `@NSApplicationDelegateAdaptor`): Quit asks first while a job is going out, since
+/// the sheets still to be drawn are lost with the app. There is no `application(_:open:)`: once the delegate implements it
+/// AppKit sends it every URL and `.onOpenURL` never fires.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Set when the window appears.
+    weak var state: AppState?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let state, state.isBusy else { return .terminateNow }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Stop it and quit?"
+        alert.informativeText = "A job is still being sent to the printer."
+        let quit = alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
+        // Return does not quit.
+        quit.keyEquivalent = ""
+        // Quit from the Dock or at logout can come while the app is in the background.
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        // The queue is told to drop the job before the app goes.
+        Task {
+            await state.cancelJobAndWait()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+}
+#endif

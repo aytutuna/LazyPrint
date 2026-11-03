@@ -38,3 +38,23 @@ jobs:
         run: swift build
       - name: Test
         run: swift test --parallel
+        env:
+          LAZYPRINT_SHOTS: ${{ runner.temp }}/shots
+      - name: Screens
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-screens
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
+      - name: Build the app
+        run: |
+          bash scripts/make_app.sh
+          plutil -lint "dist/Lazy Print.app/Contents/Info.plist"
+          codesign --verify --deep "dist/Lazy Print.app"
+          ditto -c -k --keepParent "dist/Lazy Print.app" "$RUNNER_TEMP/LazyPrint-mac.zip"
+      - name: App
+        uses: actions/upload-artifact@v7
+        with:
+          name: lazyprint-mac
+          path: ${{ runner.temp }}/LazyPrint-mac.zip
