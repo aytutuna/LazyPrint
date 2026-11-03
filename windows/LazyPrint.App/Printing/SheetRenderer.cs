@@ -112,6 +112,8 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
     private static void DrawMarks(DrawingContext dc, SheetSide side, PrintableArea area, IReadOnlyList<TestPageItem>? items,
                                   bool marked, bool turned, double dpi)
     {
+        var printable = area.Printable;
+        dc.PushClip(new RectangleGeometry(new Rect(printable.X, printable.Y, printable.Width, printable.Height)));
         if (side.Borders)
         {
             var pen = new Pen(new SolidColorBrush(Color.FromRgb(128, 128, 128)), BorderWidth);
@@ -130,10 +132,10 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
         if (turned) dc.Pop();
         if (marked)
         {
-            var printable = area.Printable;
             dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(250, 250, 250)), null,
                            new Point(printable.X + MarkInset, printable.Y + MarkInset), MarkRadius, MarkRadius);
         }
+        dc.Pop();
     }
 
     private static void DrawItem(DrawingContext dc, TestPageItem item, double dpi)
