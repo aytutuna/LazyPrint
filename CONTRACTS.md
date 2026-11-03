@@ -284,3 +284,162 @@ From Lazy Scan's `Escl/` with the protocol changed: `IppService` (the seam a pla
 
 The printers the system has set up are printed to without the system's dialog, with the job's settings forced so a driver's defaults cannot impose the sheets a second time: Windows' spooler ticket always sets `PageMediaSize`, `PageOrientation` Portrait, `PageScaling` None, one page per sheet, no booklet, `JobPageOrder` Standard, and `Duplexing` TwoSidedLongEdge or OneSided (manual passes); the Mac sets portrait, 100 %, no fit to page, `number-up` 1, `outputorder` normal and long-edge duplex or none. Copies are the printer's when it can collate them (`PrintCopies`), else repeated in the job.
 
+## Core/ (tasks, settings, printers, jobs, the troubleshooter)
+
+### Core/PrintTask, TaskCatalog
+
+```swift
+public enum PrintTask: String, CaseIterable, Identifiable, Sendable {
+    case document, twoSided, booklet, handouts, photos, photoSheet, testPage, scanAndPrint, fromPhone
+}
+public enum TaskGroup: String, CaseIterable, Sendable { case documents, photos, other }   // "Documents", "Photos", "Other"
+public struct TaskDefinition: Equatable, Sendable {
+    public let task: PrintTask
+    public let title: String          // "Print a document", "Two-sided", "Booklet", "Handouts", "Photo prints", "Photo sheet",
+                                      // "Test page", "Scan and print", "From your phone"
+    public let subtitle: String       // its help, one sentence ending in a full stop
+    public let iconKey: String        // platform-neutral; the Mac maps it to SF Symbols, Windows to Segoe Fluent glyphs
+    public let group: TaskGroup
+    public let opensFiles: Bool       // starts by asking for files (document, twoSided, booklet, handouts, photos, photoSheet)
+}
+public struct TaskAvailability: Equatable, Sendable { public let isAvailable: Bool; public let reason: String? }   // Lazy Scan's shape; "Needs a printer", "Needs Lazy Scan"
+public struct TaskContext: Equatable, Sendable { public var hasPrinter: Bool; public var lazyScanInstalled: Bool; public var platform: AppPlatform }
+public enum AppPlatform: String, Sendable { case windows, mac, ios }
+public enum TaskCatalog {
+    public static let all: [TaskDefinition]
+    public static func definition(_ task: PrintTask) -> TaskDefinition
+    public static func tasks(for platform: AppPlatform) -> [TaskDefinition]     // fromPhone is not on the iPhone
+    public static func availability(of task: PrintTask, context: TaskContext) -> TaskAvailability
+    /// The settings a task sets; what it leaves alone stays as the user had it.
+    public static func apply(_ task: PrintTask, to settings: PrintSettings, printer: PrinterCapabilities?) -> PrintSettings
+}
+```
+
+What each task sets: `document` one per side, shrink to fit, two-sided when the printer can; `twoSided` long edge (by hand when the printer can't); `booklet`; `handouts` 2 per side, page borders; `photos` the photo size 4×6, fill, best quality, color; `photoSheet` 4 per side, fill, cut marks; `testPage` prints `TestPage` at once on the chosen printer; `scanAndPrint` hands off to Lazy Scan (see "Hand-off"); `fromPhone` opens the phone window.
+
+### Core/PrintSettings (settings.json), PrinterPrefs (printers.json)
+
+```swift
+public enum ColorChoice: String, Codable, CaseIterable, Sendable { case color, gray }
+public enum QualityChoice: String, Codable, CaseIterable, Sendable { case normal, draft, best }   // print-quality 4, 3, 5
+public struct PrintSettings: Codable, Equatable, Sendable {
+    public var taskId: String? = nil            // the PrintTask raw value, kept as a string so a newer task survives
+    public var printerId: String? = nil         // PrinterInfo.id; nil = the system's default printer
+    public var copies: Int = 1                  // 1...99 (PrintCopies.clamp)
+    public var collate: Bool = true
+    public var color: ColorChoice = .color
+    public var quality: QualityChoice = .normal
+    public var sides: Sides = .oneSided
+    public var pagesPerSheet: Int = 1
+    public var booklet: Bool = false
+    public var rightToLeft: Bool = false
+    public var pageBorders: Bool = false
+    public var scaling: Scaling = .shrinkToFit
+    public var paperId: String = "auto"         // PaperSize raw value; auto = what the printer has loaded, else the regional default
+    public var photoSizeId: String = "4x6"
+    public var photoFill: Bool = true
+    public var cutMarks: Bool = true
+}
+public struct PrinterPrefs: Codable, Equatable, Sendable {
+    public var paperPath: PaperPath = PaperPath()
+    public var lastPaperId: String? = nil
+}
+```
+
+Both files follow Global rule 5. `printers.json` maps `PrinterInfo.id` to `PrinterPrefs`; ids are stable across runs: a system queue is always `system:` and its name, whether or not its IPP twin answered this time; a printer only on the network is `ipp:` and its UUID (`ipp:name:` and its instance name without one); the demo printer is `demo`.
+
+### Core/Printers (the printer list)
+
+```swift
+public enum PrinterRoute: String, Sendable { case system, ipp, demo }
+public enum PrinterState: String, Sendable { case unknown, idle, printing, stopped, offline }
+public struct Supply: Equatable, Sendable { public var name: String; public var color: String?; public var level: Int?; public var isLow: Bool }   // level 0...100, nil unknown
+public struct PrinterInfo: Equatable, Identifiable, Sendable {
+    public var id: String
+    public var name: String
+    public var model: String?
+    public var address: String?            // what the troubleshooter and the test page show
+    public var route: PrinterRoute         // how jobs go: the system's queue when it has one, else IPP
+    public var ippEndpoint: IppEndpoint?   // also set for a system printer matched to its IPP twin, for status and supplies
+    public var isDefault: Bool
+    public var state: PrinterState
+    public var problems: [PrinterProblem]
+    public var supplies: [Supply]
+    public var queue: QueueStatus?         // a system row's own state and problems, which IPP's answers add to and never replace
+}
+public enum PrinterMerge {
+    /// One row per physical printer, whichever ways it is listed: a system queue and the IPP printer it points at are
+    /// one row, routed through the system queue, with the IPP endpoint kept for status. Matching runs in phases over all
+    /// queues: UUID, then a host or address in the queue's port or device URI, then the exact DNS-SD instance name
+    /// (`IppEndpoint.instanceNames`), then the name without "(Copy 2)"; a queue whose port names a host is never matched
+    /// by name, and a name that fits more than one printer matches none. Virtual queues (PDF, OneNote, fax, XPS) are left out.
+    /// The demo printer is last.
+    public static func merge(system: [SystemPrinter], network: [IppService], demo: Bool) -> [PrinterInfo]
+}
+```
+
+`SystemPrinter` is what a platform says of a queue it has set up: name, model (driver name), port or device URI, whether it is the default, whether it is virtual, its states (`SystemQueueState`: paused, error, offline, paperOut, paperJam, doorOpen, tonerLow, noToner, busy, userIntervention, from Windows' `PrintQueueStatus` and the Mac's printer state) and its jobs (count, any in error, oldest age). `SystemQueueProblems.describe` turns those states into `PrinterProblem`s with the same titles IPP's reasons get.
+
+### Core/PrintJobs (from settings to sheets to a job)
+
+```swift
+public struct LoadedDocument: Equatable, Sendable { public var name: String; public var kind: DocumentKind; public var pages: [LayoutSize] }
+public struct JobPlan: Equatable, Sendable {
+    public var plan: SheetPlan
+    public var manualDuplex: Bool           // two-sided asked for and the printer can't: two passes
+    public var passes: [DuplexPass]         // one pass, or fronts then backs
+    public var copiesInJob: Int             // copies the printer makes; the rest are repeated in the stream (PrintCopies)
+    public var notes: [String]              // "2 blank pages added", "Pages made smaller (82 %)"
+}
+public enum PrintJobs {
+    public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions
+    public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea
+    public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings, task: PrintTask?,
+                            printer: PrinterCapabilities?, prefs: PrinterPrefs) -> JobPlan
+    /// A document `asIs` is the printer's to scale ("auto" or "fit") and may go short edge; imposed sheets are "none" and long edge.
+    /// With no database entry for the paper, media-col carries its size and the margins laid out, when the printer takes margins.
+    public static func ticket(_ job: JobPlan, settings: PrintSettings, format: String, printer: PrinterCapabilities?, name: String, asIs: Bool = false) -> IppJobTicket
+}
+public enum JobState: String, Sendable { case preparing, sending, waiting, printing, done, failed, canceled, needsUser }
+public struct JobRecord: Equatable, Identifiable, Sendable {   // the Jobs tab: this session's jobs
+    public var id: String; public var name: String; public var printerName: String; public var sheets: Int; public var copies: Int
+    public var state: JobState; public var detail: String?; public var started: Date
+}
+```
+
+A printer's capabilities (from IPP, or filled in by the system for a queue with no IPP twin) say whether it prints both sides and color, which papers it has and their margins; `PrintJobs.area` uses the matching `media-col-database` entry, else the system's imageable area, else 0.25 in on every side.
+
+### Core/Troubleshooter ("Why isn't my printer listed?")
+
+Lazy Scan's troubleshooter, the same model (`TroubleshootCheck` with id, status, a title of six words at most, a one-line detail of fifteen at most, `more` behind More help, actions of one to three words; `diagnose`, `headline`, `summary`, `overview`, `label`, `statusLabel`, `report`, the stable sort: problems, warnings, OK, tips). Its snapshot:
+
+```swift
+public struct PrinterSnapshot: Equatable, Sendable {
+    public var platform: AppPlatform
+    public var printers: [PrinterInfo]
+    public var network: NetworkStatus = .unknown          // Lazy Scan's enum
+    public var spooler: ServiceStatus = .unknown          // Windows: the Print Spooler service
+    public var discovery: DiscoveryStatus = .unknown      // off, searching, running, unavailable, denied (Local Network)
+    public var discoveryDetail: String? = nil
+    public var manualHosts: [ManualHostStatus] = []
+    public var stuckJobs: [StuckJobs] = []                 // printer id and name, count, oldest in minutes, any in error
+    public var lastFailure: PrinterFailure? = nil          // the last job or connection that failed, with its problem
+}
+public enum TroubleshootAction: String, CaseIterable, Sendable {
+    case refresh, addByAddress, openPrinterSettings, openNetworkSettings, copyDiagnostics, openAppSettings, clearStuckJobs, resumePrinter, printTestPage
+}
+```
+
+Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won't find network printers on a Public network."); `spooler` (Windows: not running, disabled, missing); `discovery` and `localNetwork` (the iPhone's Local Network access off, with Open Settings); `printer:<id>` for each printer with a problem ("Out of paper: HP LaserJet", its advice); `stuckJobs:<id>` ("3 jobs stuck on HP LaserJet", Clear stuck jobs); `paused:<id>` (Resume); `manualHost:<address>`; tips `usb` ("Connected by USB?": the maker's driver, or the one Windows offers), `asleep` ("Printer asleep? Press any button on it, then Refresh."), `wifiDirect` (a printer's own Wi-Fi is another network), `otherApps`. The headline is "No printer found", "1 printer found", "3 printers found" (the demo printer not counted). `clearStuckJobs` and `resumePrinter` change something, so they ask first and say what they did; every other action only reads.
+
+### Core/StatusLine, InspectorSections, PrintText
+
+`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, scaling, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Printed", "Load the backs", errors titled by their problem.
+
+## Render/ (Swift), the Windows renderer
+
+A `SheetSide` is drawn the same way everywhere: each placement's page, cropped, turned by its quarter turns and scaled into its frame; page borders as 0.5 pt gray lines; a blank back's mark dot; `TestPageItem`s for the test page, the two-sided check and cut marks. The Mac and the iPhone draw with CoreGraphics (`Render/SheetRenderer.swift`: `CGPDFPage` and `CGImage` sources, into a `CGPDFContext` for a PDF of the sheets, or a bitmap context a band of rows at a time for raster). Windows draws with WPF (`LazyPrint.App/Printing/SheetRenderer.cs`: PDF pages rendered by `Windows.Data.Pdf` at the printer's resolution, at most 600 dpi, and photos decoded by WIC, into a `FixedPage` for the spooler or a `RenderTargetBitmap` band for raster).
+
+## The demo printer
+
+As Lazy Scan's Demo Scanner, a printer that is always there (last in the list, never counted as found), so every task can be tried without one: it takes any format, prints both sides or not (a switch on it), has Letter, A4 and 4×6 photo paper with 0.17 in margins, and "prints" by writing each sheet side as a PNG to `Documents/Lazy Print/Demo prints/<job>/`, which the Jobs tab opens. Its ink goes down a little with each job, and "Out of paper" can be set from its menu, to try the troubleshooter and the two-sided card.
