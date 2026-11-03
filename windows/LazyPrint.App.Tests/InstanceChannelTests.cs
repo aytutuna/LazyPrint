@@ -8,6 +8,9 @@ namespace LazyPrint.App.Tests;
 // The message a second start of the app sends the first: a JSON array of paths over the pipe LazyPrint.Open.
 public sealed class InstanceChannelTests
 {
+    // The listener waits for a pool thread, which can take seconds while the other tests keep a CI runner busy.
+    private const int Patient = 30_000;
+
     private static string UniquePipe() => "LazyPrint.Open.test-" + Guid.NewGuid().ToString("N");
 
     [Fact]
@@ -56,9 +59,9 @@ public sealed class InstanceChannelTests
         var received = new TaskCompletionSource<IReadOnlyList<string>>();
         using var channel = new InstanceChannel(paths => received.TrySetResult(paths), pipe);
 
-        Assert.True(InstanceChannel.Send([@"C:\a.pdf", @"C:\b.pdf"], pipe));
+        Assert.True(InstanceChannel.Send([@"C:\a.pdf", @"C:\b.pdf"], pipe, Patient));
 
-        Assert.Equal([@"C:\a.pdf", @"C:\b.pdf"], await received.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal([@"C:\a.pdf", @"C:\b.pdf"], await received.Task.WaitAsync(TimeSpan.FromMilliseconds(Patient)));
     }
 
     [Fact]
@@ -68,11 +71,11 @@ public sealed class InstanceChannelTests
         var received = new BlockingCollection<IReadOnlyList<string>>();
         using var channel = new InstanceChannel(paths => received.Add(paths), pipe);
 
-        Assert.True(InstanceChannel.Send(["one.pdf"], pipe));
-        Assert.True(InstanceChannel.Send([], pipe));
+        Assert.True(InstanceChannel.Send(["one.pdf"], pipe, Patient));
+        Assert.True(InstanceChannel.Send([], pipe, Patient));
 
-        Assert.Equal(["one.pdf"], await Task.Run(() => received.Take()).WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Empty(await Task.Run(() => received.Take()).WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(["one.pdf"], await Task.Run(() => received.Take()).WaitAsync(TimeSpan.FromMilliseconds(Patient)));
+        Assert.Empty(await Task.Run(() => received.Take()).WaitAsync(TimeSpan.FromMilliseconds(Patient)));
     }
 
     [Fact]
