@@ -1,2 +1,7 @@
 # Shell scripts run in Git Bash on Windows too, which stops at a carriage return.
 *.sh text eol=lf
+# Golden files the tests compare byte for byte.
+*.bin binary
+*.pwg binary
+*.urf binary
+*.p12 binary

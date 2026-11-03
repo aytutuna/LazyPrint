@@ -1,0 +1,48 @@
+{
+ "version": "1.1",
+ "status": 0,
+ "requestId": 1,
+ "operation": [
+  {"name": "attributes-charset", "type": "charset", "values": ["utf-8"]},
+  {"name": "attributes-natural-language", "type": "language", "values": ["en"]}
+ ],
+ "printer": [
+  {"name": "printer-name", "type": "nameWithLanguage", "values": [["en-us", "BRN30055C7A1B2C"]]},
+  {"name": "printer-info", "type": "textWithLanguage", "values": [["en-us", "Brother HL-L2350DW series"]]},
+  {"name": "printer-make-and-model", "type": "text", "values": ["Brother HL-L2350DW series"]},
+  {"name": "printer-uuid", "type": "uri", "values": ["urn:uuid:e3248000-80ce-11db-8000-30055c7a1b2c"]},
+  {"name": "ipp-versions-supported", "type": "keyword", "values": ["1.0", "1.1"]},
+  {"name": "printer-state", "type": "enum", "values": [3]},
+  {"name": "printer-state-reasons", "type": "keyword", "values": ["none"]},
+  {"name": "printer-is-accepting-jobs", "type": "boolean", "values": [true]},
+  {"name": "document-format-supported", "type": "mimeType", "values": ["application/octet-stream", "image/pwg-raster", "application/pdf"]},
+  {"name": "sides-supported", "type": "keyword", "values": ["one-sided", "two-sided-long-edge", "two-sided-short-edge"]},
+  {"name": "print-color-mode-supported", "type": "keyword", "values": ["monochrome"]},
+  {"name": "copies-supported", "type": "range", "values": [[1, 99]]},
+  {"name": "media-col-supported", "type": "keyword", "values": ["media-bottom-margin", "media-left-margin", "media-right-margin", "media-size", "media-source", "media-top-margin", "media-type"]},
+  {"name": "media-col-ready", "type": "collection", "values": [
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [21000]}, {"name": "y-dimension", "type": "integer", "values": [29700]}]]}, {"name": "media-source", "type": "keyword", "values": ["tray-1"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}]
+  ]},
+  {"name": "media-col-database", "type": "collection", "values": [
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [21590]}, {"name": "y-dimension", "type": "integer", "values": [27940]}]]}, {"name": "media-source", "type": "keyword", "values": ["tray-1"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}],
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [21590]}, {"name": "y-dimension", "type": "integer", "values": [35560]}]]}, {"name": "media-source", "type": "keyword", "values": ["tray-1"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}],
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [21000]}, {"name": "y-dimension", "type": "integer", "values": [29700]}]]}, {"name": "media-source", "type": "keyword", "values": ["tray-1"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}],
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [14800]}, {"name": "y-dimension", "type": "integer", "values": [21000]}]]}, {"name": "media-source", "type": "keyword", "values": ["tray-1"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}],
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [18415]}, {"name": "y-dimension", "type": "integer", "values": [26670]}]]}, {"name": "media-source", "type": "keyword", "values": ["tray-1"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}],
+    [{"name": "media-bottom-margin", "type": "integer", "values": [423]}, {"name": "media-left-margin", "type": "integer", "values": [423]}, {"name": "media-right-margin", "type": "integer", "values": [423]}, {"name": "media-size", "type": "collection", "values": [[{"name": "x-dimension", "type": "integer", "values": [21000]}, {"name": "y-dimension", "type": "integer", "values": [29700]}]]}, {"name": "media-source", "type": "keyword", "values": ["manual"]}, {"name": "media-top-margin", "type": "integer", "values": [423]}, {"name": "media-type", "type": "keyword", "values": ["stationery"]}]
+  ]},
+  {"name": "media-ready", "type": "keyword", "values": ["iso_a4_210x297mm"]},
+  {"name": "media-type-supported", "type": "keyword", "values": ["stationery", "labels", "envelope", "bond"]},
+  {"name": "media-source-supported", "type": "keyword", "values": ["auto", "tray-1", "manual"]},
+  {"name": "print-quality-supported", "type": "enum", "values": [3, 4, 5]},
+  {"name": "pwg-raster-document-resolution-supported", "type": "resolution", "values": [[300, 300, 3], [600, 600, 3]]},
+  {"name": "pwg-raster-document-type-supported", "type": "keyword", "values": ["sgray_8"]},
+  {"name": "pwg-raster-document-sheet-back", "type": "keyword", "values": ["flipped"]},
+  {"name": "marker-names", "type": "name", "values": ["Black Toner"]},
+  {"name": "marker-colors", "type": "name", "values": ["#000000"]},
+  {"name": "marker-levels", "type": "integer", "values": [75]},
+  {"name": "marker-types", "type": "keyword", "values": ["toner"]},
+  {"name": "marker-low-levels", "type": "integer", "values": [10]},
+  {"name": "marker-high-levels", "type": "integer", "values": [100]}
+ ]
+}
