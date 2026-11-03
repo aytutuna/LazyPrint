@@ -1,0 +1,23 @@
+{
+  "certificates" : [
+    {
+      "addresses" : [
+        "192.168.1.20:443",
+        "hpa1b2c3.local:443"
+      ],
+      "deviceUuid" : "564e4333423035383930a0b3cce51a2b",
+      "fingerprint" : "80c2501cf098b63f418350c6fea5a6e420362e6be8aff337c3aee239a40570a4",
+      "name" : "HP Color LaserJet MFP M479fdw",
+      "trusted" : 814300008.71075
+    },
+    {
+      "addresses" : [
+        "[fe80::1%12]:443"
+      ],
+      "deviceUuid" : "",
+      "fingerprint" : "ef21ff96c67a12d62b5fd5bc7367fc0b265fe4da4e0e8ebc0a0d404457d7a74c",
+      "name" : "fe80::1%12",
+      "trusted" : 814300008.772833
+    }
+  ]
+}
