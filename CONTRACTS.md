@@ -1,9 +1,9 @@
 # Lazy Print — module contracts
 
-Native printing app for Windows, macOS and the iPhone, the sister of Lazy Scan (`../LazyScan`, whose layout, conventions and much of whose code it shares). SwiftUI, macOS 14+ and iOS 18+, `swift-tools-version: 6.0` with the Swift 5 language mode (`swiftLanguageModes: [.v5]`), SwiftPM, **system frameworks only** (AppKit, SwiftUI, PDFKit, CoreGraphics, ImageIO, UniformTypeIdentifiers, CryptoKit, Security, Network and the DNS-SD library; UIKit on iOS). The Windows app is .NET 10 and WPF, with a Core library that has no dependencies. No third-party code anywhere except ZXing.Net for the pairing QR code on Windows, as in Lazy Scan. UIKit only in `LazyPrintIOS`; AppKit, SwiftUI and UIKit never in `LazyPrintKit`, and `LazyPrintKit` keeps CoreGraphics to the files that draw and the app state (`Render/`, `App/`), so its protocol and layout code needs Foundation alone.
+Native printing app for Windows, macOS and the iPhone, the sister of Lazy Scan (`../LazyScan`, whose layout, conventions and much of whose code it shares). SwiftUI, macOS 14+ and iOS 18+, `swift-tools-version: 6.0` with the Swift 5 language mode (`swiftLanguageModes: [.v5]`), SwiftPM, **system frameworks only** (AppKit, SwiftUI, Combine, PDFKit, CoreGraphics, CoreText, ImageIO, UniformTypeIdentifiers, CryptoKit, Security, Network and the DNS-SD library; libcups on the Mac; UIKit on iOS). The Windows app is .NET 10 and WPF, with a Core library that has no dependencies. No third-party code anywhere except ZXing.Net for the pairing QR code on Windows, as in Lazy Scan. UIKit only in `LazyPrintIOS`; AppKit, SwiftUI and UIKit never in `LazyPrintKit`, and `LazyPrintKit` keeps CoreGraphics and CoreText to the files that draw and the app state (`Render/`, `App/`, `Printing/`) and Network and dnssd to `Printing/`, so its protocol and layout code needs Foundation alone. Combine is for `ObservableObject` only.
 
 The package's targets:
-- `LazyPrintKit` (`Sources/LazyPrintKit/`): everything the Mac and the iPhone share: `Core` (tasks, settings, printers, problems, the troubleshooter), `Layout` (paper, page placement, N-up, booklets, photo sizes, two-sided by hand, the test page), `Ipp` (driverless printers: the IPP codec, attributes, jobs, PWG raster, addresses, trust, the client), `Companion` (the phone link, from Lazy Scan's), `Persistence`, `Render` (drawing a sheet with CoreGraphics), the demo printer, `AppState` and the protocols of the system services an app shell passes in.
+- `LazyPrintKit` (`Sources/LazyPrintKit/`): everything the Mac and the iPhone share: `Core` (tasks, settings, printers, problems, the troubleshooter), `Layout` (paper, page placement, N-up, booklets, photo sizes, two-sided by hand, the test page), `Ipp` (driverless printers: the IPP codec, attributes, jobs, PWG raster, addresses, trust, the client), `Companion` (the phone link, from Lazy Scan's), `Persistence`, `Render` (drawing a sheet with CoreGraphics), `Printing` (the printers that draw and the discovery that browses: `IppSheetPrinter`, `NWBrowserPrinters`, the demo printer, `RoutingSheetPrinter`, `JobSides`), `App` (`AppState` and the protocols of the system services an app shell passes in).
 - `LazyPrintMac` (`Sources/LazyPrintMac/`): the Mac's views and its system services (printing to the printers macOS has set up, the troubleshooter's system checks, file actions). Every file is wrapped whole in `#if os(macOS)`.
 - `LazyPrintIOS` (`Sources/LazyPrintIOS/`): the iPhone's views and services. Every file is wrapped whole in `#if os(iOS)`.
 - `LazyPrint` (`Sources/LazyPrint/main.swift`): the Mac app.
@@ -25,7 +25,7 @@ The Windows solution (`windows/LazyPrint.sln`):
    - Source pages: points, origin top-left of the page as it is shown (after a PDF page's `/Rotate` or a photo's orientation tag).
    - Pixels (rasters, bitmaps): origin top-left, x right, y down.
    - PDF user space and CoreGraphics: origin bottom-left; converted only where a sheet is drawn (`Render/`, the Windows `SheetRenderer`).
-4. Errors thrown across modules are `PrintError` (C# `PrintException` carrying a `PrintError`).
+4. Errors thrown across modules are `PrintError` (C# `PrintException` carrying a `PrintError`), which has `unreadable(sentence)` and `noPrinter` beside the IPP cases. The sentences for files that can't be printed are Core's `DocumentText` (`lockedPdf`, `notSupported`, `unreadable`, `noPages`), used by both document loaders.
 5. Settings files load across versions, by Lazy Scan's rules (its CONTRACTS.md, Global rule 6) unchanged: optional-with-default fields decoded leniently, the first case of a persisted enum is its default, unknown raw values decode as the default, keys never change, an unreadable file is moved aside as `<name>.unreadable-<yyyyMMdd-HHmmss>.json` and one that cannot be read at all is never overwritten. `Persistence` (`StoreFiles`) is Lazy Scan's, renamed. Settings live in `%APPDATA%\Lazy Print` and `~/Library/Application Support/Lazy Print`.
 6. User-facing text: short. A status line is six words at most, with the full sentence for screen readers (Lazy Scan's `StatusLine`). A problem is titled by what is wrong ("Out of paper", "Paper jam") and says what to do. Texts both platforms show live in Core, in a `...Text` type, the same words on both.
 
@@ -129,6 +129,8 @@ public enum PhotoLayout {
     public static func plan(_ photos: [SourcePage], options: PhotoOptions, area: PrintableArea) -> SheetPlan
     /// The cut marks of a planned side, as lines for the renderer: at the corners of its print cells, when more than one fits.
     public static func cutMarks(_ side: SheetSide, options: PhotoOptions, area: PrintableArea) -> [TestPageItem]
+    /// The cut marks of a photo sheet's side, which `Imposition` planned as a grid: at the corners of its photos' frames, none for one photo.
+    public static func frameMarks(_ side: SheetSide) -> [TestPageItem]
 }
 ```
 
@@ -315,7 +317,7 @@ public enum TaskCatalog {
 }
 ```
 
-What each task sets: `document` one per side, shrink to fit, two-sided when the printer can; `twoSided` long edge (by hand when the printer can't); `booklet`; `handouts` 2 per side, page borders; `photos` the photo size 4×6, fill, best quality, color; `photoSheet` 4 per side, fill, cut marks; `testPage` prints `TestPage` at once on the chosen printer; `scanAndPrint` hands off to Lazy Scan (see "Hand-off"); `fromPhone` opens the phone window.
+What each task sets: `document` one per side, shrink to fit, two-sided when the printer can; `twoSided` long edge (by hand when the printer can't); `booklet`; `handouts` 2 per side, page borders; `photos` the photo size 4×6, fill, best quality, color; `photoSheet` 4 per side, fill, cut marks (at the corners of the photos' frames, `PhotoLayout.frameMarks`); `testPage` prints `TestPage` at once on the chosen printer; `scanAndPrint` hands off to Lazy Scan (see "Hand-off"); `fromPhone` opens the phone window.
 
 ### Core/PrintSettings (settings.json), PrinterPrefs (printers.json)
 
@@ -436,9 +438,9 @@ Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won
 
 `StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, scaling, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Printed", "Load the backs", errors titled by their problem.
 
-## Render/ (Swift), the Windows renderer
+## Render/ (both platforms)
 
-A `SheetSide` is drawn the same way everywhere: each placement's page, cropped, turned by its quarter turns and scaled into its frame; page borders as 0.5 pt gray lines; a blank back's mark dot; `TestPageItem`s for the test page, the two-sided check and cut marks. The Mac and the iPhone draw with CoreGraphics (`Render/SheetRenderer.swift`: `CGPDFPage` and `CGImage` sources, into a `CGPDFContext` for a PDF of the sheets, or a bitmap context a band of rows at a time for raster). Windows draws with WPF (`LazyPrint.App/Printing/SheetRenderer.cs`: each placement's page asked of an `IPageRenderer`, PDF pages by `Windows.Data.Pdf` and pictures by WIC, at most 1200 dpi; a canvas per side for the spooler at 300 dpi, built only when the XPS writer asks for that page, or the whole side as a bitmap for raster, read out 64 rows at a time). The blank-back dot sits 8 pt inside the printable area's top-left corner, and all drawing is clipped to the printable area.
+A `SheetSide` is drawn the same way everywhere: each placement's page, cropped, turned by its quarter turns and scaled into its frame; page borders as 0.5 pt gray lines; a blank back's mark dot; `TestPageItem`s for the test page, the two-sided check and cut marks. The Mac and the iPhone draw with CoreGraphics (see "Render/ (drawing a sheet, Swift)"). Windows draws with WPF (`LazyPrint.App/Printing/SheetRenderer.cs`: each placement's page asked of an `IPageRenderer`, PDF pages by `Windows.Data.Pdf` and pictures by WIC, at most 1200 dpi; a canvas per side for the spooler at 300 dpi, built only when the XPS writer asks for that page, or the whole side as a bitmap for raster, read out 64 rows at a time). The blank-back dot sits 8 pt inside the printable area's top-left corner, and all drawing, the marks and items included, is clipped to the printable area.
 
 ## The demo printer
 
@@ -459,7 +461,7 @@ Lazy Scan's shell, with its look: `Styles/Tokens.xaml` and `Controls.xaml`, `The
 Services (`LazyPrint.App/Services`, `Printing`):
 - `WindowsPrinters` (`IPrinterSystem`), with `WindowsSystemStatus` (spooler service and network category, kept in the app because it needs the Windows target): the spooler's queues through `System.Printing` (`LocalPrintServer`, `PrintQueue`: name, driver, port, default, `QueueStatus`, jobs), as `SystemPrinter`s, and their `PrintCapabilities` turned into `PrinterCapabilities` (papers with their imageable area, duplex, color, copies, collation); polled every 5 s while the window is open; clearing stuck jobs and resuming a paused queue.
 - `IppDiscovery` and `NetworkPrinters` (`INetworkPrinters`): printers on the network by DNS-SD (`_ipp._tcp`, `_ipps._tcp`) with a WinRT `DeviceWatcher`, as Lazy Scan's `EsclDiscovery`, handing over `IppService`s; the addresses in `ipp-hosts.json` checked at start and every minute while they don't answer, each one that answers made an `IppService` with id `address:<address>` and its UUID, so the merge joins it to its discovered twin. Status, problems and supplies of network rows are read every 30 s.
-- `DocumentLoader` (`IDocumentLoader`, `IPageRenderer`, `IOriginalFiles` for sending a PDF or upright JPEG as it is): PDFs with `Windows.Data.Pdf` (page sizes with their rotation applied; a page rendered at a given size), images with WIC (JPEG, PNG, TIFF, BMP, GIF, HEIC when the extension is installed; turned upright by their orientation tag). A password-protected PDF is refused with "This PDF is locked. Open it in a PDF app and print it from there." A PDF with only an owner password opens, but always goes as drawn sheets. A file of another kind gets "Lazy Print prints PDFs and pictures. Save it as a PDF first." A multi-frame TIFF or GIF is its first frame. A picture is sized by its own dpi when that is 72 or more, else as 300 dpi.
+- `DocumentLoader` (`IDocumentLoader`, `IPageRenderer`, `IOriginalFiles` for sending a PDF or upright JPEG as it is): PDFs with `Windows.Data.Pdf` (encrypted when the file has `/Encrypt`, because `IsPasswordProtected` misses an owner password; page sizes with their rotation applied; a page rendered at a given size), images with WIC (JPEG, PNG, TIFF, BMP, GIF, HEIC when the extension is installed; turned upright by their orientation tag). A password-protected PDF is refused with "This PDF is locked. Open it in a PDF app and print it from there." A PDF with only an owner password opens, but always goes as drawn sheets. A file of another kind gets "Lazy Print prints PDFs and pictures. Save it as a PDF first." A multi-frame TIFF or GIF is its first frame. A picture is sized by its own dpi when that is 72 or more, else as 300 dpi.
 - `SheetRenderer`: see "Render/".
 - `SpoolerPrinter` (`ISheetPrinter`): the sheet sides through a `DocumentPaginator` that builds each page when asked, written with `XpsDocumentWriter` to the queue under the forced ticket of "Printing through the system", merged over the queue's `DefaultPrintTicket` and patched in Print Schema XML so a driver's own booklet, N-up or scaling can't come back (`JobBindAllDocuments`, `DocumentBinding` and `PageScaling` None, `DocumentNUp` 1); the paper is the driver's own named size when one is within `FitTolerance`. `PrintTicket` has no booklet setting of its own. The same document can be written to an XPS file, which is what the tests check.
 - `IppSheetPrinter` (`ISheetPrinter`): a document as it is, or the sheets as PWG or URF raster at the resolution Core picks (gray when the printer lists only gray raster types), spooled by `IppSpool`, sent with `IppClient`; the job then followed with Get-Job-Attributes every 2 s until it ends, canceled with Cancel-Job.
@@ -469,3 +471,267 @@ Services (`LazyPrint.App/Services`, `Printing`):
 - Settings and printer preferences in `%APPDATA%\Lazy Print`, logs in `%LOCALAPPDATA%\Lazy Print\Logs\printers.txt` (the printer list, how rows were merged, the troubleshooter's report).
 
 `LazyPrint.App.Tests` checks the app's own code without a window or a printer: the renderer's pixels for a plan (the documents it draws are made by `scripts/make_document_fixtures.py` into `Tests/Fixtures/Documents/`), the XPS a job writes (its pages, sizes and ticket), the IPP printer against the loopback printer, the demo printer's files, the view model's flows with stand-in services (a task sets its settings, a printer without duplex gets the two-sided card, a failed job puts its problem in the error bar). It links `LoopbackIppPrinter`, `IppFixtures` and `RasterReader` from the Core tests. The Jobs tab keeps Print again for the last 10 jobs.
+
+## Render/ (drawing a sheet, Swift)
+
+A `SheetSide` is drawn the same way on both platforms: each placement's page, cropped, turned by its quarter turns and scaled to fill its frame (the planner made the frame the shape of the turned page, so nothing is centred or fitted here); page borders as 0.5 pt gray (128) lines around each frame; a blank back's dot, gray 250, radius 0.5 pt, 8 pt inside the printable area's top-left corner; `TestPageItem`s for the test page, the two-sided check and cut marks, drawn half a turn about the middle of the paper when the side is `turned`. Everything is clipped to the printable area. Global rule 3 holds: the callers pass top-left points and the renderer flips once.
+
+Files, all in `Sources/LazyPrintKit/Render/`, using CoreGraphics, CoreText (the test page's text), ImageIO and UniformTypeIdentifiers only, so the iPhone uses them unchanged:
+
+```swift
+/// A document opened for drawing, kept beside its LoadedDocument so SourcePage.document indexes both.
+public struct OpenedDocument: @unchecked Sendable {
+    public var loaded: LoadedDocument
+    public var url: URL
+    public var source: Source
+    public let drawing = DrawingLock()                       // a class box: copies of the struct share it
+    public enum Source { case pdf(CGPDFDocument), picture(CGImageSource) }
+}
+public final class DrawingLock: @unchecked Sendable { /* an NSLock; drawing a placement of this document takes it */ }
+
+public struct SheetRenderer {
+    public init(documents: [OpenedDocument])
+    /// Draws one side into a context whose user space is the paper in points, bottom-left as CoreGraphics has it.
+    /// Pictures are decoded at no more than `imageDpi` and never enlarged. No white fill: the paper is white.
+    public func draw(_ side: RenderedSide, area: PrintableArea, imageDpi: Double = 300, in context: CGContext)
+    /// A PDF with one page per side, each page the paper's size in points, written to `url` as it is drawn.
+    public func writePDF(_ sides: [RenderedSide], area: PrintableArea, imageDpi: Double = 300, to url: URL) throws
+    /// One side as pixels, white behind it, 8-bit gray or RGB.
+    public func bitmap(_ side: RenderedSide, area: PrintableArea, dpi: Double, gray: Bool) throws -> SheetBitmap
+}
+public struct RenderedSide: Equatable, Sendable {      // what SheetSide leaves out, as the Marked list and C#'s DrawnItems
+    public var side: SheetSide; public var items: [TestPageItem] = []; public var marked = false; public var turned = false
+}
+public struct SheetBitmap: Sendable {
+    public let width: Int, height: Int, bytesPerPixel: Int           // 1 or 3
+    public func row(_ y: Int) -> [UInt8]                             // the rows closure PwgRaster.writePage takes
+    public func image() -> CGImage?                                  // for the screen
+}
+```
+
+- The preview is `bitmap(side, area:, dpi: scale * 72, gray: false).image()`, `scale` being pixels per paper point (zoom times the screen's backing scale), so it is white behind the page in Dark Mode too and there is one path to the pixels.
+- A bitmap is made by a `CGContext` of 8-bit gray (`CGColorSpaceCreateDeviceGray`) or RGB (`noneSkipLast`, sRGB) for the whole side, filled white first; `row` copies one line out and drops the pad byte. Letter at 300 dpi is 34 MB in RGB (2550 × 3300 × 4), which is one sheet, as on Windows. The context is released when the `SheetBitmap` is.
+- Memory rule, as on Windows: one sheet at a time. `writePDF` and raster printing draw a side, hand it on and let it go before the next, and check for cancellation before each. A picture is decoded for its placement alone with `CGImageSourceCreateThumbnailAtIndex` (`kCGImageSourceCreateThumbnailFromImageAlways`, `kCGImageSourceCreateThumbnailWithTransform` so the EXIF orientation is applied, `kCGImageSourceThumbnailMaxPixelSize` the larger side in pixels at `imageDpi`, capped at the picture's own size). With `crop` set that size is the whole page's size on the sheet (the frame scaled up by the crop), not the frame's, or the shown part would come out soft. PDF pages are drawn as vectors with `CGContext.drawPDFPage`, so a PDF of sheets keeps its text.
+- Coordinates: the renderer flips the context once (translate to the paper's height, scale y by -1) and everything is laid out top-left. In that space `CGContext.draw(image)` and `drawPDFPage` come out upside down, so each placement flips back locally (translate to the frame's centre, rotate `turns * 90` degrees clockwise, which is positive in the flipped space, then scale y by -1) before it draws. Text sets the `textMatrix` to a flip as well, and `TestPageItem.text`'s `at` is the top-left of the line box, as in WPF, while `CTLineDraw` draws at the baseline: the baseline is `at.y` plus the font's ascent (`CTFontGetAscent`).
+- A placement is clipped to the printable area and to its frame, then draws the page, or the cropped part of it, into the unturned rectangle. Interpolation is `.high`.
+- The PDF transform is built by hand. `CGPDFPage.getDrawingTransform` only scales down, never up, so an A5 page fitted on Letter, a small page with Scaling `fit` and a photo sheet's crop would print at their natural size inside their frame. The page's crop box (`getBoxRect(.cropBox)`) has its origin moved to zero, `/Rotate` (normalised to 0, 90, 180 or 270) is applied as a quarter turn that puts the result back in the first quadrant, the shown part (the whole page, or the `crop` in the page's shown, top-left points) is scaled to the unturned rectangle in x and y separately, and a `crop` offsets by its origin. Tests: A5 on Letter with `fit`, a rotated page, and a cropped photo, by the shared pixel probes.
+- Text is CoreText (`CTLineDraw`, Helvetica and Helvetica-Bold, sized in points). The arrow is the same seven-point shape as Windows (`ArrowShape`).
+- Drawing a document takes its `DrawingLock`: `CGPDFDocument` may be read from any thread, but drawing one from two threads at once (the preview while a job runs) is not documented as safe. The lock sits on the opened document because a `SheetRenderer` is built per use, one for the preview and one inside each printer. It is held for one placement, not for a side, so the preview is not kept waiting for a sheet.
+- Contract with Windows: both renderers are tested with the same documents (`Tests/Fixtures/Documents/`) and the same pixel probes (a coloured cell's centre, a border pixel, the dot, outside the clip) in `SheetRendererTests`.
+
+### Render/DocumentLoader
+
+```swift
+public final class DocumentLoader: DocumentLoading {          // DocumentLoading: see "App state (Swift)"
+    public init()
+    public func load(_ url: URL) throws -> OpenedDocument      // PrintError.unreadable(sentence) for the refusals
+    public func originalFile(_ document: OpenedDocument) -> URL?    // a PDF, or an upright JPEG; nil for the rest
+}
+```
+
+- Kind is decided by the file's `UTType` first (`UTType(filenameExtension:)`, `conforms(to: .pdf)` and then `.image`), because ImageIO also reads PDF on macOS and `CGImageSourceCreateWithURL` returns a source for almost any file. A picture is refused when `CGImageSourceGetType` is nil or `CGImageSourceGetCount` is 0, and so is a file that is neither: `DocumentText.notSupported`, "Lazy Print prints PDFs and pictures. Save it as a PDF first.". A file that cannot be opened at all is `DocumentText.unreadable`.
+- PDF: `CGPDFDocument(url as CFURL)`. If `isEncrypted`, `unlockWithPassword("")` is tried: it fails for a document with a user password, which is refused with `DocumentText.lockedPdf`; it succeeds for one with an owner password only, which opens with `.pdf(encrypted: true)` and always goes as drawn sheets. `isUnlocked` is checked before the page count, so a locked file never comes out as "This PDF has no pages." (`DocumentText.noPages`, for a PDF that is open and empty). `allowsPrinting` is read and ignored, as on Windows; a test must confirm that `drawPDFPage` draws a page of each owner-password fixture (RC4 and AES), with the locked one beside them. Page numbers are 1-based in CoreGraphics and 0-based in `SourcePage`. A page's size is its crop box (which CoreGraphics already limits to the media box) with the normalised `rotationAngle` applied, so 90 and 270 swap width and height.
+- Picture: `CGImageSourceCreateWithURL`, frame 0 only (a multi-frame TIFF or GIF is its first frame). Size from `kCGImagePropertyPixelWidth` and `Height`, swapped for the orientation values 5 to 8 (`kCGImagePropertyOrientation`), by `kCGImagePropertyDPIWidth` when that is 72 or more, else as 300 dpi. HEIC reads where the system decodes it; a format the system cannot decode falls under the same refusal.
+- `LoadedDocument` is built from these; the handles stay in the `OpenedDocument`, so the state keeps the array and a `SheetJob` carries it.
+
+## App state (Swift)
+
+`Sources/LazyPrintKit/App/`: `@MainActor public final class AppState: ObservableObject`, in extension files as the Windows `AppViewModel`, which has four: `AppState.swift` (published state, the inits, settings, documents, plan and preview), `+Print` (jobs, passes, the two-sided card, errors), `+Printers` (the list, network, trust, the troubleshooter) and `+Tasks`. Where the two differ, the Windows file is the reference and the Swift test says so. Nothing in `App/` imports AppKit, UIKit or SwiftUI.
+
+```swift
+@MainActor public protocol PrinterSystem: AnyObject {              // default NoPrinterSystem: no queues
+    func queues() async -> [SystemPrinter]                          // virtual ones included; the merge drops them
+    func capabilities(ofQueue name: String) async -> PrinterCapabilities?
+    func clearJobs(ofQueue name: String) async throws
+    func resume(queue name: String) async throws
+}
+@MainActor public protocol NetworkPrinters: AnyObject {            // default NoNetworkPrinters: nothing found, discovery .unavailable
+    var onChange: (() -> Void)? { get set }
+    var services: [IppService] { get }
+    var discovery: DiscoveryStatus { get }
+    var discoveryDetail: String? { get }
+    var hosts: [ManualHostStatus] { get }
+    func start(); func restart()
+    func read(_ endpoint: IppEndpoint) async -> AddressCheck
+    func check(_ address: PrinterAddress, firstUse: String?) async -> AddressCheck
+    func add(_ address: PrinterAddress, capabilities: PrinterCapabilities)
+    func trust(_ certificate: IppCertificateError, deviceUuid: String?, name: String)
+}
+public struct AddressCheck: Sendable {                             // twin of the Windows record
+    public var address: PrinterAddress; public var capabilities: PrinterCapabilities?
+    public var certificate: IppCertificateError?                   // refused, and the user can decide
+    public var error: String?                                      // no answer, in words; nil with capabilities or a certificate
+}
+public struct CertificateRequest: Equatable, Sendable {            // what the alert asks about
+    public var certificate: IppCertificateError; public var address: PrinterAddress?; public var name: String; public var deviceUuid: String?
+}
+public protocol SheetPrinter: Sendable {                            // default NoSheetPrinter throws PrintError.noPrinter
+    /// One pass: returns when the printer has it all (a queue or network printer: has finished). Task cancellation stops the job.
+    func print(_ job: SheetJob, pass: Int, progress: @Sendable (JobStatus) -> Void) async throws
+}
+public protocol DocumentLoading: Sendable { func load(_ url: URL) throws -> OpenedDocument; func originalFile(_ d: OpenedDocument) -> URL? }
+@MainActor public protocol FileActionService: AnyObject {         // default UnavailableFileActions
+    func open(_ url: URL) throws; func reveal(_ url: URL) throws; func openWith(_ url: URL) throws
+    func copyText(_ text: String) throws; func lazyScanInstalled() -> Bool; func openLazyScan() throws
+}
+@MainActor public protocol TroubleshooterService: AnyObject {     // default UnavailableTroubleshooterService
+    func open(_ action: TroubleshootAction) throws                   // openPrinterSettings, openNetworkSettings, openAppSettings
+    func addSystemStatus(to snapshot: inout PrinterSnapshot) async   // network (and on the iPhone, Local Network); the spooler stays unknown
+}
+@MainActor public protocol PlatformLifecycle: AnyObject {          // Lazy Scan's
+    func observeWillTerminate(_ handler: @escaping @MainActor () -> Void)
+    func observeDidBecomeActive(_ handler: @escaping @MainActor () -> Void)
+}
+public struct DrawnItems: Equatable, Sendable { public var items: [TestPageItem]; public var turned = false }
+/// A job as it goes to a printer: what the plan laid out, and what it was laid out from.
+public struct SheetJob: Sendable {
+    public var name: String; public var printer: PrinterInfo; public var capabilities: PrinterCapabilities?
+    public var settings: PrintSettings; public var plan: JobPlan
+    public var documents: [OpenedDocument]                          // indexed by SourcePage.document
+    public var id = ""                                              // the record's, so a printer that keeps files finds them for pass 2
+    public var items: [DrawnItems]?                                 // a job made of drawing items alone: one sheet each
+    public var marks: PhotoOptions?                                 // cut marks of photo prints (`cutMarks`)
+    public var frameMarks = false                                   // cut marks of a photo sheet (`frameMarks`)
+    /// A one-sided job of sides drawn from items alone (the test page, the two-sided check).
+    public static func ofItems(name: String, printer: PrinterInfo, capabilities: PrinterCapabilities?, area: PrintableArea,
+                               sides: [DrawnItems], id: String = "") -> SheetJob
+}
+public enum JobSides {                                              // twin of windows/LazyPrint.App/Printing/JobSides.cs
+    public static func repeats(_ job: SheetJob) -> Int
+    public static func copies(_ job: SheetJob) -> Int               // max(repeats, plan.copiesInJob)
+    public static func of(_ job: SheetJob, pass: Int) -> [RenderedSide]    // the pass's sides with the repeats in the file
+}
+public struct JobStatus: Equatable, Sendable { public var state: JobState; public var sidesDone: Int; public var detail: String? }
+public struct PrinterProblemError: Error, Sendable { public var problem: PrinterProblem }   // a stop from the printer's condition
+public struct AppError: Equatable, Sendable {
+    public var title: String; public var detail: String; public var problem: PrinterProblem?
+    public var suggestsTroubleshooter: Bool     // the error is about reaching a printer: the bar offers Troubleshoot
+    public var isNotice: Bool                   // something that cannot be done, not something that failed: the info glyph
+}
+public enum DuplexStep: Equatable, Sendable { case reload, checkBack, checkAnswer }     // the Windows DuplexStep without None
+public struct DuplexCard: Equatable, Sendable { public var step: DuplexStep; public var text: String; public var sheets: Int }   // text from ManualDuplexText, as Windows
+public struct AppStateFiles { public var settingsDirectory: URL; public var logsDirectory: URL?; public var demoPrints: URL
+    public static var standard: AppStateFiles { get }; public static func all(in folder: URL) -> AppStateFiles }
+```
+
+Every protocol has a no-op default in `App/`, picked with `service ?? Default()` as in Lazy Scan, so `AppState()` is a working state with no printers and a Mac or iPhone shell passes what it has. The demo printer is not a protocol: `AppState` owns a `DemoPrinterState` and `DemoPrinter` (see "The demo printer") and `RoutingSheetPrinter` (`Printing/`) sends a job by `PrinterInfo.route` to the system printer the shell passed in, to `IppSheetPrinter` or to the demo printer. A shell passes `systemPrinter: (any SheetPrinter)?`; `ipp` and `demo` are built by `AppState`.
+
+```swift
+public convenience init(printerSystem: (any PrinterSystem)? = nil, network: (any NetworkPrinters)? = nil,
+                        systemPrinter: (any SheetPrinter)? = nil, documents: (any DocumentLoading)? = nil,
+                        fileActions: (any FileActionService)? = nil, troubleshooter: (any TroubleshooterService)? = nil,
+                        lifecycle: (any PlatformLifecycle)? = nil, platform: AppPlatform = .mac)
+init(..., files: AppStateFiles)                                    // tests: every file in a temp folder, no polling started
+```
+
+Published state, `public private(set)` unless said: `printers: [PrinterInfo]` (the merge of `printerSystem.queues()`, `network.services` and the demo printer, last); `selectedPrinter`; `capabilities` of the selected one (the system's for a queue, IPP's when the queue would not say; IPP's for a printer found only on the network); `settings: PrintSettings` (settable; saves to `settings.json` after 0.5 s and when the lifecycle says it will terminate); `printerPrefs`; `task: PrintTask?`; `documents: [OpenedDocument]` and `pageRange`; `jobPlan: JobPlan?` and `previewSide: Int`; `preview: CGImage?` (the current side, redrawn off the main actor, latest request wins; asked for again with the same side, area, scale and documents it is not drawn again, and a request that was cancelled before it began draws nothing); `duplexCard: DuplexCard?`; `jobs: [JobRecord]`; `error: AppError?` (for Troubleshoot); `certificateRequest: CertificateRequest?`; `status: String` and `statusAccessible` (`StatusLine`); `snapshot: PrinterSnapshot` and `troubleshootChecks`; `isBusy`.
+
+- Printers: `refreshPrinters()` merges and keeps rows' identity so views update in place. While the window is open (`setActive(true)` when it opens, `setActive(false)` when it closes, as the Windows polling) the system queues are read every 5 s and network rows' status every 30 s; `network.onChange` refreshes at once. A system row with an IPP twin takes its supplies and problems from IPP and its own state from `queue`. The saved `printerId` is chosen when it exists, else the default queue, else the first printer that is not the demo printer, else the demo printer. `selectPrinter(_:)` takes the printer's capabilities at once (nil for one not read or that would not say, never the previous printer's), reads them if not yet read and re-plans, and a list change that changes the selected printer's re-plans too; the capability read of a changed certificate is never started from the background (`certificateRequest` is set only for a user action), as on Windows.
+- Tasks and documents: `startTask(_:)` (`TaskCatalog.apply`; Test page, Scan and print and From your phone act at once and are not kept), `addFiles(_ urls:)` loads each off the main actor and appends in order (a failing file puts its sentence in the error bar and the others still load), `remove`, `move`, `setPageRange(_:)` (`PageRange.parse`, the message under the field). Every change to settings, documents, range or printer calls `replan()`, which runs `PrintJobs.plan` and starts a preview redraw.
+- Printing: `print()` collects the job's inputs (printer, capabilities, settings, task, documents, range, name), plans, builds a `SheetJob` and a `JobRecord` (`JobState` follows the printer's `JobStatus`) and runs the pass in a `Task`. The tasks live in `AppState`, keyed by record id (`JobRecord` is an `Equatable`, `Sendable` struct in Core and holds none), and Cancel cancels the one for its record. A one-pass job ends with "Sent 3 sheets to HP LaserJet" (`PrintText`).
+- Print again keeps the inputs of the last 10 jobs, not the jobs: `printAgain(_ record:)` plans again with the printer's capabilities and preferences as they are now, as Windows does. When the inputs are gone it shows the notice "This job is too old to print again. Add its files again." (title "Print again").
+- Two-sided by hand, the Windows steps in `+Print`, driven by the view model (the printer prints one pass per `print` call):
+  - A manual job prints its fronts (pass 0). A failed or stopped fronts pass shows no card. When it succeeds the card is on `.reload` and the record says `PrintText.LoadBacks`.
+  - `printBacks()` on `.reload` runs pass 1; on success the card goes away and the job is Sent. A failed or stopped backs pass leaves the card on `.reload`.
+  - `checkDuplex()` on `.reload` prints the check sheet's front (`ManualDuplex.checkSheet`, as `SheetJob.ofItems`, not announced) and moves to `.checkBack`. `printCheckBack()` prints the check's back, `turned` when the printer's `PaperPath.turnBacks` says so, and moves to `.checkAnswer`. Each is one sheet job, so a printer that prints one side needs no second job inside a pass.
+  - `answerDuplexCheck(_ DuplexCheckAnswer)` learns the paper path (`ManualDuplex.learn`), saves it in `printers.json`, plans the job again with it and goes back to `.reload`.
+  - `cancelManualDuplex()` ends the card; the fronts stay printed and the record is canceled.
+  - Print is greyed ("Finish the two-sided job first") while a card is open.
+- Errors: `PrinterProblemError` and `PrintError` become `error` (title by what is wrong, advice as detail, `problem` set when Troubleshoot applies). An `IppCertificateError` that can be trusted becomes `certificateRequest`; `trustCertificate()` pins it and sends the job again.
+- Troubleshooter: `openTroubleshooter()` builds the `PrinterSnapshot` (printers, `troubleshooter.addSystemStatus`, `network.discovery`, `network.hosts`, stuck jobs from the queues, `lastFailure` from the last failed job or connection), runs `Troubleshooter.diagnose` and keeps the checks; `perform(_ action:)` runs the action (only `clearStuckJobs` and `resumePrinter` ask first and say what they did). The report goes to `printers.txt` in `logsDirectory`.
+- Status line: from `StatusLine` over the state of printing, planning and the printer list; the full sentence for screen readers.
+
+Tests (`Tests/LazyPrintTests/AppStateSeamTests.swift`, the Swift twin of the `AppViewModel` tests in `LazyPrint.App.Tests`): stand-in services record calls; a task sets its settings; a printer without duplex gets the card; the card's passes go fronts then backs; a failed fronts pass shows no card and a failed backs pass stays on `.reload`; the check goes `.reload`, `.checkBack`, `.checkAnswer`, and the answer plans again with the learned path; a failed job puts its problem in the error bar; the system and network lists merge into one row; a changed certificate is asked about only for a user action; settings survive a restart from the same `AppStateFiles`; Print again plans again with the printer's current capabilities, and says "too old" when the inputs are gone. No test starts a timer: polling is started by the shell calling `setActive(true)`, which the tests do not.
+
+## Printing on the Mac
+
+The Mac lists and prints to its queues with libcups, not with `NSPrinter`, `PrintCore` or `NSPrintOperation`. Reasons: libcups is in the SDK and links without entitlements or a sandbox exception; one source gives the queue list, state reasons, device URI, marker levels, papers with their imageable areas and duplex and colour support, all as IPP attributes the Kit already knows how to read; and a job is IPP attributes sent straight to the scheduler, so nothing in the settings of a print panel, the last-used preset or the driver's defaults can come back. `NSPrintOperation` is used nowhere.
+
+`import CUPS` may not exist as a module in the macOS SDK, and `.linkedLibrary("cups")` fixes linking, not importing. The fallback is named now so the first CI failure has a known next step: a `systemLibrary` target `CCups` (`Sources/CCups/module.modulemap` with `module CCups [system] { header "shim.h"; link "cups"; export * }`, `shim.h` including `<cups/cups.h>`), and the Mac target imports `CCups`. Either way, `CUPS_HTTP_DEFAULT` is a macro with a cast, which Swift does not import: every call passes `nil` as the connection.
+
+Files in `Sources/LazyPrintMac/App/`: `CupsQueues.swift` (`PrinterSystem`), `CupsStates.swift` (pure: reasons to `SystemQueueState`), `CupsOptions.swift` (pure: the job's options), `CupsPrinter.swift` (`SheetPrinter`). Every libcups call is made on a serial `DispatchQueue`, wrapped by an async function. A serial queue does not pin a thread, and `cupsLastErrorString` and the default connection are per thread, so a failed call's error is read in the same block as the call. A long `cupsPrintFile2` would hold up the 5 s queue listing, so the sending has a queue of its own.
+
+- Listing: `cupsGetDests2(nil, &dests)`, freed with `cupsFreeDests`. Each destination's options carry `printer-state` (3 idle, 4 processing, 5 stopped), `printer-state-reasons`, `printer-is-accepting-jobs`, `device-uri`, `printer-make-and-model`, `printer-info`, `printer-type`, `marker-names`, `-levels`, `-colors`, `-low-levels`, `-types` and `printer-uuid` when the scheduler reports it; the scheduler's default is `is_default`. A listing that comes back empty with an error status (0x0400 or more) is a scheduler that did not answer: the queues read last are kept, as on Windows. A destination that is a class or has no queue is skipped. Instances (`name/instance`) are skipped, they are saved option sets, not queues; when the default destination is an instance, the default flag goes to its base queue. `SystemPrinter.port` is `device-uri`; its `uuid` is `printer-uuid`, else the `uuid` query item of a `dnssd://` device URI (driverless queues carry it there; a test on sample strings pins this, a real queue confirms it). `isVirtual`: the device URI's scheme is `cups-pdf`, `file` or `fax`, or `printer-type` has `CUPS_PRINTER_FAX` (0x40000). 0x4 is `CUPS_PRINTER_BW`, so a black-and-white printer is a real one: `CupsQueuesTests` has a mono `printer-type` that must not be virtual.
+- States (`CupsStates.describe(state:, reasons:, accepting:) -> [SystemQueueState]`): a reason's `-error`, `-warning` and `-report` suffix is dropped, then `paused` and state 5 give `paused` (not accepting jobs does too), `offline` and `connecting-to-device` `offline`, `media-empty` and `media-needed` `paperOut`, `media-jam` `paperJam`, `door-open` and `cover-open` `doorOpen`, `toner-low`, `marker-supply-low` and `marker-waste-almost-full` `tonerLow`, `toner-empty` and `marker-supply-empty` `noToner`, state 4 `busy`, any other `-error` reason `error`. Jobs: `cupsGetJobs2(nil, &jobs, name, 0, CUPS_WHICHJOBS_ACTIVE)`, `cups_job_t.state` (IPP_JSTATE_STOPPED 6 and ABORTED 8 count as error) and `creation_time` for the oldest. Supplies of a queue come from its IPP twin; a queue with no twin shows none yet, since `SystemPrinter` has nowhere to carry the `marker-*` options.
+- Capabilities for a queue with no IPP twin: `cupsCopyDestInfo(nil, dest)`; papers by `cupsGetDestMediaCount` and `cupsGetDestMediaByIndex` (`CUPS_MEDIA_FLAGS_DEFAULT`, again with `_BORDERLESS`), each `cups_size_t` (hundredths of a millimetre, with `left`, `bottom`, `right`, `top` margins) one `MediaEntry`; duplex by `cupsCheckDestSupported(..., CUPS_SIDES, "two-sided-long-edge")`; colour by the values of `print-color-mode` from `cupsFindDestSupported`; copies by `copies`. The `PrintableArea` of a paper is the entry's margins, as with IPP. Queues made from a PPD answer through CUPS' PPD-to-IPP mapping; a test on a Mac with a PPD queue must confirm that papers and duplex come back (the CI runner has no printers, so those tests skip with their reason).
+- Clear stuck jobs: `cupsCancelJob2(nil, name, CUPS_JOBID_ALL, 0)`. Cancelling other users' jobs needs an administrator, and so does Resume (a Resume-Printer request through `cupsDoRequest(..., "/admin/")`); Resume sends Resume-Printer and then CUPS-Accept-Jobs (0x4008), since a queue that refuses jobs is `paused` too and Resume-Printer alone leaves it refusing; when the scheduler answers forbidden or not authenticated the app opens Printers & Scanners instead and says so. Both confirm on a real Mac.
+
+### A job to a queue, with the settings forced
+
+`CupsPrinter` writes the pass's sheets as a PDF (`SheetRenderer.writePDF`, one page per side, each the paper's size; the Kit decided the copies already, so `JobSides` puts the repeats in the file) and sends it with `cupsPrintFile2(nil, queue, path, title, count, options)`, which returns the job id (0, and the error read at once, on failure). `cupsPrintFile2` over `cupsCreateDestJob` and `NSPrintOperation`: it is one call with the options as a dictionary, which the pure function builds and a test compares.
+
+```swift
+enum CupsOptions {
+    /// `copies` is what the queue makes (JobPlan.copiesInJob); `media` is the PWG or PPD name of the paper's closest size in the queue.
+    static func forJob(sides: Sides, copies: Int, collate: Bool, color: ColorChoice, quality: QualityChoice,
+                       media: String?, duplexPass: Bool) -> [String: String]
+}
+```
+
+It always sets `document-format=application/pdf`, `orientation-requested=3` (portrait: the page is already the sheet), `print-scaling=none` with the older `fit-to-page=false` and `scaling=100` (Apple's PDF filters read the old names, cups-filters the new one; sending both costs nothing), `number-up=1`, `outputorder=normal`, and `sides=two-sided-long-edge` or `one-sided` (manual passes are one-sided). `copies` only when above 1, with `multiple-document-handling=separate-documents-collated-copies` or, collate off, `separate-documents-uncollated-copies`; `print-color-mode=color|monochrome`; `print-quality=3|4|5` for draft, normal and best, so a queue's own default does not come back; `media=` from `cupsGetDestMediaBySize(nil, dest, info, widthHundredths, heightHundredths, CUPS_MEDIA_FLAGS_EXACT or default, &size)`. Booklets and N-up are imposed by Lazy Print, never by the queue. Why this forces the settings: CUPS applies job attributes over the queue's defaults, and these are the attributes its PDF filter chain reads for layout, so the sheets are printed as drawn. What no test on the CI runner can prove is that Apple's `cgpdftopdf`/`pdftopdf` honours each one for a PDF with a driver in the way; the first run on a real queue (print the fixture of 4 sheets, check that nothing is scaled, 1-up and in order, and the backs of a two-sided job land correctly) decides, and `CupsOptions` is the one place to change.
+
+Tracking: after the job id comes back, a Get-Job-Attributes request for that one job (`cupsDoRequest`, `requested-attributes` `job-state`, `job-state-reasons`, `job-impressions-completed`) every 2 s, so the queue's job history is never read. The mapping is `pending` to `waiting`, `pending-held` to `needsUser`, `processing` to `printing`, `processing-stopped` to `needsUser`, `completed` to `done`, `canceled` to `canceled` and `aborted` to `failed`; a job the scheduler no longer knows counts as done. `job-impressions-completed` is `sidesDone`. Cancel (task cancellation) calls `cupsCancelJob2(nil, queue, id, 0)`. A queue stopped or not accepting before the send throws `PrinterProblemError`.
+
+Difference from Windows, deliberate: `SpoolerPrinter` returns once the XPS is in the spooler, while `CupsPrinter.print` returns when CUPS reports the job completed. The two-sided card must not ask for the stack before the fronts are out, and a job held for sign-in then shows as `needsUser` in the Jobs tab with Cancel working, instead of the pass ending at once on a job that never prints. A job held for ever blocks the pass until the user cancels.
+
+### The demo printer (Swift)
+
+`Sources/LazyPrintKit/Printing/DemoPrinter.swift`, with `DemoPrinterState` (`@MainActor ObservableObject`: `duplex`, `outOfPaper`, four inks that fall 2 points a job, the folders by job id, `root`) as the C# types of the same names: Letter, A4 and 4 × 6 in with 0.17 in margins, `printColorMode`, copies and `separate-documents-collated-copies` supported. Each side is drawn with `SheetRenderer.bitmap` at 150 dpi (gray for a gray job) and written with `CGImageDestination` (`UTType.png`) into `<root>/yyyy-MM-dd HH.mm.ss <job name>[ n]/`, files named "Sheet 2 front", "Sheet 2 back", "Sheet 2", "Fronts 2", "Backs 2" as on Windows (`DemoPrinterTests` shares the cases). A gray job uses only the black ink, as on Windows. `DemoPrinter` is `Sendable`, so it reads the state's switches once at the start of a pass and hops to the main actor (`await MainActor.run`) for that read and for the one ink drop after the files are written. The date is formatted with `en_US_POSIX`. `root` is `~/Documents/Lazy Print/Demo prints` (`FileManager.urls(for: .documentDirectory)`); the first write there makes macOS ask once for access to Documents, which needs no entitlement; `NSDocumentsFolderUsageDescription` in the plist is what the prompt shows, and a Mac confirms whether it is needed for an unsandboxed app. Tests give a temp folder.
+
+### IPP printers from the Mac
+
+`IppSheetPrinter` (`Sources/LazyPrintKit/Printing/IppSheetPrinter.swift`, Kit, so the iPhone has it too) is the twin of the Windows class: `DocumentFormats.choose(supported:, kind:, canWritePDF: true)`; a PDF or upright JPEG that prints as it is goes as the original (`DocumentLoading.originalFile`, ticket `asIs`); otherwise `application/pdf` from `writePDF` when the printer lists it, else PWG raster, else URF, drawn with `SheetRenderer.bitmap` at the resolution Core picks and fed to `PwgRaster.writePage` a row at a time into an `IppSpool`; then `IppClient.print`, and `IppClient.job` every 2 s until the job ends, `IppClient.cancel` on task cancellation. A refusal of the format is retried once as raster, as the Ipp section says.
+
+`NWBrowserPrinters` (`Sources/LazyPrintKit/Printing/NWBrowserPrinters.swift`, Kit, Network framework and dnssd, so the iPhone has it too; implements `NetworkPrinters`): one `NWBrowser(for: .bonjourWithTXTRecord(type: "_ipp._tcp", domain: nil), using: .tcp)` and a second for `_ipps._tcp`; `browseResultsChangedHandler` gives `NWBrowser.Result`s whose `endpoint` is `.service(name:type:domain:interface:)` and whose `metadata` is `.bonjour(NWTXTRecord)`; the TXT entries (`NWTXTRecord.dictionary`) become `IppService.textAttributes`. `NWBrowser` does not resolve, and an `NWConnection` gives only the one address that connected, no host name, and a TCP connection to every printer. Each new service is resolved with `DNSServiceResolve` (host name and port) and `DNSServiceGetAddrInfo` (every address, IPv4 and IPv6, a link-local one with its interface index as the zone), on the dnssd dispatch queue (`DNSServiceSetDispatchQueue`), and the references are deallocated when the answer is in or after 5 s; a service without an answer stays without addresses and is retried on the next change. So `IppService.hostName` is set and the IPv4-then-`.local` order in `IppEndpoint.choose` works. A browser in `.failed` or `.waiting` with `NWError.dns(kDNSServiceErr_PolicyDenied)` (`import dnssd`) sets `discovery = .denied` and the detail; `.ready` with no results is `.running`. The conversion from result to `IppService` is a pure function (`IppServices.from(name:type:txt:)`), and the browser sits behind a small seam (`Browsing`, with `Resolving` for the resolver) so `NWBrowserPrintersTests` feeds it results; real discovery is checked by hand. `ipp-hosts.json` is read by `IppHostList` at start and every minute while an address does not answer, each answering address made an `IppService` with id `address:<address>` and its UUID, as on Windows; `read` and `check` call `IppClient` with the app's `IppCertificateValidator` and `IppTrustStore`.
+
+## The Mac app (Sources/LazyPrintMac)
+
+Lazy Scan's Mac app, with the screens of the Windows one. Every file is wrapped whole in `#if os(macOS)`. `Sources/LazyPrint/main.swift` is the launcher (`LazyPrintApp.main()`).
+
+- `App/`: `LazyPrintApp` (a `WindowGroup`; `ContentView` has `.onOpenURL` and `.handlesExternalEvents(preferring: ["*"], allowing: ["*"])`, as Lazy Scan's, so open-file events go to the window there is and do not multiply it; commands remove New Window; Help links to the product site once there is one; the `AppState` is made in its `init`, so no URL arrives before it exists), `AppDelegate` (quit with a job running asks first, and when told to quit waits (`terminateLater`) until the job's task has ended, which is after the printer was asked to drop the job; the app quits after its last window; no `application(_:open:)`: once the delegate implements it AppKit sends it every URL and `.onOpenURL` never fires), `AppKitLifecycle` (as Lazy Scan's), `CupsQueues`, `CupsPrinter`, `SystemFileActions` (`NSWorkspace` open, open with, reveal; `NSPasteboard`; `lazyscan:` through `NSWorkspace.urlForApplication(toOpen:)`), `SystemTroubleshooterService` (System Settings through `x-apple.systempreferences:com.apple.Print-Scanner-Settings.extension` and the Network pane; the network's state from an `NWPathMonitor` read once), and `AppState.makeForMac()`.
+- `UI/`: `ContentView` (`NavigationSplitView`, the sidebar and a segmented picker Start, Print, Jobs; the error bar, the status bar and the "Sent" bar above it), `SidebarView` (`List` with `.sidebar` style: printers with a state dot, a one-line problem and supply bars, the demo printer last with "Demo (no hardware)" under its name and its menu of switches, "No other printer found" when it is alone, + for Add by address and ? for the troubleshooter), `TaskStartView` (`LazyVGrid` of `TaskCatalog` tiles by group, `TaskSymbols` mapping `iconKey` to SF Symbols), `PrintView` (the preview with "Sheet 2 of 5", previous, next and Front/Back; `DocumentStrip` under it; `InspectorView` on the right with `InspectorSections` as collapsible sections stored in `@AppStorage`; the Print button that says what it does), `JobsView` (records newest first, Cancel, Print again, Show for the demo folder), `DuplexSheet` (the two-sided card as a `.sheet` with its own certificate alert, since the window's would not show over it; Escape moves to Cancel only), `TroubleshooterView` (a `.sheet`), `AddPrinterView` (a `.sheet`, the address checked before it is added), and `.alert` for the certificate (Trust, Cancel; the wording as Lazy Scan's). The preview image is `Image(decorative:scale:)` of `AppState.preview` at the view's size times the screen's backing scale.
+- Files in: `.dropDestination(for: URL.self)` on the main content adds PDFs and pictures from anywhere on the window; the start tiles that open files use `.fileImporter` (an open panel) with `[.pdf, .image]`. `Package.swift` and `make_app.sh` declare the app as a viewer of `com.adobe.pdf` and `public.image` (`CFBundleDocumentTypes`, `CFBundleTypeRole` Viewer, `LSHandlerRank` Alternate, so it is offered in Open With and never takes over a default). Files from Open With, the Dock icon and `open` arrive in `.onOpenURL` with the `lazyprint:` URLs, which are told apart by scheme: a file URL is added, a `lazyprint:` URL only brings the window forward until "Hand-off" says more. The scheme is registered with `CFBundleURLTypes`.
+- `Package.swift` gains the targets `CCups` only if the fallback is needed, `LazyPrintMac` (depends on `LazyPrintKit`), the executable `LazyPrint` (depends on `LazyPrintMac`; the product `.executable(name: "LazyPrint")`) and `LazyPrintMacTests`, all with explicit paths.
+
+`scripts/make_app.sh` is Lazy Scan's with the names changed: `swift build -c release`, `dist/Lazy Print.app` (bundle id `local.lazyprint.app`, executable `LazyPrint`, `LSMinimumSystemVersion` 14.0, version 1.0), the icon (the PNG `scripts/make_ios_icon.py` draws, scaled with `sips` and packed with `iconutil` as Lazy Scan's script does), `codesign --force --deep -s -` ad hoc, no entitlements and no sandbox. Info.plist keys beyond the usual: `CFBundleDocumentTypes`, `CFBundleURLTypes`, `NSDocumentsFolderUsageDescription`, `NSLocalNetworkUsageDescription` ("Lazy Print looks for printers on your local network, so you can print to them.") and `NSBonjourServices` (`_ipp._tcp`, `_ipps._tcp`, `_lazyprint._tcp`). The last two are not needed for the code to work: macOS 14 does not ask, but macOS 15 and later can ask for Local Network access when an app browses or connects to local hosts, and the two keys are what that prompt shows and allows. Whether an ad-hoc signed app is asked at all on 15 can only be seen on a Mac; `discovery = .denied` and its troubleshooter line cover the answer "no".
+
+App Transport Security: `NSAllowsArbitraryLoads` is set. ATS exempts IP addresses, unqualified names and `.local` hosts, but a printer added by hand by its name on a home or office network (`printer.lan`, `printer.example.com`) over `ipp://` would be refused, and `NSAllowsLocalNetworking` does not cover it. Printers answer plain HTTP by design and the app makes no other requests, so lifting ATS costs nothing here; the iPhone decides for itself.
+
+### LazyPrintMacTests
+
+No window and no printer. `CupsOptionsTests` (the options for each combination of sides, copies, collate, colour, quality, compared as dictionaries; the forced ones always present), `CupsStatesTests` (reasons to states, with suffixes), `CupsQueuesTests` (device URI to port and UUID on sample strings; virtual queue detection, with a mono `printer-type` that is not virtual; a call to `cupsGetDests2` that passes with zero or more destinations, so linking is proved on the runner; the tests that need a real queue use `XCTSkipUnless` with the reason, and `LAZYPRINT_REQUIRE_CUPS_QUEUE=1` makes the skip a failure), `SystemFileActionsTests` (how the URLs are built, as pure functions; `NSWorkspace` itself is not wrapped or tested), `AppKitLifecycleTests` (posting notifications on a private centre). The services against the loopback IPP printer (`IppSheetPrinterTests`: the PDF the printer receives, its pages and sizes, the ticket; the raster fallback decoded with the test `RasterReader`; cancel), `NWBrowserPrintersTests` (TXT and endpoint to `IppService`, denied and failed states, through the seam), `DemoPrinterTests`, `SheetRendererTests`, `DocumentLoaderTests` and the AppState flows are in `Tests/LazyPrintTests`, since the iPhone runs them too.
+
+`ScreenshotTests` (Mac tests, skipped with the reason unless `LAZYPRINT_SHOTS` names a folder): `NSApplication.shared` is touched first (a window cannot be built without it under xctest; a guess the first run confirms). It builds an `AppState` on a temp `AppStateFiles` with the demo printer and a fixture PDF, hosts `ContentView` in an `NSHostingView` inside an off-screen `NSWindow` (1100 × 720, `appearance` set to aqua and darkAqua in turn), calls `layoutSubtreeIfNeeded()`, and writes `bitmapImageRepForCachingDisplay(in:)` after `cacheDisplay(in:to:)` as PNG `mac-<screen>-<light|dark>.png` for: start, print with a 2-up plan, print with a photo sheet, jobs after a demo job, the two-sided card, the troubleshooter with "No printer found" and with a stopped printer, add printer. These are not assertions of pixels; they exist so the screens can be looked at without a Mac. Open: `NavigationSplitView`, `List` and `Form` may draw empty when hosted off-screen; if the first CI run shows that, the fallback is one hosted view per column and `ImageRenderer` for the cards, and the test file says which.
+
+## CI
+
+`.github/workflows/ci.yml`, job `macos` (it already runs `swift build` and `swift test --parallel` on `macos-15` with Xcode 16.4, which now include `LazyPrintMac`, `LazyPrint` and the shared Render and App tests). Added after Build:
+
+```yaml
+      - name: Test
+        run: swift test --parallel
+        env:
+          LAZYPRINT_SHOTS: ${{ runner.temp }}/shots
+      - name: Screens
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-screens
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
+      - name: Build the app
+        run: |
+          bash scripts/make_app.sh
+          plutil -lint "dist/Lazy Print.app/Contents/Info.plist"
+          codesign --verify --deep "dist/Lazy Print.app"
+          ditto -c -k --keepParent "dist/Lazy Print.app" "$RUNNER_TEMP/LazyPrint-mac.zip"
+      - name: App
+        uses: actions/upload-artifact@v7
+        with:
+          name: lazyprint-mac
+          path: ${{ runner.temp }}/LazyPrint-mac.zip
+```
+
+The test step replaces the present one. The folder `LAZYPRINT_SHOTS` names is made by the test. The built app is ad-hoc signed and unnotarised; downloaded from the artifact it needs Control-click, Open once. `ScreenshotTests` run with the other tests, in debug as now; if debug tests turn slow as Lazy Scan's did, the step moves to `swift test -c release -Xswiftc -enable-testing --parallel` as there. The `windows` job runs the new C# cases (`DocumentText`, `PrintError`, the `DrawMarks` clip) and is otherwise unchanged. The iPhone jobs come with the iPhone app.
+
+Confirmed only by the first CI run (each is a test that fails loudly, none is assumed): `import CUPS` (else `CCups`) and the libcups symbols above link on the runner; `drawPDFPage` draws the owner-password PDFs; `NSHostingView` renders the sidebar and inspector off-screen; `cupsGetDests2` returns on a runner with no queues.
