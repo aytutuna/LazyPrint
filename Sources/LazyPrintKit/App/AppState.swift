@@ -171,6 +171,8 @@ public final class AppState: ObservableObject {
     var ippReads: [String: AddressCheck] = [:]
     var printersRead = false
     var refreshing = false
+    /// A call came while a read was running: one more pass follows it.
+    var refreshAgain = false
     var statusReading = false
     var lazyScanInstalled = false
     var systemState = (spooler: ServiceStatus.unknown, network: NetworkStatus.unknown)

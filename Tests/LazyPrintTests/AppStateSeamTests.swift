@@ -382,10 +382,91 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_anOfflineQueueThatGaveNoCapabilities_isAskedAgainWhenItIsBack_onThePhone() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true, .offline)]
+        await rig.state.refreshPrinters()
+        XCTAssertNil(rig.state.capabilities)
+
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.spooler.capabilityReads, 2)
+        XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
+    }
+
     @MainActor
+    func test_aPrinterThatStoppedAnsweringDuringTheRead_isAskedAgainOnThePhone() async throws {
+        let rig = try makeRig(platform: .ios)
+        // The row is idle when the read begins; the read comes back empty.
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        await rig.state.refreshPrinters()
+        XCTAssertEqual(rig.state.printers[0].state, .idle)
+        XCTAssertNil(rig.state.capabilities)
+
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.spooler.capabilityReads, 2)
+        XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
+    }
+
     @MainActor
+    func test_aQueueThatGaveNoCapabilities_isAskedOnceOnTheMac() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true, .offline)]
+        await rig.state.refreshPrinters()
+        await rig.state.refreshPrinters()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.spooler.capabilityReads, 1)
+        XCTAssertNil(rig.state.capabilities)
+    }
+
     @MainActor
+    func test_anOfflineQueueWithAnIppAddress_takesIppsCapabilitiesUntilItsOwnCome() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true, .offline)]
+        rig.network.found = [networkService("HP LaserJet Pro", address: "192.168.1.20", uuid: hpUuid)]
+        var standIn = Rig.capabilities(duplex: false)
+        standIn.name = "HP LaserJet Pro"
+        rig.network.answers["HP LaserJet Pro"] = AddressCheck(address: try PrinterAddress.parse("192.168.1.20"), capabilities: standIn,
+                                                              certificate: nil, error: nil)
+        rig.state.startNetwork()
+        await rig.state.refreshPrinters()
+        await rig.state.refreshNetworkStatus()
+        try await waitUntil { rig.state.capabilities?.name == "HP LaserJet Pro" }
+
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.state.printers[0].route, .system)
+        XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
+    }
+
     @MainActor
+    func test_aRefreshThatCameWhileOneRan_runsOnceMoreWhenTheFirstEnds() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("A", isDefault: true)]
+        rig.spooler.holdsFirstRead = true
+        let first = Task { await rig.state.refreshPrinters() }
+        try await waitUntil { rig.spooler.queueReads == 1 }
+
+        rig.spooler.listed.append(Rig.queue("B"))
+        await rig.state.refreshPrinters()
+        XCTAssertEqual(rig.spooler.queueReads, 1)
+
+        rig.spooler.letGo()
+        await first.value
+
+        XCTAssertEqual(rig.spooler.queueReads, 2)
+        XCTAssertEqual(rig.state.printers.map { $0.id }, ["system:A", "system:B", "demo"])
+    }
+
     @MainActor
     @MainActor
     func test_goingBackToAPrinterAlreadyRead_takesItsOwnCapabilities() async throws {

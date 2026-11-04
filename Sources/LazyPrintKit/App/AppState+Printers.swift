@@ -23,20 +23,27 @@ extension AppState {
     }
 
     /// Reads the system's queues again and rebuilds the list when something changed. Called when the window opens and every
-    /// five seconds while it is open (`setActive`).
+    /// five seconds while it is open (`setActive`). A call that comes while a read runs does not wait for it, but the read
+    /// is run once more when it ends, so what changed in between is not missed.
     public func refreshPrinters() async {
-        guard !refreshing else { return }
+        guard !refreshing else {
+            refreshAgain = true
+            return
+        }
         refreshing = true
         defer { refreshing = false }
-        queues = await printerSystem.queues()
-        printersRead = true
-        rebuildPrinters()
-        await loadCapabilities()
-        writeLog()
-        // A printer a queue was just matched to has not been asked yet.
-        if printers.contains(where: { $0.ippEndpoint != nil && ippReads[$0.id] == nil }) {
-            Task { await self.refreshNetworkStatus(onlyNew: true) }
-        }
+        repeat {
+            refreshAgain = false
+            queues = await printerSystem.queues()
+            printersRead = true
+            rebuildPrinters()
+            await loadCapabilities()
+            writeLog()
+            // A printer a queue was just matched to has not been asked yet.
+            if printers.contains(where: { $0.ippEndpoint != nil && ippReads[$0.id] == nil }) {
+                Task { await self.refreshNetworkStatus(onlyNew: true) }
+            }
+        } while refreshAgain
     }
 
     /// The rows from the queues and the network printers read last, with the demo printer as it is now.
@@ -96,7 +103,9 @@ extension AppState {
         case .system:
             read = await printerSystem.capabilities(ofQueue: Self.queueName(of: printer))
         }
-        capabilitiesAsked.insert(printer.id)
+        // On the iPhone a printer that gave no answer is asked again: it may have been asleep, or gone out of range during
+        // the read. The Mac asks once: cupsCopyDestInfo has no timeout, and runs one at a time.
+        if read != nil || platform != .ios { capabilitiesAsked.insert(printer.id) }
         if let read { capabilitiesById[printer.id] = read }
         syncCapabilities()
         replan()
@@ -156,6 +165,8 @@ extension AppState {
 
     private func networkChanged() {
         networkServices = network.services
+        // The discovery status is not in the rows, so a change of it alone has to reach the views too.
+        objectWillChange.send()
         rebuildPrinters()
         Task { await self.refreshNetworkStatus(onlyNew: true) }
         writeLog()
@@ -184,10 +195,12 @@ extension AppState {
         for (id, check) in answers {
             ippReads[id] = check
             guard let capabilities = check.capabilities, let row = printers.first(where: { $0.id == id }) else { continue }
-            // A network printer is printed to as it says; a queue's own capabilities win, IPP's stand in when it would not say.
-            if row.route == .ipp || (capabilitiesAsked.contains(id) && capabilitiesById[id] == nil) {
+            // A network printer is printed to as it says; a queue's own capabilities win, IPP's stand in until they come.
+            if row.route == .ipp {
                 capabilitiesById[id] = capabilities
                 capabilitiesAsked.insert(id)
+            } else if capabilitiesById[id] == nil {
+                capabilitiesById[id] = capabilities
             }
         }
         rebuildPrinters()
