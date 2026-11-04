@@ -121,7 +121,14 @@ public final class AppState: ObservableObject {
     @Published public internal(set) var duplexCard: DuplexCard?
     /// This session's jobs, newest first.
     @Published public internal(set) var jobs: [JobRecord] = []
-    @Published public internal(set) var error: AppError?
+    @Published public internal(set) var error: AppError? = nil {
+        didSet {
+            if error != nil { errorsShown += 1 }
+        }
+    }
+    /// How many errors and notices have been put in the bar. A screen that ran an action compares it with the count from
+    /// before: an error equal to the one already there cannot be told by its value.
+    public internal(set) var errorsShown = 0
     /// The success bar's sentence after a job went out ("Sent 3 sheets to HP LaserJet"); nil hides the bar.
     @Published public internal(set) var sentMessage: String?
     @Published public internal(set) var certificateRequest: CertificateRequest?
@@ -318,6 +325,11 @@ public final class AppState: ObservableObject {
         }
         error = AppError(title: failure?.problem?.title ?? title, detail: message, problem: failure?.problem,
                          suggestsTroubleshooter: suggests)
+    }
+
+    /// The words of the error put in the bar since `errorsShown` was `count`; nil when there was none.
+    public func errorDetail(since count: Int) -> String? {
+        errorsShown == count ? nil : error?.detail
     }
 
     public func dismissError() {

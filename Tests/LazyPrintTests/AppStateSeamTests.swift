@@ -468,6 +468,24 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_everyErrorShown_countsEvenWhenItIsTheSameAsTheLast() async throws {
+        let rig = try makeRig()
+        let first = rig.state.errorsShown
+        XCTAssertNil(rig.state.errorDetail(since: first))
+
+        rig.state.showFailure("Resume printer", "No access")
+        XCTAssertEqual(rig.state.errorDetail(since: first), "No access")
+
+        let second = rig.state.errorsShown
+        rig.state.showFailure("Resume printer", "No access")
+        XCTAssertEqual(rig.state.errorsShown, second + 1)
+        XCTAssertEqual(rig.state.errorDetail(since: second), "No access")
+
+        rig.state.dismissError()
+        XCTAssertEqual(rig.state.errorsShown, second + 1)
+        XCTAssertNil(rig.state.errorDetail(since: rig.state.errorsShown))
+    }
+
     @MainActor
     func test_goingBackToAPrinterAlreadyRead_takesItsOwnCapabilities() async throws {
         let rig = try makeRig()
