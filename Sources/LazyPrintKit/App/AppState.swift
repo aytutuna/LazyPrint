@@ -374,6 +374,11 @@ public final class AppState: ObservableObject {
         replan()
     }
 
+    /// Reports a file that never reached `addFiles` (a photo that would not download) as one that cannot be read.
+    public func reportUnreadable(_ name: String) {
+        showFailure("Not added", "\(name): " + DocumentText.unreadable)
+    }
+
     public func remove(at index: Int) {
         guard !isBusy, documents.indices.contains(index) else { return }
         documents.remove(at: index)

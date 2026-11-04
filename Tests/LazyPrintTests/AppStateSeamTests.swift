@@ -902,6 +902,15 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_aFileThatNeverArrived_isReportedByName() throws {
+        let rig = try makeRig()
+
+        rig.state.reportUnreadable("Photo 2.heic")
+
+        XCTAssertEqual(rig.state.error?.title, "Not added")
+        XCTAssertEqual(rig.state.error?.detail, "Photo 2.heic: " + DocumentText.unreadable)
+    }
+
     @MainActor
     func test_documents_canBeMovedAndRemoved() async throws {
         let rig = try makeRig()
