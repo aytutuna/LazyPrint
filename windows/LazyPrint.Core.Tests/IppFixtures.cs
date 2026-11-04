@@ -49,19 +49,20 @@ internal static class IppFixtures
         PrinterCapabilities.From(IppMessage.Decode(Printer(name)).Message);
 
     /// <summary>
-    /// Compares bytes with the golden file Tests/Fixtures/Ipp/folder/name.extension. With LAZYPRINT_WRITE_GOLDEN=1 the file is
+    /// Compares bytes with the golden file Tests/Fixtures/area/folder/name.extension. With LAZYPRINT_WRITE_GOLDEN=1 the file is
     /// written instead, into the source tree (the build copies it on the next run); Swift only reads them.
     /// </summary>
-    public static void Golden(string name, byte[] actual, string folder = "requests", string extension = ".bin", [CallerFilePath] string here = "")
+    public static void Golden(string name, byte[] actual, string folder = "requests", string extension = ".bin", string area = "Ipp",
+                              [CallerFilePath] string here = "")
     {
         if (Environment.GetEnvironmentVariable("LAZYPRINT_WRITE_GOLDEN") == "1")
         {
-            string source = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "..", "..", "Tests", "Fixtures", "Ipp", folder));
+            string source = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "..", "..", "Tests", "Fixtures", area, folder));
             Directory.CreateDirectory(source);
             File.WriteAllBytes(Path.Combine(source, name + extension), actual);
             return;
         }
-        byte[] expected = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ipp", folder, name + extension));
+        byte[] expected = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", area, folder, name + extension));
         Assert.Equal(expected, actual);
     }
 }
