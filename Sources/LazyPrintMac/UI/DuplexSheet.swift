@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The two-sided card: where a job done by hand waits for the stack to go back in the tray, and the one-sheet check that
 /// teaches the app how this printer takes it. Escape only moves to Cancel: the fronts are already printed, and a sheet
-/// that closed on its own would lose the backs. Twin of the Windows overlay.
+/// that closed on its own would lose the backs. Cancel is the way out, and while a pass runs it stops the pass. Twin of the
+/// Windows overlay.
 struct DuplexSheet: View {
     @EnvironmentObject var state: AppState
     @FocusState private var cancelFocused: Bool
@@ -35,11 +36,19 @@ struct DuplexSheet: View {
                     ProgressView().controlSize(.small)
                 }
                 Spacer()
-                buttons(card)
-                Button("Cancel") { state.cancelManualDuplex() }
-                    .focused($cancelFocused)
+                HStack(spacing: 8) {
+                    buttons(card)
+                }
+                .disabled(state.isBusy)
+                Button("Cancel") {
+                    if state.isBusy {
+                        state.cancelJob()
+                    } else {
+                        state.cancelManualDuplex()
+                    }
+                }
+                .focused($cancelFocused)
             }
-            .disabled(state.isBusy)
         }
         .padding(20)
         .frame(width: 480)
