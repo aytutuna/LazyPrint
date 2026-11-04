@@ -53,7 +53,7 @@ public partial class App : Application
         return [.. all.SelectMany(arg => IsAddress(arg) ? LazyPrintUrl.Parse(arg).Select(Path.GetFullPath) : [Path.GetFullPath(arg)])];
     }
 
-    private static bool IsAddress(string arg) => arg.StartsWith(LazyPrintUrl.Scheme + ":", StringComparison.OrdinalIgnoreCase);
+    private static bool IsAddress(string arg) => arg.TrimStart().StartsWith(LazyPrintUrl.Scheme + ":", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Files handed over by a second start: opened at once, or kept for the window if it is not open yet.</summary>
     private void Opened(IReadOnlyList<string> paths) => Dispatcher.BeginInvoke(() =>

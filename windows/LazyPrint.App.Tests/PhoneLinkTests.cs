@@ -349,6 +349,7 @@ public sealed class PhoneLinkTests : IDisposable
         string[] fromOpen = ["lazyprint:open?file=" + Uri.EscapeDataString(@"C:\Temp\a.pdf"), @"\\evil\share\a.pdf"];
 
         Assert.Empty(LazyPrint.App.App.FilesOf(split));
+        Assert.Empty(LazyPrint.App.App.FilesOf([" lazyprint:x", @"\\evil\share\a.pdf"]));
         Assert.Equal([@"C:\Temp\a.pdf"], LazyPrint.App.App.FilesOf(fromOpen));
     }
 
