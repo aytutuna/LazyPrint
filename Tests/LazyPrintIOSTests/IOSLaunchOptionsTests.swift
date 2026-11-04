@@ -26,6 +26,11 @@ final class IOSLaunchOptionsTests: XCTestCase {
         XCTAssertFalse(IOSLaunchOptions(arguments: ["LazyPrint", "-demoPrinter"], environment: [:]).dark)
     }
 
+    func test_pairedComputer_isRead() {
+        XCTAssertTrue(IOSLaunchOptions(arguments: ["LazyPrint", "-demoPrinter", "-pairedComputer"], environment: [:]).pairedComputer)
+        XCTAssertFalse(IOSLaunchOptions(arguments: ["LazyPrint", "-demoPrinter"], environment: [:]).pairedComputer)
+    }
+
     func test_openFixture_takesTheNameFromTheArgumentAndTheBytesFromTheEnvironment() {
         let bytes = Data("%PDF-1.4\n".utf8)
         let options = IOSLaunchOptions(arguments: ["LazyPrint", "-demoPrinter", "-openFixture", "two-sided.pdf"],

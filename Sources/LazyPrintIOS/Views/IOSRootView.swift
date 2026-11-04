@@ -23,6 +23,7 @@ public struct IOSRootView: View {
     private let airPrint: IOSPrinterSystem?
     private let inbox: IOSFileInbox
     private let fixture: IOSLaunchFixture?
+    private let companion: IOSCompanionBrowser?
 
     @State private var tab: RootTab = .start
     @State private var source: FileSource?
@@ -31,12 +32,15 @@ public struct IOSRootView: View {
     /// The last files being opened: the next wait for them, so files that arrive one after the other keep their order.
     @State private var opening: Task<Void, Never>?
 
-    /// `airPrint` is nil where the AirPrint printer picker is not offered (the demo printer alone).
-    public init(fileActions: IOSFileActions, airPrint: IOSPrinterSystem?, inbox: IOSFileInbox, fixture: IOSLaunchFixture?) {
+    /// `airPrint` is nil where the AirPrint printer picker is not offered (the demo printer alone); `companion` is nil where
+    /// the computers on the network are not looked for.
+    public init(fileActions: IOSFileActions, airPrint: IOSPrinterSystem?, inbox: IOSFileInbox, fixture: IOSLaunchFixture?,
+                companion: IOSCompanionBrowser? = nil) {
         _fileActions = ObservedObject(wrappedValue: fileActions)
         self.airPrint = airPrint
         self.inbox = inbox
         self.fixture = fixture
+        self.companion = companion
     }
 
     public var body: some View {
@@ -58,7 +62,7 @@ public struct IOSRootView: View {
         }
         .modifier(FileSources(source: $source, inbox: inbox, take: take))
         .sheet(isPresented: $showPrinters) {
-            PrintersScreen(airPrint: airPrint)
+            PrintersScreen(airPrint: airPrint, companion: companion)
         }
         .sheet(isPresented: $showTroubleshooter) {
             TroubleshooterScreen()

@@ -145,14 +145,18 @@ struct PrinterButton: View {
 }
 
 /// The printers: the one in use is ticked, and a row opens the printer's page. Below them the AirPrint printer picker,
-/// Add by address and the troubleshooter. Shown as a sheet.
+/// Add by address and the troubleshooter, then My computer: pairing, the paired computer's state and Forget. Shown as a
+/// sheet.
 struct PrintersScreen: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss
     /// The AirPrint printer the phone chose last; nil where it is not offered (the demo printer alone).
     let airPrint: IOSPrinterSystem?
+    /// Looks for the paired computer on the network while its screen is open; nil under `-demoPrinter`.
+    let companion: IOSCompanionBrowser?
     @State private var showTroubleshooter = false
     @State private var showAdd = false
+    @State private var showComputer = false
     @State private var infoId: String?
     /// A printer was picked whose certificate is being asked about: the sheet closes with the answer.
     @State private var closeWhenAnswered = false
@@ -209,6 +213,11 @@ struct PrintersScreen: View {
                     Button("Troubleshoot") { showTroubleshooter = true }
                         .accessibilityIdentifier("printers.troubleshoot")
                 }
+                Section {
+                    computerRows
+                } header: {
+                    Text(IOSCompanionText.title)
+                }
             }
             .navigationTitle("Printers")
             .navigationBarTitleDisplayMode(.inline)
@@ -224,17 +233,58 @@ struct PrintersScreen: View {
             .navigationDestination(isPresented: $showAdd) {
                 AddPrinterScreen()
             }
+            .navigationDestination(isPresented: $showComputer) {
+                CompanionScreen(state: state, browser: companion)
+            }
         }
         .sheet(isPresented: $showTroubleshooter) {
             TroubleshooterScreen()
         }
         .printCertificateAlert(state)
         .errorAlert(onTroubleshoot: { showTroubleshooter = true })
+        .task {
+            if state.companionDesktop != nil, state.companionStatus == .checking {
+                await state.checkDesktop()
+            }
+        }
         .onChange(of: state.certificateRequest) { (_: CertificateRequest?, request: CertificateRequest?) in
             if request == nil && closeWhenAnswered {
                 closeWhenAnswered = false
                 dismiss()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var computerRows: some View {
+        if let desktop = state.companionDesktop {
+            Button {
+                showComputer = true
+            } label: {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(desktop.name)
+                            .foregroundStyle(.primary)
+                        Text(IOSCompanionText.status(state.companionStatus))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .accessibilityIdentifier("printers.computer")
+            Button(IOSCompanionText.forgetButton, role: .destructive) {
+                Task { await state.unpairDesktop() }
+            }
+            .accessibilityIdentifier("printers.computer.forget")
+        } else {
+            Button(IOSCompanionText.pairTitle) { showComputer = true }
+                .accessibilityIdentifier("printers.computer.pair")
         }
     }
 

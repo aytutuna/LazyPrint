@@ -81,8 +81,10 @@
 		<string>_ipps._tcp</string>
 		<string>_lazyprint._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Lazy Print reads the pairing code on your computer's screen.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Lazy Print looks for printers on your local network, so you can print to them.</string>
+	<string>Lazy Print looks for printers and for your computer on your local network, so you can print to them and send files.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

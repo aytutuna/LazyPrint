@@ -3,6 +3,7 @@ import CoreGraphics
 import ImageIO
 import LazyPrintKit
 import SwiftUI
+import UIKit
 
 /// Which sheet and side `AppState.previewSide` counts to, over the front and the back of each sheet in turn.
 struct PreviewPosition: Equatable {
@@ -57,6 +58,8 @@ struct PrintScreen: View {
     @State private var showDocuments = false
     /// Add files was asked from the documents sheet: the choice opens once that sheet has closed.
     @State private var addAfterDocuments = false
+    /// The files are being sent to the paired computer.
+    @State private var sending = false
 
     private static let stagePadding: CGFloat = 20
 
@@ -356,22 +359,24 @@ struct PrintScreen: View {
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 
-    /// Print says what it does; greyed out, it says why.
+    /// Print says what it does; greyed out, it says why. Once a computer is paired, Send to it sits beside Print.
     private var printBar: some View {
         let reason: String? = state.printDisabledReason
         return VStack(spacing: 6) {
-            Button {
-                Task { await state.print() }
-            } label: {
-                Text(state.printLabel)
-                    .frame(maxWidth: .infinity)
+            if IOSCompanionText.offersSend(state.companionStatus) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        printButton(reason)
+                        sendButton
+                    }
+                    VStack(spacing: 8) {
+                        printButton(reason)
+                        sendButton
+                    }
+                }
+            } else {
+                printButton(reason)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color("PrintFill"))
-            .controlSize(.large)
-            .disabled(reason != nil)
-            .accessibilityLabel(reason == nil ? state.printLabel : "\(state.printLabel), not available: \(reason ?? "")")
-            .accessibilityIdentifier("print.button")
             if state.isBusy {
                 HStack(spacing: 12) {
                     ProgressView()
@@ -393,6 +398,41 @@ struct PrintScreen: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background(.bar)
+    }
+
+    private func printButton(_ reason: String?) -> some View {
+        Button {
+            Task { await state.print() }
+        } label: {
+            Text(state.printLabel)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(Color("PrintFill"))
+        .controlSize(.large)
+        .disabled(reason != nil)
+        .accessibilityLabel(reason == nil ? state.printLabel : "\(state.printLabel), not available: \(reason ?? "")")
+        .accessibilityIdentifier("print.button")
+    }
+
+    /// Sends the files of the documents to the paired computer, which prints them there.
+    private var sendButton: some View {
+        Button {
+            let name: String = UIDevice.current.name
+            sending = true
+            Task {
+                await state.sendJobToDesktop(from: name)
+                sending = false
+            }
+        } label: {
+            Text(IOSCompanionText.sendButton(state.companionDesktop?.name ?? ""))
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(state.documents.isEmpty || state.isBusy || sending)
+        .accessibilityIdentifier("print.send")
     }
 }
 

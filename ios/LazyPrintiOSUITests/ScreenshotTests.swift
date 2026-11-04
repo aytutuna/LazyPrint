@@ -4,7 +4,8 @@ import XCTest
 // Walks the app's screens on the demo printer and keeps a screenshot of each, named by screen and appearance, so CI's
 // ios-screenshots artifact shows what the screens look like after a change: the start screen, the print screen with its
 // options, the printers and the demo printer's page, the add screen and the troubleshooter, the jobs after a print, the
-// two-sided card, and the print screen in landscape and in large text. Each appearance is a run of its own. A screen whose
+// two-sided card, and the print screen in landscape and in large text; then with a computer paired, the print screen with
+// Send, the printers with My computer, its screen and the pairing form. Each appearance is a run of its own. A screen whose
 // button is not there is left out rather than failed, so the walk stays green while the screens change; a "skipped-"
 // screenshot shows what was on screen instead.
 
@@ -50,6 +51,11 @@ final class ScreenshotTests: XCTestCase {
         large.waitForPreview()
         settle()
         shot(large, "10-print-large-text")
+        large.terminate()
+
+        let linked = try XCUIApplication.launched(arguments: style + ["-pairedComputer"])
+        linked.waitForPreview()
+        computerScreens(linked)
     }
 
     /// The start screen, the print screen with the document laid out, its options and landscape.
@@ -162,6 +168,39 @@ final class ScreenshotTests: XCTestCase {
             shot(app, "11-two-sided")
         } else {
             shot(app, "skipped-11-two-sided")
+        }
+    }
+
+    /// With a computer paired: the Print screen with Send beside Print, the printers with My computer, the computer's screen
+    /// and the form that pairing again offers.
+    @MainActor
+    private func computerScreens(_ app: XCUIApplication) {
+        if app.item("print.send").waitForExistence(timeout: 10) {
+            settle()
+            shot(app, "12-print-send")
+        } else {
+            shot(app, "skipped-12-print-send")
+        }
+        guard tapIfThere(app, "printer.button", for: "13-printers-computer") else { return }
+        if app.item("printers.computer").waitForExistence(timeout: 10) {
+            settle()
+            shot(app, "13-printers-computer")
+        } else {
+            shot(app, "skipped-13-printers-computer")
+        }
+        guard tapIfThere(app, "printers.computer", for: "14-my-computer") else { return }
+        if app.item("companion.name").waitForExistence(timeout: 10) {
+            settle()
+            shot(app, "14-my-computer")
+        } else {
+            shot(app, "skipped-14-my-computer")
+        }
+        guard tapIfThere(app, "companion.forget", for: "15-pair-computer") else { return }
+        if app.item("companion.pair").waitForExistence(timeout: 10) {
+            settle()
+            shot(app, "15-pair-computer")
+        } else {
+            shot(app, "skipped-15-pair-computer")
         }
     }
 
