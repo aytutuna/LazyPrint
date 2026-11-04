@@ -30,16 +30,59 @@ private final class SeamLifecycle: PlatformLifecycle {
     }
 }
 
+/// The system's background time: records what the app asks for, and runs the expiry by hand.
+@MainActor
+private final class SeamBackground: BackgroundActivity {
+    var granted = true
+    private(set) var begun: [String] = []
+    private(set) var ended: [Int] = []
+    private var expiry: [Int: @MainActor () -> Void] = [:]
+
+    func beginActivity(_ name: String, expired: @escaping @MainActor () -> Void) -> Int? {
+        guard granted else { return nil }
+        begun.append(name)
+        expiry[begun.count] = expired
+        return begun.count
+    }
+
+    func endActivity(_ token: Int) {
+        ended.append(token)
+        expiry[token] = nil
+    }
+
+    func expire() {
+        for handler in expiry.values { handler() }
+    }
+}
+
 /// The system's queues as the test says they are.
 @MainActor
 private final class SeamPrinterSystem: PrinterSystem {
     var listed: [SystemPrinter] = []
     var capable: [String: PrinterCapabilities] = [:]
+    /// The first read of the queues waits for `letGo()`, and answers with the list as it was when it began.
+    var holdsFirstRead = false
+    private(set) var queueReads = 0
     private(set) var capabilityReads = 0
     private(set) var cleared: [String] = []
     private(set) var resumed: [String] = []
+    private var waiting: CheckedContinuation<Void, Never>?
 
-    func queues() async -> [SystemPrinter] { listed }
+    func queues() async -> [SystemPrinter] {
+        queueReads += 1
+        let read = listed
+        if holdsFirstRead && queueReads == 1 {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                waiting = continuation
+            }
+        }
+        return read
+    }
+
+    func letGo() {
+        waiting?.resume()
+        waiting = nil
+    }
 
     func capabilities(ofQueue name: String) async -> PrinterCapabilities? {
         capabilityReads += 1
@@ -162,18 +205,22 @@ private final class Rig {
     let actions = SeamFileActions()
     let troubleshooter = SeamTroubleshooter()
     let lifecycle = SeamLifecycle()
+    let background = SeamBackground()
     let folder: URL
+    let platform: AppPlatform
     private(set) var state: AppState!
 
-    init(folder: URL) {
+    init(folder: URL, platform: AppPlatform = .mac) {
         self.folder = folder
+        self.platform = platform
         _ = open()
     }
 
     /// A second AppState on the same folder, as the next start of the app.
     func open() -> AppState {
         state = AppState(printerSystem: spooler, network: network, systemPrinter: sheets, fileActions: actions,
-                         troubleshooter: troubleshooter, lifecycle: lifecycle, files: AppStateFiles.all(in: folder))
+                         troubleshooter: troubleshooter, lifecycle: lifecycle, background: background,
+                         platform: platform, files: AppStateFiles.all(in: folder))
         return state
     }
 
@@ -205,8 +252,8 @@ final class AppStateSeamTests: XCTestCase {
     private let hpUuid = "4509a320-00a0-008f-00b6-00e0b36a5c50"
 
     @MainActor
-    private func makeRig() throws -> Rig {
-        Rig(folder: try tempFolder())
+    private func makeRig(platform: AppPlatform = .mac) throws -> Rig {
+        Rig(folder: try tempFolder(), platform: platform)
     }
 
     /// A rig whose one queue prints one side only, with three letter pages added and two-sided asked for: two sheets by hand.
@@ -334,6 +381,12 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
     }
 
+    @MainActor
+    @MainActor
+    @MainActor
+    @MainActor
+    @MainActor
+    @MainActor
     @MainActor
     func test_goingBackToAPrinterAlreadyRead_takesItsOwnCapabilities() async throws {
         let rig = try makeRig()
@@ -750,6 +803,7 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    @MainActor
     func test_documents_canBeMovedAndRemoved() async throws {
         let rig = try makeRig()
         await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 1, in: rig.folder),
@@ -887,6 +941,104 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
         XCTAssertNil(rig.state.error)
         XCTAssertFalse(rig.state.isBusy)
+    }
+
+    @MainActor
+    func test_aPass_runsInsideOneBackgroundActivity() async throws {
+        let rig = try await printingRig()
+        await rig.state.print()
+
+        XCTAssertEqual(rig.background.begun, ["Printing"])
+        XCTAssertEqual(rig.background.ended, [1])
+        XCTAssertNil(rig.state.error)
+    }
+
+    @MainActor
+    func test_aPassWithoutBackgroundTime_isPrintedAllTheSame() async throws {
+        let rig = try await printingRig()
+        rig.background.granted = false
+        await rig.state.print()
+
+        XCTAssertEqual(rig.background.begun, [])
+        XCTAssertEqual(rig.state.jobs.first?.state, .done)
+    }
+
+    @MainActor
+    func test_aPassThatTheSystemStops_isCanceledAndTheBarSaysToPrintAgain() async throws {
+        let rig = try await printingRig()
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { rig.state.isBusy && rig.sheets.passes.count == 1 }
+        rig.background.expire()
+        await printing.value
+
+        XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
+        XCTAssertEqual(rig.state.error?.title, "Printing stopped")
+        XCTAssertEqual(rig.state.error?.detail, PrintText.backgroundExpired)
+        XCTAssertNil(rig.state.sentMessage)
+        XCTAssertFalse(rig.state.isBusy)
+        XCTAssertEqual(rig.background.ended, [1])
+    }
+
+    @MainActor
+    func test_afterTheSystemStopsAPass_thePassIsPrintedAgainWithoutTheOldWords() async throws {
+        let rig = try await printingRig()
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { rig.state.isBusy && rig.sheets.passes.count == 1 }
+        rig.background.expire()
+        await printing.value
+
+        rig.sheets.hold = nil
+        await rig.state.printAgain(rig.state.jobs[0])
+
+        XCTAssertNil(rig.state.error)
+        XCTAssertEqual(rig.state.jobs.map { $0.state }, [.done, .canceled])
+        XCTAssertEqual(rig.background.begun, ["Printing", "Printing"])
+    }
+
+    @MainActor
+    func test_theTwoSidedCard_holdsNoBackgroundActivityWhileItWaits() async throws {
+        let rig = try await manualRig()
+        await rig.state.print()
+
+        XCTAssertEqual(rig.state.duplexCard?.step, .reload)
+        XCTAssertEqual(rig.background.begun.count, 1)
+        XCTAssertEqual(rig.background.ended, [1])
+    }
+
+    @MainActor
+    func test_aBacksPassThatTheSystemStops_leavesTheCardUpToTryAgain() async throws {
+        let rig = try await manualRig()
+        await rig.state.print()
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+
+        let backs = Task { await rig.state.printBacks() }
+        try await waitUntil { rig.state.isBusy && rig.sheets.passes.count == 2 }
+        rig.background.expire()
+        await backs.value
+
+        XCTAssertEqual(rig.state.duplexCard?.step, .reload)
+        XCTAssertEqual(rig.state.error?.detail, PrintText.backgroundExpiredBacks)
+        XCTAssertEqual(rig.state.jobs.first?.state, .canceled)
+    }
+
+    @MainActor
+    func test_aCheckPassThatTheSystemStops_leavesTheCardUpAndNamesTheCheck() async throws {
+        let rig = try await manualRig()
+        await rig.state.print()
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+
+        let check = Task { await rig.state.checkDuplex() }
+        try await waitUntil { rig.state.isBusy && rig.sheets.passes.count == 2 }
+        rig.background.expire()
+        await check.value
+
+        XCTAssertEqual(rig.state.duplexCard?.step, .reload)
+        XCTAssertEqual(rig.state.error?.title, "Printing stopped")
+        XCTAssertEqual(rig.state.error?.detail, PrintText.backgroundExpiredCheck)
+        XCTAssertEqual(rig.state.jobs.first?.state, .canceled)
     }
 
     @MainActor

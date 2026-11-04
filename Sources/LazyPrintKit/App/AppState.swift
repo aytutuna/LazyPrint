@@ -154,6 +154,7 @@ public final class AppState: ObservableObject {
     let troubleshooter: any TroubleshooterService
     let sheets: any SheetPrinter
     let lifecycle: (any PlatformLifecycle)?
+    let background: any BackgroundActivity
 
     var settingsSaveTask: Task<Void, Never>?
     var previewTask: Task<Void, Never>?
@@ -183,6 +184,8 @@ public final class AppState: ObservableObject {
     /// The pass being printed runs in a task of its own, by job record id.
     var jobTasks: [String: Task<Void, Error>] = [:]
     var runningRecord: String?
+    /// The records whose pass was stopped because the system's background time ran out.
+    var timedOut: Set<String> = []
     var manual: ManualRun? {
         didSet { updateCard() }
     }
@@ -199,17 +202,20 @@ public final class AppState: ObservableObject {
     public convenience init(printerSystem: (any PrinterSystem)? = nil, network: (any NetworkPrinters)? = nil,
                             systemPrinter: (any SheetPrinter)? = nil, documents: (any DocumentLoading)? = nil,
                             fileActions: (any FileActionService)? = nil, troubleshooter: (any TroubleshooterService)? = nil,
-                            lifecycle: (any PlatformLifecycle)? = nil, platform: AppPlatform = .mac) {
+                            lifecycle: (any PlatformLifecycle)? = nil, background: (any BackgroundActivity)? = nil,
+                            platform: AppPlatform = .mac) {
         self.init(printerSystem: printerSystem, network: network, systemPrinter: systemPrinter, documents: documents,
-                  fileActions: fileActions, troubleshooter: troubleshooter, lifecycle: lifecycle, platform: platform,
-                  files: AppStateFiles.standard)
+                  fileActions: fileActions, troubleshooter: troubleshooter, lifecycle: lifecycle, background: background,
+                  platform: platform, files: AppStateFiles.standard)
     }
 
-    /// The same, with every file in `files` (tests: a folder of their own, and no polling started).
-    init(printerSystem: (any PrinterSystem)? = nil, network: (any NetworkPrinters)? = nil,
-         systemPrinter: (any SheetPrinter)? = nil, documents: (any DocumentLoading)? = nil,
-         fileActions: (any FileActionService)? = nil, troubleshooter: (any TroubleshooterService)? = nil,
-         lifecycle: (any PlatformLifecycle)? = nil, platform: AppPlatform = .mac, files: AppStateFiles) {
+    /// The same, with every file in `files` (tests: a folder of their own, and no polling started; the iPhone's
+    /// `-demoPrinter` launch: a temp folder).
+    public init(printerSystem: (any PrinterSystem)? = nil, network: (any NetworkPrinters)? = nil,
+                systemPrinter: (any SheetPrinter)? = nil, documents: (any DocumentLoading)? = nil,
+                fileActions: (any FileActionService)? = nil, troubleshooter: (any TroubleshooterService)? = nil,
+                lifecycle: (any PlatformLifecycle)? = nil, background: (any BackgroundActivity)? = nil,
+                platform: AppPlatform = .mac, files: AppStateFiles) {
         let opener = documents ?? DocumentLoader()
         let demoState = DemoPrinterState(root: files.demoPrints)
         let trust = IppTrustStore(directory: files.settingsDirectory)
@@ -221,6 +227,7 @@ public final class AppState: ObservableObject {
         self.fileActions = fileActions ?? UnavailableFileActions()
         self.troubleshooter = troubleshooter ?? UnavailableTroubleshooterService()
         self.lifecycle = lifecycle
+        self.background = background ?? NoBackgroundActivity()
         self.demo = demoState
         self.sheets = RoutingSheetPrinter(
             system: systemPrinter ?? NoSheetPrinter(),

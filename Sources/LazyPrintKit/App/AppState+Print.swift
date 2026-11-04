@@ -105,6 +105,9 @@ extension AppState {
         statusOverride = PrintText.printing(1, of: sides)
         let running = Task { try await self.send(job, pass: pass, sides: sides, recordId: recordId) }
         jobTasks[recordId] = running
+        let activity = background.beginActivity("Printing") { [weak self] in
+            self?.backgroundExpired(recordId)
+        }
         var done = false
         do {
             try await running.value
@@ -113,15 +116,31 @@ extension AppState {
             if running.isCancelled || error is CancellationError {
                 setJob(recordId, .canceled, nil)
                 statusOverride = nil
+                if timedOut.contains(recordId) {
+                    // The card holds the job: Print and Print again wait, so its own buttons are what is left to press.
+                    let backs = job.plan.manualDuplex && pass == 1
+                    let check = manual.map { $0.recordId != recordId } ?? false
+                    showFailure("Printing stopped", backs ? PrintText.backgroundExpiredBacks
+                                : check ? PrintText.backgroundExpiredCheck : PrintText.backgroundExpired)
+                }
             } else {
                 failed(job, recordId, error)
             }
         }
+        timedOut.remove(recordId)
+        if let activity { background.endActivity(activity) }
         jobTasks[recordId] = nil
         runningRecord = nil
         isBusy = false
         if job.printer.route == .demo { rebuildPrinters() }
         return done
+    }
+
+    /// The system's background time is nearly up: the pass is stopped as Cancel stops it, and the bar says why.
+    private func backgroundExpired(_ recordId: String) {
+        guard let running = jobTasks[recordId] else { return }
+        timedOut.insert(recordId)
+        running.cancel()
     }
 
     private func failed(_ job: SheetJob, _ recordId: String, _ error: Error) {
