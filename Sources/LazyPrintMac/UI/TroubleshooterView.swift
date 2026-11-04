@@ -109,8 +109,9 @@ struct TroubleshooterView: View {
     }
 
     private func run(_ action: TroubleshootAction, _ check: TroubleshootCheck) async {
+        let before = state.errorsShown
         await state.perform(action, for: check)
-        footerMessage = state.error?.detail
+        footerMessage = state.errorDetail(since: before)
     }
 
     private func refresh() async {
@@ -121,8 +122,9 @@ struct TroubleshooterView: View {
     }
 
     private func copyDiagnostics() async {
+        let before = state.errorsShown
         await state.perform(.copyDiagnostics)
-        footerMessage = state.error?.detail ?? "Copied to the clipboard."
+        footerMessage = state.errorDetail(since: before) ?? "Copied to the clipboard."
     }
 }
 
