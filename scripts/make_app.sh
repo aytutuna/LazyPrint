@@ -34,7 +34,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>NSDocumentsFolderUsageDescription</key>
     <string>Lazy Print's demo printer saves the pages it prints in your Documents folder.</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Lazy Print looks for printers on your local network, so you can print to them.</string>
+    <string>Lazy Print looks for printers on your local network, so you can print to them, and receives files from your paired phone.</string>
     <key>NSBonjourServices</key>
     <array><string>_ipp._tcp</string><string>_ipps._tcp</string><string>_lazyprint._tcp</string></array>
     <key>NSAppTransportSecurity</key>
