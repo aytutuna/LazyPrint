@@ -28,6 +28,19 @@ private final class StoppedQueue: PrinterSystem {
     func resume(queue name: String) async throws {}
 }
 
+/// A phone link with one batch of files waiting, for the bar.
+@MainActor
+private final class OneBatch: CompanionHosting {
+    var onChange: (@MainActor () -> Void)?
+
+    func batches(now: Date) -> [PhoneBatch] {
+        [PhoneBatch(id: "batch-0001", from: "Aytu's iPhone", count: 3, arrived: 3, lastReceived: now)]
+    }
+
+    func take(batch: String) async -> [URL] { [] }
+    func discard(batch: String) {}
+}
+
 /// A fixture that could not be made: a failure, not a skip, so a broken run does not read as one that was not asked for.
 private struct ShotError: Error, CustomStringConvertible {
     let description: String
@@ -55,8 +68,8 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// The demo printer alone (or, with `system`, a queue beside it), the printers read once.
-    private func makeState(in work: URL, system: (any PrinterSystem)? = nil) async -> AppState {
-        let state = AppState(printerSystem: system, files: AppStateFiles.all(in: work.appendingPathComponent("files")))
+    private func makeState(in work: URL, system: (any PrinterSystem)? = nil, companion: (any CompanionHosting)? = nil) async -> AppState {
+        let state = AppState(printerSystem: system, companion: companion, files: AppStateFiles.all(in: work.appendingPathComponent("files")))
         await state.refreshPrinters()
         return state
     }
@@ -106,11 +119,13 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// Hosts `view` in a window of its own and writes it in both appearances as mac-<name>-light.png and -dark.png.
-    private func capture<Content: View>(_ view: Content, of state: AppState, name: String, in folder: URL,
-                                        size: CGSize = CGSize(width: 1100, height: 720)) async throws {
+    private func capture<Content: View>(_ view: @autoclosure () -> Content, of state: AppState, name: String, in folder: URL,
+                                        size: CGSize = CGSize(width: 1100, height: 720),
+                                        before: () async throws -> Void = {}) async throws {
         for (appearance, suffix) in [(NSAppearance.Name.aqua, "light"), (NSAppearance.Name.darkAqua, "dark")] {
+            try await before()
             // The window's own background is not in the picture: without one the parts of the view that have none are clear.
-            let host = NSHostingView(rootView: view.environmentObject(state).background(Color(nsColor: .windowBackgroundColor)))
+            let host = NSHostingView(rootView: view().environmentObject(state).background(Color(nsColor: .windowBackgroundColor)))
             let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: appearance)
@@ -135,6 +150,10 @@ final class ScreenshotTests: XCTestCase {
             }
             try png.write(to: folder.appendingPathComponent("mac-\(name)-\(suffix).png"))
             window.orderOut(nil)
+            // A view that goes away may close what it opened (the phone sheet's code), in a task of its own: let that
+            // finish before the next appearance opens its own.
+            window.contentView = nil
+            try await Task.sleep(nanoseconds: 300_000_000)
         }
     }
 
@@ -206,6 +225,33 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(Troubleshooter.headline(state.snapshot), "1 printer found")
         try await capture(TroubleshooterView(), of: state, name: "troubleshooter-stopped", in: folder,
                           size: CGSize(width: 620, height: 680))
+    }
+
+    func test_phoneBar() async throws {
+        let folder = try shots()
+        let state = await makeState(in: try workFolder(), companion: OneBatch())
+        XCTAssertEqual(state.phoneBatches.count, 1)
+        try await capture(ContentView(tab: .start), of: state, name: "phone-bar", in: folder)
+    }
+
+    func test_phoneSheet() async throws {
+        let folder = try shots()
+        let work = try workFolder()
+        let state = await makeState(in: work)
+        let options = try CompanionServiceOptions.test(in: work.appendingPathComponent("link"), networks: [GivenNetworks.loopback()])
+        _ = try PairedDeviceStore(directory: options.settingsDirectory)
+            .pair(id: "phone-0001", name: "Aytu's iPhone", platform: "ios", appVersion: "1.0", now: Date())
+        let host = MacCompanionHosting(options: options)
+        let service = try XCTUnwrap(host.ensure())
+        await service.refresh()
+        var code: PairingUri?
+        // A sheet that goes away closes its code, so each appearance opens one.
+        try await capture(PhoneView(code: code).environmentObject(host), of: state, name: "phone-sheet", in: folder,
+                          size: CGSize(width: 640, height: 1400)) {
+            code = await service.openPairing()
+            XCTAssertNotNil(code, "The loopback network should let a code be shown")
+        }
+        await service.dispose()
     }
 
     func test_addPrinter() async throws {

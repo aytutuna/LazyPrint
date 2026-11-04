@@ -8,6 +8,7 @@ struct SidebarView: View {
     @EnvironmentObject var state: AppState
     @Binding var showTroubleshooter: Bool
     @Binding var showAddPrinter: Bool
+    @Binding var showPhone: Bool
 
     var body: some View {
         List(selection: selection) {
@@ -58,6 +59,14 @@ struct SidebarView: View {
                         .help("Why isn't my printer listed?")
                         .accessibilityLabel("Why isn't my printer listed?")
                     }
+                    Button {
+                        showPhone = true
+                    } label: {
+                        Image(systemName: "iphone")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Print from your phone")
+                    .accessibilityLabel("Print from your phone")
                     Button {
                         showAddPrinter = true
                     } label: {

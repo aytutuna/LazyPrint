@@ -12,11 +12,13 @@ enum ContentTab: Hashable {
 
 struct ContentView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var host: MacCompanionHosting
 
     @State private var tab: ContentTab
     @State private var showImporter = false
     @State private var showTroubleshooter = false
     @State private var showAddPrinter = false
+    @State private var showPhone = false
     /// Files are dragged over the window: it says where they go.
     @State private var dropTargeted = false
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
@@ -28,7 +30,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(showTroubleshooter: $showTroubleshooter, showAddPrinter: $showAddPrinter)
+            SidebarView(showTroubleshooter: $showTroubleshooter, showAddPrinter: $showAddPrinter, showPhone: $showPhone)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
         } detail: {
             // The tab switcher lives in the content, not the toolbar: toolbar `.principal` items merge the title bar on
@@ -93,19 +95,26 @@ struct ContentView: View {
             AddPrinterView()
                 .environmentObject(state)
         }
+        .sheet(isPresented: $showPhone) {
+            PhoneView()
+                .environmentObject(state)
+                .environmentObject(host)
+        }
         .sheet(isPresented: Binding(get: { state.duplexCard != nil }, set: { _ in })) {
             DuplexSheet()
                 .environmentObject(state)
         }
         .printCertificateAlert(state)
-        // Files from Open With, the Dock icon and `open` arrive here; a lazyprint: URL only brings the window forward.
+        // Files from Open With, the Dock icon and `open` arrive here, and lazyprint:open?file=... from Lazy Scan.
         .onOpenURL { url in
             if url.isFileURL {
                 _ = take([url])
             } else {
                 NSApp.activate(ignoringOtherApps: true)
+                _ = take(ContentView.files(in: url))
             }
         }
+        .onAppear { state.phoneWindowRequested = { showPhone = true } }
         // Open-file and URL events go to this window, not to a new one.
         .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
     }
@@ -163,9 +172,35 @@ struct ContentView: View {
             .accessibilityElement(children: .combine)
             Divider()
         }
+        if let batch = state.phoneBatches.first {
+            PhoneBarView(batch: batch, busy: state.isBusy,
+                         add: { usePhoneBatch(batch.id, startNew: false) },
+                         startNew: { usePhoneBatch(batch.id, startNew: true) },
+                         dismiss: { state.dismissBatch(batch.id) })
+            Divider()
+        }
     }
 
     // MARK: Files and tasks
+
+    /// The files a lazyprint: URL asks to add: absolute paths only, as `LazyPrintUrl` parses them.
+    static func files(in url: URL) -> [URL] {
+        LazyPrintUrl.parse(url.absoluteString).map { URL(fileURLWithPath: $0) }
+    }
+
+    /// Takes the files of the oldest batch from a phone into the job, or into a new one, and shows the print tab.
+    private func usePhoneBatch(_ id: String, startNew: Bool) {
+        let before = opening
+        opening = Task {
+            await before?.value
+            if state.task == nil { await state.startTask(.document) }
+            await state.takeBatch(id, startNew: startNew)
+            if !state.documents.isEmpty {
+                if let task = state.task { InspectorView.open(for: task) }
+                tab = .print
+            }
+        }
+    }
 
     /// A tile was picked: its settings are applied, and a task that starts with files opens the print tab and asks for
     /// them, unless some are there already; cancelling the panel leaves the empty print tab. The test page prints at once
