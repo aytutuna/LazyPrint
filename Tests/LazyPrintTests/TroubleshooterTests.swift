@@ -515,6 +515,24 @@ final class TroubleshooterTests: XCTestCase {
         XCTAssertFalse(ids(Troubleshooter.diagnose(PrinterSnapshot(printers: [queue("Epson", [paused])]))).contains("printer:system:Epson"))
     }
 
+    func test_aPausedPrinter_onThePhoneSaysToPressResumeOnIt() {
+        let phone = PrinterSnapshot(platform: .ios, printers: [queue("Epson", [paused])])
+        XCTAssertEqual(check(Troubleshooter.diagnose(phone), "paused:system:Epson"), make(
+            "paused:system:Epson", .problem, "Epson is paused",
+            "Press Resume on the printer to let its jobs print.",
+            "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer.", []))
+    }
+
+    func test_aPausedPrinter_withNoQueue_saysToPressResumeOnIt() {
+        let network = PrinterInfo(id: "ipp:Epson", name: "Epson", model: nil, address: "192.168.1.20", route: .ipp,
+                                  ippEndpoint: networkPrinter("Epson").ippEndpoint, isDefault: false, state: .stopped,
+                                  problems: [paused], supplies: [])
+        XCTAssertEqual(check(Troubleshooter.diagnose(PrinterSnapshot(printers: [network])), "paused:ipp:Epson"), make(
+            "paused:ipp:Epson", .problem, "Epson is paused",
+            "Press Resume on the printer to let its jobs print.",
+            "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer.", []))
+    }
+
     func test_stuckJobs_areCountedAndCanBeCleared() {
         let checks = Troubleshooter.diagnose(PrinterSnapshot(stuckJobs: [
             StuckJobs(printerId: "system:HP", printerName: "HP LaserJet", count: 3, oldestMinutes: 45, anyInError: false),

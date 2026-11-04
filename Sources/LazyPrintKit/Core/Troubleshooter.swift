@@ -240,7 +240,7 @@ public enum Troubleshooter {
         }
         for jobs in snapshot.stuckJobs where jobs.isStuck { checks.append(stuckJobsCheck(jobs)) }
         for printer in listed where printer.problems.contains(where: { $0.title == IppProblemText.paused }) {
-            checks.append(pausedCheck(printer))
+            checks.append(pausedCheck(printer, platform: platform))
         }
         for host in snapshot.manualHosts where !host.listed {
             checks.append(TroubleshootCheck(
@@ -564,12 +564,15 @@ public enum Troubleshooter {
             more: more, actions: [.clearStuckJobs])
     }
 
-    private static func pausedCheck(_ printer: PrinterInfo) -> TroubleshootCheck {
-        TroubleshootCheck(
+    /// The iPhone cannot resume a printer, nor can any app resume one that has no queue here (a network printer alone), so
+    /// the card says to press Resume on the printer and offers no button.
+    private static func pausedCheck(_ printer: PrinterInfo, platform: AppPlatform) -> TroubleshootCheck {
+        let byHand = platform == .ios || !printer.id.hasPrefix("system:")
+        return TroubleshootCheck(
             id: "paused:\(printer.id)", status: .problem, title: "\(printer.name) is paused",
-            detail: "Resume it to let its jobs print.",
+            detail: byHand ? "Press Resume on the printer to let its jobs print." : "Resume it to let its jobs print.",
             more: "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer.",
-            actions: [.resumePrinter])
+            actions: byHand ? [] : [.resumePrinter])
     }
 
     private static func duration(_ minutes: Int) -> String {

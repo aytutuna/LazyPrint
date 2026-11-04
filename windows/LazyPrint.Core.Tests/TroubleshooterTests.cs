@@ -564,6 +564,28 @@ public class TroubleshooterTests
     }
 
     [Fact]
+    public void APausedPrinter_OnThePhoneSaysToPressResumeOnIt()
+    {
+        var phone = new PrinterSnapshot { Platform = AppPlatform.Ios, Printers = [Queue("Epson", [Paused])] };
+        Assert.Equal(new TroubleshootCheck(
+            "paused:system:Epson", CheckStatus.Problem, "Epson is paused",
+            "Press Resume on the printer to let its jobs print.", [],
+            "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer."),
+            Check(Diagnose(phone), "paused:system:Epson"));
+    }
+
+    [Fact]
+    public void APausedPrinter_WithNoQueue_SaysToPressResumeOnIt()
+    {
+        var network = NetworkPrinter("Epson") with { State = PrinterState.Stopped, Problems = [Paused] };
+        Assert.Equal(new TroubleshootCheck(
+            "paused:ipp:Epson", CheckStatus.Problem, "Epson is paused",
+            "Press Resume on the printer to let its jobs print.", [],
+            "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer."),
+            Check(Diagnose(new PrinterSnapshot { Printers = [network] }), "paused:ipp:Epson"));
+    }
+
+    [Fact]
     public void APausedPrinter_HasItsOwnCheckWithResume()
     {
         var checks = Diagnose(new PrinterSnapshot { Printers = [Queue("Epson", [Paused, InkLow])] });

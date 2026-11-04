@@ -205,7 +205,7 @@ public static class Troubleshooter
         foreach (var jobs in snapshot.StuckJobs.Where(jobs => jobs.IsStuck)) checks.Add(StuckJobsCheck(jobs));
         foreach (var printer in listed.Where(printer => printer.Problems.Any(problem => problem.Title == IppProblemText.Paused)))
         {
-            checks.Add(PausedCheck(printer));
+            checks.Add(PausedCheck(printer, platform));
         }
         foreach (var host in snapshot.ManualHosts.Where(host => !host.Listed))
         {
@@ -520,11 +520,19 @@ public static class Troubleshooter
             [TroubleshootAction.ClearStuckJobs], more);
     }
 
-    private static TroubleshootCheck PausedCheck(PrinterInfo printer) => new(
-        $"paused:{printer.Id}", CheckStatus.Problem, $"{printer.Name} is paused",
-        "Resume it to let its jobs print.",
-        [TroubleshootAction.ResumePrinter],
-        "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer.");
+    /// <summary>
+    /// The iPhone cannot resume a printer, nor can any app resume one that has no queue here (a network printer alone), so
+    /// the card says to press Resume on the printer and offers no button.
+    /// </summary>
+    private static TroubleshootCheck PausedCheck(PrinterInfo printer, AppPlatform platform)
+    {
+        bool byHand = platform == AppPlatform.Ios || !printer.Id.StartsWith("system:", StringComparison.Ordinal);
+        return new(
+            $"paused:{printer.Id}", CheckStatus.Problem, $"{printer.Name} is paused",
+            byHand ? "Press Resume on the printer to let its jobs print." : "Resume it to let its jobs print.",
+            byHand ? [] : [TroubleshootAction.ResumePrinter],
+            "Jobs wait while a printer is paused. If it stays paused, press Resume on the printer.");
+    }
 
     private static string Duration(int minutes) => minutes switch
     {
