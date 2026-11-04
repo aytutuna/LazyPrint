@@ -12,6 +12,8 @@ public sealed record CompanionServerOptions
 {
     /// <summary>Connections served at once; more are closed at once.</summary>
     public int MaxConnections { get; init; } = 8;
+    /// <summary>How many of those one address may hold, so that it cannot shut the phones out.</summary>
+    public int MaxConnectionsPerPeer { get; init; } = 4;
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>How long the request line and headers may take to arrive.</summary>
     public TimeSpan HeadTimeout { get; init; } = TimeSpan.FromSeconds(10);
@@ -44,7 +46,7 @@ public sealed class CompanionServer : IAsyncDisposable
     private readonly Func<DateTimeOffset> _clock;
     private readonly List<TcpListener> _listeners = [];
     private readonly List<Task> _acceptLoops = [];
-    private readonly HashSet<Task> _connections = [];
+    private readonly Dictionary<Task, IPAddress> _connections = [];
     private readonly object _gate = new();
     /// <summary>Cancelled to stop accepting connections.</summary>
     private CancellationTokenSource? _accept;
@@ -134,7 +136,7 @@ public sealed class CompanionServer : IAsyncDisposable
         foreach (var listener in _listeners) listener.Stop();
         _listeners.Clear();
         Task[] serving;
-        lock (_gate) serving = [.. _connections];
+        lock (_gate) serving = [.. _connections.Keys];
         try
         {
             await Task.WhenAll(serving).WaitAsync(_options.StopGrace).ConfigureAwait(false);
@@ -145,7 +147,7 @@ public sealed class CompanionServer : IAsyncDisposable
         }
         stop.Cancel();
         Task[] pending;
-        lock (_gate) pending = [.. _acceptLoops, .. _connections];
+        lock (_gate) pending = [.. _acceptLoops, .. _connections.Keys];
         _acceptLoops.Clear();
         try
         {
@@ -188,20 +190,22 @@ public sealed class CompanionServer : IAsyncDisposable
                 continue;
             }
             var remote = (client.Client.RemoteEndPoint as IPEndPoint)?.Address ?? IPAddress.None;
-            bool refused;
+            var peer = LocalSubnet.Normalize(remote);
+            Task connection;
+            // Counted before the lock is left: every listener has its own loop and one peer can reach them all.
             lock (_gate)
             {
-                refused = _connections.Count >= _options.MaxConnections
-                          || (_options.AllowPeer is { } allow && !allow(remote))
-                          || _limiter.IsBlocked(remote, _clock());
+                if (_connections.Count >= _options.MaxConnections
+                    || _connections.Values.Count(held => held.Equals(peer)) >= _options.MaxConnectionsPerPeer
+                    || (_options.AllowPeer is { } allow && !allow(remote))
+                    || _limiter.IsBlocked(remote, _clock()))
+                {
+                    client.Dispose();
+                    continue;
+                }
+                connection = ServeAsync(client, remote, stop);
+                _connections.Add(connection, peer);
             }
-            if (refused)
-            {
-                client.Dispose();
-                continue;
-            }
-            var connection = ServeAsync(client, remote, stop);
-            lock (_gate) _connections.Add(connection);
             _ = connection.ContinueWith(done =>
             {
                 lock (_gate) _connections.Remove(done);

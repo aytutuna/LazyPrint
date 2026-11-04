@@ -11,6 +11,8 @@ import Security
 public struct CompanionServerOptions {
     /// Connections served at once; more are closed at once.
     public var maxConnections = 8
+    /// How many of those one address may hold, so that it cannot shut the phones out.
+    public var maxConnectionsPerPeer = 4
     public var handshakeTimeout: TimeInterval = 10
     /// How long the request line and headers may take to arrive.
     public var headTimeout: TimeInterval = 10
@@ -44,6 +46,7 @@ public enum CompanionServerError: Error, Equatable, Sendable {
 public final class CompanionServer: @unchecked Sendable {
     private struct Served {
         let link: CompanionLink
+        let peer: [UInt8]
         var task: Task<Void, Never>?
     }
 
@@ -206,17 +209,19 @@ public final class CompanionServer: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// The connection counted as served; nil when it is refused (stopped, too many, a peer not answered
-    /// or blocked).
+    /// The connection counted as served; nil when it is refused (stopped, too many, too many from this
+    /// peer, a peer not answered or blocked).
     private func admit(_ connection: NWConnection, from remote: NWEndpoint.Host) -> (link: CompanionLink, number: Int)? {
         lock.lock()
         defer { lock.unlock() }
-        guard running, served.count < options.maxConnections, options.allowPeer?(remote) ?? true,
-              !limiter.isBlocked(remote, now: clock())
+        let peer = LocalSubnet.bytes(remote) ?? []
+        guard running, served.count < options.maxConnections,
+              served.values.filter({ $0.peer == peer }).count < options.maxConnectionsPerPeer,
+              options.allowPeer?(remote) ?? true, !limiter.isBlocked(remote, now: clock())
         else { return nil }
         nextNumber += 1
         let link = CompanionLink(connection, queue: queue)
-        served[nextNumber] = Served(link: link, task: nil)
+        served[nextNumber] = Served(link: link, peer: peer, task: nil)
         return (link, nextNumber)
     }
 

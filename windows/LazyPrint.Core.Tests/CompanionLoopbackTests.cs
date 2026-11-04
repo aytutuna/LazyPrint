@@ -401,6 +401,38 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OneAddress_LeavesRoomForTheOthers()
+    {
+        var code = await _service.OpenPairingAsync();
+        Assert.NotNull(code);
+        var held = new List<SslStream>();
+        try
+        {
+            // A handshake, as a plain connect also succeeds for a connection the server then drops.
+            for (int i = 0; i < new CompanionServerOptions().MaxConnectionsPerPeer; i++) held.Add(await Handshake("127.0.0.1", code.Port));
+
+            using var refused = new TcpClient();
+            await refused.ConnectAsync(IPAddress.Loopback, code.Port);
+            int read;
+            try
+            {
+                read = await refused.GetStream().ReadAsync(new byte[1]).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (IOException)
+            {
+                read = 0;
+            }
+            Assert.Equal(0, read);
+
+            await using var other = await Handshake("127.0.0.2", code.Port);
+        }
+        finally
+        {
+            held.ForEach(tls => tls.Dispose());
+        }
+    }
+
+    [Fact]
     public async Task PlainHttp_GetsNoAnswer()
     {
         var code = await _service.OpenPairingAsync();
@@ -595,6 +627,15 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
             Assert.True(DateTime.UtcNow < deadline, "Timed out waiting.");
             await Task.Delay(20);
         }
+    }
+
+    private static async Task<SslStream> Handshake(string from, int port)
+    {
+        var tcp = new TcpClient(new IPEndPoint(IPAddress.Parse(from), 0));
+        await tcp.ConnectAsync(IPAddress.Loopback, port);
+        var tls = new SslStream(tcp.GetStream(), false, (_, _, _, _) => true);
+        await tls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = "localhost" }).WaitAsync(TimeSpan.FromSeconds(5));
+        return tls;
     }
 
     private static async Task AssertNotListening(int port, string address = "127.0.0.1")
