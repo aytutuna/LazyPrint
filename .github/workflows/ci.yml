@@ -22,6 +22,9 @@ jobs:
         run: dotnet build windows/LazyPrint.sln -c Release
       - name: Test
         run: dotnet test windows/LazyPrint.sln -c Release --no-build
+        env:
+          # The phone link's certificate tests use a certificate store of their own; on the runner only.
+          LAZYPRINT_CERT_STORE_TESTS: '1'
 
   macos:
     # Package.swift declares swift-tools-version 6.0 (the Swift 5 language mode), macOS 14 and

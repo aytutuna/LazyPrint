@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The pairing QR (Services/ZXingQrEncoder.cs); the only third-party code in the app. -->
+    <PackageReference Include="ZXing.Net" Version="[0.16.11]" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\LazyPrint.Core\LazyPrint.Core.csproj" />
   </ItemGroup>
 
