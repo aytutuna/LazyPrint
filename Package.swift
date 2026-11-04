@@ -7,6 +7,8 @@ import PackageDescription
 //   Foundation alone.
 // - LazyPrintMac: the Mac's views and its system services (the queues macOS has set up, through libcups).
 //   Every file is wrapped in `#if os(macOS)`, so it builds to nothing for iOS.
+// - LazyPrintIOS: the iPhone's views and its services (AirPrint, the file inbox, UIKit's lifecycle and background time).
+//   Every file is wrapped in `#if os(iOS)`, so it builds to nothing for macOS.
 // - LazyPrint: the Mac app.
 // iOS 18 needs PackageDescription 6.0; the code stays in the Swift 5 language mode.
 let package = Package(
@@ -15,6 +17,7 @@ let package = Package(
     products: [
         .executable(name: "LazyPrint", targets: ["LazyPrint"]),
         .library(name: "LazyPrintKit", targets: ["LazyPrintKit"]),
+        .library(name: "LazyPrintIOS", targets: ["LazyPrintIOS"]),
     ],
     targets: [
         .target(
@@ -26,6 +29,11 @@ let package = Package(
             dependencies: ["LazyPrintKit"],
             path: "Sources/LazyPrintMac",
             linkerSettings: [.linkedLibrary("cups", .when(platforms: [.macOS]))]
+        ),
+        .target(
+            name: "LazyPrintIOS",
+            dependencies: ["LazyPrintKit"],
+            path: "Sources/LazyPrintIOS"
         ),
         .executableTarget(
             name: "LazyPrint",
@@ -45,6 +53,11 @@ let package = Package(
             dependencies: ["LazyPrintKit", "LazyPrintMac"],
             // Reads Tests/Fixtures/Documents by #filePath, as the shared tests do.
             path: "Tests/LazyPrintMacTests"
+        ),
+        .testTarget(
+            name: "LazyPrintIOSTests",
+            dependencies: ["LazyPrintKit", "LazyPrintIOS"],
+            path: "Tests/LazyPrintIOSTests"
         ),
     ],
     swiftLanguageModes: [.v5]
