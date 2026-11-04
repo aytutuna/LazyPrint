@@ -53,6 +53,29 @@
                 </DockPanel>
             </Border>
 
+            <!-- A paired phone sent files that wait for the user's say: nothing prints by itself. The next batch
+                 shows when this one is added, started as a new job, or dismissed. -->
+            <Border x:Name="PhoneBar" Style="{StaticResource SavedBarStyle}" Visibility="Collapsed">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource GlyphText}" Text="&#xE8EA;" Margin="0,0,12,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallIconButtonStyle}" Content="&#xE711;"
+                            ToolTip="Dismiss" AutomationProperties.Name="Dismiss these files"
+                            VerticalAlignment="Center" Margin="4,0,0,0" Click="PhoneBarDismiss_Click" />
+                    <Button DockPanel.Dock="Right" x:Name="PhoneBarNewButton" Style="{StaticResource SubtleButtonStyle}"
+                            Content="Start a new job" VerticalAlignment="Center" Margin="8,0,0,0"
+                            ToolTip="Clear the job and print these files instead" Click="PhoneBarNew_Click" />
+                    <Button DockPanel.Dock="Right" x:Name="PhoneBarAddButton" Style="{StaticResource SubtleButtonStyle}"
+                            Content="Add to this job" VerticalAlignment="Center" Margin="8,0,0,0"
+                            ToolTip="Put these files in the job with the others" Click="PhoneBarAdd_Click" />
+                    <TextBlock x:Name="PhoneBarText" Style="{StaticResource BodyText}" TextWrapping="Wrap"
+                               VerticalAlignment="Center" Padding="0,4"
+                               AutomationProperties.LiveSetting="Polite"><Run
+                            Text="From your phone" FontWeight="SemiBold" /><Run Text="  " /><Run x:Name="PhoneBarMessage" /></TextBlock>
+                </DockPanel>
+            </Border>
+
             <!-- After a job went out: what was sent, with a way to the Jobs tab. -->
             <Border x:Name="SentBar" Style="{StaticResource SavedBarStyle}" Visibility="Collapsed">
                 <DockPanel>
@@ -189,6 +212,13 @@
                 </TextBlock>
 
                 <StackPanel Grid.Row="4">
+                    <!-- Pair a phone, the paired phones and the networks receiving is allowed on. -->
+                    <Button x:Name="PhoneButton" Style="{StaticResource SubtleButtonStyle}"
+                            local:Icon.Glyph="&#xE8EA;" Content="Phone"
+                            ToolTip="Print files from your phone"
+                            AutomationProperties.HelpText="Opens the phone settings: pair a phone, the paired phones and the networks this PC receives on"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="4,4,4,0"
+                            Click="PhoneButton_Click" />
                     <Button x:Name="AppearanceButton" Style="{StaticResource SubtleButtonStyle}"
                             local:Icon.Glyph="&#xE793;" Content="Appearance"
                             ToolTip="Light, dark, or follow Windows"

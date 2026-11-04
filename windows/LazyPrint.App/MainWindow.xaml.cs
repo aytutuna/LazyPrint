@@ -41,6 +41,7 @@ public partial class MainWindow : Window
         StartView.TaskChosen += StartTask;
         MainTabs.SelectedItem = StartTab;
 
+        SetUpPhone();
         SetUpPreview();
         BuildChoices();
         SetUpInspectorSections();
@@ -53,6 +54,8 @@ public partial class MainWindow : Window
             _ = ViewModel.RefreshPrintersAsync();
             _ = ViewModel.ReadSystemStateAsync();
             ViewModel.StartNetwork();
+            ViewModel.StartCompanionIfPaired();
+            _ = Task.Run(FileAssociation.RegisterForCurrentUser);
             _printerPoll.Tick += async (_, _) => await ViewModel.RefreshPrintersAsync();
             _printerPoll.Start();
             _statusPoll.Tick += async (_, _) => await ViewModel.RefreshNetworkStatusAsync();
@@ -133,12 +136,18 @@ public partial class MainWindow : Window
             AppearanceButton.ContentTemplate = (DataTemplate)FindResource("IconOnlyTemplate");
             AppearanceButton.HorizontalContentAlignment = HorizontalAlignment.Center;
             AppearanceButton.ToolTip = "Appearance: light, dark, or follow Windows";
+            PhoneButton.ContentTemplate = (DataTemplate)FindResource("IconOnlyTemplate");
+            PhoneButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+            PhoneButton.ToolTip = "Phone: print files from your phone";
         }
         else
         {
             AppearanceButton.ClearValue(ContentControl.ContentTemplateProperty);
             AppearanceButton.HorizontalContentAlignment = HorizontalAlignment.Left;
             AppearanceButton.ToolTip = "Light, dark, or follow Windows";
+            PhoneButton.ClearValue(ContentControl.ContentTemplateProperty);
+            PhoneButton.HorizontalContentAlignment = HorizontalAlignment.Left;
+            PhoneButton.ToolTip = "Print files from your phone";
         }
     }
 
@@ -163,6 +172,7 @@ public partial class MainWindow : Window
     {
         SyncPrinterList();
         SyncBars();
+        SyncPhoneBar();
         SyncStatusLine();
         SyncBanner();
         StartView.Refresh();

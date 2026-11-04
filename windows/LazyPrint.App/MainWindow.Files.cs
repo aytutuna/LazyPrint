@@ -46,11 +46,13 @@ public partial class MainWindow
     {
         if (ViewModel.SelectedTask is null) await ViewModel.StartTaskAsync(PrintTask.Document);
         await ViewModel.AddFilesAsync(paths);
-        if (ViewModel.Documents.Count > 0)
-        {
-            if (ViewModel.SelectedTask is { } task) OpenSectionFor(task);
-            MainTabs.SelectedItem = PrintTab;
-        }
+        if (ViewModel.Documents.Count > 0) ShowPrintTab();
+    }
+
+    private void ShowPrintTab()
+    {
+        if (ViewModel.SelectedTask is { } task) OpenSectionFor(task);
+        MainTabs.SelectedItem = PrintTab;
     }
 
     /// <summary>

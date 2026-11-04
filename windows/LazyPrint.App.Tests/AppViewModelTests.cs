@@ -223,12 +223,15 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task APhoneTaskSaysItIsNotReadyAndChangesNothing()
+    public async Task APhoneTaskOpensThePhoneWindowAndChangesNothing()
     {
         using var rig = new Rig();
+        int opened = 0;
+        rig.Model.PhoneWindowRequested += () => opened++;
         await rig.Model.StartTaskAsync(PrintTask.FromPhone);
 
-        Assert.True(rig.Model.ErrorIsNotice);
+        Assert.Equal(1, opened);
+        Assert.Null(rig.Model.ErrorMessage);
         Assert.Null(rig.Model.SelectedTask);
     }
 

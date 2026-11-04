@@ -33,7 +33,7 @@ public sealed partial class AppViewModel
 
     /// <summary>
     /// Picks a task: its settings are applied over the user's, the rest stay as they were. The test page prints at once;
-    /// Scan and print hands over to Lazy Scan; From your phone waits for the phone link.
+    /// Scan and print hands over to Lazy Scan; From your phone opens the Phone window.
     /// </summary>
     public async Task StartTaskAsync(PrintTask task)
     {
@@ -52,7 +52,7 @@ public sealed partial class AppViewModel
                 }
                 return;
             case PrintTask.FromPhone:
-                ShowNotice("Not ready yet", "Printing from your phone comes with the phone link.");
+                PhoneWindowRequested?.Invoke();
                 return;
             case PrintTask.TestPage:
                 // Prints at once; it is not a task the settings stay in.

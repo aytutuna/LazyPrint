@@ -29,7 +29,7 @@ internal sealed class FakeLoader : IDocumentLoader
     public IReadOnlyList<LayoutSize> Pages { get; set; } = [new LayoutSize(612, 792)];
 
     public Task<LoadedDocument> LoadAsync(string path, CancellationToken token) =>
-        path.EndsWith(".bad", StringComparison.Ordinal)
+        path.Contains(".bad", StringComparison.Ordinal)
             ? throw new InvalidOperationException("Lazy Print prints PDFs and pictures. Save it as a PDF first.")
             : Task.FromResult(new LoadedDocument(Path.GetFileName(path), new DocumentKind.Pdf(false), Pages));
 }

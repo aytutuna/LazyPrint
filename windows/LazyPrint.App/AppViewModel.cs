@@ -130,6 +130,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     public void Shutdown()
     {
         FlushSettings();
+        ShutdownCompanion();
         (_networkPrinters as IDisposable)?.Dispose();
     }
 
