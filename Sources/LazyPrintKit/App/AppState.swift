@@ -162,6 +162,7 @@ public final class AppState: ObservableObject {
     let sheets: any SheetPrinter
     let lifecycle: (any PlatformLifecycle)?
     let background: any BackgroundActivity
+    let companionHost: any CompanionHosting
 
     var settingsSaveTask: Task<Void, Never>?
     var previewTask: Task<Void, Never>?
@@ -204,6 +205,43 @@ public final class AppState: ObservableObject {
     var certificateWaiter: CheckedContinuation<Bool, Never>?
     var certificatePrinter: PrinterInfo?
 
+    /// The whole batches of files phones sent to the Mac, oldest first (AppState+CompanionHost.swift).
+    @Published public internal(set) var phoneBatches: [PhoneBatch] = []
+    var phoneRetry: Task<Void, Never>?
+    /// A batch is being moved out of the inbox and read into the job.
+    var takingBatch = false
+    /// Set by the Mac's shell: opens the phone window when the task From your phone is picked.
+    public var phoneWindowRequested: (@MainActor () -> Void)?
+
+    /// The desktop this phone is paired with (AppState+Companion.swift); nil when there is none.
+    @Published public internal(set) var companionDesktop: PairedDesktop?
+    @Published public internal(set) var companionStatus = CompanionStatus.notPaired
+    /// Files waiting in the outbox to be sent to the paired desktop; all of them while none is paired.
+    @Published public internal(set) var companionOutboxCount = 0
+    /// Files waiting in the outbox for a desktop no longer paired while another is: they wait for that one to be
+    /// paired again, or for `clearOtherOutbox`.
+    @Published public internal(set) var companionOtherOutboxCount = 0
+    /// Whether the desktop with this id is seen on the network the phone is on (its DNS-SD browser), so a desktop that
+    /// does not answer is told from one that is not on the network (`companionUnreachableReason`). Set by the
+    /// iPhone's shell; nil: not known.
+    public var companionDesktopSeenOnNetwork: ((String) -> Bool)?
+    /// Whether Local Network access is off for the app, which is why no desktop answers
+    /// (`companionUnreachableReason`). Set by the iPhone's shell; nil: not known.
+    public var companionAccessDenied: (() -> Bool)?
+    /// Opens the cloud sync folder of `PairedDesktop.syncFolderBookmark` and gives it with the bookmark to keep, made
+    /// again when the old one is stale; nil when it no longer resolves (`openSyncFolder`). Set by the iPhone's shell;
+    /// without it no sync folder is used.
+    public var resolveSyncFolderBookmark: (@MainActor (Data) -> (folder: URL, bookmark: Data)?)?
+    /// The status said once this session where to set a sync folder (`drainOutbox`).
+    var companionSyncFolderHinted = false
+    /// The phone link's files and the client of the paired desktop (`setUpCompanion`); nil until the shell sets them up.
+    var companionStore: PairedDesktopStore?
+    var companionOutbox: PhoneOutbox?
+    var companionClient: CompanionClient?
+    var companionDraining = false
+    /// URLProtocol stubs for the phone link client's sessions (tests, and the iPhone's `-pairedComputer` launch).
+    public var companionProtocolClasses: [AnyClass] = []
+
     /// Each app shell passes its system services (the Mac's: `AppState.makeForMac()` in LazyPrintMac). Without them the
     /// state has the demo printer only: no queues, nothing found on the network, a system printer that refuses, and file
     /// and troubleshooter actions that are refused. Settings, logs and the demo printer's pictures are in the app's own
@@ -212,10 +250,10 @@ public final class AppState: ObservableObject {
                             systemPrinter: (any SheetPrinter)? = nil, documents: (any DocumentLoading)? = nil,
                             fileActions: (any FileActionService)? = nil, troubleshooter: (any TroubleshooterService)? = nil,
                             lifecycle: (any PlatformLifecycle)? = nil, background: (any BackgroundActivity)? = nil,
-                            platform: AppPlatform = .mac) {
+                            companion: (any CompanionHosting)? = nil, platform: AppPlatform = .mac) {
         self.init(printerSystem: printerSystem, network: network, systemPrinter: systemPrinter, documents: documents,
                   fileActions: fileActions, troubleshooter: troubleshooter, lifecycle: lifecycle, background: background,
-                  platform: platform, files: AppStateFiles.standard)
+                  companion: companion, platform: platform, files: AppStateFiles.standard)
     }
 
     /// The same, with every file in `files` (tests: a folder of their own, and no polling started; the iPhone's
@@ -224,7 +262,7 @@ public final class AppState: ObservableObject {
                 systemPrinter: (any SheetPrinter)? = nil, documents: (any DocumentLoading)? = nil,
                 fileActions: (any FileActionService)? = nil, troubleshooter: (any TroubleshooterService)? = nil,
                 lifecycle: (any PlatformLifecycle)? = nil, background: (any BackgroundActivity)? = nil,
-                platform: AppPlatform = .mac, files: AppStateFiles) {
+                companion: (any CompanionHosting)? = nil, platform: AppPlatform = .mac, files: AppStateFiles) {
         let opener = documents ?? DocumentLoader()
         let demoState = DemoPrinterState(root: files.demoPrints)
         let trust = IppTrustStore(directory: files.settingsDirectory)
@@ -237,6 +275,7 @@ public final class AppState: ObservableObject {
         self.troubleshooter = troubleshooter ?? UnavailableTroubleshooterService()
         self.lifecycle = lifecycle
         self.background = background ?? NoBackgroundActivity()
+        self.companionHost = companion ?? NoCompanionHosting()
         self.demo = demoState
         self.sheets = RoutingSheetPrinter(
             system: systemPrinter ?? NoSheetPrinter(),
@@ -254,6 +293,10 @@ public final class AppState: ObservableObject {
             self.task = saved
         }
         self.lazyScanInstalled = self.fileActions.lazyScanInstalled()
+        self.companionHost.onChange = { [weak self] in
+            self?.refreshPhoneBatches()
+        }
+        refreshPhoneBatches()
 
         // A change made just before the app quits is not lost.
         lifecycle?.observeWillTerminate { [weak self] in

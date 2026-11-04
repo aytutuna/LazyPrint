@@ -784,11 +784,14 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aPhoneTask_saysItIsNotReadyAndChangesNothing() async throws {
+    func test_aPhoneTask_opensThePhoneWindowAndChangesNothing() async throws {
         let rig = try makeRig()
+        var opened = 0
+        rig.state.phoneWindowRequested = { opened += 1 }
         await rig.state.startTask(.fromPhone)
 
-        XCTAssertEqual(rig.state.error?.isNotice, true)
+        XCTAssertEqual(opened, 1)
+        XCTAssertNil(rig.state.error)
         XCTAssertNil(rig.state.task)
     }
 

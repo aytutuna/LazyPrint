@@ -28,7 +28,7 @@ extension AppState {
     }
 
     /// Picks a task: its settings are applied over the user's, the rest stay as they were. The test page prints at once;
-    /// Scan and print hands over to Lazy Scan; From your phone waits for the phone link.
+    /// Scan and print hands over to Lazy Scan; From your phone asks the shell to open the phone window.
     public func startTask(_ task: PrintTask) async {
         guard availability(of: task).isAvailable else { return }
         statusOverride = nil
@@ -40,7 +40,7 @@ extension AppState {
                 showFailure("Lazy Scan did not open", error.localizedDescription)
             }
         case .fromPhone:
-            showNotice("Not ready yet", "Printing from your phone comes with the phone link.")
+            phoneWindowRequested?()
         case .testPage:
             // Prints at once; it is not a task the settings stay in.
             clearMessages()
