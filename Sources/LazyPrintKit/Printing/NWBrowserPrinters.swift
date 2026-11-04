@@ -24,27 +24,27 @@ enum IppServices {
 }
 
 /// How the system says that the app may not use the local network.
-enum LocalNetwork {
+public enum LocalNetwork {
     /// kDNSServiceErr_PolicyDenied: the system refused to browse or resolve (Local Network access is off).
-    static let policyDeniedCode: Int32 = -65570
+    public static let policyDeniedCode: Int32 = -65570
 
-    static func isPolicyDenied(_ code: Int32?) -> Bool {
+    public static func isPolicyDenied(_ code: Int32?) -> Bool {
         code == policyDeniedCode
     }
 }
 
 /// One service instance a browser reports.
-struct BrowseResult: Hashable, Sendable {
-    var name: String
+public struct BrowseResult: Hashable, Sendable {
+    public var name: String
     /// "_ipp._tcp" or "_ipps._tcp".
-    var type: String
+    public var type: String
     /// Usually "local.".
-    var domain: String
+    public var domain: String
     /// The interface it was seen on; 0 when any.
-    var interfaceIndex: Int
-    var txt: [String: String]
+    public var interfaceIndex: Int
+    public var txt: [String: String]
 
-    init(name: String, type: String, domain: String = "local.", interfaceIndex: Int = 0, txt: [String: String] = [:]) {
+    public init(name: String, type: String, domain: String = "local.", interfaceIndex: Int = 0, txt: [String: String] = [:]) {
         self.name = name
         self.type = type
         self.domain = domain
@@ -59,7 +59,7 @@ struct BrowseResult: Hashable, Sendable {
 }
 
 /// How a browser is doing, as the system reports it; `code` is the DNS-SD error when there is one.
-enum BrowserStatus: Equatable, Sendable {
+public enum BrowserStatus: Equatable, Sendable {
     case setup
     case ready
     case waiting(code: Int32?, detail: String)
@@ -68,13 +68,13 @@ enum BrowserStatus: Equatable, Sendable {
 }
 
 /// Where a service is: its host name, port and every address as text ("192.168.1.20", "fe80::1%4").
-struct ResolvedService: Equatable, Sendable {
-    var hostName: String?
-    var port: Int
-    var addresses: [String]
+public struct ResolvedService: Equatable, Sendable {
+    public var hostName: String?
+    public var port: Int
+    public var addresses: [String]
 }
 
-enum ResolveOutcome: Equatable, Sendable {
+public enum ResolveOutcome: Equatable, Sendable {
     case resolved(ResolvedService)
     /// Not resolved; the text says why, for the diagnostics.
     case failed(String)
@@ -85,7 +85,7 @@ enum ResolveOutcome: Equatable, Sendable {
 /// Browses one service type and reports the instances found (each time, all of them) and how browsing goes, on the
 /// main actor. The app's is `NWBrowsing`; tests pass a stand-in.
 @MainActor
-protocol Browsing: AnyObject {
+public protocol Browsing: AnyObject {
     var onStatus: ((BrowserStatus) -> Void)? { get set }
     var onResults: (([BrowseResult]) -> Void)? { get set }
     func start()
@@ -94,14 +94,14 @@ protocol Browsing: AnyObject {
 
 /// A resolve under way.
 @MainActor
-protocol ResolveHandle: AnyObject {
+public protocol ResolveHandle: AnyObject {
     func cancel()
 }
 
 /// Finds a service's host name, port and every address. Calls `completion` once, on the main actor, unless cancelled
 /// first. The app's is `DnssdResolver`; tests pass a stand-in.
 @MainActor
-protocol Resolving: AnyObject {
+public protocol Resolving: AnyObject {
     func resolve(_ result: BrowseResult, completion: @escaping @MainActor (ResolveOutcome) -> Void) -> any ResolveHandle
 }
 
@@ -533,17 +533,17 @@ public final class NWBrowserPrinters: NetworkPrinters {
 
 /// NWBrowser for _ipp._tcp or _ipps._tcp, with the TXT records, peer-to-peer off, on the main queue.
 @MainActor
-final class NWBrowsing: Browsing {
-    var onStatus: ((BrowserStatus) -> Void)?
-    var onResults: (([BrowseResult]) -> Void)?
+public final class NWBrowsing: Browsing {
+    public var onStatus: ((BrowserStatus) -> Void)?
+    public var onResults: (([BrowseResult]) -> Void)?
     private let type: String
     private var browser: NWBrowser?
 
-    init(type: String) {
+    public init(type: String) {
         self.type = type
     }
 
-    func start() {
+    public func start() {
         guard browser == nil else { return }
         let parameters: NWParameters = NWParameters()
         parameters.includePeerToPeer = false
@@ -565,7 +565,7 @@ final class NWBrowsing: Browsing {
         made.start(queue: DispatchQueue.main)
     }
 
-    func cancel() {
+    public func cancel() {
         guard let running = browser else { return }
         browser = nil
         running.stateUpdateHandler = nil
@@ -623,11 +623,13 @@ final class NWBrowsing: Browsing {
 /// every IPv4 and IPv6 address of that host. The answer comes once the first address has had `settleTime` for the others
 /// to follow, or `timeout` after the start without any; the requests are deallocated then.
 @MainActor
-final class DnssdResolver: Resolving {
+public final class DnssdResolver: Resolving {
     var timeout: TimeInterval = 5
     var settleTime: TimeInterval = 1
 
-    func resolve(_ result: BrowseResult, completion: @escaping @MainActor (ResolveOutcome) -> Void) -> any ResolveHandle {
+    public init() {}
+
+    public func resolve(_ result: BrowseResult, completion: @escaping @MainActor (ResolveOutcome) -> Void) -> any ResolveHandle {
         let operation: DnssdResolve = DnssdResolve(result: result, timeout: timeout, settleTime: settleTime, completion: completion)
         operation.start()
         return operation
