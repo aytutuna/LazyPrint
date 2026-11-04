@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using LazyPrint.App.Services;
+using LazyPrint.Core;
 
 namespace LazyPrint.App;
 
@@ -17,7 +18,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        string[] files = [.. e.Args.Where(arg => arg.Length > 0).Select(Path.GetFullPath)];
+        var files = FilesOf(e.Args);
         _instance = new Mutex(true, InstanceMutexName, out bool first);
         if (!first)
         {
@@ -38,6 +39,21 @@ public partial class App : Application
         ThemeService.Initialize();
         base.OnStartup(e);
     }
+
+    /// <summary>
+    /// The files a command line asks for: each argument is a path, except one that starts with <c>lazyprint:</c>, which is
+    /// the address Lazy Scan opens the app with (<see cref="LazyPrintUrl"/>) and stands for the files in it. The scheme's
+    /// command is <c>"exe" "%1"</c>, so an address with a quote in it can add arguments of its own: when the first one is an
+    /// address, it is the only one read.
+    /// </summary>
+    internal static IReadOnlyList<string> FilesOf(IEnumerable<string> args)
+    {
+        var all = args.Where(arg => arg.Length > 0).ToList();
+        if (all.Count > 0 && IsAddress(all[0])) return [.. LazyPrintUrl.Parse(all[0]).Select(Path.GetFullPath)];
+        return [.. all.SelectMany(arg => IsAddress(arg) ? LazyPrintUrl.Parse(arg).Select(Path.GetFullPath) : [Path.GetFullPath(arg)])];
+    }
+
+    private static bool IsAddress(string arg) => arg.StartsWith(LazyPrintUrl.Scheme + ":", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Files handed over by a second start: opened at once, or kept for the window if it is not open yet.</summary>
     private void Opened(IReadOnlyList<string> paths) => Dispatcher.BeginInvoke(() =>
