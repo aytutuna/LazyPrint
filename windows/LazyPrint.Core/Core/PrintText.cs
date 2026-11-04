@@ -15,6 +15,15 @@ public static class PrintText
 
     public const string LoadBacks = "Load the backs";
 
+    /// <summary>The iPhone stopped a job because the system took back the app's time in the background.</summary>
+    public const string BackgroundExpired = "Lazy Print ran out of time in the background. Print again to finish.";
+
+    /// <summary>The same, for the backs of a two-sided job, which the card still holds.</summary>
+    public const string BackgroundExpiredBacks = "Lazy Print ran out of time in the background. Print the backs again to finish.";
+
+    /// <summary>The same, for a pass of the two-sided check; the card holds its job, and Print again waits until the card is done.</summary>
+    public const string BackgroundExpiredCheck = "Lazy Print ran out of time in the background. Print the check sheet again from the card.";
+
     /// <summary>"Ready for “Booklet”."; the status line shows the printer instead.</summary>
     public static string Ready(string taskTitle) => $"Ready for “{taskTitle}”.";
 

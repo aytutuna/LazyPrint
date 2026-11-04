@@ -14,6 +14,15 @@ public enum PrintText {
 
     public static let loadBacks = "Load the backs"
 
+    /// The iPhone stopped a job because the system took back the app's time in the background.
+    public static let backgroundExpired = "Lazy Print ran out of time in the background. Print again to finish."
+
+    /// The same, for the backs of a two-sided job, which the card still holds.
+    public static let backgroundExpiredBacks = "Lazy Print ran out of time in the background. Print the backs again to finish."
+
+    /// The same, for a pass of the two-sided check; the card holds its job, and Print again waits until the card is done.
+    public static let backgroundExpiredCheck = "Lazy Print ran out of time in the background. Print the check sheet again from the card."
+
     /// "Ready for “Booklet”."; the status line shows the printer instead.
     public static func ready(_ taskTitle: String) -> String {
         "Ready for \u{201C}\(taskTitle)\u{201D}."
