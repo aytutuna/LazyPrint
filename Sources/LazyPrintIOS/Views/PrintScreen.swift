@@ -1,0 +1,589 @@
+#if os(iOS)
+import CoreGraphics
+import ImageIO
+import LazyPrintKit
+import SwiftUI
+
+/// Which sheet and side `AppState.previewSide` counts to, over the front and the back of each sheet in turn.
+struct PreviewPosition: Equatable {
+    let sheet: Int
+    let back: Bool
+    let count: Int
+
+    /// A side past the end is the last sheet's front.
+    init(side: Int, sheets: [Sheet]) {
+        var found: Int = max(0, sheets.count - 1)
+        var onBack: Bool = false
+        var left: Int = max(0, side)
+        for (index, sheet) in sheets.enumerated() {
+            let sides: Int = sheet.back == nil ? 1 : 2
+            if left < sides {
+                found = index
+                onBack = left == 1
+                break
+            }
+            left -= sides
+        }
+        self.sheet = found
+        self.back = onBack
+        self.count = sheets.count
+    }
+
+    /// The count of the side that is `sheet`'s front, or its back.
+    static func side(sheet: Int, back: Bool, in sheets: [Sheet]) -> Int {
+        let before: Int = sheets.prefix(max(0, sheet)).reduce(0) { (total: Int, one: Sheet) -> Int in
+            total + (one.back == nil ? 1 : 2)
+        }
+        return before + (back ? 1 : 0)
+    }
+}
+
+/// The print screen: the task in use, the sheet the settings make of the documents with "Sheet 2 of 5", previous and
+/// next (and a swipe) and Front/Back, the plan's notes, the strip of documents and the Options row; the Print button is
+/// fixed at the bottom and says what it does. In landscape the sheet is on the left and the rest scrolls on the right.
+struct PrintScreen: View {
+    @EnvironmentObject private var state: AppState
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.colorScheme) private var scheme
+
+    /// Opens the choice of Files or Photos.
+    var addFiles: () -> Void
+    /// Goes back to the Start screen.
+    var changeTask: () -> Void
+    var showPrinters: () -> Void
+
+    @State private var showOptions = false
+    @State private var showDocuments = false
+    /// Add files was asked from the documents sheet: the choice opens once that sheet has closed.
+    @State private var addAfterDocuments = false
+
+    private static let stagePadding: CGFloat = 20
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { (geometry: GeometryProxy) in
+                if verticalSizeClass == .compact {
+                    landscape(geometry.size)
+                } else {
+                    portrait(geometry.size)
+                }
+            }
+            .navigationTitle(state.task.map { TaskCatalog.definition($0).title } ?? "Print")
+            .navigationBarTitleDisplayMode(.inline)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .toolbar {
+                if state.task != nil {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            changeTask()
+                        } label: {
+                            Label("Change task", systemImage: "house")
+                        }
+                        .disabled(state.isBusy)
+                        .accessibilityIdentifier("print.changeTask")
+                        Button {
+                            state.clearTask()
+                        } label: {
+                            Label("Leave the task", systemImage: "xmark")
+                        }
+                        .disabled(state.isBusy)
+                        .accessibilityIdentifier("print.leaveTask")
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                printBar
+            }
+            .sheet(isPresented: $showOptions) {
+                OptionsSheet()
+            }
+            .sheet(isPresented: $showDocuments, onDismiss: {
+                if addAfterDocuments {
+                    addAfterDocuments = false
+                    addFiles()
+                }
+            }) {
+                DocumentsSheet(addFiles: {
+                    addAfterDocuments = true
+                    showDocuments = false
+                })
+            }
+            // The two-sided card and the certificate question are shown by the root and the sheets of this screen are in the way.
+            .onChange(of: state.duplexCard != nil || state.certificateRequest != nil) { (_: Bool, asking: Bool) in
+                if asking {
+                    showOptions = false
+                    showDocuments = false
+                }
+            }
+        }
+    }
+
+    // MARK: Layouts
+
+    private func portrait(_ size: CGSize) -> some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                PrinterButton(action: showPrinters)
+                    .padding(.horizontal, 16)
+                stageArea(CGSize(width: size.width, height: max(220, min(size.height * 0.38, size.width * 1.1))))
+                if !sheets.isEmpty {
+                    previewBar
+                    notes
+                }
+                controls
+            }
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func landscape(_ size: CGSize) -> some View {
+        HStack(spacing: 0) {
+            stageArea(CGSize(width: size.width * 0.5, height: size.height))
+            ScrollView {
+                VStack(spacing: 12) {
+                    PrinterButton(action: showPrinters)
+                    if !sheets.isEmpty {
+                        previewBar
+                        notes
+                    }
+                    controls
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    // MARK: The sheets
+
+    private var sheets: [Sheet] { state.jobPlan?.plan.sheets ?? [] }
+
+    private var position: PreviewPosition { PreviewPosition(side: state.previewSide, sheets: sheets) }
+
+    private func stageArea(_ size: CGSize) -> some View {
+        Group {
+            if sheets.isEmpty {
+                emptyStage
+            } else {
+                stage(size)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    private var emptyStage: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "doc.on.doc")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            if state.documents.isEmpty {
+                Text("Nothing to print yet")
+                    .font(.title3.weight(.semibold))
+                Text("Pages you add appear here.")
+                    .foregroundStyle(.secondary)
+                Button {
+                    addFiles()
+                } label: {
+                    Label("Add files\u{2026}", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+                .padding(.top, 4)
+                .disabled(state.isBusy)
+                .accessibilityIdentifier("print.addFiles")
+            } else {
+                Text("No pages to print")
+                    .font(.title3.weight(.semibold))
+                if let problem = state.pageRangeError {
+                    Text(problem)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .multilineTextAlignment(.center)
+        .padding()
+        .accessibilityIdentifier("print.empty")
+    }
+
+    /// The sheet, as large as the stage lets it be; its pixels follow the stage's size and the screen's.
+    private func stage(_ size: CGSize) -> some View {
+        let paper: LayoutSize = state.jobPlan?.plan.area.paper ?? LayoutSize(width: 612, height: 792)
+        let fit: Double = min((size.width - 2 * Self.stagePadding) / paper.width,
+                              (size.height - 2 * Self.stagePadding) / paper.height)
+        // Whole steps of a quarter, so a small resize draws nothing.
+        let wanted: Double = min(4, max(0.5, (max(fit, 0.1) * displayScale * 4).rounded(.up) / 4))
+        let now: PreviewPosition = position
+        return ZStack {
+            scheme == .dark ? Color(white: 0.08) : Color(uiColor: .systemGroupedBackground)
+            if let image = state.preview {
+                Image(decorative: image, scale: displayScale)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
+                    .padding(Self.stagePadding)
+            }
+        }
+        .gesture(DragGesture(minimumDistance: 30).onEnded { (drag: DragGesture.Value) in
+            if drag.translation.width < -50 {
+                move(by: 1)
+            } else if drag.translation.width > 50 {
+                move(by: -1)
+            }
+        })
+        .onChange(of: wanted, initial: true) { (_: Double, scale: Double) in
+            state.previewScale = scale
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sheet \(now.sheet + 1), \(now.back ? "back" : "front")")
+        .accessibilityAdjustableAction { (direction: AccessibilityAdjustmentDirection) in
+            switch direction {
+            case .increment: move(by: 1)
+            case .decrement: move(by: -1)
+            @unknown default: break
+            }
+        }
+        .accessibilityIdentifier("preview.stage")
+    }
+
+    private func move(by offset: Int) {
+        let now: PreviewPosition = position
+        let target: Int = now.sheet + offset
+        guard target >= 0, target < now.count else { return }
+        state.previewSide = PreviewPosition.side(sheet: target, back: false, in: sheets)
+    }
+
+    private var previewBar: some View {
+        let now: PreviewPosition = position
+        let hasBack: Bool = sheets[min(now.sheet, sheets.count - 1)].back != nil
+        return VStack(spacing: 8) {
+            HStack(spacing: 20) {
+                Button {
+                    move(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .frame(minWidth: 32, minHeight: 32)
+                }
+                .disabled(now.sheet == 0)
+                .accessibilityLabel("Previous sheet")
+                .accessibilityIdentifier("print.previous")
+                Text("Sheet \(now.sheet + 1) of \(now.count)")
+                    .monospacedDigit()
+                    .accessibilityIdentifier("preview.position")
+                Button {
+                    move(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .frame(minWidth: 32, minHeight: 32)
+                }
+                .disabled(now.sheet >= now.count - 1)
+                .accessibilityLabel("Next sheet")
+                .accessibilityIdentifier("print.next")
+            }
+            if hasBack {
+                Picker("Side", selection: Binding(
+                    get: { now.back },
+                    set: { (back: Bool) in state.previewSide = PreviewPosition.side(sheet: now.sheet, back: back, in: sheets) })) {
+                    Text("Front").tag(false)
+                    Text("Back").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 240)
+                .accessibilityIdentifier("print.side")
+            }
+        }
+    }
+
+    /// What the plan did to fit the pages: blanks added, pages made smaller.
+    @ViewBuilder
+    private var notes: some View {
+        if let notes = state.jobPlan?.notes, !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(notes, id: \.self) { (note: String) in
+                    Label(note, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+        }
+    }
+
+    // MARK: Controls
+
+    private var controls: some View {
+        VStack(spacing: 12) {
+            Button {
+                showOptions = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Options")
+                            .foregroundStyle(.primary)
+                        if !optionsSummary.isEmpty {
+                            Text(optionsSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .padding(12)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .disabled(state.isBusy)
+            .padding(.horizontal, 16)
+            .accessibilityIdentifier("print.options")
+            if !state.documents.isEmpty {
+                DocumentStrip(addFiles: addFiles, edit: { showDocuments = true })
+            }
+        }
+    }
+
+    /// What differs from the defaults, so a setting is never out of sight.
+    private var optionsSummary: String {
+        let s: PrintSettings = state.settings
+        var parts: [String] = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
+        if state.task == .photos || state.task == .photoSheet { parts.append(InspectorSections.photosSummary(s)) }
+        return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
+    }
+
+    /// Print says what it does; greyed out, it says why.
+    private var printBar: some View {
+        let reason: String? = state.printDisabledReason
+        return VStack(spacing: 6) {
+            Button {
+                Task { await state.print() }
+            } label: {
+                Text(state.printLabel)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Color("PrintFill"))
+            .controlSize(.large)
+            .disabled(reason != nil)
+            .accessibilityLabel(reason == nil ? state.printLabel : "\(state.printLabel), not available: \(reason ?? "")")
+            .accessibilityIdentifier("print.button")
+            if state.isBusy {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text(state.status)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("print.status")
+                    Button("Cancel") { state.cancelJob() }
+                        .accessibilityIdentifier("print.cancel")
+                }
+            } else if let reason {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("print.reason")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+    }
+}
+
+/// The documents under the preview, in print order: a thumbnail of the first page, the name and the page count. Add files
+/// opens the choice the caller owns; Edit opens the sheet that reorders and removes. Twin of the Mac's strip.
+private struct DocumentStrip: View {
+    @EnvironmentObject private var state: AppState
+    let addFiles: () -> Void
+    let edit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(summary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("documents.summary")
+                Spacer(minLength: 8)
+                Button("Edit", action: edit)
+                    .disabled(state.isBusy)
+                    .accessibilityIdentifier("documents.edit")
+                Button {
+                    addFiles()
+                } label: {
+                    Label("Add files\u{2026}", systemImage: "plus")
+                }
+                .disabled(state.isBusy)
+                .accessibilityIdentifier("documents.add")
+            }
+            .buttonStyle(.borderless)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(Array(state.documents.enumerated()), id: \.offset) { _, document in
+                        card(document)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var summary: String {
+        let documents: Int = state.documents.count
+        let pages: Int = state.pageCount
+        return "\(documents) document\(documents == 1 ? "" : "s") \u{00B7} \(pages) page\(pages == 1 ? "" : "s")"
+    }
+
+    private func card(_ document: OpenedDocument) -> some View {
+        let pages: Int = document.loaded.pages.count
+        let count: String = "\(pages) page\(pages == 1 ? "" : "s")"
+        return VStack(alignment: .leading, spacing: 4) {
+            Thumbnail(document: document)
+                .frame(width: 96, height: 96)
+            Text(document.loaded.name)
+                .font(.callout)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(count)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .frame(width: 112, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(document.loaded.name), \(count)")
+    }
+}
+
+/// The documents in a list to reorder and remove: drag by the handle, swipe or use the delete button. Shown as a sheet.
+private struct DocumentsSheet: View {
+    @EnvironmentObject private var state: AppState
+    @Environment(\.dismiss) private var dismiss
+    let addFiles: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(Array(state.documents.enumerated()), id: \.offset) { _, document in
+                    DocumentRow(document: document)
+                }
+                .onMove { (from: IndexSet, to: Int) in
+                    guard let index = from.first else { return }
+                    let target: Int = to > index ? to - 1 : to
+                    state.move(at: index, by: target - index)
+                }
+                .onDelete { (offsets: IndexSet) in
+                    for index in offsets.sorted(by: >) {
+                        state.remove(at: index)
+                    }
+                }
+                Button {
+                    addFiles()
+                } label: {
+                    Label("Add files\u{2026}", systemImage: "plus")
+                }
+                .accessibilityIdentifier("documents.sheetAdd")
+            }
+            .environment(\.editMode, .constant(.active))
+            .disabled(state.isBusy)
+            .navigationTitle("Documents")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("documents.done")
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private struct DocumentRow: View {
+    let document: OpenedDocument
+
+    var body: some View {
+        let pages: Int = document.loaded.pages.count
+        let count: String = "\(pages) page\(pages == 1 ? "" : "s")"
+        HStack(spacing: 12) {
+            Thumbnail(document: document)
+                .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(document.loaded.name)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                Text(count)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(document.loaded.name), \(count)")
+    }
+}
+
+/// The first page of a document, drawn off the main actor when it appears.
+private struct Thumbnail: View {
+    let document: OpenedDocument
+    @State private var image: CGImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .shadow(color: .black.opacity(0.25), radius: 2)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: document.url) {
+            let opened: OpenedDocument = document
+            image = await Task.detached { Self.make(opened) }.value
+        }
+        .accessibilityHidden(true)
+    }
+
+    private nonisolated static func make(_ document: OpenedDocument) -> CGImage? {
+        let side: Int = 192
+        switch document.source {
+        case .picture(let source):
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: side,
+            ]
+            return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        case .pdf(let pdf):
+            return document.drawing.locked { () -> CGImage? in
+                guard let page = pdf.page(at: 1) else { return nil }
+                let box: CGRect = page.getBoxRect(.cropBox)
+                let turned: Bool = page.rotationAngle % 180 != 0
+                let shown: CGSize = turned ? CGSize(width: box.height, height: box.width) : box.size
+                guard shown.width > 0, shown.height > 0 else { return nil }
+                let scale: CGFloat = CGFloat(side) / max(shown.width, shown.height)
+                let width: Int = max(1, Int((shown.width * scale).rounded()))
+                let height: Int = max(1, Int((shown.height * scale).rounded()))
+                guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                      let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                              space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+                let target: CGRect = CGRect(x: 0, y: 0, width: width, height: height)
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                context.fill(target)
+                context.concatenate(page.getDrawingTransform(.cropBox, rect: target, rotate: 0, preserveAspectRatio: true))
+                context.drawPDFPage(page)
+                return context.makeImage()
+            }
+        }
+    }
+}
+#endif
