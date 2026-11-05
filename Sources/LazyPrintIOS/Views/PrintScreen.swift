@@ -141,12 +141,22 @@ struct PrintScreen: View {
             .padding(.vertical, 8)
         }
     }
+    /// The iPad's top tab bar leaves the screen without a title, so the task is named above the controls. A phone in
+    /// landscape uses this layout too, and has its title bar.
+    private var showsTitle: Bool { horizontalSizeClass == .regular && verticalSizeClass != .compact }
 
     private func landscape(_ size: CGSize) -> some View {
         HStack(spacing: 0) {
             stageArea(CGSize(width: size.width * 0.5, height: size.height))
             ScrollView {
                 VStack(spacing: 12) {
+                    if showsTitle, let task = state.task {
+                        Text(TaskCatalog.definition(task).title)
+                            .font(.title2.weight(.semibold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityIdentifier("print.title")
+                    }
                     PrinterButton(action: showPrinters)
                     if !sheets.isEmpty {
                         previewBar
