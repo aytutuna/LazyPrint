@@ -1,0 +1,58 @@
+name: Release
+
+# Packages the Windows and Mac apps as downloadable artifacts. Run it by hand from the Actions
+# tab. Neither package is an installer: Lazy Scan ships none either. The Windows folder is
+# `dotnet publish` output (it needs the .NET 10 Desktop Runtime), and the Mac app is ad-hoc
+# signed, arm64 only and not notarised, so a downloaded copy needs System Settings, Privacy &
+# Security, Open Anyway once (Control-click, Open on macOS 14).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = Join-Path $env:RUNNER_TEMP 'LazyPrint-windows'
+          dotnet publish windows/LazyPrint.App/LazyPrint.App.csproj -c Release -o $out
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
+          if (-not (Test-Path (Join-Path $out 'LazyPrint.exe'))) { throw 'LazyPrint.exe is not in the output' }
+          Compress-Archive -Path (Join-Path $out '*') -DestinationPath (Join-Path $env:RUNNER_TEMP 'LazyPrint-windows.zip')
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lazyprint-windows
+          path: ${{ runner.temp }}/LazyPrint-windows.zip
+          if-no-files-found: error
+
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Package the app
+        run: |
+          set -euo pipefail
+          bash scripts/make_app.sh
+          plutil -lint "dist/Lazy Print.app/Contents/Info.plist"
+          codesign --verify --deep "dist/Lazy Print.app"
+          ditto -c -k --keepParent "dist/Lazy Print.app" "$RUNNER_TEMP/LazyPrint-mac.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lazyprint-mac
+          path: ${{ runner.temp }}/LazyPrint-mac.zip
+          if-no-files-found: error
