@@ -1,4 +1,4 @@
-# The iPhone app's Xcode project, for XcodeGen (CI pins its release and SHA-256; see the
+# The iPhone and iPad app's Xcode project, for XcodeGen (CI pins its release and SHA-256; see the
 # ios job in .github/workflows/ci.yml). `xcodegen generate --spec ios/project.yml` writes
 # ios/LazyPrintiOS.xcodeproj, which is not checked in. The app target holds no logic: it starts
 # LazyPrintIOSApp from the package at the repository root (Sources/LazyPrintIOS).
@@ -43,8 +43,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.lazyprint.lazyprint
         INFOPLIST_FILE: LazyPrintiOS/Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        # iPhone only: iPads run it in iPhone compatibility mode.
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
@@ -70,7 +69,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lazyprint.lazyprint.uitests
         GENERATE_INFOPLIST_FILE: YES
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         TEST_TARGET_NAME: LazyPrintiOS
 
 schemes:
