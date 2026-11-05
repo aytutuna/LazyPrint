@@ -66,11 +66,17 @@ The Swift side cannot be built or run on Windows, so it is checked on CI.
 
 Three workflows run by hand only, from the Actions tab.
 
-- `release.yml` builds the Windows and Mac apps and attaches them to the run as artifacts. `lazyprint-windows` is `dotnet publish` output zipped (framework-dependent, so it needs the .NET 10 Desktop Runtime). `lazyprint-mac` is `Lazy Print.app` from `scripts/make_app.sh`, ad-hoc signed and not notarised, and built for Apple silicon only, so a downloaded copy needs System Settings, Privacy & Security, Open Anyway once (Control-click, Open on macOS 14). Neither is an installer, as with Lazy Scan.
+- `release.yml` has three jobs, each attaching an artifact to the run. `store` is the Windows app for the Microsoft Store: it publishes self-contained for x64 and arm64, so nobody has to install .NET, packs each with `makeappx` from the runner's Windows SDK through `scripts/make_msix.ps1`, bundles the two and uploads `LazyPrint_<version>.msixupload` as `lazyprint-store`. The package is not signed; the Store does that. `windows` is `dotnet publish` output zipped as `lazyprint-windows` (framework-dependent, so it needs the .NET 10 Desktop Runtime). `mac` is `Lazy Print.app` from `scripts/make_app.sh` as `lazyprint-mac`, ad-hoc signed and not notarised, and built for Apple silicon only, so a downloaded copy needs System Settings, Privacy & Security, Open Anyway once (Control-click, Open on macOS 14).
 - `testflight.yml` archives the iPhone and iPad app (bundle id `com.lazyprint.lazyprint`), signs it on export and uploads it to TestFlight. The run number is the build number.
 - `pages.yml` publishes `site/` to GitHub Pages. The pages are plain HTML and CSS; open `site/index.html` to preview them.
 
-`testflight.yml` reads four repository secrets, the same names Lazy Scan uses: `APPLE_TEAM_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_ID` and `APPSTORE_PRIVATE_KEY` (the contents of the `.p8` file). It stops at the first step when one is missing. `release.yml` and `pages.yml` need none.
+The Windows version is `Version` in `windows/Directory.Build.props`. The package version is that with a `.0` added, and the Store wants it higher for every submission.
+
+`store/windows/Package.appxmanifest` holds the package identity as three names taken from Partner Center, which the `store` job replaces from repository variables: `STORE_IDENTITY_NAME` (`Aytu.LazyPrint`), `STORE_PUBLISHER` (`CN=54BA56B9-1B6C-4B6E-886D-07694CF02BF5`) and `STORE_PUBLISHER_DISPLAY_NAME` (`Aytu`). The job stops at its first step when one is missing; the other two jobs need no variables. The tiles and logos in `store/windows/Assets` are drawn by `scripts/make_store_assets.py` from the same drawing as the app icon.
+
+To check a package on a PC without the Store: publish with `dotnet publish windows/LazyPrint.App -c Release -r win-x64 --self-contained -o <folder>`, run `scripts/make_msix.ps1 -X64 <folder> -Out <folder>` and sign the `.msix` with a test certificate whose subject matches the identity. The script with no identity values keeps the placeholder names, which is enough to see that the package builds. It needs `makeappx` and `makepri` from the Windows SDK.
+
+`testflight.yml` reads four repository secrets, the same names Lazy Scan uses: `APPLE_TEAM_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_ID` and `APPSTORE_PRIVATE_KEY` (the contents of the `.p8` file). It stops at the first step when one is missing. `pages.yml` needs none, and `release.yml` needs only the three variables above.
 
 GitHub lists a manually run workflow only when its file is on the default branch, and Pages deploys are tied to it too. `main` is that branch.
 
@@ -79,7 +85,8 @@ Only the owner can do these:
 - Join the Apple Developer Program and give the account's team id as `APPLE_TEAM_ID`.
 - Create the app in App Store Connect with the bundle id `com.lazyprint.lazyprint`, and register the identifier if Xcode's cloud signing does not.
 - Create a team App Store Connect API key with the Admin role (cloud signing fails with a lower role) and add its issuer id, key id and `.p8` as repository secrets. No distribution certificate or provisioning profile has to be uploaded: the export step has Apple create and manage them.
-- Fill in the store listing, the privacy answers and a support address.
+- Fill in the App Store listing, the privacy answers and a support address.
+- For the Microsoft Store, copy the three identity values from Partner Center into the repository variables, take the Windows screenshots, fill in the listing and age rating from `store/windows/listing.md`, upload the `.msixupload` and submit.
 - Sign and notarise the Mac app with a Developer ID certificate, if it should open without the Open Anyway step. That would also call for a real bundle id in place of `local.lazyprint.app`. The workflow does not do this.
 
 The site does not link to a download, because there is none yet. When there is one, link it from `site/index.html` and drop the "Not released yet" line.

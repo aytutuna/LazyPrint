@@ -25,7 +25,7 @@ dotnet test windows/LazyPrint.sln
 
 ## What the app registers
 
-At each start the app writes the `lazyprint:` scheme under `HKCU\Software\Classes\lazyprint`, pointing at the running exe, so Lazy Scan can open it with files to print. Nothing is written to `HKLM`. Only one instance runs per user session; a second start passes its files to the first.
+At each start the app writes the `lazyprint:` scheme under `HKCU\Software\Classes\lazyprint`, pointing at the running exe, so Lazy Scan can open it with files to print. Nothing is written to `HKLM`. The Store package declares the scheme in its manifest instead and the app writes nothing. Only one instance runs per user session; a second start passes its files to the first.
 
 ## The phone link
 
