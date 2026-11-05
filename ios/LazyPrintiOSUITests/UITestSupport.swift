@@ -77,7 +77,7 @@ extension XCUIApplication {
     @MainActor
     func tabButton(_ name: String) -> XCUIElement {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            return buttons.matching(NSPredicate(format: "label == %@ AND identifier == ''", name)).firstMatch
+            return buttons.matching(NSPredicate(format: "label == %@ AND (identifier == '' OR identifier == label)", name)).firstMatch
         }
         return tabBars.buttons[name]
     }
@@ -85,7 +85,8 @@ extension XCUIApplication {
     @MainActor
     func openTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
         let tab: XCUIElement = tabButton(name)
-        XCTAssertTrue(tab.waitForExistence(timeout: 30), "The \(name) tab", file: file, line: line)
+        if !tab.waitForExistence(timeout: 30) { print("TREE\n\(debugDescription)") }
+        XCTAssertTrue(tab.exists, "The \(name) tab", file: file, line: line)
         tab.tap()
     }
 
