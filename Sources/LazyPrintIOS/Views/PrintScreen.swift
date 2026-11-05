@@ -141,6 +141,7 @@ struct PrintScreen: View {
             .padding(.vertical, 8)
         }
     }
+
     /// The iPad's top tab bar leaves the screen without a title, so the task is named above the controls. A phone in
     /// landscape uses this layout too, and has its title bar.
     private var showsTitle: Bool { horizontalSizeClass == .regular && verticalSizeClass != .compact }
