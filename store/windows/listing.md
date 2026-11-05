@@ -14,13 +14,13 @@ Lazy Print sends documents and photos to your printer and shows the sheets as th
 
 Pick what you want to do on the start screen and drop your files in: a document shrunk to fit the paper, a two-sided print, a booklet with the pages in the order that folds into one, handouts with two pages to a sheet, photo prints at 4 x 6, or a photo sheet with four photos and cut marks. The task sets up the options, and you can change them beside the preview before you print. Files can be PDFs and pictures.
 
-Lazy Print prints through the printers Windows already has and straight to driverless IPP printers on your network. It finds network printers by itself, and a printer that does not announce itself can be added by its address. If a printer only prints one side, a card walks you through printing the fronts, turning the paper and printing the backs. When a printer does not show up, "Why isn't my printer listed?" reads what Windows and the network report and says what is wrong in plain words. A demo printer that is always in the list writes each sheet as a picture to a folder, so you can try every task without a printer.
+Lazy Print prints through the printers Windows already has and straight to driverless IPP printers on your network. It finds network printers by itself, and a printer that does not announce itself can be added by its address. If a printer only prints one side, a card walks you through printing the fronts, turning the paper and printing the backs. When a printer does not show up, "Why isn't my printer listed?" reads what Windows and the network report and says what is wrong in plain words. A demo printer that is always in the list writes each sheet as a picture to a folder, so you can try the printing tasks without a printer.
 
 Scan and print opens Lazy Scan, which hands the scan back to Lazy Print to print. It needs a version of Lazy Scan that supports this, and it stays greyed out until one is installed. From your phone pairs an iPhone or iPad running Lazy Print with your PC by a QR code. The files it sends wait at the top of the window, and nothing prints until you add them to a job.
 
 Lazy Print is free, and its source is public to read. It is a sister app of Lazy Scan and Lazy PDF.
 
-Lazy Print is new, and so far it has been tested mostly without a real printer. If a printer does not print as it should, write to support@alazy.app.
+Lazy Print is new, and it has not been run on a real printer yet. If a printer does not print as it should, write to support@alazy.app.
 
 **Features:**
 
@@ -31,7 +31,7 @@ Lazy Print is new, and so far it has been tested mostly without a real printer. 
 - Print two-sided on a printer that only prints one side, with a card that walks through the reload.
 - Use the printers Windows has set up, find network IPP printers, or add one by its address.
 - Find out in plain words why a printer is not listed.
-- Try every task with the demo printer, without a printer.
+- Try the printing tasks with the demo printer, without a printer.
 - Send files from an iPhone or iPad on your network to the PC, after pairing with a QR code.
 - Hand a scan from Lazy Scan to Lazy Print.
 
@@ -97,7 +97,7 @@ In this order.
 1. The app is already created in Partner Center with the name "Lazy Print" (Store ID 9NF8R01V2PHC).
 2. Open Product management, Product identity. Copy three values into the repository's Actions variables: Package/Identity/Name (`Aytu.LazyPrint`) as `STORE_IDENTITY_NAME`, Package/Identity/Publisher (`CN=54BA56B9-1B6C-4B6E-886D-07694CF02BF5`) as `STORE_PUBLISHER`, and Package/Properties/PublisherDisplayName (`Aytu`) as `STORE_PUBLISHER_DISPLAY_NAME`.
 3. Run the Release workflow from the Actions tab and download the `lazyprint-store` artifact, a file named `LazyPrint_1.0.0.msixupload`.
-4. Optional but wise: install the package on a clean Windows 10 PC and a Windows 11 PC with a test signature, run the Windows App Certification Kit, and try a phone pairing and Lazy Scan's hand-off from the installed app. Nobody has done this yet.
+4. Optional but wise: install the package on a clean Windows 10 PC and a Windows 11 PC with a test signature, run the Windows App Certification Kit, and try a phone pairing and the hand-off from Lazy Scan and from Lazy PDF (it passes a path under %TEMP%, which a package may redirect). Nobody has done this yet.
 5. Take the screenshots described above.
 6. Start the submission. Pricing and availability: Free, all markets you want, visible in the Store.
 7. Properties: category Productivity, the privacy policy URL and support contact above, and the system requirements (Windows 10 version 2004 or later; x64 and arm64).

@@ -169,7 +169,7 @@ public sealed class WindowsSystemDiagnostics : ISystemDiagnostics
         {
             using var key = Registry.ClassesRoot.OpenSubKey("lazyscan");
             if (key is not null) return true;
-            // A Lazy Scan installed from the Store registers its address in its package, not under HKCR.
+            // A Lazy Scan installed from the Store may not show its address under HKCR on every Windows build.
             var support = global::Windows.System.Launcher.QueryUriSupportAsync(new Uri("lazyscan:"), global::Windows.System.LaunchQuerySupportType.Uri).AsTask().GetAwaiter().GetResult();
             return support == global::Windows.System.LaunchQuerySupportStatus.Available;
         }

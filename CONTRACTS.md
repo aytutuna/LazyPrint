@@ -479,7 +479,7 @@ Services (`LazyPrint.App/Services`, `Printing`):
 Running packaged changes three things.
 - `FileAssociation.RegisterForCurrentUser` does nothing (`Packaging.IsPackaged`, from `GetCurrentPackageFullName`): a key written from inside the package would only be the package's own copy, and the manifest registers the address.
 - Writes under `%APPDATA%` and `%LOCALAPPDATA%` (settings, printer preferences, `ipp-hosts.json`, `ipp-trust.json`, the phone link's devices, certificate and inbox, and `Logs\printers.txt`) go to the package's store for the user. The app reaches them at the same paths and they go with an uninstall, but Explorer at `%LOCALAPPDATA%\Lazy Print` does not show them; `printers.txt` is under `%LOCALAPPDATA%\Packages\<package family name>\LocalCache\Local\Lazy Print\Logs`. Nothing in the app tells the user to open these folders. Files that other programs read stay outside: the demo printer writes to Documents, which is not redirected, and the files Lazy Scan hands over are read by the path in the address.
-- `lazyScanInstalled` also asks `Launcher.QueryUriSupportAsync`, because a packaged Lazy Scan's `lazyscan:` handler is not under `HKCR`.
+- `lazyScanInstalled` also asks `Launcher.QueryUriSupportAsync`, as a precaution: a Store Lazy Scan's `lazyscan:` handler was seen under `HKCR` on Windows 11, but that is not checked on Windows 10.
 
 The companion server's firewall rule is keyed to the exe's path, which is under `WindowsApps\<package full name>` and changes with each version, so the first phone link after an update may ask Windows Firewall again. `PhoneWindow` reads the rules for `Environment.ProcessPath`, so what it shows (Windows will ask) stays right; nothing was changed for it.
 
@@ -863,7 +863,7 @@ Tests: the Lazy Scan tests with the same renames, `CompanionLoopbackTests` throu
 
 The two apps open each other by URL scheme, so neither names the other's folder or install path. Nothing here is automatic: a hand-off opens the other app with something ready, and the user prints or scans there.
 
-Lazy Print opens Lazy Scan: the task Scan and print calls `lazyscan:` (`FileActionService.openLazyScan`). Lazy Print sends nothing; the scan comes back through the other direction. The task is greyed with "Needs Lazy Scan" when `lazyScanInstalled()` is false (Windows: the scheme's key exists in `HKCR`, or `Launcher.QueryUriSupportAsync` finds a handler, which is how a Store-installed Lazy Scan shows; Mac: `NSWorkspace.urlForApplication(toOpen:)`; iPhone: `canOpenURL`).
+Lazy Print opens Lazy Scan: the task Scan and print calls `lazyscan:` (`FileActionService.openLazyScan`). Lazy Print sends nothing; the scan comes back through the other direction. The task is greyed with "Needs Lazy Scan" when `lazyScanInstalled()` is false (Windows: the scheme's key exists in `HKCR`, or `Launcher.QueryUriSupportAsync` finds a handler, for a Store-installed Lazy Scan; Mac: `NSWorkspace.urlForApplication(toOpen:)`; iPhone: `canOpenURL`).
 
 Lazy Scan opens Lazy Print: "Print with Lazy Print" beside its Print commands writes the scan to a PDF in its temp folder and calls:
 

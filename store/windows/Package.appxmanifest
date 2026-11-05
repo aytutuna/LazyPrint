@@ -38,7 +38,7 @@
       </uap:VisualElements>
 
       <Extensions>
-        <!-- Lazy Scan and Lazy Print hand files over through this address. -->
+        <!-- Lazy Scan and Lazy PDF hand files over through this address. -->
         <uap:Extension Category="windows.protocol">
           <uap:Protocol Name="lazyprint">
             <uap:DisplayName>Lazy Print</uap:DisplayName>
