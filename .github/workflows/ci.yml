@@ -180,6 +180,9 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -derivedDataPath "$RUNNER_TEMP/app-build" \
             CODE_SIGNING_ALLOWED=NO
+      # The iPad leg has no package tests to warm its simulator, and the first launches on a cold one time out.
+      - name: Boot the simulator
+        run: xcrun simctl bootstatus "${{ steps.simulator.outputs.udid }}" -b
       - name: Run the app's UI tests
         timeout-minutes: 30
         run: |
