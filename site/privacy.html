@@ -23,12 +23,12 @@
   <div class="wrap narrow" style="padding-top:3rem;padding-bottom:3rem">
     <h1 style="font-size:clamp(2rem,1.4rem + 2.5vw,3rem);margin-bottom:1.5rem">Privacy</h1>
 
-    <p>Lazy Print has no accounts, no ads, no analytics, no crash reporting and no check for updates. It does not send anything to its developer or to any server run for it. The only network traffic it makes is to printers and, for the phone link, between your own computer and your own iPhone.</p>
+    <p>Lazy Print has no accounts, no ads, no analytics, no crash reporting and no check for updates. It does not send anything to its developer or to any server run for it. The only network traffic it makes is to printers and, for the phone link, between your own computer and your own iPhone or iPad.</p>
 
     <h2 style="margin-top:2.5rem">What the app connects to</h2>
     <ul>
       <li><strong>Printers.</strong> The app looks for printers on your local network (the <code>_ipp._tcp</code> and <code>_ipps._tcp</code> DNS-SD services) and talks to the ones you print to, or add by address, over IPP. It connects to whatever address you type in, so an address outside your network is reached as well.</li>
-      <li><strong>The phone link.</strong> When an iPhone is paired with a computer, or a pairing code is on screen, the computer listens on your local network (TCP port 52732) and announces itself as <code>_lazyprint._tcp</code>. The phone connects to it over TLS. This only happens on networks you have marked as trusted, and the link never leaves your network.</li>
+      <li><strong>The phone link.</strong> When an iPhone or iPad is paired with a computer, or a pairing code is on screen, the computer listens on your local network (TCP port 52732) and announces itself as <code>_lazyprint._tcp</code>. The phone connects to it over TLS. This only happens on networks you have marked as trusted, and the link never leaves your network.</li>
       <li><strong>Other apps and settings pages.</strong> The app can hand a job to Lazy Scan, open the folder holding saved files, and the system's printer, network and app settings pages. It does not open web pages.</li>
     </ul>
 
@@ -37,19 +37,19 @@
 
     <h2 style="margin-top:2.5rem">What is kept on your devices</h2>
     <ul>
-      <li>Your settings and what the app has learned about each printer, in <code>%APPDATA%\Lazy Print</code> on Windows and <code>~/Library/Application Support/Lazy Print</code> on the Mac. The iPhone keeps its settings and the AirPrint printer you last chose in the app's own storage.</li>
-      <li>For the phone link, the list of paired phones or computers, and the keys and certificate that protect the link. Windows keeps the keys under DPAPI; the Mac and the iPhone use the Keychain.</li>
+      <li>Your settings and what the app has learned about each printer, in <code>%APPDATA%\Lazy Print</code> on Windows and <code>~/Library/Application Support/Lazy Print</code> on the Mac. The iPhone and iPad keep their settings and the AirPrint printer you last chose in the app's own storage.</li>
+      <li>For the phone link, the list of paired phones or computers, and the keys and certificate that protect the link. Windows keeps the keys under DPAPI; the Mac, the iPhone and the iPad use the Keychain.</li>
       <li>Files a phone sends to a computer wait in an inbox folder on that computer and are removed after 7 days, when you dismiss them, or when you forget the phone.</li>
-      <li>On the iPhone, a copy of each document that has not reached the computer yet is kept in the app's Outbox folder. It has no time limit and stays until the computer has received it or you remove it.</li>
-      <li>A log of the printers the app has seen, <code>printers.txt</code>, is written automatically. It holds queue names, drivers, ports and network services, and the results of the troubleshooter's checks. It is in <code>%LOCALAPPDATA%\Lazy Print\Logs</code> on Windows and <code>Library/Logs/Lazy Print</code> on the Mac and the iPhone.</li>
+      <li>On the iPhone and iPad, a copy of each document that has not reached the computer yet is kept in the app's Outbox folder. It has no time limit and stays until the computer has received it or you remove it.</li>
+      <li>A log of the printers the app has seen, <code>printers.txt</code>, is written automatically. It holds queue names, drivers, ports and network services, and the results of the troubleshooter's checks. It is in <code>%LOCALAPPDATA%\Lazy Print\Logs</code> on Windows and <code>Library/Logs/Lazy Print</code> on the Mac, the iPhone and the iPad.</li>
       <li>The list of jobs shown in the app is for the current session only.</li>
-      <li>The demo printer writes the pages it "prints" as pictures to <code>Documents/Lazy Print/Demo prints</code> on the computer and to the app's Caches folder on the iPhone.</li>
+      <li>The demo printer writes the pages it "prints" as pictures to <code>Documents/Lazy Print/Demo prints</code> on the computer and to the app's Caches folder on the iPhone and iPad.</li>
     </ul>
 
     <h2 style="margin-top:2.5rem">The optional sync folder</h2>
-    <p>On the iPhone you can choose a folder in iCloud Drive or OneDrive that your computer also syncs. When the computer cannot be reached, the phone puts files there, encrypted with a key only the phone and the computer know. The service you chose syncs that folder under its own terms. Lazy Print does not use that service for anything else.</p>
+    <p>On the iPhone and iPad you can choose a folder in iCloud Drive or OneDrive that your computer also syncs. When the computer cannot be reached, the phone puts files there, encrypted with a key only the phone and the computer know. The service you chose syncs that folder under its own terms. Lazy Print does not use that service for anything else.</p>
 
-    <h2 style="margin-top:2.5rem">Permissions on the iPhone</h2>
+    <h2 style="margin-top:2.5rem">Permissions on the iPhone and iPad</h2>
     <ul>
       <li><strong>Camera,</strong> only to read the pairing code on your computer's screen. Nothing is photographed or saved.</li>
       <li><strong>Local Network,</strong> to find printers and your computer and to talk to them.</li>

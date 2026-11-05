@@ -145,7 +145,7 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/ios-tests.xcresult" \
             ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO
-      # XcodeGen (MIT) writes the iPhone app's Xcode project from ios/project.yml. It is downloaded here only, pinned to
+      # XcodeGen (MIT) writes the iPhone and iPad app's Xcode project from ios/project.yml. It is downloaded here only, pinned to
       # one release and its SHA-256 (the release's xcodegen.zip, a universal macOS binary with its setting presets), and
       # never shipped; the project it writes is not checked in. Source:
       # github.com/yonaskolb/XcodeGen/releases/tag/2.46.0.
