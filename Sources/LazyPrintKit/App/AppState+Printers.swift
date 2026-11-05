@@ -82,6 +82,7 @@ extension AppState {
         let current = selectedPrinter.flatMap { capabilitiesById[$0.id] }
         if current == capabilities { return false }
         capabilities = current
+        chooseSidesAgain()
         return true
     }
 

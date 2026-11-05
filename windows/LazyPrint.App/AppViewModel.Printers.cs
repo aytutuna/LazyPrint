@@ -210,6 +210,7 @@ public sealed partial class AppViewModel
             Printers[i].Update(merged[i]);
         }
         for (int i = Printers.Count - 1; i >= merged.Count; i--) Printers.RemoveAt(i);
+        ChooseSidesAgain();
     }
 
     private PrinterInfo WithDemoState(PrinterInfo info) =>
@@ -267,6 +268,7 @@ public sealed partial class AppViewModel
                 break;
         }
         _capabilities[printer.Id] = capabilities;
+        ChooseSidesAgain();
     }
 
     /// <summary>Uses the printer for the next job; the choice is kept in the settings.</summary>
@@ -276,6 +278,7 @@ public sealed partial class AppViewModel
         Settings.PrinterId = id;
         _statusOverride = null;
         await LoadCapabilitiesAsync();
+        ChooseSidesAgain();
         if (SelectedPrinter is { IppEndpoint: not null, Route: not PrinterRoute.Demo } network)
         {
             if (!_ippReads.ContainsKey(network.Id)) await ReadStatusAsync([network]);
@@ -353,6 +356,7 @@ public sealed partial class AppViewModel
                 _capabilities[id] = capabilities;
             }
         }
+        ChooseSidesAgain();
         RebuildPrinters();
         NotifyAll();
         WriteLog();

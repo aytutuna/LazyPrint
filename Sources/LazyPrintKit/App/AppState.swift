@@ -97,6 +97,7 @@ public final class AppState: ObservableObject {
                 statusOverride = nil
                 sentMessage = nil
             }
+            if let chosen = sidesPickedBlind, settings.sides != chosen { sidesPickedBlind = nil }
             scheduleSettingsSave()
             replan()
         }
@@ -185,6 +186,9 @@ public final class AppState: ObservableObject {
     var lazyScanInstalled = false
     var systemState = (spooler: ServiceStatus.unknown, network: NetworkStatus.unknown)
     var lastFailure: PrinterFailure?
+    /// The sides the document task chose when it started without knowing the printer (`startTask`), kept as the task
+    /// chooses again; nil when it knew, or the user has changed the sides since.
+    var sidesPickedBlind: Sides?
     var lastLog: String?
     var isActive = false
     var networkStarted = false

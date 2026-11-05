@@ -713,6 +713,73 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_aDocumentPickedBeforeThePrinterIsRead_isTwoSidedOnceItIs() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.startTask(.document)
+        XCTAssertEqual(rig.state.settings.sides, .oneSided)
+
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.state.settings.sides, .longEdge)
+    }
+
+    @MainActor
+    func test_sidesTheUserChangedBeforeThePrinterIsRead_areKept() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.startTask(.document)
+        rig.state.settings.sides = .shortEdge
+
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.state.settings.sides, .shortEdge)
+    }
+
+    @MainActor
+    func test_sidesTheUserChangedAndChangedBackBeforeThePrinterIsRead_areKept() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        await rig.state.startTask(.document)
+        rig.state.settings.sides = .longEdge
+        rig.state.settings.sides = .oneSided
+
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.state.settings.sides, .oneSided)
+    }
+
+    @MainActor
+    func test_aDocumentPickedBeforeThePrinterIsRead_followsTheDemoPrinterToTheRealOne() async throws {
+        let rig = try makeRig()
+        await rig.state.startTask(.document)
+        await rig.state.refreshPrinters()
+        XCTAssertEqual(rig.state.settings.sides, .longEdge)
+
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities(duplex: false)
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.state.selectedPrinter?.name, "HP LaserJet")
+        XCTAssertEqual(rig.state.settings.sides, .oneSided)
+    }
+
+    @MainActor
+    func test_aDocumentPickedBeforeAPrinterThatCannotTurnTheSheetIsRead_staysOneSided() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities(duplex: false)
+        await rig.state.startTask(.document)
+
+        await rig.state.refreshPrinters()
+
+        XCTAssertEqual(rig.state.settings.sides, .oneSided)
+    }
+
+    @MainActor
     func test_everyTile_isThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan() async throws {
         let rig = try makeRig()
         await rig.state.refreshPrinters()

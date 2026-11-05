@@ -5,6 +5,9 @@ namespace LazyPrint.App;
 // The start screen's tasks: which tiles there are and whether they can be started, and what picking one does.
 public sealed partial class AppViewModel
 {
+    /// <summary>The sides the document task chose when it started without knowing the printer, kept as the task chooses again; null when it knew, or the user has changed the sides since.</summary>
+    private Sides? _sidesPickedBlind;
+
     private TaskContext TaskContext =>
         new(HasPrinter: SelectedPrinter is not null, LazyScanInstalled: _lazyScanInstalled, AppPlatform.Windows);
 
@@ -64,6 +67,7 @@ public sealed partial class AppViewModel
         ClearMessages();
         Settings = TaskCatalog.Apply(task, Settings, SelectedCapabilities);
         SelectedTask = task;
+        _sidesPickedBlind = task == PrintTask.Document && SelectedCapabilities is null ? Settings.Sides : null;
         SettingsEdited();
     }
 
@@ -71,7 +75,23 @@ public sealed partial class AppViewModel
     public void ClearTask()
     {
         SelectedTask = null;
+        _sidesPickedBlind = null;
         Settings.TaskId = null;
+        SettingsEdited();
+    }
+
+    /// <summary>
+    /// The document task is two-sided only for a printer that can turn the sheet. Picked before the printer was read (files
+    /// opened at launch), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
+    /// user changes the sides.
+    /// </summary>
+    private void ChooseSidesAgain()
+    {
+        if (_sidesPickedBlind is null || SelectedTask is not { } task) return;
+        var sides = TaskCatalog.Apply(task, Settings, SelectedCapabilities).Sides;
+        _sidesPickedBlind = sides;
+        if (Settings.Sides == sides) return;
+        Settings.Sides = sides;
         SettingsEdited();
     }
 }

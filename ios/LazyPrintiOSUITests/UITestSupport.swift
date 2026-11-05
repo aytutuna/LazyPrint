@@ -41,6 +41,14 @@ extension XCUIApplication {
         return position
     }
 
+    /// Waits for the preview to say `label` ("Sheet 1 of 2"). A file opened at launch is laid out first without what the
+    /// printer can do, and again when that is read, so the count is not final when the preview first shows.
+    @MainActor
+    func waitForSheet(_ label: String, file: StaticString = #filePath, line: UInt = #line) {
+        let position: XCUIElement = waitForPreview(file: file, line: line)
+        waitUntil(position, "label == '\(label)'", "The preview says \(label)", file: file, line: line)
+    }
+
     /// Waits for Print to be enabled and says what its label is.
     @MainActor
     func waitForPrint(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {

@@ -102,6 +102,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     public void SettingsEdited()
     {
         Settings.Copies = PrintCopies.Clamp(Settings.Copies);
+        if (_sidesPickedBlind is { } chosen && Settings.Sides != chosen) _sidesPickedBlind = null;
         // What was said of the last job is about settings that are no longer the ones in front of the user.
         if (!IsBusy && _manual is null)
         {

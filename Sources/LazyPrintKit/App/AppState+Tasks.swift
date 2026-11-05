@@ -49,12 +49,24 @@ extension AppState {
             clearMessages()
             self.task = task
             settings = TaskCatalog.apply(task, to: settings, printer: capabilities)
+            sidesPickedBlind = task == .document && capabilities == nil ? settings.sides : nil
         }
     }
 
     /// Leaves the task: the settings stay, the tile is no longer current.
     public func clearTask() {
         task = nil
+        sidesPickedBlind = nil
         settings.taskId = nil
+    }
+
+    /// The document task is two-sided only for a printer that can turn the sheet. Picked before the printer was read (files
+    /// opened at launch), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
+    /// user changes the sides.
+    func chooseSidesAgain() {
+        guard sidesPickedBlind != nil, let task else { return }
+        let sides = TaskCatalog.apply(task, to: settings, printer: capabilities).sides
+        sidesPickedBlind = sides
+        if settings.sides != sides { settings.sides = sides }
     }
 }

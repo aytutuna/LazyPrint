@@ -162,6 +162,81 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task ADocumentPickedBeforeThePrinterIsReadIsTwoSidedOnceItIs()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
+
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
+    }
+
+    [Fact]
+    public async Task SidesTheUserChangedBeforeThePrinterIsReadAreKept()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+        rig.Model.Settings.Sides = Sides.ShortEdge;
+        rig.Model.SettingsEdited();
+
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(Sides.ShortEdge, rig.Model.Settings.Sides);
+    }
+
+    [Fact]
+    public async Task SidesTheUserChangedAndChangedBackBeforeThePrinterIsReadAreKept()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+        rig.Model.Settings.Sides = Sides.LongEdge;
+        rig.Model.SettingsEdited();
+        rig.Model.Settings.Sides = Sides.OneSided;
+        rig.Model.SettingsEdited();
+
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
+    }
+
+    [Fact]
+    public async Task ADocumentPickedBeforeThePrinterIsReadFollowsTheDemoPrinterToTheRealOne()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
+
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = new PrinterCapabilities { SidesSupported = ["one-sided"] };
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal("HP LaserJet", rig.Model.SelectedPrinter?.Name);
+        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
+    }
+
+    [Fact]
+    public async Task ADocumentPickedBeforeAPrinterThatCannotTurnTheSheetIsReadStaysOneSided()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = new PrinterCapabilities { SidesSupported = ["one-sided"] };
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
+    }
+
+    [Fact]
     public async Task EveryTileIsThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan()
     {
         using var rig = new Rig();
