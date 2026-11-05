@@ -163,15 +163,22 @@ public sealed class WindowsSystemDiagnostics : ISystemDiagnostics
         Clipboard.SetDataObject(data, copy: true);
     }
 
+    private static readonly TimeSpan UriQueryLimit = TimeSpan.FromSeconds(2);
+
+    /// <summary>True when <paramref name="answer"/> says yes within <paramref name="limit"/>; a late or failed answer is no.</summary>
+    internal static bool AnsweredYes(Task<bool> answer, TimeSpan limit) => answer.Wait(limit) && answer.Result;
+
     public bool LazyScanInstalled()
     {
         try
         {
             using var key = Registry.ClassesRoot.OpenSubKey("lazyscan");
             if (key is not null) return true;
-            // A Lazy Scan installed from the Store may not show its address under HKCR on every Windows build.
-            var support = global::Windows.System.Launcher.QueryUriSupportAsync(new Uri("lazyscan:"), global::Windows.System.LaunchQuerySupportType.Uri).AsTask().GetAwaiter().GetResult();
-            return support == global::Windows.System.LaunchQuerySupportStatus.Available;
+            // A Lazy Scan installed from the Store may not show its address under HKCR on every Windows build;
+            // only the packaged app asks, and it does not wait long for the answer.
+            if (!Packaging.IsPackaged) return false;
+            var support = global::Windows.System.Launcher.QueryUriSupportAsync(new Uri("lazyscan:"), global::Windows.System.LaunchQuerySupportType.Uri).AsTask();
+            return AnsweredYes(support.ContinueWith(t => t.Result == global::Windows.System.LaunchQuerySupportStatus.Available), UriQueryLimit);
         }
         catch (Exception e)
         {
