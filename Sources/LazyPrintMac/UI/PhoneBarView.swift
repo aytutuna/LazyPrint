@@ -43,10 +43,15 @@ struct PhoneBarView: View {
         .background(.bar)
         .accessibilityElement(children: .contain)
         .onAppear { arrived(message) }
-        .onChange(of: message) { _, changed in arrived(changed) }
+        .onChange(of: PhoneBarView.announcementKey(batch)) { _, _ in arrived(message) }
     }
 
     private var message: String { PhoneBarView.message(batch) }
+
+    /// What the bar is announced for: the batch and its words, so a queued batch that reads the same is announced too.
+    static func announcementKey(_ batch: PhoneBatch) -> String {
+        batch.id + " " + message(batch)
+    }
 
     /// "3 files from Aytu's iPhone".
     static func message(_ batch: PhoneBatch) -> String {

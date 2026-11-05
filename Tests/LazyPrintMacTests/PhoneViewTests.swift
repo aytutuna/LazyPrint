@@ -104,6 +104,16 @@ final class PhoneViewTests: XCTestCase {
         XCTAssertEqual(message(arrived: 2, from: ""), "2 files from a phone")
     }
 
+    func test_theBarIsAnnouncedAgain_forAQueuedBatchThatReadsTheSame() {
+        func key(_ id: String, arrived: Int) -> String {
+            PhoneBarView.announcementKey(PhoneBatch(id: id, from: "Aytu's iPhone", count: arrived, arrived: arrived, lastReceived: Date()))
+        }
+
+        XCTAssertNotEqual(key("batch-0001", arrived: 2), key("batch-0002", arrived: 2))
+        XCTAssertNotEqual(key("batch-0001", arrived: 2), key("batch-0001", arrived: 3))
+        XCTAssertEqual(key("batch-0001", arrived: 2), key("batch-0001", arrived: 2))
+    }
+
     func test_aLazyPrintAddress_namesTheFilesToAdd() {
         let url = URL(string: "lazyprint:open?file=%2Ftmp%2FScan%201.pdf&file=%2FUsers%2Fme%2Fb.pdf&x=1")!
 

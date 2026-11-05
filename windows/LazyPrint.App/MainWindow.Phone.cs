@@ -22,15 +22,20 @@ public partial class MainWindow
         new PhoneWindow(ViewModel) { Owner = this }.ShowDialog();
     }
 
+    /// <summary>The batch the bar showed last, so the next one is announced even when it reads the same.</summary>
+    private string? _phoneBarBatch;
+
     /// <summary>Shows the oldest batch waiting, with its buttons off while a job runs.</summary>
     private void SyncPhoneBar()
     {
-        if (ViewModel.PhoneBatchMessage is not { } message)
+        if (ViewModel.PhoneBatch is not { } batch || ViewModel.PhoneBatchMessage is not { } message)
         {
             PhoneBar.Visibility = Visibility.Collapsed;
+            _phoneBarBatch = null;
             return;
         }
-        bool changed = PhoneBarMessage.Text != message;
+        bool changed = _phoneBarBatch != batch.Id || PhoneBarMessage.Text != message;
+        _phoneBarBatch = batch.Id;
         PhoneBarMessage.Text = message;
         PhoneBarAddButton.IsEnabled = PhoneBarNewButton.IsEnabled = !ViewModel.IsBusy;
         if (PhoneBar.Visibility != Visibility.Visible || changed)
