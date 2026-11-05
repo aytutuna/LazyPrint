@@ -38,4 +38,11 @@ public sealed class PackagingTests
         }
         Assert.Equal(before, Registered());
     }
+
+    [Fact]
+    public void AQuotedPathWithSpacesArrivesAsOneFile()
+    {
+        // The manifest passes "%1" in quotes, which the process's argument parsing turns into one argument.
+        Assert.Equal([@"C:\My Documents\Annual report.pdf"], LazyPrint.App.App.FilesOf([@"C:\My Documents\Annual report.pdf"]));
+    }
 }
