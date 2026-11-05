@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 // The app is launched on the demo printer alone (`-demoPrinter`): no network is searched and the settings are in a temp
@@ -71,9 +72,19 @@ extension XCUIApplication {
         waitUntil(element, "exists == false", message, timeout: timeout, file: file, line: line)
     }
 
+    /// A tab of the bar. The iPad's bar is not in the tab bar query, so there the tab is the button with that label and no
+    /// identifier of its own (the Print and Jobs buttons elsewhere have one).
+    @MainActor
+    func tabButton(_ name: String) -> XCUIElement {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            return buttons.matching(NSPredicate(format: "label == %@ AND identifier == ''", name)).firstMatch
+        }
+        return tabBars.buttons[name]
+    }
+
     @MainActor
     func openTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let tab: XCUIElement = tabBars.buttons[name]
+        let tab: XCUIElement = tabButton(name)
         XCTAssertTrue(tab.waitForExistence(timeout: 30), "The \(name) tab", file: file, line: line)
         tab.tap()
     }

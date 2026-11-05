@@ -242,7 +242,7 @@ final class ScreenshotTests: XCTestCase {
 
     @MainActor
     private func tapIfThere(_ app: XCUIApplication, tab name: String, for screen: String) -> Bool {
-        let target: XCUIElement = app.tabBars.buttons[name]
+        let target: XCUIElement = app.tabButton(name)
         guard target.waitForExistence(timeout: 10) else {
             shot(app, "skipped-\(screen)")
             return false
