@@ -63,11 +63,25 @@ jobs:
           path: ${{ runner.temp }}/LazyPrint-mac.zip
 
   ios:
-    # The shared Swift suite (LazyPrintTests) and the iPhone's own tests on the iOS Simulator, once the macOS job is
-    # green. The macos-26 image (arm64) ships Xcode 26.0.1 through 26.6 with 26.6 as its default, and iOS Simulator
-    # runtimes 26.2, 26.4 and 26.5; select 26.6 explicitly so a change of the image's default Xcode cannot change the
-    # toolchain silently. Source: actions/runner-images, images/macos/macos-26-arm64-Readme.md.
+    # The shared Swift suite (LazyPrintTests, on the iPhone leg only) and the app's own tests on the iOS Simulator, once the
+    # macOS job is green: one leg on an iPhone and one on an iPad, each with its own screenshots. The macos-26 image (arm64)
+    # ships Xcode 26.0.1 through 26.6 with 26.6 as its default, and iOS Simulator runtimes 26.2, 26.4 and 26.5; select 26.6
+    # explicitly so a change of the image's default Xcode cannot change the toolchain silently. Source:
+    # actions/runner-images, images/macos/macos-26-arm64-Readme.md.
     needs: macos
+    name: ${{ matrix.job }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - job: ios
+            device: iPhone 17 Pro Max
+            suffix: ""
+            package_tests: true
+          - job: ios-ipad
+            device: iPad Pro 13-inch
+            suffix: -ipad
+            package_tests: false
     runs-on: macos-26
     timeout-minutes: 150
     steps:
@@ -82,14 +96,15 @@ jobs:
         run: xcrun simctl list runtimes
       - name: Schemes
         run: xcodebuild -list
-      # The iPhone 17 Pro Max on the iOS 26.5 runtime when the image has it, so ScreenshotTests' frames are the
-      # 6.9-inch size the App Store asks for; otherwise the newest iOS runtime's iPhone, so a change of the image's
+      # The device of the leg (the iPhone 17 Pro Max, or an iPad Pro 13-inch of any chip) on the iOS 26.5 runtime when the
+      # image has it, so ScreenshotTests' frames are the 6.9-inch and 13-inch sizes the App Store asks for; otherwise the
+      # newest iOS runtime's device of that family (its 13-inch iPad Pro when it has one), so a change of the image's
       # simulators does not stop the job.
       - name: Pick the simulator
         id: simulator
         env:
           IOS_RUNTIME: '26.5'
-          IOS_DEVICE: iPhone 17 Pro Max
+          IOS_DEVICE: ${{ matrix.device }}
         run: |
           set -euo pipefail
           xcrun simctl list devices available --json > "$RUNNER_TEMP/simulators.json"
@@ -98,25 +113,29 @@ jobs:
           devices = json.load(open(sys.argv[1]))["devices"]
           wanted_runtime = tuple(int(part) for part in os.environ["IOS_RUNTIME"].split("."))
           wanted_device = os.environ["IOS_DEVICE"]
-          phones = []
+          family = wanted_device.split()[0]
+          devices_found = []
           for runtime, entries in devices.items():
               if ".SimRuntime.iOS-" not in runtime:
                   continue
               version = tuple(int(part) for part in runtime.rsplit("iOS-", 1)[1].split("-"))
               for entry in entries:
-                  if entry.get("isAvailable", False) and entry["name"].startswith("iPhone"):
-                      phones.append((version, entry["name"], entry["udid"]))
-          if not phones:
-              sys.exit("No available iPhone simulator on this image.")
-          exact = [p for p in phones if p[0] == wanted_runtime and p[1] == wanted_device]
-          newest = max(p[0] for p in phones)
-          chosen = exact[0] if exact else sorted(p for p in phones if p[0] == newest)[0]
+                  if entry.get("isAvailable", False) and entry["name"].startswith(family):
+                      devices_found.append((version, entry["name"], entry["udid"]))
+          if not devices_found:
+              sys.exit("No available %s simulator on this image." % family)
+          exact = [d for d in devices_found if d[0] == wanted_runtime and d[1].startswith(wanted_device)]
+          newest = max(d[0] for d in devices_found)
+          latest = sorted(d for d in devices_found if d[0] == newest)
+          preferred = [d for d in latest if d[1].startswith(wanted_device)]
+          chosen = sorted(exact)[-1] if exact else (preferred or latest)[0]
           print("Simulator: %s, iOS %s, %s" % (chosen[1], ".".join(str(n) for n in chosen[0]), chosen[2]), file=sys.stderr)
           print("udid=%s" % chosen[2])
           PY
       # Optimized (a debug build of the image and PDF code can take many times longer), with testability on for the
       # tests' @testable imports. The result bundle is kept for a failure.
       - name: Test on the iOS Simulator
+        if: matrix.package_tests
         run: |
           set -o pipefail
           xcodebuild test \
@@ -209,18 +228,25 @@ jobs:
           EOF
           fi
           ls "$out"
+      - name: Screenshot sizes
+        if: always()
+        run: |
+          for f in "$RUNNER_TEMP"/ios-screenshots/*.png; do
+            [ -f "$f" ] && echo "$(basename "$f") $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/ {printf "%s ", $2}')"
+          done
+          true
       - name: Upload the screenshots
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-screenshots
+          name: ios-screenshots${{ matrix.suffix }}
           path: ${{ runner.temp }}/ios-screenshots
           if-no-files-found: warn
       - name: Upload the test results
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: ios-tests-xcresult
+          name: ios-tests-xcresult${{ matrix.suffix }}
           path: |
             ${{ runner.temp }}/ios-tests.xcresult
             ${{ runner.temp }}/ios-app-tests.xcresult
