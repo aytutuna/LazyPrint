@@ -77,9 +77,11 @@ public enum CompanionText {
         "\(reason) The files wait here and go when it can."
     }
 
-    /// "Report.pdf cannot be sent: only PDF and picture files can."
-    public static func notSendableMessage(_ fileName: String) -> String {
-        "\(fileName) cannot be sent: only PDF and picture files can."
+    /// "Scan.gif cannot be sent: only PDF, JPEG, PNG, HEIC and TIFF files can." Three names are listed, the rest counted.
+    public static func notSendableMessage(_ fileNames: [String]) -> String {
+        var list = fileNames.prefix(3).joined(separator: ", ")
+        if fileNames.count > 3 { list += " and \(fileNames.count - 3) more" }
+        return "\(list) cannot be sent: only PDF, JPEG, PNG, HEIC and TIFF files can."
     }
 }
 
@@ -221,23 +223,29 @@ extension AppState {
     /// Packs the files of the job's documents as one batch into the outbox for the paired desktop and sends
     /// what waits there (`drainOutbox`); the job is not touched. Every document is a file the user gave, so
     /// each is sent as it is. A file that cannot be sent now waits in the outbox for the next time, said in
-    /// a notice. `phoneName` is what the desktop shows for the sender.
+    /// a notice. `phoneName` is what the desktop shows for the sender. A file the link does not carry (a GIF or a BMP)
+    /// is left out and named in the error bar; the others are sent, and the left-out file stays in the job.
     public func sendJobToDesktop(from phoneName: String) async {
         guard let outbox = companionOutbox, let desktop = companionDesktop, desktopClient() != nil else {
             showNotice("Not paired", CompanionText.notPairedMessage)
             return
         }
         var files: [(url: URL, type: String)] = []
+        var leftOut: [String] = []
         for document in documents {
             let url = document.url
             guard let type = PrintPackage.contentType(ofFile: url) else {
-                showFailure("Not sent", CompanionText.notSendableMessage(url.lastPathComponent))
-                return
+                leftOut.append(url.lastPathComponent)
+                continue
             }
             files.append((url, type))
         }
         guard !files.isEmpty else {
-            showNotice("Nothing to send", CompanionText.nothingToSendMessage)
+            if leftOut.isEmpty {
+                showNotice("Nothing to send", CompanionText.nothingToSendMessage)
+            } else {
+                showFailure("Not sent", CompanionText.notSendableMessage(leftOut))
+            }
             return
         }
         guard outbox.count + files.count <= PhoneOutbox.maxItems else {
@@ -263,9 +271,23 @@ extension AppState {
         statusOverride = nil
         await drainOutbox()
         // The status line is not on every screen of the phone: say where the files are when they did not go.
+        var waiting: String?
         if companionOutboxCount > 0, error == nil, sentMessage == nil, let reason = statusOverride {
-            showNotice("Not sent yet", CompanionText.waitingMessage(reason))
+            waiting = CompanionText.waitingMessage(reason)
         }
+        guard !leftOut.isEmpty else {
+            if let waiting { showNotice("Not sent yet", waiting) }
+            return
+        }
+        // Said after the drain, which replaces what is in the bar; what it said is kept above the left-out files.
+        let sent = sentMessage
+        let leftOutMessage = CompanionText.notSendableMessage(leftOut)
+        if let said = error?.detail ?? waiting {
+            showFailure("Not sent", "\(said)\n\(leftOutMessage)")
+        } else {
+            showFailure("Not sent", leftOutMessage)
+        }
+        sentMessage = sent
     }
 
     /// Sends the files waiting in the outbox for the paired desktop one by one, oldest first (those queued

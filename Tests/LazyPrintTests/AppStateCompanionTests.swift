@@ -216,6 +216,72 @@ final class AppStateCompanionTests: XCTestCase {
     }
 
     @MainActor
+    func test_sendJobToDesktop_aFileTheLinkDoesNotCarry_isLeftOutAndNamedAndTheRestGo() async throws {
+        let fake = CompanionFakeDesktop()
+        let state = try await makeState(files: 1)
+        try await pair(state, with: fake)
+        fake.on("PUT " + CompanionProtocol.inboxPrefix + "*") { request in
+            self.created(String(request.path.dropFirst(CompanionProtocol.inboxPrefix.count)))
+        }
+        fake.on("GET " + CompanionProtocol.helloPath, CompanionLink.hello())
+        let gif = try writePicture(.gif, ext: "gif", colors: [Pixels.red])
+        await state.addFiles([gif])
+        XCTAssertEqual(state.documents.count, 2)
+
+        await state.sendJobToDesktop(from: "Aytu's iPhone")
+
+        XCTAssertEqual(state.sentMessage, "1 file sent to Office PC.")
+        XCTAssertEqual(state.error?.title, "Not sent")
+        XCTAssertEqual(state.error?.detail, CompanionText.notSendableMessage([gif.lastPathComponent]))
+        // The job is as it was.
+        XCTAssertEqual(state.documents.count, 2)
+        let infos = try fake.requests.filter { $0.method == "PUT" }.map { try PrintPackage.read($0.body) }
+        XCTAssertEqual(infos.map(\.name), ["File 1.pdf"])
+        XCTAssertEqual(infos.map(\.count), [1])
+    }
+
+    @MainActor
+    func test_sendJobToDesktop_onlyFilesTheLinkDoesNotCarry_sendsNothingAndNamesThem() async throws {
+        let fake = CompanionFakeDesktop()
+        let state = try await makeState()
+        try await pair(state, with: fake)
+        let gif = try writePicture(.gif, ext: "gif", colors: [Pixels.red])
+        await state.addFiles([gif])
+
+        await state.sendJobToDesktop(from: "Aytu's iPhone")
+
+        XCTAssertEqual(state.error?.title, "Not sent")
+        XCTAssertEqual(state.error?.detail, CompanionText.notSendableMessage([gif.lastPathComponent]))
+        XCTAssertEqual(state.companionOutboxCount, 0)
+        XCTAssertTrue(fake.requests.filter { $0.method == "PUT" }.isEmpty)
+    }
+
+    @MainActor
+    func test_sendJobToDesktop_aFileLeftOutAndTheDesktopUnreachable_namesTheFileAndWhereTheRestWaits() async throws {
+        let fake = CompanionFakeDesktop()
+        let state = try await makeState(files: 1)
+        try await pair(state, with: fake)
+        fake.on("GET " + CompanionProtocol.helloPath, CompanionLink.hello())
+        fake.downHosts = [CompanionLink.address]
+        let gif = try writePicture(.gif, ext: "gif", colors: [Pixels.red])
+        await state.addFiles([gif])
+
+        await state.sendJobToDesktop(from: "Aytu's iPhone")
+
+        XCTAssertEqual(state.companionOutboxCount, 1)
+        XCTAssertEqual(state.error?.title, "Not sent")
+        XCTAssertEqual(state.error?.detail, CompanionText.waitingMessage("Office PC cannot be reached on this network.")
+                       + "\n" + CompanionText.notSendableMessage([gif.lastPathComponent]))
+    }
+
+    func test_notSendableMessage_listsThreeNamesAndCountsTheRest() {
+        XCTAssertEqual(CompanionText.notSendableMessage(["a.gif"]),
+                       "a.gif cannot be sent: only PDF, JPEG, PNG, HEIC and TIFF files can.")
+        XCTAssertEqual(CompanionText.notSendableMessage(["a.gif", "b.bmp", "c.gif", "d.bmp", "e.gif"]),
+                       "a.gif, b.bmp, c.gif and 2 more cannot be sent: only PDF, JPEG, PNG, HEIC and TIFF files can.")
+    }
+
+    @MainActor
     func test_sendJobToDesktop_anEmptyJob_hasNothingToSend() async throws {
         let fake = CompanionFakeDesktop()
         let state = try await makeState()
