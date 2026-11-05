@@ -122,10 +122,13 @@ final class ScreenshotTests: XCTestCase {
     private func capture<Content: View>(_ view: @autoclosure () -> Content, of state: AppState, name: String, in folder: URL,
                                         size: CGSize = CGSize(width: 1100, height: 720),
                                         before: () async throws -> Void = {}) async throws {
+        // ContentView reads the phone link as it draws. The phone sheet brings its own, which is the one it sees.
+        let phone = MacCompanionHosting(options: try .test(in: try workFolder()))
         for (appearance, suffix) in [(NSAppearance.Name.aqua, "light"), (NSAppearance.Name.darkAqua, "dark")] {
             try await before()
             // The window's own background is not in the picture: without one the parts of the view that have none are clear.
-            let host = NSHostingView(rootView: view().environmentObject(state).background(Color(nsColor: .windowBackgroundColor)))
+            let host = NSHostingView(rootView: view().environmentObject(state).environmentObject(phone)
+                .background(Color(nsColor: .windowBackgroundColor)))
             let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
                                   styleMask: [.borderless], backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: appearance)
