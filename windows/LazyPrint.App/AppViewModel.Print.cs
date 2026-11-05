@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using LazyPrint.App.Printing;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
@@ -67,18 +68,38 @@ public sealed partial class AppViewModel
     /// <summary>Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.</summary>
     public async Task AddFilesAsync(IEnumerable<string> paths)
     {
+        var (opened, failed) = await OpenFilesAsync(paths);
+        foreach (var document in opened) Documents.Add(document);
+        if (failed.Count > 0) ReportNotAdded(failed);
+        NotifyAll();
+    }
+
+    /// <summary>Opens the files without adding them; the ones that cannot be read come back with what was wrong.</summary>
+    private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths)
+    {
+        List<LoadedDocument> opened = [];
+        List<(string Name, string Reason)> failed = [];
         foreach (string path in paths)
         {
             try
             {
-                Documents.Add(await _loader.LoadAsync(path, CancellationToken.None));
+                opened.Add(await _loader.LoadAsync(path, CancellationToken.None));
             }
             catch (Exception e)
             {
-                ShowFailure("Not added", e.Message, null);
+                failed.Add((Path.GetFileName(path), e.Message));
             }
         }
-        NotifyAll();
+        return (opened, failed);
+    }
+
+    /// <summary>Puts the files that were not added in the error bar, one to a line; a long list is cut after a few.</summary>
+    private void ReportNotAdded(IReadOnlyList<(string Name, string Reason)> failed)
+    {
+        const int shown = 3;
+        var lines = failed.Take(shown).Select(file => $"{file.Name}: {file.Reason}").ToList();
+        if (failed.Count > shown) lines.Add($"and {failed.Count - shown} more");
+        ShowFailure("Not added", string.Join("\n", lines), null);
     }
 
     public void RemoveDocument(LoadedDocument document)

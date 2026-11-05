@@ -98,7 +98,7 @@ public sealed class DocumentListTests
 
         Assert.Equal(["red-letter.pdf"], model.Documents.Select(d => d.Name));
         Assert.Equal("Not added", model.ErrorTitle);
-        Assert.Equal(DocumentText.LockedPdf, model.ErrorMessage);
+        Assert.Equal("locked.pdf: " + DocumentText.LockedPdf, model.ErrorMessage);
     }
 
     [Fact]

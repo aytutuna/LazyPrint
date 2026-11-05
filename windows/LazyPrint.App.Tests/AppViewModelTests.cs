@@ -417,7 +417,22 @@ public sealed class AppViewModelTests
         await rig.Model.AddFilesAsync(["a.bad", "b.pdf"]);
 
         Assert.Equal(["b.pdf"], rig.Model.Documents.Select(d => d.Name));
+        Assert.Contains("a.bad: ", rig.Model.ErrorMessage);
         Assert.Contains("PDFs and pictures", rig.Model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task EveryFileThatCannotBeReadIsNamedAndALongListIsCut()
+    {
+        using var rig = new Rig();
+        await rig.Model.AddFilesAsync(["a.bad", "b.bad", "c.bad", "d.bad", "e.bad", "f.pdf"]);
+
+        Assert.Equal(["f.pdf"], rig.Model.Documents.Select(d => d.Name));
+        string[] lines = rig.Model.ErrorMessage!.Split('\n');
+        Assert.Equal(4, lines.Length);
+        Assert.StartsWith("a.bad: ", lines[0]);
+        Assert.StartsWith("c.bad: ", lines[2]);
+        Assert.Equal("and 2 more", lines[3]);
     }
 
     [Fact]

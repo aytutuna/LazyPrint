@@ -199,7 +199,7 @@ struct FileSources: ViewModifier {
             if state.task == nil { await state.startTask(.document) }
             take(urls)
         }
-        for name in failed { state.reportUnreadable(name) }
+        if !failed.isEmpty { state.reportUnreadable(failed) }
     }
 }
 #endif

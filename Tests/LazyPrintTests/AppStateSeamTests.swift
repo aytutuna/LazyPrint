@@ -972,13 +972,37 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aFileThatNeverArrived_isReportedByName() throws {
+    func test_addFiles_everyFileThatCannotBeReadIsNamed_andALongListIsCut() async throws {
+        let rig = try makeRig()
+        var files: [URL] = []
+        for name in ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"] {
+            let file = rig.folder.appendingPathComponent(name)
+            try Data("not a document".utf8).write(to: file)
+            files.append(file)
+        }
+
+        await rig.state.addFiles(files)
+
+        let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "\n")
+        XCTAssertEqual(lines.count, 4)
+        XCTAssertTrue(lines[0].hasPrefix("a.txt: "))
+        XCTAssertTrue(lines[2].hasPrefix("c.txt: "))
+        XCTAssertEqual(lines[3], "and 2 more")
+    }
+
+    @MainActor
+    func test_filesThatNeverArrived_areReportedByName() throws {
         let rig = try makeRig()
 
-        rig.state.reportUnreadable("Photo 2.heic")
+        rig.state.reportUnreadable(["Photo 2.heic"])
 
         XCTAssertEqual(rig.state.error?.title, "Not added")
         XCTAssertEqual(rig.state.error?.detail, "Photo 2.heic: " + DocumentText.unreadable)
+
+        rig.state.reportUnreadable(["Photo 1.heic", "Photo 3.heic"])
+
+        XCTAssertEqual(rig.state.error?.detail,
+                       "Photo 1.heic: " + DocumentText.unreadable + "\n" + "Photo 3.heic: " + DocumentText.unreadable)
     }
 
     @MainActor

@@ -409,21 +409,39 @@ public final class AppState: ObservableObject {
 
     /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
     public func addFiles(_ urls: [URL]) async {
-        let opener = loader
-        for url in urls {
-            do {
-                let opened = try await Task.detached { try opener.load(url) }.value
-                documents.append(opened)
-            } catch {
-                showFailure("Not added", error.localizedDescription)
-            }
-        }
+        let (opened, failed) = await openFiles(urls)
+        documents.append(contentsOf: opened)
+        if !failed.isEmpty { reportNotAdded(failed) }
         replan()
     }
 
-    /// Reports a file that never reached `addFiles` (a photo that would not download) as one that cannot be read.
-    public func reportUnreadable(_ name: String) {
-        showFailure("Not added", "\(name): " + DocumentText.unreadable)
+    /// Opens the files without adding them; the ones that cannot be read come back with what was wrong.
+    func openFiles(_ urls: [URL]) async -> (opened: [OpenedDocument], failed: [(name: String, reason: String)]) {
+        let opener = loader
+        var opened: [OpenedDocument] = []
+        var failed: [(name: String, reason: String)] = []
+        for url in urls {
+            do {
+                let document = try await Task.detached { try opener.load(url) }.value
+                opened.append(document)
+            } catch {
+                failed.append((name: url.lastPathComponent, reason: error.localizedDescription))
+            }
+        }
+        return (opened, failed)
+    }
+
+    /// Puts the files that were not added in the error bar, one to a line; a long list is cut after a few.
+    func reportNotAdded(_ failed: [(name: String, reason: String)]) {
+        let shown = 3
+        var lines = failed.prefix(shown).map { "\($0.name): \($0.reason)" }
+        if failed.count > shown { lines.append("and \(failed.count - shown) more") }
+        showFailure("Not added", lines.joined(separator: "\n"))
+    }
+
+    /// Reports files that never reached `addFiles` (photos that would not download) as ones that cannot be read.
+    public func reportUnreadable(_ names: [String]) {
+        reportNotAdded(names.map { (name: $0, reason: DocumentText.unreadable) })
     }
 
     public func remove(at index: Int) {
