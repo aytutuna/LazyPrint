@@ -59,6 +59,7 @@ struct TaskStartScreen: View {
                     }
                 }
                 .padding(16)
+                .readableWidth(860)
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Lazy Print")

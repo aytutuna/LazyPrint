@@ -41,10 +41,12 @@ struct PreviewPosition: Equatable {
 
 /// The print screen: the task in use, the sheet the settings make of the documents with "Sheet 2 of 5", previous and
 /// next (and a swipe) and Front/Back, the plan's notes, the strip of documents and the Options row; the Print button is
-/// fixed at the bottom and says what it does. In landscape the sheet is on the left and the rest scrolls on the right.
+/// fixed at the bottom and says what it does. In landscape, and on an iPad, the sheet is on the left and the rest scrolls
+/// on the right.
 struct PrintScreen: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.displayScale) private var displayScale
     @Environment(\.colorScheme) private var scheme
 
@@ -66,7 +68,7 @@ struct PrintScreen: View {
     var body: some View {
         NavigationStack {
             GeometryReader { (geometry: GeometryProxy) in
-                if verticalSizeClass == .compact {
+                if verticalSizeClass == .compact || horizontalSizeClass == .regular {
                     landscape(geometry.size)
                 } else {
                     portrait(geometry.size)

@@ -32,6 +32,8 @@ struct JobsScreen: View {
                             JobRow(record: record)
                         }
                     }
+                    .readableWidth()
+                    .background(Color(uiColor: .systemGroupedBackground))
                 }
             }
             .navigationTitle("Jobs")
