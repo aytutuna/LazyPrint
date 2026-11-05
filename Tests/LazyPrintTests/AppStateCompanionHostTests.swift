@@ -84,6 +84,65 @@ final class AppStateCompanionHostTests: XCTestCase {
     }
 
     @MainActor
+    func test_aBatchThatIsOffered_staysOfferedWhenAFileOfItArrivesLate() throws {
+        let host = SeamHosting()
+        let old = Date().addingTimeInterval(-CompanionInbox.batchGrace - 5)
+        host.stored = [PhoneBatch(id: "batch-0001", from: "Aytu's iPhone", count: 3, arrived: 1, lastReceived: old)]
+        let state = try makeState(host)
+        XCTAssertEqual(state.phoneBatches.map(\.arrived), [1])
+
+        host.stored = [PhoneBatch(id: "batch-0001", from: "Aytu's iPhone", count: 3, arrived: 2, lastReceived: Date())]
+        host.onChange?()
+
+        XCTAssertEqual(state.phoneBatches.map(\.arrived), [2])
+    }
+
+    @MainActor
+    func test_aBatchThatIsOffered_keepsItsPlaceWhenAFileOfItArrivesLate() throws {
+        let host = SeamHosting()
+        let old = Date().addingTimeInterval(-CompanionInbox.batchGrace - 5)
+        let second = PhoneBatch(id: "batch-0002", from: "Ela's iPhone", count: 1, arrived: 1, lastReceived: old.addingTimeInterval(1))
+        host.stored = [PhoneBatch(id: "batch-0001", from: "Aytu's iPhone", count: 2, arrived: 1, lastReceived: old), second]
+        let state = try makeState(host)
+        XCTAssertEqual(state.phoneBatches.map(\.id), ["batch-0001", "batch-0002"])
+
+        host.stored = [second, PhoneBatch(id: "batch-0001", from: "Aytu's iPhone", count: 2, arrived: 2, lastReceived: Date())]
+        host.onChange?()
+
+        XCTAssertEqual(state.phoneBatches.map(\.id), ["batch-0001", "batch-0002"])
+    }
+
+    @MainActor
+    func test_reportSyncProblem_putsANoticeInTheBar_butNotOverAFailure() throws {
+        let state = try makeState(SeamHosting())
+
+        state.reportSyncProblem("Report.pdf in the cloud folder could not be read.")
+
+        XCTAssertEqual(state.error?.title, "Phone sync")
+        XCTAssertEqual(state.error?.isNotice, true)
+
+        state.showFailure("Not added", "Notes.txt: unreadable")
+        state.reportSyncProblem("Another file could not be read.")
+
+        XCTAssertEqual(state.error?.title, "Not added")
+    }
+
+    @MainActor
+    func test_reportSyncProblem_keepsTheSentMessage_andTheNoticeLeavesWithTheProblem() throws {
+        let state = try makeState(SeamHosting())
+        state.sentMessage = "Sent 3 sheets to HP LaserJet"
+
+        state.reportSyncProblem("Report.pdf in the cloud folder could not be read.")
+
+        XCTAssertEqual(state.sentMessage, "Sent 3 sheets to HP LaserJet")
+        XCTAssertEqual(state.error?.title, "Phone sync")
+
+        state.reportSyncProblem(nil)
+
+        XCTAssertNil(state.error)
+    }
+
+    @MainActor
     func test_takeBatch_addsTheFilesToTheJob() async throws {
         let host = SeamHosting()
         let state = try makeState(host)
@@ -119,6 +178,46 @@ final class AppStateCompanionHostTests: XCTestCase {
         XCTAssertEqual(state.documents.map { $0.url.lastPathComponent }, ["Sent.pdf"])
         XCTAssertEqual(state.pageRange, "")
         XCTAssertTrue(state.phoneBatches.isEmpty)
+    }
+
+    @MainActor
+    func test_takeBatch_asANewJob_keepsTheJobWhenNothingOpens() async throws {
+        let host = SeamHosting()
+        let state = try makeState(host)
+        let folder = try tempFolder()
+        await state.addFiles([try writePDF(named: "Mine.pdf", pages: 3, in: folder)])
+        state.setPageRange("1-2")
+        let notes = folder.appendingPathComponent("Notes.txt")
+        try Data("not a picture".utf8).write(to: notes)
+        host.stored = [whole("batch-0001")]
+        host.files["batch-0001"] = [notes]
+        host.onChange?()
+
+        await state.takeBatch("batch-0001", startNew: true)
+
+        XCTAssertEqual(state.documents.map { $0.url.lastPathComponent }, ["Mine.pdf"])
+        XCTAssertEqual(state.pageRange, "1-2")
+        XCTAssertEqual(state.error?.title, "Not added")
+        XCTAssertEqual(state.error?.detail.hasPrefix("Notes.txt: "), true)
+    }
+
+    @MainActor
+    func test_takeBatch_whenNothingOpens_keepsTheSettingsOfTheJobToo() async throws {
+        let host = SeamHosting()
+        let state = try makeState(host)
+        let folder = try tempFolder()
+        await state.addFiles([try writePDF(named: "Mine.pdf", pages: 3, in: folder)])
+        state.settings.pagesPerSheet = 2
+        let notes = folder.appendingPathComponent("Notes.txt")
+        try Data("not a picture".utf8).write(to: notes)
+        host.stored = [whole("batch-0001")]
+        host.files["batch-0001"] = [notes]
+        host.onChange?()
+
+        await state.takeBatch("batch-0001", startNew: true)
+
+        XCTAssertNil(state.task)
+        XCTAssertEqual(state.settings.pagesPerSheet, 2)
     }
 
     @MainActor

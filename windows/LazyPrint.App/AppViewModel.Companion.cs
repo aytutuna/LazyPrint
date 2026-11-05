@@ -122,8 +122,7 @@ public sealed partial class AppViewModel
             });
             companion.SyncFolderProblem += (_, message) => _dispatcher.BeginInvoke(() =>
             {
-                SyncFolderProblem = message;
-                NotifyAll();
+                ReportSyncProblem(message);
                 CompanionChanged?.Invoke();
             });
             _companion = companion;
@@ -139,11 +138,32 @@ public sealed partial class AppViewModel
         return _companion;
     }
 
+    /// <summary>
+    /// Keeps a problem with the cloud folder for the Phone window and puts it in the main window's bar as a notice, so
+    /// it is seen without that window open. A failure already in the bar is not replaced.
+    /// </summary>
+    internal void ReportSyncProblem(string message)
+    {
+        SyncFolderProblem = message;
+        if (ErrorTitle is null || ErrorIsNotice)
+        {
+            string? sent = SentMessage;
+            ShowNotice("Phone sync", message);
+            SentMessage = sent;
+        }
+        NotifyAll();
+    }
+
     /// <summary>Chooses the cloud folder phones put files in (null: none); false when that could not be saved.</summary>
     public bool SetPhoneSyncFolder(string? path)
     {
         if (_companion is null || !_companion.SetSyncFolder(path)) return false;
         SyncFolderProblem = null;
+        if (ErrorTitle == "Phone sync")
+        {
+            ClearMessages();
+            NotifyAll();
+        }
         CompanionChanged?.Invoke();
         return true;
     }
@@ -170,7 +190,9 @@ public sealed partial class AppViewModel
 
     /// <summary>
     /// Reads the inbox again: <see cref="PhoneBatch"/> is the oldest whole batch. One that is not whole yet is looked at
-    /// again when it becomes so, so a phone that lost the link does not hold back what got through.
+    /// again when it becomes so, so a phone that lost the link does not hold back what got through. A batch that is
+    /// offered stays offered, in its place, when files of it arrive late; otherwise the bar would go away for another
+    /// grace period, or give way to a newer batch, each time one did.
     /// </summary>
     internal void RefreshPhoneBatches()
     {
@@ -186,9 +208,16 @@ public sealed partial class AppViewModel
             System.Diagnostics.Trace.TraceWarning($"Could not read the files waiting from phones: {e.Message}");
             return;
         }
-        _phoneBatches = [.. all.Where(batch => batch.IsWhole(now))];
+        var offered = _phoneBatches.Select(batch => batch.Id).ToList();
+        _phoneBatches = [.. all.Where(batch => batch.IsWhole(now) || offered.Contains(batch.Id))
+                               .OrderBy(batch =>
+                               {
+                                   int place = offered.IndexOf(batch.Id);
+                                   return place < 0 ? int.MaxValue : place;
+                               })];
         _phoneRetryTimer?.Stop();
-        var wholeAt = all.Where(batch => !batch.IsWhole(now)).Select(batch => batch.LastReceived + CompanionInbox.BatchGrace).ToList();
+        var wholeAt = all.Where(batch => !_phoneBatches.Any(whole => whole.Id == batch.Id))
+                         .Select(batch => batch.LastReceived + CompanionInbox.BatchGrace).ToList();
         if (wholeAt.Count > 0)
         {
             _phoneRetryTimer ??= new DispatcherTimer(DispatcherPriority.Background, _dispatcher);
@@ -211,8 +240,8 @@ public sealed partial class AppViewModel
 
     /// <summary>
     /// Takes the batch the bar offers into the job, or into a new job when <paramref name="startNew"/> (the documents and
-    /// the page range are cleared first). A file that cannot be read is reported and the others still go in. False when
-    /// nothing was added.
+    /// the page range are cleared first, once at least one file has opened: when none does, the job stays as it was). A file
+    /// that cannot be read is reported and the others still go in. False when nothing was added.
     /// </summary>
     public async Task<bool> UsePhoneBatchAsync(bool startNew)
     {
@@ -222,9 +251,11 @@ public sealed partial class AppViewModel
         {
             var files = await TakePhoneBatchAsync(batch);
             int missed = batch.Arrived - files.Count;
-            if (files.Count == 0)
+            var (opened, failed) = await OpenFilesAsync(files);
+            if (opened.Count == 0)
             {
-                ReportMissed(batch, missed);
+                if (failed.Count > 0) ReportNotAdded(failed);
+                else ReportMissed(batch, missed);
                 return false;
             }
             if (startNew)
@@ -233,9 +264,11 @@ public sealed partial class AppViewModel
                 PageRangeText = "";
             }
             if (SelectedTask is null) await StartTaskAsync(PrintTask.Document);
-            await AddFilesAsync(files);
-            if (missed > 0 && ErrorTitle is null) ReportMissed(batch, missed);
-            return Documents.Count > 0;
+            foreach (var document in opened) Documents.Add(document);
+            if (failed.Count > 0) ReportNotAdded(failed);
+            else if (missed > 0) ReportMissed(batch, missed);
+            NotifyAll();
+            return true;
         }
         finally
         {

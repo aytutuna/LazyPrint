@@ -63,12 +63,38 @@ public sealed class PhoneLinkTests : IDisposable
     }
 
     /// <summary>A package in the inbox as the server leaves it, then the bar told to look.</summary>
-    private async Task Send(string batch, int index, int count, string name, string from = "Aytu's iPhone")
+    private async Task Send(string batch, int index, int count, string name, string from = "Aytu's iPhone", DateTimeOffset? at = null)
     {
         byte[] package = PrintPackage.Make(name, "application/pdf", batch, index, count, from, Pdf);
         await _service.Inbox.ReceiveAsync("phone-0001", $"{batch}-{index}", new MemoryStream(package), package.Length,
-                                          DateTimeOffset.UtcNow, CancellationToken.None);
+                                          at ?? DateTimeOffset.UtcNow, CancellationToken.None);
         _rig.Model.RefreshPhoneBatches();
+    }
+
+    private static DateTimeOffset LongAgo => DateTimeOffset.UtcNow - CompanionInbox.BatchGrace - TimeSpan.FromSeconds(5);
+
+    [Fact]
+    public async Task ABatchThatIsOfferedStaysOfferedWhenAFileOfItArrivesLate()
+    {
+        await Send("batch-0001", 0, 3, "a.pdf", at: LongAgo);
+        Assert.Equal("1 file from Aytu's iPhone", _rig.Model.PhoneBatchMessage);
+
+        await Send("batch-0001", 1, 3, "b.pdf");
+
+        Assert.Equal("2 files from Aytu's iPhone", _rig.Model.PhoneBatchMessage);
+    }
+
+    [Fact]
+    public async Task ABatchThatIsOfferedKeepsItsPlaceWhenAFileOfItArrivesLate()
+    {
+        await Send("batch-0001", 0, 2, "a.pdf", at: LongAgo);
+        await Send("batch-0002", 0, 1, "b.pdf", "Ela's iPhone", LongAgo.AddSeconds(1));
+        Assert.Equal("1 file from Aytu's iPhone", _rig.Model.PhoneBatchMessage);
+
+        await Send("batch-0001", 1, 2, "c.pdf");
+
+        Assert.Equal("2 files from Aytu's iPhone", _rig.Model.PhoneBatchMessage);
+        Assert.Equal("batch-0001", _rig.Model.PhoneBatch?.Id);
     }
 
     [Fact]
@@ -156,6 +182,52 @@ public sealed class PhoneLinkTests : IDisposable
 
         Assert.Equal(["a.pdf"], _rig.Model.Documents.Select(d => d.Name));
         Assert.Equal("Not added", _rig.Model.ErrorTitle);
+    }
+
+    [Fact]
+    public async Task StartingANewJobKeepsTheJobWhenNothingInTheBatchOpens()
+    {
+        await _rig.Model.AddFilesAsync([@"C:\Docs\first.pdf"]);
+        _rig.Model.SetPageRange("1");
+        await Send("batch-0001", 0, 1, "a.bad");
+
+        Assert.False(await _rig.Model.UsePhoneBatchAsync(startNew: true));
+
+        Assert.Equal(["first.pdf"], _rig.Model.Documents.Select(d => d.Name));
+        Assert.Equal("1", _rig.Model.PageRangeText);
+        Assert.Equal("Not added", _rig.Model.ErrorTitle);
+        Assert.Contains("a.bad", _rig.Model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task AFileOfANewJobThatCannotBeReadIsReportedAndTheOthersReplaceTheJob()
+    {
+        await _rig.Model.AddFilesAsync([@"C:\Docs\first.pdf"]);
+        await Send("batch-0001", 0, 2, "a.pdf");
+        await Send("batch-0001", 1, 2, "b.bad");
+
+        Assert.True(await _rig.Model.UsePhoneBatchAsync(startNew: true));
+
+        Assert.Equal(["a.pdf"], _rig.Model.Documents.Select(d => d.Name));
+        Assert.Equal("Not added", _rig.Model.ErrorTitle);
+        Assert.Contains("b.bad", _rig.Model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ASyncFolderProblemIsPutInTheMainWindowsBarToo()
+    {
+        _rig.Model.ReportSyncProblem("Report.pdf in the cloud folder could not be read.");
+
+        Assert.Equal("Phone sync", _rig.Model.ErrorTitle);
+        Assert.True(_rig.Model.ErrorIsNotice);
+        Assert.Equal("Report.pdf in the cloud folder could not be read.", _rig.Model.ErrorMessage);
+        Assert.Equal(_rig.Model.ErrorMessage, _rig.Model.SyncFolderProblem);
+
+        await _rig.Model.AddFilesAsync(["a.bad"]);
+        _rig.Model.ReportSyncProblem("Another file could not be read.");
+
+        Assert.Equal("Not added", _rig.Model.ErrorTitle);
+        Assert.Equal("Another file could not be read.", _rig.Model.SyncFolderProblem);
     }
 
     [Fact]

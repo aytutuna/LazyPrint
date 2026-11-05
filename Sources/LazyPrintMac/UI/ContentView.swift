@@ -115,6 +115,10 @@ struct ContentView: View {
             }
         }
         .onAppear { state.phoneWindowRequested = { showPhone = true } }
+        // A problem with the cloud folder is also said here, where it is seen without the phone sheet open.
+        .onChange(of: host.syncFolderProblem) { _, problem in
+            state.reportSyncProblem(problem)
+        }
         // Open-file and URL events go to this window, not to a new one.
         .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
     }
@@ -193,7 +197,6 @@ struct ContentView: View {
         let before = opening
         opening = Task {
             await before?.value
-            if state.task == nil { await state.startTask(.document) }
             await state.takeBatch(id, startNew: startNew)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
