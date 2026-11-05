@@ -1,10 +1,13 @@
 name: Release
 
 # Packages the Windows and Mac apps as downloadable artifacts. Run it by hand from the Actions
-# tab. Neither package is an installer: Lazy Scan ships none either. The Windows folder is
-# `dotnet publish` output (it needs the .NET 10 Desktop Runtime), and the Mac app is ad-hoc
-# signed, arm64 only and not notarised, so a downloaded copy needs System Settings, Privacy &
-# Security, Open Anyway once (Control-click, Open on macOS 14).
+# tab. The Windows folder is `dotnet publish` output (it needs the .NET 10 Desktop Runtime), and
+# the Mac app is ad-hoc signed, arm64 only and not notarised, so a downloaded copy needs System
+# Settings, Privacy & Security, Open Anyway once (Control-click, Open on macOS 14).
+#
+# The store job packs the Windows app for the Microsoft Store: an .msixupload with an x64 and an
+# arm64 package in a bundle, built self-contained so nobody has to install .NET. It is not signed:
+# the Store signs what it publishes.
 on:
   workflow_dispatch:
 
@@ -36,6 +39,48 @@ jobs:
         with:
           name: lazyprint-windows
           path: ${{ runner.temp }}/LazyPrint-windows.zip
+          if-no-files-found: error
+
+  store:
+    runs-on: windows-latest
+    env:
+      IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+      PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+      PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Store identity
+        shell: pwsh
+        run: |
+          foreach ($name in 'IDENTITY_NAME', 'PUBLISHER', 'PUBLISHER_DISPLAY_NAME') {
+            if (-not (Get-Item "env:$name").Value) { throw "Set the repository variable STORE_$name from Partner Center, Product identity." }
+          }
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($arch in 'x64', 'arm64') {
+            dotnet publish windows/LazyPrint.App/LazyPrint.App.csproj -c Release -r "win-$arch" --self-contained -o (Join-Path $env:RUNNER_TEMP "publish-$arch")
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $arch" }
+          }
+      - name: Pack
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/make_msix.ps1 `
+            -X64 (Join-Path $env:RUNNER_TEMP 'publish-x64') `
+            -Arm64 (Join-Path $env:RUNNER_TEMP 'publish-arm64') `
+            -Out (Join-Path $env:RUNNER_TEMP 'store') `
+            -IdentityName $env:IDENTITY_NAME `
+            -Publisher $env:PUBLISHER `
+            -PublisherDisplayName $env:PUBLISHER_DISPLAY_NAME
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lazyprint-store
+          path: ${{ runner.temp }}/store/*.msixupload
           if-no-files-found: error
 
   mac:
