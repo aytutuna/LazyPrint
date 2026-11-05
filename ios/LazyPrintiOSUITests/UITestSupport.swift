@@ -72,12 +72,12 @@ extension XCUIApplication {
         waitUntil(element, "exists == false", message, timeout: timeout, file: file, line: line)
     }
 
-    /// A tab of the bar. The iPad's bar is not in the tab bar query, so there the tab is the button with that label and no
-    /// identifier of its own (the Print and Jobs buttons elsewhere have one).
+    /// A tab of the bar. The iPad's bar is not in the tab bar query; its buttons are found by label, and by the symbol that
+    /// is their identifier, since the Print and Jobs buttons elsewhere share the labels.
     @MainActor
     func tabButton(_ name: String) -> XCUIElement {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            return buttons.matching(NSPredicate(format: "label == %@ AND (identifier == '' OR identifier == label)", name)).firstMatch
+            return buttons.matching(NSPredicate(format: "label == %@ AND identifier IN {'square.grid.2x2', 'printer', 'clock.arrow.circlepath'}", name)).firstMatch
         }
         return tabBars.buttons[name]
     }
@@ -85,8 +85,7 @@ extension XCUIApplication {
     @MainActor
     func openTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
         let tab: XCUIElement = tabButton(name)
-        if !tab.waitForExistence(timeout: 30) { print("TREE\n\(debugDescription)") }
-        XCTAssertTrue(tab.exists, "The \(name) tab", file: file, line: line)
+        XCTAssertTrue(tab.waitForExistence(timeout: 30), "The \(name) tab", file: file, line: line)
         tab.tap()
     }
 
