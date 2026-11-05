@@ -28,7 +28,7 @@
     <h2 style="margin-top:2.5rem">What the app connects to</h2>
     <ul>
       <li><strong>Printers.</strong> The app looks for printers on your local network (the <code>_ipp._tcp</code> and <code>_ipps._tcp</code> DNS-SD services) and talks to the ones you print to, or add by address, over IPP. It connects to whatever address you type in, so an address outside your network is reached as well.</li>
-      <li><strong>The phone link.</strong> When an iPhone or iPad is paired with a computer, or a pairing code is on screen, the computer listens on your local network (TCP port 52732) and announces itself as <code>_lazyprint._tcp</code>. The phone connects to it over TLS. This only happens on networks you have marked as trusted, and the link never leaves your network.</li>
+      <li><strong>The phone link.</strong> When an iPhone or iPad is paired with a computer, or a pairing code is on screen, the computer listens on your local network (TCP port 52732) and announces itself as <code>_lazyprint._tcp</code>. The phone connects to it over TLS. This only happens on networks Windows calls Private and, on any other network, only after you approve it in the app. The link itself never leaves your network.</li>
       <li><strong>Other apps and settings pages.</strong> The app can hand a job to Lazy Scan, open the folder holding saved files, and the system's printer, network and app settings pages. It does not open web pages.</li>
     </ul>
 
@@ -38,11 +38,11 @@
     <h2 style="margin-top:2.5rem">What is kept on your devices</h2>
     <ul>
       <li>Your settings and what the app has learned about each printer, in <code>%APPDATA%\Lazy Print</code> on Windows and <code>~/Library/Application Support/Lazy Print</code> on the Mac. The iPhone and iPad keep their settings and the AirPrint printer you last chose in the app's own storage.</li>
-      <li>For the phone link, the list of paired phones or computers, and the keys and certificate that protect the link. Windows keeps the keys under DPAPI; the Mac, the iPhone and the iPad use the Keychain.</li>
+      <li>For the phone link, the list of paired phones or computers, and the keys and certificate that protect the link. Windows keeps the pairing keys under DPAPI and the certificate, with its private key, in your account's certificate store; the Mac, the iPhone and the iPad use the Keychain.</li>
       <li>Files a phone sends to a computer wait in an inbox folder on that computer and are removed after 7 days, when you dismiss them, or when you forget the phone.</li>
       <li>On the iPhone and iPad, a copy of each document that has not reached the computer yet is kept in the app's Outbox folder. It has no time limit and stays until the computer has received it or you remove it.</li>
       <li>A log of the printers the app has seen, <code>printers.txt</code>, is written automatically. It holds queue names, drivers, ports and network services, and the results of the troubleshooter's checks. It is in <code>%LOCALAPPDATA%\Lazy Print\Logs</code> on Windows and <code>Library/Logs/Lazy Print</code> on the Mac, the iPhone and the iPad.</li>
-      <li>The Windows app from the Microsoft Store keeps its settings, the phone link's files and the log in storage that belongs to the app, and Windows removes them when you uninstall it. They are not in the folders named above in File Explorer.</li>
+      <li>The Windows app from the Microsoft Store keeps its settings, the phone link's files and the log in storage that belongs to the app, and Windows removes them when you uninstall it. They are not in the folders named above in File Explorer. The phone link's certificate and its private key are kept by Windows in your account's certificate store (Personal), not in the app's own files, so uninstalling the app may leave them. You can remove the certificate called Lazy Print phone link there.</li>
       <li>The list of jobs shown in the app is for the current session only.</li>
       <li>The demo printer writes the pages it "prints" as pictures to <code>Documents/Lazy Print/Demo prints</code> on the computer and to the app's Caches folder on the iPhone and iPad.</li>
     </ul>

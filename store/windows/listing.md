@@ -32,7 +32,7 @@ Lazy Print is new, and it has not been run on a real printer yet. If a printer d
 - Use the printers Windows has set up, find network IPP printers, or add one by its address.
 - Find out in plain words why a printer is not listed.
 - Try the printing tasks with the demo printer, without a printer.
-- Send files from an iPhone or iPad on your network to the PC, after pairing with a QR code.
+- Send files from an iPhone or iPad to the PC, after pairing with a QR code, over your network or through a cloud folder you both sync.
 - Hand a scan from Lazy Scan to Lazy Print.
 
 **Search terms:** print, printer, photo print, two-sided printing, booklet, ipp printer, print pdf
@@ -49,16 +49,14 @@ Lazy Print is new, and it has not been run on a real printer yet. If a printer d
 
 Both addresses move to alazy.app when that site is up.
 
-**Screenshots:** none exist yet for Windows, and the Store needs at least one (up to ten), PNG, 1920x1080 or 1366x768, light. They have to be taken on a PC with the app running, in a neutral folder, with the demo printer chosen and a sample document that is not one of the files in `Tests/Fixtures/Documents`, so that no printer name, local path or test file name shows. Put them in `screenshots/` in this folder. What to show, in this order:
+**Screenshots:** `screenshots/` in this folder, four PNGs at 1920x1080, light. They were taken from the running app, with the demo printer and a made-up sample document called Quarterly report.pdf, so no printer name, local path or test file name shows. Each window was grabbed on a 2880x1620 pixel area (1920x1080 at the 150 percent scale of the capturing PC) and scaled down. The troubleshooter picture is the main window with the troubleshooter window placed where it sat on screen. They were not taken from the Store package. Retake them before submitting if the look has changed. A two-sided card picture (a printer that prints one side) and one of the phone window are missing: the demo printer prints both sides, and the phone window needs a paired phone.
 
 | File | Caption |
 |---|---|
 | 1-start.png | Start: pick what you want to print. |
 | 2-print.png | The sheets as they will come out, with the options beside them. |
-| 3-two-sided.png | Two-sided on a printer that prints one side. |
+| 3-jobs.png | Jobs: what was sent, and Print again. |
 | 4-troubleshooter.png | Why isn't my printer listed? |
-| 5-phone.png | From your phone: pair with a QR code. |
-| 6-jobs.png | Jobs: what was sent, and Print again. |
 
 **Store logos:** `Listing/Logo-300x300.png` (1:1 app tile icon), `Listing/Box-1080x1080.png` (1:1 box art) and `Listing/Poster-720x1080.png` (2:3 poster art).
 
@@ -79,8 +77,8 @@ The IARC questionnaire in Partner Center, with what backs each answer. The ratin
 ## Privacy answers
 
 - **Collects personal data:** No. Nothing is sent to the developer or to a server run for the app. `site/privacy.html` says so and lists what the app connects to.
-- **Network use:** To printers the user prints to or adds by address, over IPP, and to find them on the local network (DNS-SD). When a phone is paired or a pairing code is on screen, the PC listens on TCP port 52732 on networks the user marked as trusted, and a phone connects over TLS.
-- **Data kept on the PC:** settings and what the app has learned about each printer, the paired phones with their keys and certificate (protected with DPAPI), files a phone sent that wait in the inbox (removed after 7 days, when dismissed or when the phone is forgotten), and the printer log `printers.txt`. In the Store build Windows keeps these in the package's own store and removes them when the app is uninstalled. The demo printer writes its pages to Documents\Lazy Print\Demo prints, outside the package, and uninstalling leaves them. `site/privacy.html` says so.
+- **Network use:** To printers the user prints to or adds by address, over IPP, and to find them on the local network (DNS-SD). When a phone is paired or a pairing code is on screen, the PC listens on TCP port 52732 on networks Windows calls Private, and on any other network only after the user approves it, and a phone connects over TLS. A phone can also leave files, encrypted, in a cloud folder (iCloud Drive or OneDrive) that the user chose and the PC syncs; the cloud service handles that folder under its own terms.
+- **Data kept on the PC:** settings and what the app has learned about each printer, the paired phones with their pairing keys (protected with DPAPI), files a phone sent that wait in the inbox (removed after 7 days, when dismissed or when the phone is forgotten), and the printer log `printers.txt`. In the Store build Windows keeps these files in the package's own store and removes them when the app is uninstalled. The phone link's certificate ("Lazy Print phone link") and its private key are kept separately in the user's Windows certificate store (Current User, Personal), not in the app's files, so uninstalling may leave them. The demo printer writes its pages to Documents\Lazy Print\Demo prints, outside the package, and uninstalling leaves them. `site/privacy.html` says so.
 - **Account needed:** No.
 - **Uses encryption:** Yes: TLS for the phone link and for IPPS printers, and DPAPI for the stored keys, through .NET and Windows. Partner Center asks about this in the export compliance part of the submission.
 
@@ -97,8 +95,8 @@ In this order.
 1. The app is already created in Partner Center with the name "Lazy Print" (Store ID 9NF8R01V2PHC).
 2. Open Product management, Product identity. Copy three values into the repository's Actions variables: Package/Identity/Name (`Aytu.LazyPrint`) as `STORE_IDENTITY_NAME`, Package/Identity/Publisher (`CN=54BA56B9-1B6C-4B6E-886D-07694CF02BF5`) as `STORE_PUBLISHER`, and Package/Properties/PublisherDisplayName (`Aytu`) as `STORE_PUBLISHER_DISPLAY_NAME`.
 3. Run the Release workflow from the Actions tab and download the `lazyprint-store` artifact, a file named `LazyPrint_1.0.0.msixupload`.
-4. Optional but wise: install the package on a clean Windows 10 PC and a Windows 11 PC with a test signature, run the Windows App Certification Kit, and try a phone pairing and the hand-off from Lazy Scan and from Lazy PDF (it passes a path under %TEMP%, which a package may redirect). Nobody has done this yet.
-5. Take the screenshots described above.
+4. Optional but wise: install the package on a clean Windows 10 PC and a Windows 11 PC with a test signature, run the Windows App Certification Kit, and try a phone pairing and the hand-off from Lazy Scan and from Lazy PDF (both pass a path under %TEMP%, which a package may redirect). Nobody has done this yet.
+5. Check the screenshots above, and add one of the phone window if you have a phone to pair.
 6. Start the submission. Pricing and availability: Free, all markets you want, visible in the Store.
 7. Properties: category Productivity, the privacy policy URL and support contact above, and the system requirements (Windows 10 version 2004 or later; x64 and arm64).
 8. Age ratings: answer the questionnaire as in the table above.
