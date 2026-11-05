@@ -1,10 +1,10 @@
 # Lazy Print
 
-A native printing app for Windows, Mac and iPhone: documents and photos to driverless IPP printers, with guided two-sided printing and a troubleshooter for the printer that does not show up. It is the sister of Lazy Scan and shares its layout and conventions.
+A native printing app for Windows, Mac, iPhone and iPad: documents and photos to driverless IPP printers, with guided two-sided printing and a troubleshooter for the printer that does not show up. It is the sister of Lazy Scan and shares its layout and conventions.
 
 You pick a task (print a document, print photos, a booklet, several pages to a sheet, a test page), drop files in, and see the sheets as they will come out before anything is sent. Printers come from the system's own list and from the network: on a network the app finds IPP printers by DNS-SD, and a printer that does not announce itself can be added by address. A printer that only prints one side gets a two-sided card that walks through printing the fronts, reloading the paper and printing the backs, with a one-sheet check first so the reload guess can be tested. When a printer is missing or stops, the troubleshooter reads what the system and the network report and says what is wrong in plain words. There is also a demo printer that writes to a folder, for trying the app without hardware.
 
-The phone link lets an iPhone pair with the computer by scanning a QR code and then send files to it. They arrive in a bar at the top of the window; nothing prints until you choose to add them to a job or start a new one. The link is local only, over TLS on the home network, and the phone pins the computer's certificate from the pairing code.
+The phone link lets an iPhone or iPad pair with the computer by scanning a QR code and then send files to it. They arrive in a bar at the top of the window; nothing prints until you choose to add them to a job or start a new one. The link is local only, over TLS on the home network, and the phone pins the computer's certificate from the pairing code.
 
 Lazy Print and Lazy Scan open each other through the `lazyprint:` and `lazyscan:` addresses. "Print with Lazy Print" in Lazy Scan sends it a scan to print, and the Scan and print task here opens Lazy Scan.
 
@@ -23,9 +23,9 @@ CONTRACTS.md          the spec
 Sources/LazyPrintKit  shared Swift core (no AppKit, UIKit or SwiftUI)
 Sources/LazyPrintMac  Mac views and system services
 Sources/LazyPrint     Mac app entry point
-Sources/LazyPrintIOS  iPhone views and services
+Sources/LazyPrintIOS  iPhone and iPad views and services
 Tests/                Swift tests and Tests/Fixtures
-ios/project.yml       XcodeGen spec for the iPhone app
+ios/project.yml       XcodeGen spec for the iPhone and iPad app
 windows/              C# solution, see windows/README.md
 scripts/              app bundle script and fixture generators
 ```
@@ -54,7 +54,7 @@ bash scripts/make_app.sh
 xcodegen generate --spec ios/project.yml
 ```
 
-The package's own scheme, `LazyPrint-Package`, runs the shared and iPhone tests on a simulator with `xcodebuild test`. The app's UI tests use the generated project and the `LazyPrintiOS` scheme.
+The package's own scheme, `LazyPrint-Package`, runs the shared and iOS tests on a simulator with `xcodebuild test`. The app's UI tests use the generated project and the `LazyPrintiOS` scheme.
 
 The Swift side cannot be built or run on Windows, so it is checked on CI.
 
@@ -67,7 +67,7 @@ The Swift side cannot be built or run on Windows, so it is checked on CI.
 Three workflows run by hand only, from the Actions tab.
 
 - `release.yml` builds the Windows and Mac apps and attaches them to the run as artifacts. `lazyprint-windows` is `dotnet publish` output zipped (framework-dependent, so it needs the .NET 10 Desktop Runtime). `lazyprint-mac` is `Lazy Print.app` from `scripts/make_app.sh`, ad-hoc signed and not notarised, and built for Apple silicon only, so a downloaded copy needs System Settings, Privacy & Security, Open Anyway once (Control-click, Open on macOS 14). Neither is an installer, as with Lazy Scan.
-- `testflight.yml` archives the iPhone app (bundle id `com.lazyprint.lazyprint`), signs it on export and uploads it to TestFlight. The run number is the build number.
+- `testflight.yml` archives the iPhone and iPad app (bundle id `com.lazyprint.lazyprint`), signs it on export and uploads it to TestFlight. The run number is the build number.
 - `pages.yml` publishes `site/` to GitHub Pages. The pages are plain HTML and CSS; open `site/index.html` to preview them.
 
 `testflight.yml` reads four repository secrets, the same names Lazy Scan uses: `APPLE_TEAM_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_ID` and `APPSTORE_PRIVATE_KEY` (the contents of the `.p8` file). It stops at the first step when one is missing. `release.yml` and `pages.yml` need none.
