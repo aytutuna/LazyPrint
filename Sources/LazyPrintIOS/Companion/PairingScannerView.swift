@@ -13,15 +13,19 @@ import VisionKit
 struct PairingScannerView: View {
     let onCode: @MainActor (String) -> Void
     @State private var availability: PairingCameraAvailability?
+    /// The camera stopped or could not start here, as in Split View or Slide Over, where another app may have it.
+    @State private var cameraLost = false
 
     var body: some View {
         Group {
-            if let shown = availability {
+            if cameraLost {
+                lost
+            } else if let shown = availability {
                 if shown.isAvailable {
                     if PairingScannerView.usesDataScanner {
-                        PairingDataScanner(onCode: onCode)
+                        PairingDataScanner(onCode: onCode, onLost: { cameraLost = true })
                     } else {
-                        PairingCaptureScanner(onCode: onCode)
+                        PairingCaptureScanner(onCode: onCode, onLost: { cameraLost = true })
                     }
                 } else {
                     unavailable(shown)
@@ -38,6 +42,21 @@ struct PairingScannerView: View {
         .task {
             availability = await PairingScannerView.cameraAvailability()
         }
+    }
+
+    private var lost: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.largeTitle)
+                .foregroundStyle(Color.white)
+                .accessibilityHidden(true)
+            Text("The camera is not available here. Paste the pairing text below instead.")
+                .font(.headline)
+                .foregroundStyle(Color.white)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("companion.scanner.message")
+        }
+        .padding(16)
     }
 
     private func unavailable(_ shown: PairingCameraAvailability) -> some View {
@@ -123,9 +142,10 @@ enum PairingCameraAvailability: Equatable {
 /// VisionKit's live scanner, for QR codes only.
 private struct PairingDataScanner: UIViewControllerRepresentable {
     let onCode: @MainActor (String) -> Void
+    let onLost: @MainActor () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onCode: onCode)
+        Coordinator(onCode: onCode, onLost: onLost)
     }
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
@@ -140,7 +160,13 @@ private struct PairingDataScanner: UIViewControllerRepresentable {
     func updateUIViewController(_ scanner: DataScannerViewController, context: Context) {
         context.coordinator.onCode = onCode
         if !scanner.isScanning {
-            try? scanner.startScanning()
+            do {
+                try scanner.startScanning()
+            } catch {
+                // Not while a view update is running.
+                let lost: @MainActor () -> Void = onLost
+                Task { @MainActor in lost() }
+            }
         }
     }
 
@@ -151,10 +177,16 @@ private struct PairingDataScanner: UIViewControllerRepresentable {
     @MainActor
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
         var onCode: @MainActor (String) -> Void
+        var onLost: @MainActor () -> Void
         private var handed: Bool = false
 
-        init(onCode: @escaping @MainActor (String) -> Void) {
+        init(onCode: @escaping @MainActor (String) -> Void, onLost: @escaping @MainActor () -> Void) {
             self.onCode = onCode
+            self.onLost = onLost
+        }
+
+        func dataScanner(_ dataScanner: DataScannerViewController, becameUnavailableWithError error: DataScannerViewController.ScanningUnavailable) {
+            onLost()
         }
 
         func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem],
@@ -172,13 +204,15 @@ private struct PairingDataScanner: UIViewControllerRepresentable {
 /// The camera's own QR reader, where VisionKit's scanner is not supported.
 private struct PairingCaptureScanner: UIViewControllerRepresentable {
     let onCode: @MainActor (String) -> Void
+    let onLost: @MainActor () -> Void
 
     func makeUIViewController(context: Context) -> PairingCaptureController {
-        PairingCaptureController(onCode: onCode)
+        PairingCaptureController(onCode: onCode, onLost: onLost)
     }
 
     func updateUIViewController(_ controller: PairingCaptureController, context: Context) {
         controller.onCode = onCode
+        controller.onLost = onLost
     }
 }
 
@@ -206,12 +240,15 @@ private final class PairingCaptureSession: @unchecked Sendable {
 
 private final class PairingCaptureController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
     var onCode: @MainActor (String) -> Void
+    var onLost: @MainActor () -> Void
     private let capture: PairingCaptureSession = PairingCaptureSession()
     private var preview: AVCaptureVideoPreviewLayer?
     private var handed: Bool = false
+    private var interruption: NSObjectProtocol?
 
-    init(onCode: @escaping @MainActor (String) -> Void) {
+    init(onCode: @escaping @MainActor (String) -> Void, onLost: @escaping @MainActor () -> Void) {
         self.onCode = onCode
+        self.onLost = onLost
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -219,12 +256,26 @@ private final class PairingCaptureController: UIViewController, AVCaptureMetadat
         nil
     }
 
+    deinit {
+        if let interruption {
+            NotificationCenter.default.removeObserver(interruption)
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UIColor.black
         let session: AVCaptureSession = capture.session
+        // Another app using the camera beside this one (Split View, Slide Over) interrupts the session.
+        interruption = NotificationCenter.default.addObserver(forName: AVCaptureSession.wasInterruptedNotification, object: session,
+                                                              queue: .main) { [weak self] (_: Notification) in
+            Task { @MainActor in self?.onLost() }
+        }
         guard let camera = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: camera), session.canAddInput(input) else { return }
+              let input = try? AVCaptureDeviceInput(device: camera), session.canAddInput(input) else {
+            Task { @MainActor [weak self] in self?.onLost() }
+            return
+        }
         session.addInput(input)
         let output: AVCaptureMetadataOutput = AVCaptureMetadataOutput()
         guard session.canAddOutput(output) else { return }
