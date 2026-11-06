@@ -74,7 +74,8 @@ jobs:
             -archivePath "$RUNNER_TEMP/LazyPrint.xcarchive" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_IDENTITY=- \n            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=NO
       - name: Sign and upload
         run: |
           set -o pipefail
