@@ -15,7 +15,7 @@ public partial class TaskStartView : UserControl
 {
     /// <summary>The side insets of the groups' headings (see <see cref="UpdateInsets"/>).</summary>
     public static readonly DependencyProperty HeaderMarginProperty = DependencyProperty.Register(
-        nameof(HeaderMargin), typeof(Thickness), typeof(TaskStartView), new PropertyMetadata(new Thickness(16, 16, 16, 2)));
+        nameof(HeaderMargin), typeof(Thickness), typeof(TaskStartView), new PropertyMetadata(new Thickness(16, 10, 16, 2)));
 
     /// <summary>The side insets of the groups' tiles.</summary>
     public static readonly DependencyProperty GridMarginProperty = DependencyProperty.Register(
@@ -130,8 +130,8 @@ public partial class TaskStartView : UserControl
     {
         var (cards, header) = GridInsets.For(Scroller.ViewportWidth, slotWidth: TileSlotWidth);
         GridMargin = new Thickness(cards.Left, 0, cards.Right, 0);
-        HeaderMargin = new Thickness(header.Left, 16, header.Right, 2);
-        Header.Margin = new Thickness(header.Left, 20, header.Right, 4);
+        HeaderMargin = new Thickness(header.Left, 10, header.Right, 2);
+        Header.Margin = new Thickness(header.Left, 12, header.Right, 4);
     }
 }
 

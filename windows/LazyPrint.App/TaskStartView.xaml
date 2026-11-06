@@ -49,8 +49,8 @@
 
     <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   Focusable="False" ScrollChanged="Scroller_ScrollChanged">
-        <StackPanel Margin="0,0,0,16">
-            <DockPanel x:Name="Header" Margin="16,20,16,4">
+        <StackPanel Margin="0,0,0,8">
+            <DockPanel x:Name="Header" Margin="16,12,16,4">
                 <TextBlock Text="What are you printing?" Style="{StaticResource TitleText}" TextWrapping="Wrap"
                            VerticalAlignment="Center" />
             </DockPanel>
