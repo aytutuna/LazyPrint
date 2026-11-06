@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:LazyPrint.App"
         Title="Phone"
-        Width="620" Height="620" MinWidth="460" MinHeight="420" ResizeMode="CanResize"
+        Width="620" Height="760" MinWidth="460" MinHeight="420" ResizeMode="CanResize"
         FontFamily="{StaticResource TextFontFamily}"
         Icon="{x:Static ui:AppIcon.Image}"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
