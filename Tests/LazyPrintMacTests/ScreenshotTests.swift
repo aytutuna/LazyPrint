@@ -120,7 +120,7 @@ final class ScreenshotTests: XCTestCase {
 
     /// Hosts `view` in a window of its own and writes it in both appearances as mac-<name>-light.png and -dark.png.
     private func capture<Content: View>(_ view: @autoclosure () -> Content, of state: AppState, name: String, in folder: URL,
-                                        size: CGSize = CGSize(width: 1100, height: 720),
+                                        size: CGSize = CGSize(width: 1280, height: 800),
                                         before: () async throws -> Void = {}) async throws {
         // ContentView reads the phone link as it draws. The phone sheet brings its own, which is the one it sees.
         let phone = MacCompanionHosting(options: try .test(in: try workFolder()))
@@ -142,10 +142,14 @@ final class ScreenshotTests: XCTestCase {
                 await state.previewTask?.value
             }
             host.layoutSubtreeIfNeeded()
-            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            // Drawn at twice the points, as on a Retina screen: the 1280 x 800 window is the App Store's 2560 x 1600.
+            guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width) * 2, pixelsHigh: Int(size.height) * 2,
+                                             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
                 XCTFail("No bitmap for \(name)")
                 continue
             }
+            rep.size = size
             host.cacheDisplay(in: host.bounds, to: rep)
             guard let png = rep.representation(using: .png, properties: [:]) else {
                 XCTFail("No PNG for \(name)")
