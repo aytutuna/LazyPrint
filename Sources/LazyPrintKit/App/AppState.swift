@@ -444,6 +444,11 @@ public final class AppState: ObservableObject {
         reportNotAdded(names.map { (name: $0, reason: DocumentText.unreadable) })
     }
 
+    /// Reports files that were named but not opened, each with the same `reason`.
+    public func reportUnreadable(_ names: [String], because reason: String) {
+        reportNotAdded(names.map { (name: $0, reason: reason) })
+    }
+
     public func remove(at index: Int) {
         guard !isBusy, documents.indices.contains(index) else { return }
         documents.remove(at: index)

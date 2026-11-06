@@ -131,5 +131,19 @@ final class PhoneViewTests: XCTestCase {
         XCTAssertTrue(ContentView.files(in: URL(string: "lazyprint:open")!).isEmpty)
         XCTAssertTrue(ContentView.files(in: URL(string: "lazyscan:open?file=%2Ftmp%2Fa.pdf")!).isEmpty)
     }
+
+    func test_readable_setsAsideFilesThatCannotBeOpened() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("open-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let there = folder.appendingPathComponent("there.pdf")
+        try Data("x".utf8).write(to: there)
+        let missing = folder.appendingPathComponent("missing.pdf")
+
+        let split = ContentView.readable([there, missing])
+
+        XCTAssertEqual(split.readable, [there])
+        XCTAssertEqual(split.refused, [missing])
+    }
 }
 #endif

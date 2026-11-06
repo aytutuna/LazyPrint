@@ -42,6 +42,7 @@ final class MacCompanionHosting: ObservableObject, CompanionHosting {
                                               networks: MacNetworkSource(), desktopName: computerName)
         options.advertiser = MacDnsSdAdvertiser()
         options.syncKeyStore = MacCompanionSyncKeys()
+        options.resolveSyncFolder = { MacSyncFolder.shared.resolve($0) }
         return options
     }
 
@@ -94,7 +95,13 @@ final class MacCompanionHosting: ObservableObject, CompanionHosting {
     /// Chooses the cloud folder phones put files in (nil: none); false when that could not be saved.
     @discardableResult
     func setSyncFolder(_ folder: URL?) -> Bool {
-        guard let service, service.setSyncFolder(folder) else { return false }
+        var bookmark: Data?
+        if let folder {
+            guard let made = try? MacSyncFolder.bookmark(of: folder) else { return false }
+            bookmark = made
+        }
+        guard let service, service.setSyncFolder(folder, bookmark: bookmark) else { return false }
+        if folder == nil { MacSyncFolder.shared.close() }
         syncFolderProblem = nil
         return true
     }

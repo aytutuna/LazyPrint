@@ -111,7 +111,11 @@ struct ContentView: View {
                 _ = take([url])
             } else {
                 NSApp.activate(ignoringOtherApps: true)
-                _ = take(ContentView.files(in: url))
+                let (readable, refused) = ContentView.readable(ContentView.files(in: url))
+                if !refused.isEmpty {
+                    state.reportUnreadable(refused.map(\.lastPathComponent), because: ContentView.addressNotOpened)
+                }
+                _ = take(readable)
             }
         }
         .onAppear { state.phoneWindowRequested = { showPhone = true } }
@@ -192,6 +196,24 @@ struct ContentView: View {
         LazyPrintUrl.parse(url.absoluteString).map { URL(fileURLWithPath: $0) }
     }
 
+    static let addressNotOpened = "It could not be opened from the address the other app sent. If the file is there, drag it onto this window or open it with Lazy Print from Finder."
+
+    /// Splits the files a lazyprint: address names into those this app can open and those it cannot. A sandboxed app is
+    /// granted the files the system opens for it, not a path another app names, so the second kind is expected.
+    static func readable(_ files: [URL]) -> (readable: [URL], refused: [URL]) {
+        var readable: [URL] = []
+        var refused: [URL] = []
+        for file in files {
+            if let handle = try? FileHandle(forReadingFrom: file) {
+                try? handle.close()
+                readable.append(file)
+            } else {
+                refused.append(file)
+            }
+        }
+        return (readable, refused)
+    }
+
     /// Takes the files of the oldest batch from a phone into the job, or into a new one, and shows the print tab.
     private func usePhoneBatch(_ id: String, startNew: Bool) {
         let before = opening
@@ -222,6 +244,9 @@ struct ContentView: View {
     private func take(_ urls: [URL]) -> Bool {
         let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
         guard !files.isEmpty else { return false }
+        // Files from the file importer are scoped to this app; the access is kept for as long as the app runs, since the
+        // documents read them again when the sheets are drawn.
+        for file in files { _ = file.startAccessingSecurityScopedResource() }
         let before = opening
         opening = Task {
             await before?.value
