@@ -972,6 +972,22 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_addFiles_filesTheCallerCouldNotTryAreReportedWithTheOnesThatFail() async throws {
+        let rig = try makeRig()
+        let bad = rig.folder.appendingPathComponent("notes.txt")
+        try Data("not a document".utf8).write(to: bad)
+        await rig.state.addFiles([bad, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)],
+                                 alsoNotAdded: [(name: "gone.pdf", reason: "Not from here.")])
+
+        XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["b.pdf"])
+        let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "
+")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(lines[0], "gone.pdf: Not from here.")
+        XCTAssertTrue(lines[1].hasPrefix("notes.txt: "))
+    }
+
+    @MainActor
     func test_addFiles_everyFileThatCannotBeReadIsNamed_andALongListIsCut() async throws {
         let rig = try makeRig()
         var files: [URL] = []

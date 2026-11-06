@@ -408,10 +408,12 @@ public final class AppState: ObservableObject {
     }
 
     /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
-    public func addFiles(_ urls: [URL]) async {
+    /// `alsoNotAdded` are files the caller could not even try; they are reported with the ones that fail here.
+    public func addFiles(_ urls: [URL], alsoNotAdded: [(name: String, reason: String)] = []) async {
         let (opened, failed) = await openFiles(urls)
         documents.append(contentsOf: opened)
-        if !failed.isEmpty { reportNotAdded(failed) }
+        let notAdded = alsoNotAdded + failed
+        if !notAdded.isEmpty { reportNotAdded(notAdded) }
         replan()
     }
 

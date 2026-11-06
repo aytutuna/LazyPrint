@@ -112,10 +112,7 @@ struct ContentView: View {
             } else {
                 NSApp.activate(ignoringOtherApps: true)
                 let (readable, refused) = ContentView.readable(ContentView.files(in: url))
-                if !refused.isEmpty {
-                    state.reportUnreadable(refused.map(\.lastPathComponent), because: ContentView.addressNotOpened)
-                }
-                _ = take(readable)
+                _ = take(readable, refused: refused.map { (name: $0.lastPathComponent, reason: ContentView.addressNotOpened) })
             }
         }
         .onAppear { state.phoneWindowRequested = { showPhone = true } }
@@ -241,9 +238,13 @@ struct ContentView: View {
     /// Opens the files and shows the print tab. Files that come before any task was picked start the plain document task,
     /// so there is something to lay them out by. Folders are left; any file is taken, and the loader says why one is not a
     /// PDF or a picture.
-    private func take(_ urls: [URL]) -> Bool {
+    private func take(_ urls: [URL], refused: [(name: String, reason: String)] = []) -> Bool {
         let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
-        guard !files.isEmpty else { return false }
+        guard !files.isEmpty else {
+            // Nothing to add, but what could not be opened is still said.
+            if !refused.isEmpty { state.reportUnreadable(refused.map(\.name), because: ContentView.addressNotOpened) }
+            return false
+        }
         // Files from the file importer are scoped to this app; the access is kept for as long as the app runs, since the
         // documents read them again when the sheets are drawn.
         for file in files { _ = file.startAccessingSecurityScopedResource() }
@@ -251,7 +252,7 @@ struct ContentView: View {
         opening = Task {
             await before?.value
             if state.task == nil { await state.startTask(.document) }
-            await state.addFiles(files)
+            await state.addFiles(files, alsoNotAdded: refused)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print
