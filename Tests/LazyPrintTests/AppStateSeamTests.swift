@@ -980,8 +980,7 @@ final class AppStateSeamTests: XCTestCase {
                                  alsoNotAdded: [(name: "gone.pdf", reason: "Not from here.")])
 
         XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["b.pdf"])
-        let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "
-")
+        let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 2)
         XCTAssertEqual(lines[0], "gone.pdf: Not from here.")
         XCTAssertTrue(lines[1].hasPrefix("notes.txt: "))
