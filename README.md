@@ -26,6 +26,7 @@ Sources/LazyPrint     Mac app entry point
 Sources/LazyPrintIOS  iPhone and iPad views and services
 Tests/                Swift tests and Tests/Fixtures
 ios/project.yml       XcodeGen spec for the iPhone and iPad app
+mac/project.yml       XcodeGen spec for the sandboxed Mac App Store app
 windows/              C# solution, see windows/README.md
 scripts/              app bundle script and fixture generators
 ```
@@ -54,6 +55,12 @@ bash scripts/make_app.sh
 xcodegen generate --spec ios/project.yml
 ```
 
+The Mac App Store build is the same kind of project, `mac/project.yml`, with the `LazyPrintMacApp` scheme. It is sandboxed with the hardened runtime and the bundle id `com.lazyprint.lazyprint`; `make_app.sh` is unchanged and stays the unsandboxed build for development and direct download.
+
+```
+xcodegen generate --spec mac/project.yml
+```
+
 The package's own scheme, `LazyPrint-Package`, runs the shared and iOS tests on a simulator with `xcodebuild test`. The app's UI tests use the generated project and the `LazyPrintiOS` scheme.
 
 The Swift side cannot be built or run on Windows, so it is checked on CI.
@@ -76,7 +83,7 @@ The Windows version is `Version` in `windows/Directory.Build.props`. The package
 
 To check a package on a PC without the Store: publish with `dotnet publish windows/LazyPrint.App -c Release -r win-x64 --self-contained -o <folder>`, run `scripts/make_msix.ps1 -X64 <folder> -Out <folder>` and sign the `.msix` with a test certificate whose subject matches the identity. The script with no identity values keeps the placeholder names, which is enough to see that the package builds. It needs `makeappx` and `makepri` from the Windows SDK.
 
-`testflight.yml` reads four repository secrets, the same names Lazy Scan uses: `APPLE_TEAM_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_ID` and `APPSTORE_PRIVATE_KEY` (the contents of the `.p8` file). It stops at the first step when one is missing. `pages.yml` needs none, and `release.yml` needs only the three variables above.
+`macappstore.yml` is the Mac's twin of `testflight.yml`: run by hand, it archives the Mac target, signs on export with cloud-managed certificates (the installer package too) and uploads to App Store Connect. The `mac-store` job in `ci.yml` builds the same target without signing. `testflight.yml` and `macappstore.yml` read four repository secrets, the same names Lazy Scan uses: `APPLE_TEAM_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_ID` and `APPSTORE_PRIVATE_KEY` (the contents of the `.p8` file). It stops at the first step when one is missing. `pages.yml` needs none, and `release.yml` needs only the three variables above.
 
 GitHub lists a manually run workflow only when its file is on the default branch, and Pages deploys are tied to it too. `main` is that branch.
 
