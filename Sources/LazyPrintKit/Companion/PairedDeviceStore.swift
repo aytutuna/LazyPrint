@@ -49,9 +49,12 @@ public struct PairedDevicesFile: Codable, Equatable, Sendable {
     /// The cloud sync folder phones put files in when they cannot reach this computer, as a
     /// path; "" for none.
     public var syncFolder = ""
+    /// A security-scoped bookmark of the sync folder, for an app that cannot reach a bare path (the sandboxed Mac
+    /// app); nil when none was made. `syncFolder` stays beside it as the text to show.
+    public var syncFolderBookmark: Data?
 
     enum CodingKeys: String, CodingKey {
-        case desktopId, devices, syncFolder
+        case desktopId, devices, syncFolder, syncFolderBookmark
     }
 
     public init() {}
@@ -64,6 +67,7 @@ extension PairedDevicesFile {
         desktopId = c.decodeLenient(forKey: .desktopId, default: desktopId)
         devices = c.decodeLenient(forKey: .devices, default: devices)
         syncFolder = c.decodeLenient(forKey: .syncFolder, default: syncFolder)
+        syncFolderBookmark = c.decodeLenient(forKey: .syncFolderBookmark, default: syncFolderBookmark)
     }
 }
 
@@ -151,15 +155,28 @@ public final class PairedDeviceStore: @unchecked Sendable {
         return file.syncFolder.isEmpty ? nil : URL(fileURLWithPath: file.syncFolder, isDirectory: true)
     }
 
-    /// Chooses the cloud sync folder (nil: none); false when that could not be saved.
+    /// The bookmark of the sync folder; nil when none was kept.
+    public var syncFolderBookmark: Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        reload()
+        return file.syncFolderBookmark
+    }
+
+    /// Chooses the cloud sync folder (nil: none), with the bookmark that opens it where a path alone does not; false
+    /// when that could not be saved.
     @discardableResult
-    public func setSyncFolder(_ folder: URL?) -> Bool {
+    public func setSyncFolder(_ folder: URL?, bookmark: Data? = nil) -> Bool {
         lock.lock()
         reload()
-        let previous = file.syncFolder
+        let previous = (path: file.syncFolder, bookmark: file.syncFolderBookmark)
         file.syncFolder = folder?.path ?? ""
+        file.syncFolderBookmark = folder == nil ? nil : bookmark
         let saved = StoreFiles.write(file, to: url)
-        if !saved { file.syncFolder = previous }
+        if !saved {
+            file.syncFolder = previous.path
+            file.syncFolderBookmark = previous.bookmark
+        }
         lock.unlock()
         if saved { onChange?() }
         return saved

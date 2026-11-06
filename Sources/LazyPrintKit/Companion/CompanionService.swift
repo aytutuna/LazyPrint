@@ -20,6 +20,9 @@ public struct CompanionServiceOptions {
     /// Where the phones' sync keys for the cloud sync folder are kept (the Mac's Keychain); nil: no keys
     /// are made, and phones pair without the folder.
     public var syncKeyStore: (any CompanionSecretStore)?
+    /// Opens the sync folder a bookmark stands for and gives it with the bookmark to keep (made again when the old one is
+    /// stale); nil when it no longer resolves. Without it the folder is the saved path.
+    public var resolveSyncFolder: ((Data) -> (folder: URL, bookmark: Data)?)?
     public var clock: () -> Date = { Date() }
     /// The name phones show, the DNS-SD instance's name.
     public var desktopName: String
@@ -145,8 +148,8 @@ public final class CompanionService: @unchecked Sendable {
     /// Chooses the cloud sync folder (nil: none) and watches it from now on; false when that could not
     /// be saved.
     @discardableResult
-    public func setSyncFolder(_ folder: URL?) -> Bool {
-        guard devices.setSyncFolder(folder) else { return false }
+    public func setSyncFolder(_ folder: URL?, bookmark: Data? = nil) -> Bool {
+        guard devices.setSyncFolder(folder, bookmark: bookmark) else { return false }
         watchSyncFolder()
         return true
     }
@@ -311,7 +314,7 @@ public final class CompanionService: @unchecked Sendable {
 
     /// Watches the folder chosen now, and no other.
     private func watchSyncFolder() {
-        let folder = devices.syncFolder
+        let folder = openSyncFolder()
         lock.lock()
         defer { lock.unlock() }
         guard syncWatcher?.folder.path != folder?.path else { return }
@@ -323,6 +326,17 @@ public final class CompanionService: @unchecked Sendable {
         watcher.onProblem = { [weak self] message in self?.onSyncFolderProblem?(message) }
         watcher.start()
         syncWatcher = watcher
+    }
+
+    /// The folder to watch: the bookmark's when the app keeps one, else the saved path. A folder that was moved, or a
+    /// bookmark that went stale, is saved again under what the bookmark says now.
+    private func openSyncFolder() -> URL? {
+        guard let bookmark = devices.syncFolderBookmark, let resolve = options.resolveSyncFolder else { return devices.syncFolder }
+        guard let opened = resolve(bookmark) else { return nil }
+        if opened.bookmark != bookmark || opened.folder.path != devices.syncFolder?.path {
+            devices.setSyncFolder(opened.folder, bookmark: opened.bookmark)
+        }
+        return opened.folder
     }
 
     private func stopSyncWatcher() {

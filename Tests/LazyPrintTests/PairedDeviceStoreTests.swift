@@ -207,6 +207,30 @@ final class PairedDeviceStoreTests: XCTestCase {
         XCTAssertEqual(changes, 4)
     }
 
+    func testSyncFolder_KeepsItsBookmarkAndDropsItWithTheFolder() {
+        let store = makeStore()
+        let folder = directory.appendingPathComponent("iCloud/Lazy Print", isDirectory: true)
+        let bookmark = Data([1, 2, 3])
+        XCTAssertNil(store.syncFolderBookmark)
+        XCTAssertTrue(store.setSyncFolder(folder, bookmark: bookmark))
+        XCTAssertEqual(makeStore().syncFolderBookmark, bookmark)
+        XCTAssertEqual(makeStore().syncFolder?.path, folder.path)
+        // A folder chosen without one leaves none behind from the folder before.
+        XCTAssertTrue(store.setSyncFolder(folder))
+        XCTAssertNil(makeStore().syncFolderBookmark)
+        XCTAssertTrue(store.setSyncFolder(folder, bookmark: bookmark))
+        XCTAssertTrue(store.setSyncFolder(nil, bookmark: bookmark))
+        XCTAssertNil(makeStore().syncFolderBookmark)
+    }
+
+    func testSyncFolder_ASavedPathWithoutABookmarkStillLoads() throws {
+        let old = #"{"desktopId":"","devices":[],"syncFolder":"/Users/me/OneDrive/Lazy Print"}"#
+        try Data(old.utf8).write(to: fileURL)
+        let store = makeStore()
+        XCTAssertEqual(store.syncFolder?.path, "/Users/me/OneDrive/Lazy Print")
+        XCTAssertNil(store.syncFolderBookmark)
+    }
+
     func testRemovedPhone_StaysRemovedWhenTheFileComesBack() throws {
         let store = makeStore()
         let secret = try store.pair(id: "phone-0001", name: "Phone", platform: "ios", appVersion: "1.0", now: now)
