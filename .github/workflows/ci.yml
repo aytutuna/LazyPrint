@@ -62,6 +62,47 @@ jobs:
           name: lazyprint-mac
           path: ${{ runner.temp }}/LazyPrint-mac.zip
 
+  mac-store:
+    # The sandboxed Mac App Store target (mac/project.yml), built on the macos job's Xcode so a break shows here and not at
+    # upload. Signed ad hoc, which still puts the entitlements in the binary; the upload workflow signs it for real.
+    needs: macos
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      # Same pinned XcodeGen as the ios job.
+      - name: Install XcodeGen
+        env:
+          XCODEGEN_VERSION: 2.46.0
+          XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/xcodegen.zip"
+          curl -fsSL -o "$zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          hash=$(shasum -a 256 "$zip" | cut -d ' ' -f 1)
+          if [ "$hash" != "$XCODEGEN_SHA256" ]; then
+            echo "XcodeGen checksum mismatch: $hash"
+            exit 1
+          fi
+          unzip -q "$zip" -d "$RUNNER_TEMP/xcodegen-$XCODEGEN_VERSION"
+          echo "$RUNNER_TEMP/xcodegen-$XCODEGEN_VERSION/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Write the app's project
+        run: xcodegen generate --spec mac/project.yml
+      - name: Build the store target
+        run: |
+          set -o pipefail
+          xcodebuild build             -project mac/LazyPrintMacApp.xcodeproj             -scheme LazyPrintMacApp             -configuration Release             -destination generic/platform=macOS             -derivedDataPath "$RUNNER_TEMP/mac-store"             CODE_SIGN_IDENTITY=-             CODE_SIGNING_REQUIRED=NO
+      - name: Check the bundle
+        run: |
+          app="$RUNNER_TEMP/mac-store/Build/Products/Release/LazyPrint.app"
+          plutil -lint "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Resources/PrivacyInfo.xcprivacy"
+          codesign -d --entitlements - "$app" 2>&1 | tee "$RUNNER_TEMP/entitlements.txt"
+          grep -q "com.apple.security.app-sandbox" "$RUNNER_TEMP/entitlements.txt"
+          codesign -dv "$app" 2>&1 | grep -q "runtime"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist" | grep -qx "com.lazyprint.lazyprint"
+
   ios:
     # The shared Swift suite (LazyPrintTests, on the iPhone leg only) and the app's own tests on the iOS Simulator, once the
     # macOS job is green: one leg on an iPhone and one on an iPad, each with its own screenshots. The macos-26 image (arm64)
