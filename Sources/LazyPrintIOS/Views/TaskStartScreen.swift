@@ -37,20 +37,19 @@ struct TaskStartScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
                     PrinterButton(action: showPrinters)
                     Text("What are you printing?")
-                        .font(.title.weight(.semibold))
-                        .padding(.top, 8)
+                        .font(.title2.weight(.semibold))
                         .accessibilityAddTraits(.isHeader)
                     ForEach(TaskGroup.allCases, id: \.self) { (group: TaskGroup) in
                         let definitions: [TaskDefinition] = state.taskDefinitions.filter { $0.group == group }
                         if !definitions.isEmpty {
                             Text(group.title)
                                 .font(.headline)
-                                .padding(.top, 8)
+                                .padding(.top, 4)
                                 .accessibilityAddTraits(.isHeader)
-                            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                                 ForEach(definitions, id: \.task) { (definition: TaskDefinition) in
                                     tile(definition)
                                 }
@@ -58,9 +57,12 @@ struct TaskStartScreen: View {
                         }
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
                 .readableWidth(860)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Lazy Print")
             .navigationBarTitleDisplayMode(.inline)
@@ -94,12 +96,12 @@ private struct TaskTileLabel: View {
     let isCurrent: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
                 Image(systemName: symbol)
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(Color.accentColor)
-                    .frame(minWidth: 32, minHeight: 32)
+                    .frame(minWidth: 28, minHeight: 28)
                     .opacity(reason == nil ? 1 : 0.4)
                     .accessibilityHidden(true)
                 Spacer(minLength: 4)
@@ -124,8 +126,8 @@ private struct TaskTileLabel: View {
             Spacer(minLength: 0)
         }
         .multilineTextAlignment(.leading)
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
         .contentShape(RoundedRectangle(cornerRadius: 10))
     }
 }
