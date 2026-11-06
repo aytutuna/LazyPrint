@@ -242,7 +242,7 @@ struct ContentView: View {
         let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
         guard !files.isEmpty else {
             // Nothing to add, but what could not be opened is still said.
-            if !refused.isEmpty { state.reportUnreadable(refused.map(\.name), because: ContentView.addressNotOpened) }
+            if !refused.isEmpty { state.reportUnreadable(refused.map { $0.name }, because: ContentView.addressNotOpened) }
             return false
         }
         // Files from the file importer are scoped to this app; the access is kept for as long as the app runs, since the
