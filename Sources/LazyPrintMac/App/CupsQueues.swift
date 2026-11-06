@@ -54,7 +54,10 @@ public final class CupsQueues: PrinterSystem {
             NSWorkspace.shared.open(SystemTroubleshooterService.printersAndScannersURL)
             throw PrintError.refused(status: status, detail: "Only an administrator can do this. Printers & Scanners is open instead.")
         }
-        throw PrintError.refused(status: status, detail: result.message)
+        // The sandbox can refuse an admin request before the scheduler sees it, with no sentence of its own.
+        let detail = result.message.isEmpty ? "The print system did not allow it. Printers & Scanners is open instead." : result.message
+        if result.message.isEmpty { NSWorkspace.shared.open(SystemTroubleshooterService.printersAndScannersURL) }
+        throw PrintError.refused(status: status, detail: detail)
     }
 
     private static func run<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
