@@ -69,10 +69,13 @@ final class CompanionSyncFolderTests: XCTestCase {
         options.syncFolderRetryInterval = 60
         let service = CompanionService(options)
         self.service = service
+        let problems = Guarded<[String?]>([])
+        service.onSyncFolderProblem = { problems.value.append($0) }
         XCTAssertTrue(service.devices.setSyncFolder(cloud, bookmark: Data([1])))
 
         await service.start()
 
         XCTAssertEqual(service.syncFolder?.path, cloud.path)
+        XCTAssertEqual(problems.value, [CompanionService.syncFolderUnresolvedMessage])
     }
 }
