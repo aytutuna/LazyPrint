@@ -327,11 +327,12 @@ public final class CompanionService: @unchecked Sendable {
         syncRetry?.cancel()
         syncRetry = nil
         if unresolved {
+            let interval = UInt64(options.syncFolderRetryInterval * 1_000_000_000)
             syncRetry = Task { [weak self] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: UInt64((self?.options.syncFolderRetryInterval ?? 5) * 1_000_000_000))
-                    if Task.isCancelled { return }
-                    if self?.retrySyncFolder() == true { return }
+                    try? await Task.sleep(nanoseconds: interval)
+                    guard !Task.isCancelled, let self else { return }
+                    if self.retrySyncFolder() { return }
                 }
             }
         }
