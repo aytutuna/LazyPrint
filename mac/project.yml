@@ -1,0 +1,57 @@
+# The Mac App Store build of Lazy Print, for XcodeGen (CI pins its release and SHA-256; see the macos job in
+# .github/workflows/ci.yml). `xcodegen generate --spec mac/project.yml` writes mac/LazyPrintMacApp.xcodeproj, which is not
+# checked in. The target holds no logic: it starts LazyPrintApp from the package at the repository root
+# (Sources/LazyPrintMac). scripts/make_app.sh stays the unsandboxed build for development and direct download.
+name: LazyPrintMacApp
+
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+packages:
+  LazyPrint:
+    path: ..
+
+targets:
+  LazyPrintMacApp:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: LazyPrintMacApp
+        excludes:
+          - Info.plist
+          - LazyPrintMac.entitlements
+          - PrivacyInfo.xcprivacy
+      - path: LazyPrintMacApp/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: LazyPrint
+        product: LazyPrintMac
+    settings:
+      base:
+        PRODUCT_NAME: LazyPrint
+        PRODUCT_MODULE_NAME: LazyPrintMacApp
+        PRODUCT_BUNDLE_IDENTIFIER: com.lazyprint.lazyprint
+        INFOPLIST_FILE: LazyPrintMacApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: LazyPrintMacApp/LazyPrintMac.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: YES
+        SUPPORTED_PLATFORMS: macosx
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+schemes:
+  LazyPrintMacApp:
+    build:
+      targets:
+        LazyPrintMacApp: all
