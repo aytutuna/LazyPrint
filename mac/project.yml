@@ -1,4 +1,4 @@
-# The Mac App Store build of Lazy Print, for XcodeGen (CI pins its release and SHA-256; see the macos job in
+# The Mac App Store build of Lazy Print, for XcodeGen (CI pins its release and SHA-256; see the mac-store job in
 # .github/workflows/ci.yml). `xcodegen generate --spec mac/project.yml` writes mac/LazyPrintMacApp.xcodeproj, which is not
 # checked in. The target holds no logic: it starts LazyPrintApp from the package at the repository root
 # (Sources/LazyPrintMac). scripts/make_app.sh stays the unsandboxed build for development and direct download.
@@ -39,7 +39,7 @@ targets:
         product: LazyPrintMac
     settings:
       base:
-        PRODUCT_NAME: LazyPrint
+        PRODUCT_NAME: Lazy Print
         PRODUCT_MODULE_NAME: LazyPrintMacApp
         PRODUCT_BUNDLE_IDENTIFIER: com.lazyprint.lazyprint
         INFOPLIST_FILE: LazyPrintMacApp/Info.plist
