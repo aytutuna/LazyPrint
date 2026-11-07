@@ -43,11 +43,9 @@ Lazy Print is new, and it has not been run on a real printer yet. If a printer d
 
 **Support contact:** support@alazy.app
 
-**Website:** https://aytutuna.github.io/LazyPrint/
+**Website:** https://alazy.app/print/
 
-**Privacy policy URL:** https://aytutuna.github.io/LazyPrint/privacy.html
-
-Both addresses move to alazy.app when that site is up.
+**Privacy policy URL:** https://alazy.app/print/privacy
 
 **Screenshots:** `screenshots/` in this folder, four PNGs at 1920x1080, light. They were taken from the running app, with the demo printer and a made-up sample document called Quarterly report.pdf, so no printer name, local path or test file name shows. Each window was grabbed on a 2880x1620 pixel area (1920x1080 at the 150 percent scale of the capturing PC) and scaled down. The troubleshooter picture is the main window with the troubleshooter window placed where it sat on screen. They were not taken from the Store package. Retake them before submitting if the look has changed. A two-sided card picture (a printer that prints one side) and one of the phone window are missing: the demo printer prints both sides, and the phone window needs a paired phone.
 
@@ -76,9 +74,9 @@ The IARC questionnaire in Partner Center, with what backs each answer. The ratin
 
 ## Privacy answers
 
-- **Collects personal data:** No. Nothing is sent to the developer or to a server run for the app. `site/privacy.html` says so and lists what the app connects to.
+- **Collects personal data:** No. Nothing is sent to the developer or to a server run for the app. The privacy page (`print/privacy.html` in the alazy repo) says so and lists what the app connects to.
 - **Network use:** To printers the user prints to or adds by address, over IPP, and to find them on the local network (DNS-SD). When a phone is paired or a pairing code is on screen, the PC listens on TCP port 52732 on networks Windows calls Private, and on any other network only after the user approves it, and a phone connects over TLS. A phone can also leave files, encrypted, in a cloud folder (iCloud Drive or OneDrive) that the user chose and the PC syncs; the cloud service handles that folder under its own terms.
-- **Data kept on the PC:** settings and what the app has learned about each printer, the paired phones with their pairing keys (protected with DPAPI), files a phone sent that wait in the inbox (removed after 7 days, when dismissed or when the phone is forgotten), and the printer log `printers.txt`. In the Store build Windows keeps these files in the package's own store and removes them when the app is uninstalled. The phone link's certificate ("Lazy Print phone link") and its private key are kept separately in the user's Windows certificate store (Current User, Personal), not in the app's files, so uninstalling may leave them. The demo printer writes its pages to Documents\Lazy Print\Demo prints, outside the package, and uninstalling leaves them. `site/privacy.html` says so.
+- **Data kept on the PC:** settings and what the app has learned about each printer, the paired phones with their pairing keys (protected with DPAPI), files a phone sent that wait in the inbox (removed after 7 days, when dismissed or when the phone is forgotten), and the printer log `printers.txt`. In the Store build Windows keeps these files in the package's own store and removes them when the app is uninstalled. The phone link's certificate ("Lazy Print phone link") and its private key are kept separately in the user's Windows certificate store (Current User, Personal), not in the app's files, so uninstalling may leave them. The demo printer writes its pages to Documents\Lazy Print\Demo prints, outside the package, and uninstalling leaves them. The privacy page says so.
 - **Account needed:** No.
 - **Uses encryption:** Yes: TLS for the phone link and for IPPS printers, and DPAPI for the stored keys, through .NET and Windows. Partner Center asks about this in the export compliance part of the submission.
 
