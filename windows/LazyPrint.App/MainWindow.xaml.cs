@@ -37,9 +37,6 @@ public partial class MainWindow : Window
         PrinterList.ItemsSource = ViewModel.Printers;
         PrinterBox.ItemsSource = ViewModel.Printers;
         JobList.ItemsSource = _jobRows;
-        StartView.Attach(ViewModel);
-        StartView.TaskChosen += StartTask;
-        MainTabs.SelectedItem = StartTab;
 
         SetUpPhone();
         SetUpPreview();
@@ -61,7 +58,7 @@ public partial class MainWindow : Window
             _statusPoll.Tick += async (_, _) => await ViewModel.RefreshNetworkStatusAsync();
             _statusPoll.Start();
             if (App.StartupFiles.Count > 0) OpenFiles(App.StartupFiles);
-            else if (StartTab.IsSelected) StartView.FocusDefaultCard();
+            else if (ViewModel.Documents.Count == 0) EmptyAddFilesButton.Focus();
         };
         // A printer added or removed while the app was in the background (in Windows Settings, say)
         // is seen when the window is back in front.
@@ -175,7 +172,6 @@ public partial class MainWindow : Window
         SyncPhoneBar();
         SyncStatusLine();
         SyncBanner();
-        StartView.Refresh();
         PushSettingsToUi();
         UpdateEmptyPrintersHint();
         SyncJobs();
@@ -279,8 +275,8 @@ public partial class MainWindow : Window
     // MARK: - Tasks and tabs
 
     /// <summary>
-    /// A tile was picked: its settings are applied, and a task that starts with files opens the print screen. The test page
-    /// prints at once and stays on the start screen, where its result shows in the bars.
+    /// A task was picked: its settings are applied, and a task that starts with files asks for them. The test page
+    /// prints at once, and its result shows in the bars.
     /// </summary>
     private async void StartTask(PrintTask task)
     {
@@ -299,30 +295,60 @@ public partial class MainWindow : Window
         // The tab control's own selection events bubble up from the lists inside it.
         if (!ReferenceEquals(e.OriginalSource, MainTabs)) return;
         SentJobsButton.Visibility = JobsTab.IsSelected ? Visibility.Collapsed : Visibility.Visible;
-        if (StartTab.IsSelected && IsLoaded) StartView.Refresh();
         if (PrintTab.IsSelected) PushSettingsToUi();
     }
 
-    /// <summary>The banner above the sheet preview: the task in use, with the way back to the start screen.</summary>
+    /// <summary>The banner above the sheet preview: the Task menu, and the task in use if there is one.</summary>
     private void SyncBanner()
     {
+        TaskButton.IsEnabled = !ViewModel.IsBusy;
+        var visibility = ViewModel.SelectedTask is null ? Visibility.Collapsed : Visibility.Visible;
+        TaskBannerGlyph.Visibility = visibility;
+        TaskBannerText.Visibility = visibility;
+        ExitTaskButton.Visibility = visibility;
         if (ViewModel.SelectedTask is not { } task)
         {
-            TaskBanner.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetName(TaskBannerGroup, "Task");
             return;
         }
         var definition = TaskCatalog.Definition(task);
-        TaskBanner.Visibility = Visibility.Visible;
         TaskBannerGlyph.Text = TaskIcons.Glyph(definition.IconKey);
         TaskBannerTitle.Text = definition.Title;
         TaskBannerPrompt.Text = definition.Subtitle;
         AutomationProperties.SetName(TaskBannerGroup, $"Task: {definition.Title}");
     }
 
-    private void ChangeTask_Click(object sender, RoutedEventArgs e)
+    private void TaskButton_Click(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedItem = StartTab;
-        StartView.FocusDefaultCard();
+        var menu = new ContextMenu
+        {
+            PlacementTarget = TaskButton,
+            Placement = PlacementMode.Bottom,
+        };
+        var tasks = TaskCatalog.Tasks(AppPlatform.Windows);
+        foreach (var group in TaskGroups.All)
+        {
+            var definitions = tasks.Where(d => d.Group == group).ToList();
+            if (definitions.Count == 0) continue;
+            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+            foreach (var definition in definitions)
+            {
+                var availability = ViewModel.AvailabilityOf(definition.Task);
+                var item = new MenuItem
+                {
+                    Header = definition.Title,
+                    IsCheckable = true,
+                    IsChecked = ViewModel.SelectedTask == definition.Task,
+                    IsEnabled = availability.IsAvailable,
+                    InputGestureText = availability.IsAvailable ? "" : availability.Reason,
+                    ToolTip =availability.Reason ?? definition.Subtitle,
+                };
+                ToolTipService.SetShowOnDisabled(item, true);
+                item.Click += (_, _) => StartTask(definition.Task);
+                menu.Items.Add(item);
+            }
+        }
+        menu.IsOpen = true;
     }
 
     private void ExitTask_Click(object sender, RoutedEventArgs e) => ViewModel.ClearTask();

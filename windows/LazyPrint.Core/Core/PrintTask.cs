@@ -3,7 +3,7 @@ namespace LazyPrint.Core;
 // Twin of Sources/LazyPrintKit/Core/PrintTask.swift (Lazy Scan's ScanTask, with print tasks).
 
 /// <summary>
-/// What the user is printing, as picked on the start screen. Settings files store it as its raw
+/// What the user is printing, as picked in the Task menu. Settings files store it as its raw
 /// string (<see cref="PrintSettings.TaskId"/>), never as this enum, so a task added by a newer
 /// version survives a round trip through an older one. Add new tasks after the existing ones.
 /// </summary>
@@ -22,7 +22,7 @@ public enum PrintTask
 
 public static class PrintTasks
 {
-    /// <summary>Every task, in start-screen order.</summary>
+    /// <summary>Every task, in menu order.</summary>
     public static IReadOnlyList<PrintTask> All { get; } = Enum.GetValues<PrintTask>();
 
     /// <summary>The stored form: "document", "twoSided", "booklet", ... (the Swift raw values).</summary>

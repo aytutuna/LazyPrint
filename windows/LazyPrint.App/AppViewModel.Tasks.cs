@@ -2,7 +2,7 @@ using LazyPrint.Core;
 
 namespace LazyPrint.App;
 
-// The start screen's tasks: which tiles there are and whether they can be started, and what picking one does.
+// The tasks: whether each can be started, and what picking one does.
 public sealed partial class AppViewModel
 {
     /// <summary>The sides the document task chose when it started without knowing the printer, kept as the task chooses again; null when it knew, or the user has changed the sides since.</summary>
@@ -11,28 +11,8 @@ public sealed partial class AppViewModel
     private TaskContext TaskContext =>
         new(HasPrinter: SelectedPrinter is not null, LazyScanInstalled: _lazyScanInstalled, AppPlatform.Windows);
 
-    /// <summary>The start screen's tiles, in catalog order.</summary>
-    public IReadOnlyList<TaskCardItem> TaskCards =>
-        [.. TaskCatalog.Tasks(AppPlatform.Windows).Select(definition => new TaskCardItem(
-            definition,
-            TaskCatalog.Availability(definition.Task, TaskContext),
-            isCurrent: SelectedTask == definition.Task,
-            TaskSummary(definition.Task)))];
-
-    /// <summary>What a task sets, for its tile's tooltip: the summaries of the sections it changes.</summary>
-    private string TaskSummary(PrintTask task)
-    {
-        var s = TaskCatalog.Apply(task, Settings, SelectedCapabilities);
-        var parts = new List<string>
-        {
-            InspectorSections.PagesSummary(s),
-            InspectorSections.LayoutSummary(s),
-            InspectorSections.PaperSummary(s),
-        };
-        if (task is PrintTask.Photos or PrintTask.PhotoSheet) parts.Add(InspectorSections.PhotosSummary(s));
-        string summary = string.Join(" · ", parts.Where(part => part.Length > 0));
-        return summary.Length > 0 ? summary : "One page per side";
-    }
+    /// <summary>Whether a task can be started now, and if not, why.</summary>
+    public TaskAvailability AvailabilityOf(PrintTask task) => TaskCatalog.Availability(task, TaskContext);
 
     /// <summary>
     /// Picks a task: its settings are applied over the user's, the rest stay as they were. The test page prints at once;
@@ -40,7 +20,7 @@ public sealed partial class AppViewModel
     /// </summary>
     public async Task StartTaskAsync(PrintTask task)
     {
-        if (!TaskCatalog.Availability(task, TaskContext).IsAvailable) return;
+        if (!AvailabilityOf(task).IsAvailable) return;
         _statusOverride = null;
         switch (task)
         {
@@ -71,7 +51,7 @@ public sealed partial class AppViewModel
         SettingsEdited();
     }
 
-    /// <summary>Leaves the task: the settings stay, the tile is no longer current.</summary>
+    /// <summary>Leaves the task: the settings stay, no task is current.</summary>
     public void ClearTask()
     {
         SelectedTask = null;

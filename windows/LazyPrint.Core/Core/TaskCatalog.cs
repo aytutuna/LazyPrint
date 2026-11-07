@@ -2,7 +2,7 @@ namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Core/TaskCatalog.swift (Lazy Scan's TaskCatalog, for print tasks).
 
-/// <summary>The start screen's groups of tasks, in the order it shows them.</summary>
+/// <summary>The groups of tasks, in the order the Task menu shows them.</summary>
 public enum TaskGroup
 {
     Documents,
@@ -12,7 +12,7 @@ public enum TaskGroup
 
 public static class TaskGroups
 {
-    /// <summary>Every group, in start-screen order.</summary>
+    /// <summary>Every group, in menu order.</summary>
     public static IReadOnlyList<TaskGroup> All { get; } = Enum.GetValues<TaskGroup>();
 
     /// <summary>"Documents", "Photos", "Other".</summary>
@@ -24,14 +24,14 @@ public static class TaskGroups
     };
 }
 
-/// <summary>A task card.</summary>
-/// <param name="Subtitle">What the task does, in one short line: the tile's tooltip, not shown on the tile.</param>
-/// <param name="IconKey">Names the card's icon; each platform maps it to its own symbol (the task's raw value).</param>
+/// <summary>A task.</summary>
+/// <param name="Subtitle">What the task does, in one short line: the menu item's tooltip.</param>
+/// <param name="IconKey">Names the task's icon; each platform maps it to its own symbol (the task's raw value).</param>
 /// <param name="OpensFiles">The task starts by asking for files.</param>
 public sealed record TaskDefinition(PrintTask Task, string Title, string Subtitle, string IconKey,
                                     TaskGroup Group, bool OpensFiles);
 
-/// <summary>Whether a task can be started, and if not, why (the tile's one visible line).</summary>
+/// <summary>Whether a task can be started, and if not, why (the menu item's tooltip).</summary>
 public sealed record TaskAvailability(bool IsAvailable, string? Reason = null)
 {
     public static readonly TaskAvailability Available = new(true);
@@ -71,7 +71,7 @@ public static class TaskCatalog
             "fromPhone", TaskGroup.Other, false),
     ];
 
-    /// <summary>Every task, in start-screen order.</summary>
+    /// <summary>Every task, in menu order.</summary>
     public static IReadOnlyList<TaskDefinition> All => Definitions;
 
     public static TaskDefinition Definition(PrintTask task) => Definitions.First(d => d.Task == task);

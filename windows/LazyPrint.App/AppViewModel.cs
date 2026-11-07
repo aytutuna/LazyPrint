@@ -28,7 +28,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
 
     public PrintSettings Settings { get; private set; }
 
-    /// <summary>The task picked on the start screen; null until one is.</summary>
+    /// <summary>The task in use; null until one is.</summary>
     public PrintTask? SelectedTask { get; private set; }
 
     /// <summary>There were no saved settings when the app started.</summary>
@@ -40,7 +40,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     /// <summary>This session's jobs, newest first.</summary>
     public ObservableCollection<JobRecord> Jobs { get; } = [];
 
-    /// <summary>A job is being prepared or printed; the settings and the tiles wait.</summary>
+    /// <summary>A job is being prepared or printed; the settings and the task menu wait.</summary>
     public bool IsBusy { get; private set; }
 
     /// <summary>The page range as typed ("1-3, 5"); empty is every page.</summary>

@@ -110,7 +110,7 @@ public sealed class AppViewModelTests
     // MARK: Tasks
 
     [Fact]
-    public async Task ABookletTileSetsTheBookletAndKeepsTheRest()
+    public async Task ABookletTaskSetsTheBookletAndKeepsTheRest()
     {
         using var rig = new Rig();
         rig.Model.Settings.Copies = 3;
@@ -125,7 +125,7 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task AHandoutsTileSetsTwoPerSideWithBorders()
+    public async Task AHandoutsTaskSetsTwoPerSideWithBorders()
     {
         using var rig = new Rig();
         await rig.Model.StartTaskAsync(PrintTask.Handouts);
@@ -135,7 +135,7 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task APhotoTileSetsTheSizeAndTheBestQuality()
+    public async Task APhotoTaskSetsTheSizeAndTheBestQuality()
     {
         using var rig = new Rig();
         await rig.Model.StartTaskAsync(PrintTask.Photos);
@@ -237,26 +237,25 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task EveryTileIsThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan()
+    public async Task OnlyScanAndPrintNeedsLazyScan()
     {
         using var rig = new Rig();
         await rig.Model.RefreshPrintersAsync();
-        var cards = rig.Model.TaskCards;
+        var unavailable = TaskCatalog.Tasks(AppPlatform.Windows).Where(d => !rig.Model.AvailabilityOf(d.Task).IsAvailable).ToList();
 
-        Assert.Equal(TaskCatalog.Tasks(AppPlatform.Windows).Select(d => d.Task), cards.Select(c => c.Task));
-        var scan = Assert.Single(cards, c => !c.IsAvailable);
+        var scan = Assert.Single(unavailable);
         Assert.Equal(PrintTask.ScanAndPrint, scan.Task);
-        Assert.Equal("Needs Lazy Scan", scan.ShortReason);
+        Assert.Equal("Needs Lazy Scan", rig.Model.AvailabilityOf(scan.Task).Reason);
     }
 
     [Fact]
     public void TheTestPageWaitsForAPrinter()
     {
         using var rig = new Rig();
-        var card = rig.Model.TaskCards.Single(c => c.Task == PrintTask.TestPage);
+        var availability = rig.Model.AvailabilityOf(PrintTask.TestPage);
 
-        Assert.False(card.IsAvailable);
-        Assert.Equal("Needs a printer", card.ShortReason);
+        Assert.False(availability.IsAvailable);
+        Assert.Equal("Needs a printer", availability.Reason);
     }
 
     [Fact]
@@ -266,7 +265,7 @@ public sealed class AppViewModelTests
         rig.Diagnostics.LazyScan = true;
         var model = rig.Open();
 
-        Assert.True(model.TaskCards.Single(c => c.Task == PrintTask.ScanAndPrint).IsAvailable);
+        Assert.True(model.AvailabilityOf(PrintTask.ScanAndPrint).IsAvailable);
         await model.StartTaskAsync(PrintTask.ScanAndPrint);
 
         Assert.True(rig.Diagnostics.LazyScanOpened);
@@ -274,7 +273,7 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task AGreyedTileDoesNothing()
+    public async Task AnUnavailableTaskDoesNothing()
     {
         using var rig = new Rig();
         await rig.Model.StartTaskAsync(PrintTask.ScanAndPrint);
@@ -308,15 +307,6 @@ public sealed class AppViewModelTests
         Assert.Equal(1, opened);
         Assert.Null(rig.Model.ErrorMessage);
         Assert.Null(rig.Model.SelectedTask);
-    }
-
-    [Fact]
-    public void ATileSummaryIsWhatTheTaskSets()
-    {
-        using var rig = new Rig();
-        var handouts = rig.Model.TaskCards.Single(c => c.Task == PrintTask.Handouts);
-
-        Assert.Equal("2 per side · Borders", handouts.Summary);
     }
 
     [Fact]
