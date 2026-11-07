@@ -16,12 +16,14 @@ final class PrintFlowTests: XCTestCase {
     }
 
     @MainActor
-    func test_launch_showsTheStartScreen() throws {
+    func test_launch_showsThePrintScreenAndTheTaskMenu() throws {
         let app = try XCUIApplication.launched(opening: nil)
 
-        XCTAssertTrue(app.item("task.document").waitForExistence(timeout: 60), "The Print a document tile")
-        XCTAssertTrue(app.item("task.twoSided").exists, "The Two-sided tile")
+        XCTAssertTrue(app.item("print.task").waitForExistence(timeout: 60), "The Task menu")
         XCTAssertTrue(app.item("printer.button").exists, "The printer button")
+        app.item("print.task").tap()
+        XCTAssertTrue(app.taskItem("task.document", title: "Print a document").waitForExistence(timeout: 30), "The Print a document item")
+        XCTAssertTrue(app.taskItem("task.twoSided", title: "Two-sided").exists, "The Two-sided item")
     }
 
     @MainActor
@@ -76,10 +78,7 @@ final class PrintFlowTests: XCTestCase {
         let app = try XCUIApplication.launched()
         app.waitForSheet("Sheet 1 of 2")
 
-        app.openTab("Start")
-        let booklet: XCUIElement = app.item("task.booklet")
-        XCTAssertTrue(booklet.waitForExistence(timeout: 30), "The Booklet tile")
-        booklet.tap()
+        app.pickTask("task.booklet", title: "Booklet")
 
         XCTAssertTrue(app.navigationBars["Booklet"].waitForExistence(timeout: 30), "The Print screen titled by the task")
         XCTAssertTrue(app.staticTexts["preview.position"].waitForExistence(timeout: 60), "The booklet's sheets")

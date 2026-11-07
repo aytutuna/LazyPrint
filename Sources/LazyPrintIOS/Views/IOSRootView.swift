@@ -5,12 +5,11 @@ import SwiftUI
 import UIKit
 
 enum RootTab: Hashable {
-    case start
     case print
     case jobs
 }
 
-/// The app's window: Start, Print and Jobs in a tab bar. The printer in use is a button at the top of Start and Print, which
+/// The app's window: Print and Jobs in a tab bar. The printer in use is a button at the top of Print, which
 /// opens the printers; the error bar and the bar after a job sit above the tab bar. Also the sheets that hang off the state
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
 /// certificate question, and the files that come in: from the Files and Photos choice, from Open In and the share sheet
@@ -25,7 +24,7 @@ public struct IOSRootView: View {
     private let fixture: IOSLaunchFixture?
     private let companion: IOSCompanionBrowser?
 
-    @State private var tab: RootTab = .start
+    @State private var tab: RootTab = .print
     @State private var source: FileSource?
     @State private var showPrinters = false
     @State private var showTroubleshooter = false
@@ -45,13 +44,9 @@ public struct IOSRootView: View {
 
     public var body: some View {
         TabView(selection: $tab) {
-            TaskStartScreen(showPrinters: { showPrinters = true }, onPick: { (task: PrintTask) in
+            PrintScreen(addFiles: { source = .choice }, pickTask: { (task: PrintTask) in
                 Task { await start(task) }
-            })
-            .modifier(Bars(tab: $tab, showTroubleshooter: $showTroubleshooter))
-            .tabItem { Label("Start", systemImage: "square.grid.2x2") }
-            .tag(RootTab.start)
-            PrintScreen(addFiles: { source = .choice }, changeTask: { tab = .start }, showPrinters: { showPrinters = true })
+            }, showPrinters: { showPrinters = true })
                 .modifier(Bars(tab: $tab, showTroubleshooter: $showTroubleshooter))
                 .tabItem { Label("Print", systemImage: "printer") }
                 .tag(RootTab.print)
@@ -122,9 +117,9 @@ public struct IOSRootView: View {
 
     // MARK: Files and tasks
 
-    /// A tile was picked: its settings are applied, and a task that starts with files opens the Print screen and asks for
-    /// them, unless some are there already; cancelling the choice leaves the empty Print screen. The test page prints at
-    /// once and stays here, where its result shows in the bars. The photo tasks go straight to the photo library.
+    /// A task was picked from the Task menu: its settings are applied, and a task that starts with files asks for them,
+    /// unless some are there already; cancelling the choice leaves the empty Print screen. The test page prints at once,
+    /// and its result shows in the bars. The photo tasks go straight to the photo library.
     private func start(_ task: PrintTask) async {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }

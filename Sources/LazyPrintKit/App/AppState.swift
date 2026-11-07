@@ -103,7 +103,7 @@ public final class AppState: ObservableObject {
         }
     }
     @Published public internal(set) var printerPrefs: [String: PrinterPrefs]
-    /// The task picked on the start screen; nil until one is.
+    /// The task picked from the Task menu; nil until one is.
     @Published public internal(set) var task: PrintTask?
     /// The documents to print, in order; their pages run on as one.
     @Published public internal(set) var documents: [OpenedDocument] = []
@@ -135,7 +135,7 @@ public final class AppState: ObservableObject {
     @Published public internal(set) var certificateRequest: CertificateRequest?
     @Published public internal(set) var snapshot: PrinterSnapshot
     @Published public internal(set) var troubleshootChecks: [TroubleshootCheck] = []
-    /// A job is being prepared or printed; the settings and the tiles wait.
+    /// A job is being prepared or printed; the settings and the tasks wait.
     @Published public internal(set) var isBusy = false
     /// What was just done, for the status line; nil shows what the app is set up for.
     @Published var statusOverride: String?

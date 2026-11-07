@@ -1,6 +1,6 @@
 import Foundation
 
-// Twin of windows/LazyPrint.App/AppViewModel.Tasks.cs: the start screen's tasks, which tiles there are and whether they
+// Twin of windows/LazyPrint.App/AppViewModel.Tasks.cs: the tasks of the Task menu, which there are and whether they
 // can be started, and what picking one does.
 
 extension AppState {
@@ -8,17 +8,17 @@ extension AppState {
         TaskContext(hasPrinter: selectedPrinter != nil, lazyScanInstalled: lazyScanInstalled, platform: platform)
     }
 
-    /// The start screen's tiles, in catalog order.
+    /// The tasks of the Task menu, in catalog order.
     public var taskDefinitions: [TaskDefinition] {
         TaskCatalog.tasks(for: platform)
     }
 
-    /// Whether a tile can be started, and why not.
+    /// Whether a task can be started, and why not.
     public func availability(of task: PrintTask) -> TaskAvailability {
         TaskCatalog.availability(of: task, context: taskContext)
     }
 
-    /// What a task sets, for its tile's tooltip: the summaries of the sections it changes.
+    /// What a task sets, for its menu item's tooltip: the summaries of the sections it changes.
     public func summary(of task: PrintTask) -> String {
         let s = TaskCatalog.apply(task, to: settings, printer: capabilities)
         var parts = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
@@ -53,7 +53,7 @@ extension AppState {
         }
     }
 
-    /// Leaves the task: the settings stay, the tile is no longer current.
+    /// Leaves the task: the settings stay, the task is no longer current.
     public func clearTask() {
         task = nil
         sidesPickedBlind = nil

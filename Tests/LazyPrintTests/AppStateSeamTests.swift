@@ -665,7 +665,7 @@ final class AppStateSeamTests: XCTestCase {
     // MARK: Tasks
 
     @MainActor
-    func test_aBookletTile_setsTheBookletAndKeepsTheRest() async throws {
+    func test_aBookletTask_setsTheBookletAndKeepsTheRest() async throws {
         let rig = try makeRig()
         rig.state.settings.copies = 3
         await rig.state.startTask(.booklet)
@@ -679,7 +679,7 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aHandoutsTile_setsTwoPerSideWithBorders() async throws {
+    func test_aHandoutsTask_setsTwoPerSideWithBorders() async throws {
         let rig = try makeRig()
         await rig.state.startTask(.handouts)
 
@@ -688,7 +688,7 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aPhotoTile_setsTheSizeAndTheBestQuality() async throws {
+    func test_aPhotoTask_setsTheSizeAndTheBestQuality() async throws {
         let rig = try makeRig()
         await rig.state.startTask(.photos)
 
@@ -780,7 +780,7 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_everyTile_isThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan() async throws {
+    func test_everyTask_isThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan() async throws {
         let rig = try makeRig()
         await rig.state.refreshPrinters()
 
@@ -813,7 +813,7 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aGreyedTile_doesNothing() async throws {
+    func test_anUnavailableTask_doesNothing() async throws {
         let rig = try makeRig()
         await rig.state.startTask(.scanAndPrint)
 
@@ -863,7 +863,7 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aTilesSummary_isWhatTheTaskSets() throws {
+    func test_aTasksSummary_isWhatTheTaskSets() throws {
         let rig = try makeRig()
 
         XCTAssertEqual(rig.state.summary(of: .handouts), "2 per side \u{00B7} Borders")

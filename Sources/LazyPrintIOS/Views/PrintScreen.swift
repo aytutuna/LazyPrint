@@ -52,8 +52,8 @@ struct PrintScreen: View {
 
     /// Opens the choice of Files or Photos.
     var addFiles: () -> Void
-    /// Goes back to the Start screen.
-    var changeTask: () -> Void
+    /// A task was picked from the Task menu.
+    var pickTask: (PrintTask) -> Void
     var showPrinters: () -> Void
 
     @State private var showOptions = false
@@ -78,15 +78,9 @@ struct PrintScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
-                if state.task != nil {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            changeTask()
-                        } label: {
-                            Label("Change task", systemImage: "house")
-                        }
-                        .disabled(state.isBusy)
-                        .accessibilityIdentifier("print.changeTask")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    taskMenu
+                    if state.task != nil {
                         Button {
                             state.clearTask()
                         } label: {
@@ -122,6 +116,45 @@ struct PrintScreen: View {
                 }
             }
         }
+    }
+
+    // MARK: The task menu
+
+    private var taskMenu: some View {
+        Menu {
+            ForEach(TaskGroup.allCases, id: \.self) { (group: TaskGroup) in
+                let definitions: [TaskDefinition] = state.taskDefinitions.filter { $0.group == group }
+                if !definitions.isEmpty {
+                    Section(group.title) {
+                        ForEach(definitions, id: \.task) { (definition: TaskDefinition) in
+                            taskItem(definition)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("Task", systemImage: "list.bullet")
+        }
+        .disabled(state.isBusy)
+        .accessibilityIdentifier("print.task")
+    }
+
+    /// The current task is the checked item; one that cannot be started says why under its title.
+    private func taskItem(_ definition: TaskDefinition) -> some View {
+        let availability: TaskAvailability = state.availability(of: definition.task)
+        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { _ in pickTask(definition.task) })
+        return Toggle(isOn: isCurrent) {
+            Label {
+                Text(definition.title)
+                if let reason = availability.reason, !availability.isAvailable {
+                    Text(reason)
+                }
+            } icon: {
+                Image(systemName: TaskSymbols.systemImage(definition.iconKey))
+            }
+        }
+        .disabled(!availability.isAvailable)
+        .accessibilityIdentifier("task." + definition.task.rawValue)
     }
 
     // MARK: Layouts

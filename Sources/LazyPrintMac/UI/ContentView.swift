@@ -5,7 +5,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum ContentTab: Hashable {
-    case start
     case print
     case jobs
 }
@@ -24,7 +23,7 @@ struct ContentView: View {
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
     @State private var opening: Task<Void, Never>?
 
-    init(tab: ContentTab = .start) {
+    init(tab: ContentTab = .print) {
         _tab = State(initialValue: tab)
     }
 
@@ -39,7 +38,6 @@ struct ContentView: View {
                 bars
                 HStack {
                     Picker("View", selection: $tab) {
-                        Text("Start").tag(ContentTab.start)
                         Text("Print").tag(ContentTab.print)
                         Text("Jobs").tag(ContentTab.jobs)
                     }
@@ -53,12 +51,10 @@ struct ContentView: View {
                 .background(.bar)
                 Divider()
                 switch tab {
-                case .start:
-                    TaskStartView { task in
-                        Task { await start(task) }
-                    }
                 case .print:
-                    PrintView(addFiles: { showImporter = true }, changeTask: { tab = .start })
+                    PrintView(addFiles: { showImporter = true }, pickTask: { task in
+                        Task { await start(task) }
+                    })
                 case .jobs:
                     JobsView()
                 }
@@ -224,9 +220,9 @@ struct ContentView: View {
         }
     }
 
-    /// A tile was picked: its settings are applied, and a task that starts with files opens the print tab and asks for
-    /// them, unless some are there already; cancelling the panel leaves the empty print tab. The test page prints at once
-    /// and stays here, where its result shows in the bars.
+    /// A task was picked from the Task menu: its settings are applied, and a task that starts with files shows the print tab
+    /// and asks for them, unless some are there already; cancelling the panel leaves the empty print tab. The test page
+    /// prints at once, and its result shows in the bars.
     private func start(_ task: PrintTask) async {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }

@@ -2,7 +2,7 @@ import Foundation
 
 // Twin of windows/LazyPrint.Core/Core/PrintTask.cs (Lazy Scan's ScanTask, with print tasks).
 
-/// What the user is printing, as picked on the start screen. Settings files store it as its raw
+/// What the user is printing, as picked from the Task menu. Settings files store it as its raw
 /// value (`PrintSettings.taskId`), never as this enum, so a task added by a newer version
 /// survives a round trip through an older one. Add new tasks after the existing ones.
 /// Twin of C# `PrintTask` (`PrintTasks.All`, `RawValue`, `TryParse`).

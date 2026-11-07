@@ -10,7 +10,7 @@ private final class BundleToken {}
 
 extension XCUIApplication {
     /// The app on the demo printer, with `fixture` (a file of the test bundle) opened as if it had been shared to the app;
-    /// no fixture starts it on the Start screen alone. `arguments` follow the app's own.
+    /// no fixture starts it on the empty Print screen. `arguments` follow the app's own.
     @MainActor
     static func launched(opening fixture: String? = "report.pdf", arguments: [String] = [],
                          file: StaticString = #filePath, line: UInt = #line) throws -> XCUIApplication {
@@ -77,7 +77,7 @@ extension XCUIApplication {
     @MainActor
     func tabButton(_ name: String) -> XCUIElement {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            return buttons.matching(NSPredicate(format: "label == %@ AND identifier IN {'square.grid.2x2', 'printer', 'clock.arrow.circlepath'}", name)).firstMatch
+            return buttons.matching(NSPredicate(format: "label == %@ AND identifier IN {'printer', 'clock.arrow.circlepath'}", name)).firstMatch
         }
         return tabBars.buttons[name]
     }
@@ -89,7 +89,27 @@ extension XCUIApplication {
         tab.tap()
     }
 
-    /// The printers, from the printer button at the top of Start and Print.
+    /// An item of the open Task menu: by its identifier ("task.twoSided"), or failing that by its title, since a menu
+    /// item can lose its identifier.
+    @MainActor
+    func taskItem(_ id: String, title: String) -> XCUIElement {
+        let byId: XCUIElement = item(id)
+        if byId.waitForExistence(timeout: 5) { return byId }
+        return descendants(matching: .any).matching(NSPredicate(format: "label == %@", title)).firstMatch
+    }
+
+    /// Picks a task from the Task menu on the Print screen.
+    @MainActor
+    func pickTask(_ id: String, title: String, file: StaticString = #filePath, line: UInt = #line) {
+        let menu: XCUIElement = item("print.task")
+        XCTAssertTrue(menu.waitForExistence(timeout: 30), "The Task menu", file: file, line: line)
+        menu.tap()
+        let task: XCUIElement = taskItem(id, title: title)
+        XCTAssertTrue(task.waitForExistence(timeout: 30), "The \(title) item in the Task menu", file: file, line: line)
+        task.tap()
+    }
+
+    /// The printers, from the printer button at the top of Print.
     @MainActor
     func openPrinters(file: StaticString = #filePath, line: UInt = #line) {
         let button: XCUIElement = item("printer.button")

@@ -2,7 +2,7 @@ import Foundation
 
 // Twin of windows/LazyPrint.Core/Core/TaskCatalog.cs (Lazy Scan's TaskCatalog, for print tasks).
 
-/// The start screen's groups of tasks, in the order it shows them. Twin of C# `TaskGroup`.
+/// The groups of tasks in the Task menu, in the order it shows them. Twin of C# `TaskGroup`.
 public enum TaskGroup: String, CaseIterable, Sendable {
     case documents
     case photos
@@ -18,13 +18,13 @@ public enum TaskGroup: String, CaseIterable, Sendable {
     }
 }
 
-/// A task card.
+/// A task.
 public struct TaskDefinition: Equatable, Sendable {
     public let task: PrintTask
     public let title: String
-    /// What the task does, in one short line: the tile's tooltip, not shown on the tile.
+    /// What the task does, in one short line: the menu item's tooltip, not shown in the menu.
     public let subtitle: String
-    /// Names the card's icon; each platform maps it to its own symbol (the task's raw value).
+    /// Names the task's icon; each platform maps it to its own symbol (the task's raw value).
     public let iconKey: String
     public let group: TaskGroup
     /// The task starts by asking for files.
@@ -40,7 +40,7 @@ public struct TaskDefinition: Equatable, Sendable {
     }
 }
 
-/// Whether a task can be started, and if not, why (the tile's one visible line).
+/// Whether a task can be started, and if not, why (the one line a menu item shows).
 public struct TaskAvailability: Equatable, Sendable {
     public let isAvailable: Bool
     public let reason: String?
@@ -73,10 +73,10 @@ public struct TaskContext: Equatable, Sendable {
     }
 }
 
-/// The tasks of the start screen, in code rather than in a settings file. Picking a task lays its
+/// The tasks of the Task menu, in code rather than in a settings file. Picking a task lays its
 /// settings over the current ones (`apply`). Twin of C# `TaskCatalog`.
 public enum TaskCatalog {
-    /// Every task, in start-screen order.
+    /// Every task, in menu order.
     public static let all = [
         TaskDefinition(task: .document, title: "Print a document", subtitle: "PDFs and images, one page per side.",
                        iconKey: "document", group: .documents, opensFiles: true),

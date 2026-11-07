@@ -2,8 +2,9 @@
 import LazyPrintKit
 import SwiftUI
 
-/// The print tab: the task in use, the sheet the settings make of the documents, the sheet and side being looked at, the
-/// plan's notes and the strip of documents; the inspector on the right. Twin of the Windows print tab.
+/// The print tab: the task in use with the Task menu, the sheet the settings make of the documents, the sheet and
+/// side being looked at, the plan's notes and the strip of documents; the inspector on the right. Twin of the
+/// Windows print tab.
 struct PrintView: View {
     @EnvironmentObject var state: AppState
     @Environment(\.displayScale) private var displayScale
@@ -11,18 +12,16 @@ struct PrintView: View {
 
     /// Opens the panel for more files.
     var addFiles: () -> Void
-    /// Goes back to the start tab.
-    var changeTask: () -> Void
+    /// A task was picked from the Task menu.
+    var pickTask: (PrintTask) -> Void
 
     private static let stagePadding: CGFloat = 24
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                if let task = state.task {
-                    banner(TaskCatalog.definition(task))
-                    Divider()
-                }
+                banner
+                Divider()
                 if sheets.isEmpty {
                     emptyStage
                 } else {
@@ -63,40 +62,74 @@ struct PrintView: View {
 
     // MARK: Parts
 
-    private func banner(_ definition: TaskDefinition) -> some View {
+    private var banner: some View {
         HStack(spacing: 12) {
-            Image(systemName: TaskSymbols.systemImage(definition.iconKey))
-                .font(.title2)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 32)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(definition.title)
-                    .font(.headline)
-                Text(definition.subtitle)
-                    .font(.callout)
+            if let task = state.task {
+                let definition = TaskCatalog.definition(task)
+                Image(systemName: TaskSymbols.systemImage(definition.iconKey))
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 32)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(definition.title)
+                        .font(.headline)
+                    Text(definition.subtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Pick a task to set everything up, or just add files.")
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button {
-                changeTask()
-            } label: {
-                Label("Change task", systemImage: "house")
+            taskMenu
+            if state.task != nil {
+                Button {
+                    state.clearTask()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .disabled(state.isBusy)
+                .help("Keep the settings and leave the task")
+                .accessibilityLabel("Leave the task")
             }
-            .disabled(state.isBusy)
-            Button {
-                state.clearTask()
-            } label: {
-                Image(systemName: "xmark")
-            }
-            .buttonStyle(.borderless)
-            .disabled(state.isBusy)
-            .help("Keep the settings and leave the task")
-            .accessibilityLabel("Leave the task")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var taskMenu: some View {
+        Menu {
+            ForEach(TaskGroup.allCases, id: \.self) { group in
+                let definitions = state.taskDefinitions.filter { $0.group == group }
+                if !definitions.isEmpty {
+                    Section(group.title) {
+                        ForEach(definitions, id: \.task) { definition in
+                            taskItem(definition)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("Task", systemImage: "list.bullet")
+        }
+        .fixedSize()
+        .disabled(state.isBusy)
+    }
+
+    /// The current task is the checked item; one that cannot be started says why after its title.
+    private func taskItem(_ definition: TaskDefinition) -> some View {
+        let availability = state.availability(of: definition.task)
+        let title = availability.isAvailable ? definition.title : "\(definition.title) \u{2013} \(availability.reason ?? "")"
+        let isCurrent = Binding(get: { state.task == definition.task }, set: { _ in pickTask(definition.task) })
+        return Toggle(isOn: isCurrent) {
+            Label(title, systemImage: TaskSymbols.systemImage(definition.iconKey))
+        }
+        .disabled(!availability.isAvailable)
+        .help(definition.subtitle + "\n" + state.summary(of: definition.task))
     }
 
     private var emptyStage: some View {

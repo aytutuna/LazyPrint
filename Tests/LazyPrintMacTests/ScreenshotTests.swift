@@ -164,12 +164,6 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    func test_start() async throws {
-        let folder = try shots()
-        let state = await makeState(in: try workFolder())
-        try await capture(ContentView(tab: .start), of: state, name: "start", in: folder)
-    }
-
     func test_print_twoUp() async throws {
         let folder = try shots()
         let work = try workFolder()
@@ -238,7 +232,7 @@ final class ScreenshotTests: XCTestCase {
         let folder = try shots()
         let state = await makeState(in: try workFolder(), companion: OneBatch())
         XCTAssertEqual(state.phoneBatches.count, 1)
-        try await capture(ContentView(tab: .start), of: state, name: "phone-bar", in: folder)
+        try await capture(ContentView(tab: .print), of: state, name: "phone-bar", in: folder)
     }
 
     func test_phoneSheet() async throws {

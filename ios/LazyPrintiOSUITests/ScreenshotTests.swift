@@ -2,12 +2,12 @@ import UIKit
 import XCTest
 
 // Walks the app's screens on the demo printer and keeps a screenshot of each, named by screen and appearance, so CI's
-// ios-screenshots artifact shows what the screens look like after a change: the start screen, the print screen with its
-// options, the printers and the demo printer's page, the add screen and the troubleshooter, the jobs after a print, the
-// two-sided card, and the print screen in landscape and in large text; then with a computer paired, the print screen with
-// Send, the printers with My computer, its screen and the pairing form. Each appearance is a run of its own. A screen whose
-// button is not there is left out rather than failed, so the walk stays green while the screens change; a "skipped-"
-// screenshot shows what was on screen instead.
+// ios-screenshots artifact shows what the screens look like after a change: the print screen with its options, the
+// printers and the demo printer's page, the add screen and the troubleshooter, the jobs after a print, the two-sided card,
+// and the print screen in landscape and in large text; then with a computer paired, the print screen with Send,
+// the printers with My computer, its screen and the pairing form. Each appearance is a run of its own. A screen whose button
+// is not there is left out rather than failed, so the walk stays green while the screens change; a "skipped-" screenshot
+// shows what was on screen instead.
 
 final class ScreenshotTests: XCTestCase {
     private var appearance = "light"
@@ -33,7 +33,7 @@ final class ScreenshotTests: XCTestCase {
 
         let app = try XCUIApplication.launched(arguments: style)
         guard app.staticTexts["preview.position"].waitForExistence(timeout: 90) else {
-            shot(app, "skipped-01-start")
+            shot(app, "skipped-02-print")
             return
         }
         startAndPrint(app)
@@ -58,17 +58,11 @@ final class ScreenshotTests: XCTestCase {
         computerScreens(linked)
     }
 
-    /// The start screen, the print screen with the document laid out, its options and landscape.
+    /// The print screen with the document laid out, its options and landscape.
     @MainActor
     private func startAndPrint(_ app: XCUIApplication) {
-        if tapIfThere(app, tab: "Start", for: "01-start") {
-            settle()
-            shot(app, "01-start")
-        }
-        if tapIfThere(app, tab: "Print", for: "02-print") {
-            settle()
-            shot(app, "02-print")
-        }
+        settle()
+        shot(app, "02-print")
         if tapIfThere(app, "print.options", for: "03-options") {
             if app.item("options.done").waitForExistence(timeout: 10) {
                 settle()
@@ -159,7 +153,7 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     private func twoSidedScreens(_ app: XCUIApplication) {
         app.makeDemoPrinterOneSided()
-        guard tapIfThere(app, tab: "Start", for: "11-two-sided"), tapIfThere(app, "task.twoSided", for: "11-two-sided") else { return }
+        guard tapIfThere(app, "print.task", for: "11-two-sided"), tapIfThere(app, "task.twoSided", title: "Two-sided", for: "11-two-sided") else { return }
         let print: XCUIElement = app.waitForPrint()
         app.waitUntil(print, "label == 'Print the fronts'", "Print says it prints the fronts")
         print.tap()
@@ -230,8 +224,8 @@ final class ScreenshotTests: XCTestCase {
 
     /// Taps the element if it comes, else keeps a "skipped-" screenshot of what is there instead.
     @MainActor
-    private func tapIfThere(_ app: XCUIApplication, _ id: String, for screen: String) -> Bool {
-        let target: XCUIElement = app.item(id)
+    private func tapIfThere(_ app: XCUIApplication, _ id: String, title: String? = nil, for screen: String) -> Bool {
+        let target: XCUIElement = title.map { app.taskItem(id, title: $0) } ?? app.item(id)
         guard target.waitForExistence(timeout: 10) else {
             shot(app, "skipped-\(screen)")
             return false
