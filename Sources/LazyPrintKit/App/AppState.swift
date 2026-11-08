@@ -106,7 +106,12 @@ public final class AppState: ObservableObject {
     /// The task picked from the Task menu; nil until one is.
     @Published public internal(set) var task: PrintTask?
     /// The documents to print, in order; their pages run on as one.
-    @Published public internal(set) var documents: [OpenedDocument] = []
+    @Published public internal(set) var documents: [OpenedDocument] = [] {
+        didSet {
+            // A file can come back changed at the same path, and the drawn sides are only known by their paths.
+            drawnSides.removeAll()
+        }
+    }
     /// The page range as typed ("1-3, 5"); empty is every page.
     @Published public internal(set) var pageRange = ""
     /// The sheets the settings make of the documents; nil with nothing to print or a page range that does not parse.
@@ -561,8 +566,8 @@ public final class AppState: ObservableObject {
     }
 
     private func previewDrawn(_ image: CGImage?, key: PreviewKey, revision: Int) {
-        keep(image, key)
         guard revision == previewRevision else { return }
+        keep(image, key)
         preview = image
     }
 
