@@ -3,7 +3,7 @@ import XCTest
 // Printing a document the way a person does it on the Simulator, on the demo printer: a PDF of four Letter pages comes in
 // as if it had been shared to the app (Fixtures/report.pdf, drawn by scripts/make_ios_ui_fixture.py). The demo printer
 // prints both sides and the document task uses that, so the four pages are two sheets. The preview says how many
-// sheets there are, Print sends them, and the Jobs tab keeps the job. The last two cases look at what a small
+// sheets there are, Print sends them, and the Jobs panel keeps the job. The last two cases look at what a small
 // screen asks of the layout: large text and landscape must leave the preview, Options and Print within reach.
 
 final class PrintFlowTests: XCTestCase {

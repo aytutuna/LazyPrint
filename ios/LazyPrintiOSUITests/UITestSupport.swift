@@ -128,7 +128,8 @@ extension XCUIApplication {
     /// Back from a pushed screen of the printers' sheet.
     @MainActor
     func goBack(file: StaticString = #filePath, line: UInt = #line) {
-        let back: XCUIElement = navigationBars.buttons.element(boundBy: 0)
+        // The last bar: on an iPad the Print screen's stays in the tree behind the sheet, and a tap there closes the sheet.
+        let back: XCUIElement = navigationBars.element(boundBy: navigationBars.count - 1).buttons.element(boundBy: 0)
         XCTAssertTrue(back.waitForExistence(timeout: 10), "The back button", file: file, line: line)
         back.tap()
     }
