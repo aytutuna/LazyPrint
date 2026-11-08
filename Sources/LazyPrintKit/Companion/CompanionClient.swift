@@ -106,6 +106,13 @@ public final class CompanionClient: @unchecked Sendable {
     public static let requestTimeout: TimeInterval = 15
     /// Pairing waits for the user's answer on the desktop (up to 2 minutes there).
     public static let pairTimeout: TimeInterval = 150
+    /// The longest any request may take: the upload of the largest package.
+    static let sessionTimeout: TimeInterval = CompanionClient.uploadTimeout(bytes: CompanionProtocol.maxUploadBytes)
+
+    /// The desktop reads the whole package before it answers; a slow link needs the time.
+    static func uploadTimeout(bytes: Int) -> TimeInterval {
+        pairTimeout + Double(bytes) / 1_000_000
+    }
 
     public let desktop: PairedDesktop
 
@@ -123,7 +130,8 @@ public final class CompanionClient: @unchecked Sendable {
         self.secret = secret
         trust = CompanionTrustDelegate(fingerprint: desktop.fingerprintBytes)
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = CompanionClient.requestTimeout
+        // Each request sets its own timeout; this one must not cut the longer ones short.
+        configuration.timeoutIntervalForRequest = CompanionClient.sessionTimeout
         configuration.waitsForConnectivity = false
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.connectionProxyDictionary = [:]
@@ -205,8 +213,7 @@ public final class CompanionClient: @unchecked Sendable {
     /// `Expect: 100-continue`, so a desktop that refuses it before reading it is not sent it):
     /// 201 for a new package, 200 with `duplicate` for one the desktop has already.
     public func send(packageId: String, data: Data) async throws -> InboxResponse {
-        // The desktop reads the whole package before it answers; a slow link needs the time.
-        let timeout = CompanionClient.pairTimeout + Double(data.count) / 1_000_000
+        let timeout = CompanionClient.uploadTimeout(bytes: data.count)
         let headers = ["Expect": "100-continue"]
         let (body, _) = try await perform("PUT", CompanionProtocol.inboxPrefix + packageId, body: data,
                                           contentType: CompanionProtocol.packageContentType, headers: headers,

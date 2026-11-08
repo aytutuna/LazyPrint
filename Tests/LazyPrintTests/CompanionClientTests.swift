@@ -289,4 +289,8 @@ final class CompanionClientTests: XCTestCase {
         XCTAssertEqual(CompanionClient.url("fe80::1", port: 52732, path: "/v1/hello")?.absoluteString,
                        "https://[fe80::1]:52732/v1/hello")
     }
+
+    func test_theSessionTimeout_doesNotCutPairingShort() {
+        XCTAssertGreaterThanOrEqual(CompanionClient.sessionTimeout, CompanionClient.pairTimeout)
+    }
 }

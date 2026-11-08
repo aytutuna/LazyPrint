@@ -63,6 +63,10 @@ public final class CompanionServer: @unchecked Sendable {
     private var running = false
     private var bound: [NWEndpoint] = []
 
+    /// Called, on the server's queue, when a listener fails after `start` returned, so the server no longer accepts.
+    /// Set before `start`.
+    public var onFailure: (@Sendable () -> Void)?
+
     public init(identity: SecIdentity, router: CompanionRouter, limiter: CompanionRateLimiter,
                 options: CompanionServerOptions = CompanionServerOptions(), clock: @escaping () -> Date = { Date() }) {
         self.identity = identity
@@ -173,12 +177,24 @@ public final class CompanionServer: @unchecked Sendable {
         let queue: DispatchQueue = self.queue
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<NWEndpoint.Port, Error>) in
             let once: Once<NWEndpoint.Port> = Once(continuation)
-            listener.stateUpdateHandler = { (state: NWListener.State) in
+            // A `.waiting` listener (macOS keeps one there while the Local Network prompt is open) is given until the
+            // timeout below to become ready.
+            listener.stateUpdateHandler = { [weak self] (state: NWListener.State) in
                 switch state {
                 case .ready:
                     once.resume(.success(listener.port ?? .any))
-                case .failed(let error), .waiting(let error):
-                    if once.resume(.failure(error)) { listener.cancel() }
+                case .failed(let error):
+                    // After the start nothing accepts any more (the network was reset, say): the owner starts afresh.
+                    if once.resume(.failure(error)) {
+                        listener.cancel()
+                    } else {
+                        self?.onFailure?()
+                    }
+                case .waiting(let error):
+                    // A port that is taken will not free itself; fail now so the next port is tried.
+                    if case .posix(let code) = error, code == .EADDRINUSE || code == .EACCES {
+                        if once.resume(.failure(error)) { listener.cancel() }
+                    }
                 case .cancelled:
                     once.resume(.failure(NWError.posix(.ECANCELED)))
                 default:

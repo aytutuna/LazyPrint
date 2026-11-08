@@ -242,6 +242,14 @@ public final class CompanionHost: @unchecked Sendable {
         for port in ports {
             let candidate = CompanionServer(identity: served, router: router, limiter: limiter, options: serverOptions,
                                             clock: options.clock)
+            // A listener that fails once the server runs leaves it deaf (after sleep, say): start it afresh.
+            candidate.onFailure = { [weak self, weak candidate] in
+                guard let self, let candidate else { return }
+                _ = self.chain {
+                    guard self.server === candidate else { return }
+                    await self.update(restart: true)
+                }
+            }
             var endpoints: [NWEndpoint] = []
             for subnet in addresses {
                 let bindPort: NWEndpoint.Port = port > 0 ? NWEndpoint.Port(rawValue: UInt16(port)) ?? .any : .any

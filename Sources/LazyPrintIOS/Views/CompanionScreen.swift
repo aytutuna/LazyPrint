@@ -87,6 +87,14 @@ struct CompanionScreen: View {
             }
         }
         .navigationTitle(IOSCompanionText.title)
+        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [UTType.folder]) { (result: Result<URL, Error>) in
+            switch result {
+            case .success(let url):
+                model.chooseCloudFolder(url)
+            case .failure:
+                break
+            }
+        }
         .onAppear {
             model.appear()
         }
@@ -131,14 +139,6 @@ struct CompanionScreen: View {
                 }
             }
             .buttonStyle(.borderless)
-            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [UTType.folder]) { (result: Result<URL, Error>) in
-                switch result {
-                case .success(let url):
-                    model.chooseCloudFolder(url)
-                case .failure:
-                    break
-                }
-            }
             if let problem = model.folderProblem {
                 Text(problem)
                     .font(.footnote)
