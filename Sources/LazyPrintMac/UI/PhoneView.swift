@@ -61,7 +61,7 @@ struct PhoneView: View {
                         Text("Not connected to a network.")
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(snapshot.networks, id: \.network.id) { network in
+                    ForEach(snapshot.networks, id: \.listId) { network in
                         networkCard(network, service: service)
                     }
 
@@ -609,6 +609,13 @@ final class PhonePairingQuestion: ObservableObject {
         answer = nil
         phoneName = nil
         waiting?.resume(returning: allow)
+    }
+}
+
+private extension CompanionNetworkState {
+    /// Networks without a router signature all have the empty `network.id`; their adapters tell them apart.
+    var listId: String {
+        network.id + (network.interfaces.first?.adapterId ?? "")
     }
 }
 

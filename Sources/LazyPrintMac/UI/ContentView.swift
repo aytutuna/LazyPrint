@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var showTroubleshooter = false
     @State private var showAddPrinter = false
     @State private var showPhone = false
+    /// Add by address was asked in the troubleshooter: the add sheet opens once that one has closed.
+    @State private var addPrinterAfterTroubleshooter = false
     /// Files are dragged over the window: it says where they go.
     @State private var dropTargeted = false
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
@@ -83,8 +85,13 @@ struct ContentView: View {
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { _ = take(urls) }
         }
-        .sheet(isPresented: $showTroubleshooter) {
-            TroubleshooterView(onAddByAddress: { showAddPrinter = true })
+        .sheet(isPresented: $showTroubleshooter, onDismiss: {
+            if addPrinterAfterTroubleshooter {
+                addPrinterAfterTroubleshooter = false
+                showAddPrinter = true
+            }
+        }) {
+            TroubleshooterView(onAddByAddress: { addPrinterAfterTroubleshooter = true })
                 .environmentObject(state)
         }
         .sheet(isPresented: $showAddPrinter) {

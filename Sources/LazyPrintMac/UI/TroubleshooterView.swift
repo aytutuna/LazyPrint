@@ -10,7 +10,7 @@ struct TroubleshooterView: View {
     @EnvironmentObject var state: AppState
     @Environment(\.dismiss) private var dismiss
 
-    /// Add by address is the add sheet's own: this one closes and the caller opens it.
+    /// Add by address is the add sheet's own: the caller is told, and opens it once this one has closed.
     var onAddByAddress: () -> Void = {}
 
     /// What the footer says after Copy Diagnostics or a button that opens something.
@@ -90,6 +90,7 @@ struct TroubleshooterView: View {
         } message: { asked in
             Text(asked.check.title + ".")
         }
+        .printCertificateAlert(state)
     }
 
     private func act(_ action: TroubleshootAction, _ check: TroubleshootCheck) {
@@ -99,8 +100,8 @@ struct TroubleshooterView: View {
         case .copyDiagnostics:
             Task { await copyDiagnostics() }
         case .addByAddress:
-            dismiss()
             onAddByAddress()
+            dismiss()
         case .clearStuckJobs, .resumePrinter:
             asking = Asked(action: action, check: check)
         default:

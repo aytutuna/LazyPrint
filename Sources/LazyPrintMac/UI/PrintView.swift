@@ -124,7 +124,9 @@ struct PrintView: View {
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability = state.availability(of: definition.task)
         let title = availability.isAvailable ? definition.title : "\(definition.title) \u{2013} \(availability.reason ?? "")"
-        let isCurrent = Binding(get: { state.task == definition.task }, set: { _ in pickTask(definition.task) })
+        let isCurrent = Binding(get: { state.task == definition.task }, set: { (on: Bool) in
+            if on { pickTask(definition.task) }
+        })
         return Toggle(isOn: isCurrent) {
             Label(title, systemImage: TaskSymbols.systemImage(definition.iconKey))
         }

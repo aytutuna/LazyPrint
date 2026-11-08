@@ -109,7 +109,7 @@ jobs:
           plutil -lint "$app/Contents/Resources/PrivacyInfo.xcprivacy"
           codesign -d --entitlements :- "$app" > "$RUNNER_TEMP/entitlements.plist"
           cat "$RUNNER_TEMP/entitlements.plist"
-          for key in app-sandbox network.client network.server print files.user-selected.read-write; do
+          for key in app-sandbox network.client network.server print files.user-selected.read-write files.bookmarks.app-scope; do
             [ "$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.$key" "$RUNNER_TEMP/entitlements.plist")" = "true" ] \
               || { echo "Missing entitlement: $key"; exit 1; }
           done
