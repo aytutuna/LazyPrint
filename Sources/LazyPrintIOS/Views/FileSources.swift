@@ -44,19 +44,21 @@ struct AddFilesMenu: View {
     }
 }
 
-/// The two pickers behind the Add files menu, for the view that owns `source`. What they bring in goes to `take`, as
-/// files in the inbox.
+/// The two pickers behind the Add files menu, for the view that owns `source`. The files the importer picks go to `pick`,
+/// to be copied into the inbox; the photos are put in the inbox here and go to `take` with the names of those that
+/// would not come down.
 struct FileSources: ViewModifier {
     @EnvironmentObject private var state: AppState
     @Binding var source: FileSource?
     let inbox: IOSFileInbox
-    let take: ([URL]) -> Void
+    let pick: ([URL]) -> Void
+    let take: ([URL], [String]) -> Void
     @State private var photos: [PhotosPickerItem] = []
 
     func body(content: Content) -> some View {
         content
             .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
-                if case .success(let urls) = result { take(inbox.receive(urls)) }
+                if case .success(let urls) = result { pick(urls) }
             }
             .photosPicker(isPresented: shown(.photos), selection: $photos, matching: .images)
             .onChange(of: photos) { (_: [PhotosPickerItem], items: [PhotosPickerItem]) in
@@ -78,25 +80,22 @@ struct FileSources: ViewModifier {
     private func receive(_ items: [PhotosPickerItem]) async {
         var urls: [URL] = []
         var failed: [String] = []
-        for (index, item) in items.enumerated() {
-            let name: String = PhotoNames.make(number: index + 1, type: item.supportedContentTypes.first)
-            // An original kept in iCloud may not come down without a network.
-            guard let data = try? await item.loadTransferable(type: Data.self) else {
-                failed.append(name)
-                continue
-            }
-            if let url = try? inbox.receive(data, named: name) {
-                urls.append(url)
-            } else {
-                failed.append(name)
+        await state.whileAddingFiles {
+            for (index, item) in items.enumerated() {
+                let name: String = PhotoNames.make(number: index + 1, type: item.supportedContentTypes.first)
+                // An original kept in iCloud may not come down without a network.
+                guard let data = try? await item.loadTransferable(type: Data.self) else {
+                    failed.append(name)
+                    continue
+                }
+                if let url = try? inbox.receive(data, named: name) {
+                    urls.append(url)
+                } else {
+                    failed.append(name)
+                }
             }
         }
-        // Picking the task clears the bars, so the failures are reported after it.
-        if !urls.isEmpty {
-            if state.task == nil { await state.startTask(.document) }
-            take(urls)
-        }
-        if !failed.isEmpty { state.reportUnreadable(failed) }
+        take(urls, failed)
     }
 }
 #endif

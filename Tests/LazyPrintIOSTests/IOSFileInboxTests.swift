@@ -46,13 +46,14 @@ final class IOSFileInboxTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: elsewhere.path), "Only the Inbox folder is the app's")
     }
 
-    func test_copies_keepTheirNamesAndBytes() throws {
+    func test_copies_keepTheirNamesAndBytes() async throws {
         let inbox = inbox()
         let first = try source("Invoice.pdf", bytes: "one")
         let second = try source("Photo.jpg", bytes: "two")
 
-        let copies = inbox.receive([first, second])
+        let (copies, failed) = await inbox.receive([first, second])
 
+        XCTAssertTrue(failed.isEmpty)
         XCTAssertEqual(copies.map { $0.lastPathComponent }, ["Invoice.pdf", "Photo.jpg"])
         XCTAssertEqual(try Data(contentsOf: copies[0]), Data("one".utf8))
         XCTAssertEqual(try Data(contentsOf: copies[1]), Data("two".utf8))
@@ -60,12 +61,12 @@ final class IOSFileInboxTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: first.path), "The original stays where it was")
     }
 
-    func test_twoFilesOfOneName_stayApart() throws {
+    func test_twoFilesOfOneName_stayApart() async throws {
         let inbox = inbox()
         let a = try source("Scan.pdf", in: "a", bytes: "from a")
         let b = try source("Scan.pdf", in: "b", bytes: "from b")
 
-        let copies = inbox.receive([a, b])
+        let (copies, _) = await inbox.receive([a, b])
 
         XCTAssertEqual(copies.map { $0.lastPathComponent }, ["Scan.pdf", "Scan.pdf"])
         XCTAssertNotEqual(copies[0], copies[1])
@@ -73,15 +74,15 @@ final class IOSFileInboxTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: copies[1]), Data("from b".utf8))
     }
 
-    func test_aFileThatCannotBeCopied_isPassedOnAsItIs() throws {
+    func test_aFileThatCannotBeCopied_isReportedByName() async throws {
         let inbox = inbox()
         let missing = root.appendingPathComponent("gone.pdf")
         let there = try source("There.pdf")
 
-        let copies = inbox.receive([missing, there])
+        let (copies, failed) = await inbox.receive([missing, there])
 
-        XCTAssertEqual(copies[0], missing)
-        XCTAssertEqual(copies[1].lastPathComponent, "There.pdf")
+        XCTAssertEqual(failed, ["gone.pdf"])
+        XCTAssertEqual(copies.map { $0.lastPathComponent }, ["There.pdf"])
     }
 
     func test_data_isWrittenUnderTheNameGiven() throws {
@@ -103,9 +104,9 @@ final class IOSFileInboxTests: XCTestCase {
         XCTAssertTrue(url.path.hasPrefix(inbox.folder.path))
     }
 
-    func test_empty_removesEverythingInTheInbox() throws {
+    func test_empty_removesEverythingInTheInbox() async throws {
         let inbox = inbox()
-        let copies = inbox.receive([try source("a.pdf"), try source("b.pdf")])
+        let (copies, _) = await inbox.receive([try source("a.pdf"), try source("b.pdf")])
         XCTAssertTrue(copies.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
 
         inbox.empty()

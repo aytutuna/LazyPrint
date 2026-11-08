@@ -142,7 +142,9 @@ struct PrintScreen: View {
     /// The current task is the checked item; one that cannot be started says why under its title.
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability: TaskAvailability = state.availability(of: definition.task)
-        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { _ in pickTask(definition.task) })
+        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (on: Bool) in
+            if on { pickTask(definition.task) }
+        })
         return Toggle(isOn: isCurrent) {
             Label {
                 Text(definition.title)
@@ -238,7 +240,7 @@ struct PrintScreen: View {
                 AddFilesMenu(identifier: "print.addFiles", pick: addFiles)
                     .buttonStyle(.bordered)
                     .padding(.top, 4)
-                    .disabled(state.isBusy)
+                    .disabled(state.isBusy || state.isAddingFiles)
             } else {
                 Text("No pages to print")
                     .font(.title3.weight(.semibold))
@@ -428,6 +430,14 @@ struct PrintScreen: View {
                     Button("Cancel") { state.cancelJob() }
                         .accessibilityIdentifier("print.cancel")
                 }
+            } else if state.isAddingFiles {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Adding files\u{2026}")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("print.adding")
+                }
             } else if let reason {
                 Text(reason)
                     .font(.caption)
@@ -496,7 +506,7 @@ private struct DocumentStrip: View {
                     .disabled(state.isBusy)
                     .accessibilityIdentifier("documents.edit")
                 AddFilesMenu(identifier: "documents.add", pick: addFiles)
-                    .disabled(state.isBusy)
+                    .disabled(state.isBusy || state.isAddingFiles)
             }
             .buttonStyle(.borderless)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -563,7 +573,7 @@ private struct DocumentsSheet: View {
                 AddFilesMenu(identifier: "documents.sheetAdd", pick: addFiles)
             }
             .environment(\.editMode, .constant(.active))
-            .disabled(state.isBusy)
+            .disabled(state.isBusy || state.isAddingFiles)
             .navigationTitle("Documents")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

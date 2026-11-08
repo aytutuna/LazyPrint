@@ -55,7 +55,7 @@ public struct IOSRootView: View {
                 .tabItem { Label("Jobs", systemImage: "clock.arrow.circlepath") }
                 .tag(RootTab.jobs)
         }
-        .modifier(FileSources(source: $source, inbox: inbox, take: take))
+        .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
         .sheet(isPresented: $showPrinters) {
             PrintersScreen(airPrint: airPrint, companion: companion)
         }
@@ -73,10 +73,7 @@ public struct IOSRootView: View {
         // Files from Open In and the share sheet arrive here; a lazyprint: URL only brings the app forward.
         .onOpenURL { (url: URL) in
             guard url.isFileURL else { return }
-            let received: [URL] = inbox.receive([url])
-            take(received)
-            // A file the inbox could not copy was passed on as it is, and is the one that gets printed.
-            if received != [url] { inbox.discardDelivered(url) }
+            receive([url], delivered: true)
         }
         // The printers are read, and read again, only while the app is in front.
         .onChange(of: scenePhase, initial: true) { (_: ScenePhase, phase: ScenePhase) in
@@ -106,7 +103,7 @@ public struct IOSRootView: View {
         }
         .task {
             guard let fixture, let url = try? inbox.receive(fixture.data, named: fixture.name) else { return }
-            take([url])
+            take([url], [])
         }
     }
 
@@ -129,18 +126,47 @@ public struct IOSRootView: View {
         }
     }
 
-    /// Opens the files and shows the Print screen. Files that come before any task was picked start the plain document
-    /// task, so there is something to lay them out by.
-    private func take(_ urls: [URL]) {
-        let files: [URL] = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
-        guard !files.isEmpty else { return }
+    /// Copies the files the importer and Open In hand over into the inbox, then takes them. `delivered` files came from
+    /// Open In: once tried, the original is removed from the app's Inbox folder, whether or not the copy worked.
+    private func receive(_ urls: [URL], delivered: Bool = false) {
         let before: Task<Void, Never>? = opening
         opening = Task {
             await before?.value
-            if state.task == nil { await state.startTask(.document) }
-            await state.addFiles(files)
-            if !state.documents.isEmpty { tab = .print }
+            var received: (copies: [URL], failed: [String]) = (copies: [], failed: [])
+            await state.whileAddingFiles {
+                received = await inbox.receive(urls)
+            }
+            if delivered {
+                for url in urls { inbox.discardDelivered(url) }
+            }
+            await open(received.copies, notAdded: received.failed)
         }
+    }
+
+    /// Takes files already in the inbox. The names in `notAdded` are files that could not be brought in; they are reported
+    /// with the ones the loader cannot read.
+    private func take(_ urls: [URL], _ notAdded: [String]) {
+        let before: Task<Void, Never>? = opening
+        opening = Task {
+            await before?.value
+            await open(urls, notAdded: notAdded)
+        }
+    }
+
+    /// Opens the files and shows the Print screen. Files that come before any task was picked start the plain document
+    /// task, so there is something to lay them out by.
+    private func open(_ urls: [URL], notAdded: [String]) async {
+        let files: [URL] = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
+        if files.isEmpty {
+            if !notAdded.isEmpty { state.reportUnreadable(notAdded) }
+            return
+        }
+        if state.task == nil { await state.startTask(.document) }
+        let unreadable: [(name: String, reason: String)] = notAdded.map { (name: String) -> (name: String, reason: String) in
+            (name: name, reason: DocumentText.unreadable)
+        }
+        await state.addFiles(files, alsoNotAdded: unreadable)
+        if !state.documents.isEmpty { tab = .print }
     }
 }
 

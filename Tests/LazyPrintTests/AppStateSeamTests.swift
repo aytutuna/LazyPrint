@@ -1038,6 +1038,20 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_addingFiles_isSetUntilTheLastWorkIsDone() async throws {
+        let rig = try makeRig()
+        XCTAssertFalse(rig.state.isAddingFiles)
+
+        await rig.state.whileAddingFiles {
+            XCTAssertTrue(rig.state.isAddingFiles)
+            await rig.state.whileAddingFiles {}
+            XCTAssertTrue(rig.state.isAddingFiles)
+        }
+
+        XCTAssertFalse(rig.state.isAddingFiles)
+    }
+
+    @MainActor
     func test_theJobPlan_followsTheSettingsAndThePreviewIsDrawn() async throws {
         let rig = try await printingRig(pages: 4)
         rig.state.settings.paperId = "letter"

@@ -137,6 +137,9 @@ public final class AppState: ObservableObject {
     @Published public internal(set) var troubleshootChecks: [TroubleshootCheck] = []
     /// A job is being prepared or printed; the settings and the tasks wait.
     @Published public internal(set) var isBusy = false
+    /// Files are being copied or downloaded into the app; the Add files menus wait for them.
+    @Published public internal(set) var isAddingFiles = false
+    private var addingFilesCount = 0
     /// What was just done, for the status line; nil shows what the app is set up for.
     @Published var statusOverride: String?
 
@@ -415,6 +418,15 @@ public final class AppState: ObservableObject {
         let notAdded = alsoNotAdded + failed
         if !notAdded.isEmpty { reportNotAdded(notAdded) }
         replan()
+    }
+
+    /// Runs `work`, which brings files in, with `isAddingFiles` set.
+    public func whileAddingFiles(_ work: () async -> Void) async {
+        addingFilesCount += 1
+        isAddingFiles = true
+        await work()
+        addingFilesCount -= 1
+        isAddingFiles = addingFilesCount > 0
     }
 
     /// Opens the files without adding them; the ones that cannot be read come back with what was wrong.
