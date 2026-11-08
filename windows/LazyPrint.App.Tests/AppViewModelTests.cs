@@ -107,6 +107,27 @@ public sealed class AppViewModelTests
         Assert.Contains("two-sided-long-edge", rig.Model.SelectedCapabilities!.SidesSupported);
     }
 
+    [Fact]
+    public async Task AFailedCapabilitiesReadIsTriedAgainAfterHalfAMinute()
+    {
+        using var rig = new Rig();
+        var now = DateTimeOffset.UtcNow;
+        rig.Model.Now = () => now;
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        rig.Spooler.CapabilityFailures = 1;
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Null(rig.Model.SelectedCapabilities);
+
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Null(rig.Model.SelectedCapabilities);
+
+        now += TimeSpan.FromSeconds(31);
+        await rig.Model.RefreshPrintersAsync();
+
+        Assert.Contains("two-sided-long-edge", rig.Model.SelectedCapabilities!.SidesSupported);
+    }
+
     // MARK: Tasks
 
     [Fact]
@@ -264,6 +285,7 @@ public sealed class AppViewModelTests
         using var rig = new Rig();
         rig.Diagnostics.LazyScan = true;
         var model = rig.Open();
+        await model.RefreshLazyScanAsync();
 
         Assert.True(model.AvailabilityOf(PrintTask.ScanAndPrint).IsAvailable);
         await model.StartTaskAsync(PrintTask.ScanAndPrint);

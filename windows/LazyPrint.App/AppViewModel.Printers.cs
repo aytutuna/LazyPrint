@@ -109,6 +109,10 @@ public sealed partial class AppViewModel
     private Dictionary<string, PrinterPrefs> _prefs;
     private bool _printersRead;
     private bool _refreshing;
+    /// <summary>When each queue's capabilities read last failed, by printer id.</summary>
+    private readonly Dictionary<string, DateTimeOffset> _capabilityFailed = [];
+    private static readonly TimeSpan CapabilityRetry = TimeSpan.FromSeconds(30);
+    internal Func<DateTimeOffset> Now { get; set; } = () => DateTimeOffset.UtcNow;
     private bool _lazyScanInstalled;
     private (ServiceStatus Spooler, NetworkStatus Network) _systemState;
     private PrinterFailure? _lastFailure;
@@ -246,6 +250,7 @@ public sealed partial class AppViewModel
     private async Task LoadCapabilitiesAsync()
     {
         if (SelectedPrinter is not { } printer || _capabilities.ContainsKey(printer.Id)) return;
+        if (_capabilityFailed.TryGetValue(printer.Id, out var failed) && Now() - failed < CapabilityRetry) return;
         PrinterCapabilities? capabilities = null;
         switch (printer.Route)
         {
@@ -267,6 +272,13 @@ public sealed partial class AppViewModel
                 }
                 break;
         }
+        // A failed read is tried again after a while, or when the printer is chosen again.
+        if (capabilities is null && printer.Route == PrinterRoute.System)
+        {
+            _capabilityFailed[printer.Id] = Now();
+            return;
+        }
+        _capabilityFailed.Remove(printer.Id);
         _capabilities[printer.Id] = capabilities;
         ChooseSidesAgain();
     }
@@ -277,6 +289,7 @@ public sealed partial class AppViewModel
         if (Settings.PrinterId == id) return;
         Settings.PrinterId = id;
         _statusOverride = null;
+        _capabilityFailed.Remove(id);
         await LoadCapabilitiesAsync();
         ChooseSidesAgain();
         if (SelectedPrinter is { IppEndpoint: not null, Route: not PrinterRoute.Demo } network)

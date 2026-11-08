@@ -11,12 +11,15 @@ internal sealed class FakePrinterSystem : IPrinterSystem
     public List<SystemPrinter> Queue { get; } = [];
     public Dictionary<string, PrinterCapabilities> Capable { get; } = [];
     public bool Throws { get; set; }
+    /// <summary>How many capability reads fail before the queue answers.</summary>
+    public int CapabilityFailures { get; set; }
     public List<string> Cleared { get; } = [];
     public List<string> Resumed { get; } = [];
 
     public IReadOnlyList<SystemPrinter> Queues() => Throws ? throw new InvalidOperationException("The spooler is not running.") : [.. Queue];
 
-    public PrinterCapabilities? Capabilities(string queueName) => Capable.GetValueOrDefault(queueName);
+    public PrinterCapabilities? Capabilities(string queueName) =>
+        CapabilityFailures-- > 0 ? throw new InvalidOperationException("The driver did not answer.") : Capable.GetValueOrDefault(queueName);
 
     public void ClearJobs(string queueName) => Cleared.Add(queueName);
 

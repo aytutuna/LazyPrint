@@ -23,7 +23,8 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     private const double LowestDpi = 72;
 
     private readonly ConditionalWeakTable<LoadedDocument, Source> _sources = new();
-    private readonly ConditionalWeakTable<LoadedDocument, string> _files = new();
+    private readonly ConditionalWeakTable<LoadedDocument, byte[]> _files = new();
+    private readonly ConditionalWeakTable<LoadedDocument, string> _jpegs = new();
 
     public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token)
     {
@@ -41,14 +42,14 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 var pdf = await PdfSource.OpenAsync(bytes);
                 source = pdf;
                 document = new LoadedDocument(name, new DocumentKind.Pdf(pdf.Protected), pdf.PageSizes);
-                _files.Add(document, path);
+                _files.Add(document, bytes);
             }
             else
             {
                 var picture = await Task.Run(() => PictureSource.Open(path), token);
                 source = picture;
                 document = new LoadedDocument(name, new DocumentKind.Photo(), [picture.Size]);
-                if (extension is ".jpg" or ".jpeg" && picture.Upright) _files.Add(document, path);
+                if (extension is ".jpg" or ".jpeg" && picture.Upright) _jpegs.Add(document, path);
             }
         }
         catch (Exception e) when (e is not (InvalidOperationException or OperationCanceledException))
@@ -65,7 +66,23 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         return source.Render(page, crop, pixelWidth, pixelHeight);
     }
 
-    public string? OriginalFile(LoadedDocument document) => _files.TryGetValue(document, out string? path) ? path : null;
+    public byte[]? OriginalFile(LoadedDocument document)
+    {
+        if (_files.TryGetValue(document, out byte[]? bytes)) return bytes;
+        if (!_jpegs.TryGetValue(document, out string? path)) return null;
+        try
+        {
+            using var stream = OpenShared(path);
+            using var copy = new MemoryStream();
+            stream.CopyTo(copy);
+            return copy.ToArray();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Gone or locked since it was opened: the caller draws the picture instead.
+            return null;
+        }
+    }
 
     private abstract class Source
     {
@@ -83,18 +100,10 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         public bool Protected { get; }
         public IReadOnlyList<LayoutSize> PageSizes { get; }
 
-        private PdfSource(Windows.Data.Pdf.PdfDocument document, Windows.Storage.Streams.IRandomAccessStream stream, bool encrypted)
+        private PdfSource(Windows.Data.Pdf.PdfDocument document, Windows.Storage.Streams.IRandomAccessStream stream, bool encrypted,
+                           IReadOnlyList<LayoutSize> pageSizes)
         {
-            _document = document;
-            _stream = stream;
-            Protected = encrypted;
-            var sizes = new List<LayoutSize>();
-            for (uint i = 0; i < document.PageCount; i++)
-            {
-                using var page = document.GetPage(i);
-                sizes.Add(new LayoutSize(page.Size.Width * PointsPerDip, page.Size.Height * PointsPerDip));
-            }
-            PageSizes = sizes;
+            (_document, _stream, Protected, PageSizes) = (document, stream, encrypted, pageSizes);
         }
 
         public static async Task<PdfSource> OpenAsync(byte[] bytes)
@@ -105,7 +114,17 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 var document = await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(stream);
                 if (document.PageCount == 0) throw new InvalidOperationException(DocumentText.NoPages);
                 // IsPasswordProtected stays false for an owner password, and a printer may refuse such a file as it is.
-                return new PdfSource(document, stream, bytes.AsSpan().IndexOf("/Encrypt"u8) >= 0);
+                // The document is free-threaded, so a long file is walked off the UI thread.
+                return await Task.Run(() =>
+                {
+                    var sizes = new List<LayoutSize>();
+                    for (uint i = 0; i < document.PageCount; i++)
+                    {
+                        using var page = document.GetPage(i);
+                        sizes.Add(new LayoutSize(page.Size.Width * PointsPerDip, page.Size.Height * PointsPerDip));
+                    }
+                    return new PdfSource(document, stream, bytes.AsSpan().IndexOf("/Encrypt"u8) >= 0, sizes);
+                });
             }
             catch (Exception e) when (e is not InvalidOperationException)
             {

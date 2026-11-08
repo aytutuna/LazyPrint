@@ -35,7 +35,7 @@ public sealed class JobRow(JobRecord record, string? folder) : INotifyPropertyCh
             Record.Detail ?? "",
         }.Where(part => part.Length > 0));
 
-    public bool IsRunning => Record.State is JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing;
+    public bool IsRunning => Record.State is JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser;
     public bool IsFinished => Record.State is JobState.Done or JobState.Failed or JobState.Canceled;
     public bool HasFolder => _folder is not null;
 

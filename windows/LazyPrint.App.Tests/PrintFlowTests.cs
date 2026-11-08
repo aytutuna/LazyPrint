@@ -88,6 +88,17 @@ public sealed class PrintFlowTests
     }
 
     [Fact]
+    public async Task CancellingTheWaitingJobInTheJobsTabEndsTheTwoSidedJob()
+    {
+        using var rig = await ManualRig();
+        await rig.Model.PrintAsync();
+        rig.Model.CancelJob(rig.Model.Jobs[0].Id);
+
+        Assert.Equal(DuplexStep.None, rig.Model.ManualStep);
+        Assert.Equal(JobState.Canceled, Assert.Single(rig.Model.Jobs).State);
+    }
+
+    [Fact]
     public async Task TheCheckPrintsBothSidesOfOneSheetAndAsksHowTheArrowsPoint()
     {
         using var rig = await ManualRig();

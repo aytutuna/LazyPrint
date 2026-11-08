@@ -24,6 +24,25 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public async Task EqualDocumentsAreToldApartByReference()
+    {
+        using var rig = new Rig();
+        await rig.Model.AddFilesAsync(["a.pdf", "a.pdf", "b.pdf"]);
+        var first = rig.Model.Documents[0];
+        var second = rig.Model.Documents[1];
+        Assert.Equal(first, second);
+
+        rig.Model.MoveDocument(second, 1);
+        Assert.Same(first, rig.Model.Documents[0]);
+        Assert.Equal(["a.pdf", "b.pdf", "a.pdf"], Names(rig));
+        Assert.Same(second, rig.Model.Documents[2]);
+
+        rig.Model.RemoveDocument(second);
+        Assert.Equal(["a.pdf", "b.pdf"], Names(rig));
+        Assert.Same(first, rig.Model.Documents[0]);
+    }
+
+    [Fact]
     public async Task TheEndsOfTheListStopAMove()
     {
         using var rig = new Rig();

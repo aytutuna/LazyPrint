@@ -31,14 +31,14 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         using var client = _connect(job.Printer);
         progress.Report(new JobStatus(JobState.Preparing, 0));
         var caps = job.Capabilities ?? await client.CapabilitiesAsync(token);
-        var original = pass == 0 ? AsIs(job) : null;
+        var original = pass == 0 ? await Task.Run(() => AsIs(job), token) : null;
         string format = DocumentFormats.Choose(caps.DocumentFormatsSupported, original?.Kind ?? new DocumentKind.Imposed(), canWritePdf: false)
                         ?? throw new PrintException(new PrintError.NeedsDriver());
 
         IppJob sent;
         try
         {
-            sent = await Submit(client, job, pass, caps, format, original?.Path, progress, token);
+            sent = await Submit(client, job, pass, caps, format, original?.Bytes, progress, token);
         }
         catch (PrintException e) when (e.Error is PrintError.Refused refused && format is DocumentFormats.Pdf or DocumentFormats.Jpeg
                                        && DocumentFormats.RetriesAsRaster(refused.Status)
@@ -58,15 +58,15 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
     };
 
     /// <summary>
-    /// The document of a job that is printed as it is, with the file to send: one PDF whose pages go one to a side, every
+    /// The document of a job that is printed as it is, with the bytes of the file to send: one PDF whose pages go one to a side, every
     /// page once in order, fit or shrink to fit; or one upright JPEG printed whole on paper of its own size. Copies the
     /// printer does not make itself, a booklet and manual two-sided are sheets drawn by Lazy Print.
     /// </summary>
-    private (DocumentKind Kind, string Path)? AsIs(SheetJob job)
+    private (DocumentKind Kind, byte[] Bytes)? AsIs(SheetJob job)
     {
         if (job.Items is not null || job.Plan.ManualDuplex || JobSides.Repeats(job) != 1 || job.Documents.Count != 1) return null;
         var document = job.Documents[0];
-        if (files?.OriginalFile(document) is not { } path) return null;
+        if (files?.OriginalFile(document) is not { } bytes) return null;
 
         var placed = job.Plan.Plan.Sheets
             .SelectMany(sheet => new[] { sheet.Front, sheet.Back })
@@ -80,27 +80,39 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 var settings = job.Settings;
                 bool inOrder = placed.Count == document.Pages.Count && placed.Select((page, i) => page.Document == 0 && page.Index == i).All(ok => ok);
                 bool plain = settings.PagesPerSheet == 1 && !settings.Booklet && settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit;
-                return inOrder && plain ? (document.Kind, path) : null;
+                return inOrder && plain ? (document.Kind, bytes) : null;
             case DocumentKind.Photo:
                 var paper = job.Plan.Plan.Area.Paper;
                 var photo = document.Pages[0];
                 bool ownSize = placed.Count == 1
                                && Math.Abs(Math.Min(photo.Width, photo.Height) - paper.Width) <= PaperSizes.FitTolerance
                                && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance;
-                return ownSize ? (document.Kind, path) : null;
+                return ownSize ? (document.Kind, bytes) : null;
             default:
                 return null;
         }
     }
 
     /// <summary>Sends the job in <paramref name="format"/>: the file as it is, or the sides drawn and spooled.</summary>
-    private async Task<IppJob> Submit(IppClient client, SheetJob job, int pass, PrinterCapabilities caps, string format, string? original,
+    private async Task<IppJob> Submit(IppClient client, SheetJob job, int pass, PrinterCapabilities caps, string format, byte[]? original,
                                       IProgress<JobStatus> progress, CancellationToken token)
     {
         bool asIs = original is not null && format is DocumentFormats.Pdf or DocumentFormats.Jpeg;
         var ticket = PrintJobs.Ticket(job.Plan, job.Settings, format, caps, job.Name, asIs);
         using var spool = new IppSpool();
-        string path = asIs ? original! : await Spool(spool, job, pass, caps, ticket, progress, token);
+        string path;
+        if (asIs)
+        {
+            path = await Task.Run(() =>
+            {
+                spool.Write(output => output.Write(original!));
+                return spool.Complete();
+            }, token);
+        }
+        else
+        {
+            path = await Spool(spool, job, pass, caps, ticket, progress, token);
+        }
         progress.Report(new JobStatus(JobState.Sending, 0));
         return await client.PrintAsync(path, ticket, token);
     }

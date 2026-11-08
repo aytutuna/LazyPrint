@@ -24,7 +24,9 @@ public sealed class IppSheetPrinterTests : IDisposable
 
     private sealed class Files(string path) : IOriginalFiles
     {
-        public string? OriginalFile(LoadedDocument document) => path;
+        private readonly byte[] _bytes = File.ReadAllBytes(path);
+
+        public byte[]? OriginalFile(LoadedDocument document) => _bytes;
     }
 
     private IppSheetPrinter Printer(IOriginalFiles? files = null) =>
@@ -105,6 +107,19 @@ public sealed class IppSheetPrinterTests : IDisposable
         Assert.Equal("application/pdf", Attribute(request, "document-format"));
         Assert.Equal(pdf, request.Document);
         Assert.Equal("one-sided", Attribute(request, "sides"));
+    }
+
+    [Fact]
+    public async Task APdfPrintedAsItIsGoesAsLoadedEvenIfTheFileIsGoneByThen()
+    {
+        string file = Path.Combine(_folder, "Letter.pdf");
+        byte[] pdf = "%PDF-1.4\nas loaded\n%%EOF"u8.ToArray();
+        File.WriteAllBytes(file, pdf);
+        var files = new Files(file);
+        File.Delete(file);
+        await Printer(files).PrintAsync(Job(_ => { }, pages: 1), 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        Assert.Equal(pdf, Assert.Single(Sent(IppOperation.PrintJob)).Document);
     }
 
     [Fact]

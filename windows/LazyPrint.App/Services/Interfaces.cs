@@ -67,8 +67,11 @@ public interface ISheetPrinter
 /// <summary>The files documents were opened from, for a printer that can send them as they are.</summary>
 public interface IOriginalFiles
 {
-    /// <summary>The file of a PDF, or of a JPEG picture that is upright; null for any other document.</summary>
-    string? OriginalFile(LoadedDocument document);
+    /// <summary>
+    /// The bytes of a PDF as loaded, or of an upright JPEG read from its file now; null for any other document, or a JPEG
+    /// whose file cannot be read any more. Reads the file, so not for the UI thread.
+    /// </summary>
+    byte[]? OriginalFile(LoadedDocument document);
 }
 
 /// <summary>What the troubleshooter reads from Windows, and the few things it does there.</summary>

@@ -105,14 +105,23 @@ public sealed partial class AppViewModel
     public void RemoveDocument(LoadedDocument document)
     {
         if (IsBusy) return;
-        Documents.Remove(document);
+        int at = IndexOfDocument(document);
+        if (at >= 0) Documents.RemoveAt(at);
         NotifyAll();
+    }
+
+    // LoadedDocument compares by value, so the same file added twice has to be found by reference.
+    private int IndexOfDocument(LoadedDocument document)
+    {
+        for (int i = 0; i < Documents.Count; i++)
+            if (ReferenceEquals(Documents[i], document)) return i;
+        return -1;
     }
 
     /// <summary>Moves a document earlier (negative) or later in the run; the end of the list stops it.</summary>
     public void MoveDocument(LoadedDocument document, int offset)
     {
-        int from = Documents.IndexOf(document), to = from + offset;
+        int from = IndexOfDocument(document), to = from + offset;
         if (IsBusy || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
         Documents.Move(from, to);
         NotifyAll();
@@ -333,6 +342,7 @@ public sealed partial class AppViewModel
     public void CancelJob(string id)
     {
         if (_jobRunning == id) _job?.Cancel();
+        else if (_manual?.RecordId == id) CancelManualDuplex();
     }
 
     /// <summary>The Jobs tab's Print again: the job is planned once more from what it was made of, with what is known of the printer now.</summary>
