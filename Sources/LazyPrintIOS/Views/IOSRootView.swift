@@ -141,10 +141,21 @@ public struct IOSRootView: View {
     }
 
     /// Brings in the files Lazy Scan left in the app group for hand-off `id`: they are copied to the inbox like any other
-    /// file, and the hand-off folder is deleted once they are.
+    /// file, and the hand-off folder is deleted once they are, whether or not every copy worked. A shared folder that is
+    /// not there, or one with no files in it, is reported.
     private func receiveHandoff(_ id: UUID) {
-        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: LazyPrintUrl.handoffGroup) else { return }
-        receive(IOSFileInbox.handoffFiles(id, in: container), then: { IOSFileInbox.removeHandoff(id, in: container) })
+        let name: String = "Files from Lazy Scan"
+        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: LazyPrintUrl.handoffGroup) else {
+            state.reportUnreadable([name], because: "The shared folder is not available.")
+            return
+        }
+        let files: [URL] = IOSFileInbox.handoffFiles(id, in: container)
+        guard !files.isEmpty else {
+            IOSFileInbox.removeHandoff(id, in: container)
+            state.reportUnreadable([name], because: "No files were found.")
+            return
+        }
+        receive(files, then: { IOSFileInbox.removeHandoff(id, in: container) })
     }
 
     /// Takes files already in the inbox. The names in `notAdded` are files that could not be brought in; they are reported
