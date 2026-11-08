@@ -50,6 +50,7 @@ public partial class MainWindow : Window
             UpdatePane();
             _ = ViewModel.RefreshPrintersAsync();
             _ = ViewModel.ReadSystemStateAsync();
+            _ = ViewModel.RefreshLazyScanAsync();
             ViewModel.StartNetwork();
             ViewModel.StartCompanionIfPaired();
             _ = Task.Run(FileAssociation.RegisterForCurrentUser);
@@ -64,7 +65,9 @@ public partial class MainWindow : Window
         // is seen when the window is back in front.
         Activated += (_, _) =>
         {
-            if (IsLoaded) _ = ViewModel.RefreshPrintersAsync();
+            if (!IsLoaded) return;
+            _ = ViewModel.RefreshPrintersAsync();
+            _ = ViewModel.RefreshLazyScanAsync();
         };
         Closed += (_, _) =>
         {
@@ -301,7 +304,8 @@ public partial class MainWindow : Window
     /// <summary>The banner above the sheet preview: the Task menu, and the task in use if there is one.</summary>
     private void SyncBanner()
     {
-        TaskButton.IsEnabled = !ViewModel.IsBusy;
+        // A task chosen behind the two-sided card would do nothing.
+        TaskButton.IsEnabled = !ViewModel.IsBusy && ViewModel.ManualStep == DuplexStep.None;
         var visibility = ViewModel.SelectedTask is null ? Visibility.Collapsed : Visibility.Visible;
         TaskBannerGlyph.Visibility = visibility;
         TaskBannerText.Visibility = visibility;

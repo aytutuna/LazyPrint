@@ -11,6 +11,9 @@ public sealed partial class AppViewModel
     private TaskContext TaskContext =>
         new(HasPrinter: SelectedPrinter is not null, LazyScanInstalled: _lazyScanInstalled, AppPlatform.Windows);
 
+    /// <summary>Looks for Lazy Scan again, off the UI thread: the look can take a couple of seconds.</summary>
+    public async Task RefreshLazyScanAsync() => _lazyScanInstalled = await Task.Run(_system.LazyScanInstalled);
+
     /// <summary>Whether a task can be started now, and if not, why.</summary>
     public TaskAvailability AvailabilityOf(PrintTask task) => TaskCatalog.Availability(task, TaskContext);
 

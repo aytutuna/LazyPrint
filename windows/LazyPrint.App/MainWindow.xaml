@@ -646,7 +646,8 @@
         <!-- Two-sided by hand: the fronts are printed; the stack goes back, and the backs follow. Modal like Lazy Scan's
              review dialogs, leaving the status bar (with its Cancel button) reachable. -->
         <Grid Grid.Row="1" x:Name="DuplexOverlay" Background="{DynamicResource SmokeFillColorDefaultBrush}"
-              Visibility="Collapsed" PreviewKeyDown="DuplexOverlay_PreviewKeyDown">
+              Visibility="Collapsed" PreviewKeyDown="DuplexOverlay_PreviewKeyDown"
+              KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle">
             <Border Style="{StaticResource DialogCardStyle}" MaxWidth="520" Margin="24"
                     HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="360">
                 <DockPanel>

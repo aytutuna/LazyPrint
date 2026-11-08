@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -50,6 +51,8 @@ internal sealed class InstanceChannel : IDisposable
     {
         try
         {
+            // This process is about to exit, so let the first instance bring its window forward.
+            AllowSetForegroundWindow(AnyProcess);
             using var pipe = new NamedPipeClientStream(".", pipeName ?? PipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
             pipe.Connect(timeout);
             byte[] message = Encode(paths);
@@ -61,6 +64,12 @@ internal sealed class InstanceChannel : IDisposable
             return false;
         }
     }
+
+    private const int AnyProcess = -1;
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(int processId);
 
     private async Task ListenAsync()
     {

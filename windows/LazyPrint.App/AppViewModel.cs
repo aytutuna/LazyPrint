@@ -93,7 +93,6 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
         SelectedTask = PrintTasks.TryParse(Settings.TaskId) is { } savedTask and not (PrintTask.TestPage or PrintTask.ScanAndPrint or PrintTask.FromPhone)
             ? savedTask : null;
         _prefs = SettingsStore.LoadPrinters(_directory);
-        _lazyScanInstalled = system.LazyScanInstalled();
     }
 
     private void NotifyAll() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));

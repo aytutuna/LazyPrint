@@ -11,7 +11,7 @@
     <NeutralLanguage>en</NeutralLanguage>
     <Product>Lazy Print</Product>
     <AssemblyTitle>Lazy Print</AssemblyTitle>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Explorer, the taskbar and Alt+Tab; the windows load the same file as a resource. -->
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
