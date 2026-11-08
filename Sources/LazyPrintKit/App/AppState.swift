@@ -62,7 +62,7 @@ struct JobInputs {
 }
 
 /// What a preview is drawn from; asked for again unchanged, it is not drawn again.
-struct PreviewKey: Equatable {
+struct PreviewKey: Equatable, Sendable {
     var side: RenderedSide
     var area: PrintableArea
     var dpi: Double
@@ -172,6 +172,8 @@ public final class AppState: ObservableObject {
     var previewTask: Task<Void, Never>?
     var previewRevision = 0
     var previewKey: PreviewKey?
+    /// The last sides drawn, so turning back and forth through a plan does not draw them again.
+    var drawnSides: [(key: PreviewKey, image: CGImage)] = []
 
     var queues: [SystemPrinter] = []
     var networkServices: [IppService] = []
@@ -516,33 +518,68 @@ public final class AppState: ObservableObject {
 
     /// Draws the current side off the main actor; an answer for a side that is no longer the current one is dropped.
     func startPreview() {
-        guard let plan = jobPlan, let side = renderedSide(of: plan, at: previewSide) else {
+        guard let key = sideKey(previewSide) else {
             previewTask?.cancel()
             previewRevision += 1
             previewKey = nil
             preview = nil
             return
         }
-        let area = plan.plan.area
-        let dpi = previewScale * 72
-        let key = PreviewKey(side: side, area: area, dpi: dpi, documents: documents.map { $0.url })
         // Copies and the like change the plan but not the sheet in view.
         if key == previewKey { return }
         previewKey = key
         previewTask?.cancel()
         previewRevision += 1
+        if let drawn = drawnImage(key) {
+            preview = drawn
+            return
+        }
         let revision = previewRevision
         let renderer = SheetRenderer(documents: documents)
         previewTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
-            let image = (try? renderer.bitmap(side, area: area, dpi: dpi, gray: false))?.image()
-            await self?.previewDrawn(image, revision: revision)
+            let image = (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: false))?.image()
+            await self?.previewDrawn(image, key: key, revision: revision)
         }
     }
 
-    private func previewDrawn(_ image: CGImage?, revision: Int) {
+    /// A side of the plan as the preview draws it, for a view that shows the sides around the current one.
+    public func previewImage(ofSide index: Int) async -> CGImage? {
+        guard let key = sideKey(index) else { return nil }
+        if let drawn = drawnImage(key) { return drawn }
+        let renderer = SheetRenderer(documents: documents)
+        let image = await Task.detached(priority: .userInitiated) {
+            (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: false))?.image()
+        }.value
+        keep(image, key)
+        return image
+    }
+
+    /// The side if it has been drawn already.
+    public func drawnPreviewImage(ofSide index: Int) -> CGImage? {
+        sideKey(index).flatMap { drawnImage($0) }
+    }
+
+    private func previewDrawn(_ image: CGImage?, key: PreviewKey, revision: Int) {
+        keep(image, key)
         guard revision == previewRevision else { return }
         preview = image
+    }
+
+    private func sideKey(_ index: Int) -> PreviewKey? {
+        guard let plan = jobPlan, let side = renderedSide(of: plan, at: index) else { return nil }
+        return PreviewKey(side: side, area: plan.plan.area, dpi: previewScale * 72, documents: documents.map { $0.url })
+    }
+
+    private func drawnImage(_ key: PreviewKey) -> CGImage? {
+        drawnSides.first { $0.key == key }?.image
+    }
+
+    private func keep(_ image: CGImage?, _ key: PreviewKey) {
+        guard let image else { return }
+        drawnSides.removeAll { $0.key == key }
+        drawnSides.append((key: key, image: image))
+        if drawnSides.count > 5 { drawnSides.removeFirst() }
     }
 
     private func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {

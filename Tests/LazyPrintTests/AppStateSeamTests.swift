@@ -1067,6 +1067,21 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_aSideAroundThePreview_isDrawnAndKept() async throws {
+        let rig = try await printingRig(pages: 4)
+        XCTAssertNil(rig.state.drawnPreviewImage(ofSide: 2))
+
+        let third = await rig.state.previewImage(ofSide: 2)
+
+        XCTAssertNotNil(third)
+        XCTAssertTrue(rig.state.drawnPreviewImage(ofSide: 2) === third)
+        rig.state.previewSide = 2
+        XCTAssertTrue(rig.state.preview === third, "Turning to it draws nothing again")
+        let pastTheEnd = await rig.state.previewImage(ofSide: 9)
+        XCTAssertNil(pastTheEnd)
+    }
+
+    @MainActor
     func test_aPrintedJob_isRecordedAndSaysWhatWasSent() async throws {
         let rig = try await printingRig()
         await rig.state.print()
