@@ -21,6 +21,10 @@ struct PageCurlView: UIViewControllerRepresentable {
         let controller = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal)
         controller.dataSource = context.coordinator
         controller.delegate = context.coordinator
+        // A tap on the page's edge would turn it by accident, and fast taps at either end of the plan can crash the curl.
+        for recognizer in controller.gestureRecognizers where recognizer is UITapGestureRecognizer {
+            recognizer.isEnabled = false
+        }
         return controller
     }
 
@@ -48,7 +52,8 @@ struct PageCurlView: UIViewControllerRepresentable {
             if shown?.side != view.side {
                 let page: PageController = PageController(side: view.side)
                 page.show(view.drawn(view.side))
-                let animated: Bool = shown != nil && !UIAccessibility.isReduceMotionEnabled
+                // Off screen the animation's completion may never come, and it is what ends the turn.
+                let animated: Bool = shown != nil && !UIAccessibility.isReduceMotionEnabled && controller.view.window != nil
                 isTurning = animated
                 controller.view.isUserInteractionEnabled = !animated
                 controller.setViewControllers([page], direction: view.side > (shown?.side ?? 0) ? .forward : .reverse,
@@ -74,10 +79,11 @@ struct PageCurlView: UIViewControllerRepresentable {
                 return
             }
             let draw: @MainActor (Int) async -> CGImage? = view.draw
-            Task { [weak page] in
+            Task { [weak self, weak page] in
                 guard let side = page?.side else { return }
-                let image: CGImage? = await draw(side)
-                page?.show(image)
+                _ = await draw(side)
+                // Read back rather than show what was drawn, which is the old layout if the plan changed meanwhile.
+                page?.show(self?.view.drawn(side))
             }
         }
 
@@ -118,7 +124,8 @@ struct PageCurlView: UIViewControllerRepresentable {
                                 previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
             isTurning = false
             if completed, let page = pageViewController.viewControllers?.first as? PageController {
-                view.side = page.side
+                // The plan may have shrunk during the drag.
+                view.side = max(0, min(page.side, view.count - 1))
             }
             sync(pageViewController)
         }
@@ -146,8 +153,7 @@ private final class PageController: UIViewController {
     }
 
     func show(_ image: CGImage?) {
-        guard let image else { return }
-        imageView.image = UIImage(cgImage: image)
+        imageView.image = image.map { UIImage(cgImage: $0) }
     }
 }
 #endif
