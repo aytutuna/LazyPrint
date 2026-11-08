@@ -30,19 +30,31 @@ struct PreviewPosition: Equatable {
         self.count = sheets.count
     }
 
-    /// The count of the side that is `sheet`'s front, or its back.
-    static func side(sheet: Int, back: Bool, in sheets: [Sheet]) -> Int {
-        let before: Int = sheets.prefix(max(0, sheet)).reduce(0) { (total: Int, one: Sheet) -> Int in
-            total + (one.back == nil ? 1 : 2)
+    /// The pages on a side, numbered over the documents in turn: "Page 3", "Pages 3-4", "Pages 1, 8". `pageCounts` is the
+    /// pages of each document. A side with no pages on it is "Blank".
+    static func pages(on side: SheetSide, pageCounts: [Int]) -> String {
+        let numbers: [Int] = Set(side.placements.map { (placement: Placement) -> Int in
+            pageCounts.prefix(placement.page.document).reduce(0, +) + placement.page.index + 1
+        }).sorted()
+        guard !numbers.isEmpty else { return "Blank" }
+        var runs: [ClosedRange<Int>] = []
+        for number in numbers {
+            if let last = runs.last, last.upperBound + 1 == number {
+                runs[runs.count - 1] = last.lowerBound...number
+            } else {
+                runs.append(number...number)
+            }
         }
-        return before + (back ? 1 : 0)
+        let text: [String] = runs.map { (run: ClosedRange<Int>) -> String in
+            run.count == 1 ? "\(run.lowerBound)" : "\(run.lowerBound)\u{2013}\(run.upperBound)"
+        }
+        return (numbers.count == 1 ? "Page " : "Pages ") + text.joined(separator: ", ")
     }
 }
 
-/// The print screen: the task in use, the sheet the settings make of the documents with "Sheet 2 of 5", previous and
-/// next (and a swipe) and Front/Back, the plan's notes, the strip of documents and the Options row; the Print button is
-/// fixed at the bottom and says what it does. In landscape, and on an iPad, the sheet is on the left and the rest scrolls
-/// on the right.
+/// The print screen: the task in use, the sides the settings make of the documents as paper to fold over, "Page 3 \u{00B7}
+/// Sheet 2" with previous and next under them, the plan's notes, the documents and the Options row; the Print button is fixed
+/// at the bottom and says what it does. In landscape, and on an iPad, the page is on the left and the rest scrolls on the right.
 struct PrintScreen: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -55,6 +67,7 @@ struct PrintScreen: View {
     /// A task was picked from the Task menu.
     var pickTask: (PrintTask) -> Void
     var showPrinters: () -> Void
+    var showJobs: () -> Void
 
     @State private var showOptions = false
     @State private var showDocuments = false
@@ -62,8 +75,11 @@ struct PrintScreen: View {
     @State private var addAfterDocuments: FileSource?
     /// The files are being sent to the paired computer.
     @State private var sending = false
+    /// What sits above and under the page in portrait, which gets the rest of the height.
+    @State private var aboveStage: CGFloat = 56
+    @State private var belowStage: CGFloat = 90
 
-    private static let stagePadding: CGFloat = 20
+    private static let stagePadding: CGFloat = 10
 
     var body: some View {
         NavigationStack {
@@ -78,6 +94,12 @@ struct PrintScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: showJobs) {
+                        Label("Jobs", systemImage: "clock.arrow.circlepath")
+                    }
+                    .accessibilityIdentifier("print.jobs")
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     taskMenu
                     if state.task != nil {
@@ -161,47 +183,51 @@ struct PrintScreen: View {
 
     // MARK: Layouts
 
+    /// The page takes what the rest leaves; with text so large that the rest fills the screen, the screen scrolls.
     private func portrait(_ size: CGSize) -> some View {
-        ScrollView {
-            VStack(spacing: 12) {
+        let spacing: CGFloat = 8
+        return ScrollView {
+            VStack(spacing: spacing) {
                 PrinterButton(action: showPrinters)
                     .padding(.horizontal, 16)
-                stageArea(CGSize(width: size.width, height: max(220, min(size.height * 0.38, size.width * 1.1))))
-                if !sheets.isEmpty {
-                    previewBar
-                    notes
+                    .onGeometryChange(for: CGFloat.self) { (proxy: GeometryProxy) -> CGFloat in
+                        proxy.size.height
+                    } action: { (height: CGFloat) in
+                        aboveStage = height
+                    }
+                stageArea(CGSize(width: size.width, height: max(280, size.height - aboveStage - belowStage - 4 * spacing)))
+                VStack(spacing: spacing) {
+                    if !sheets.isEmpty {
+                        previewBar
+                        notes
+                    }
+                    if !state.documents.isEmpty {
+                        DocumentBar(addFiles: addFiles, edit: { showDocuments = true })
+                    }
                 }
-                if !state.documents.isEmpty {
-                    DocumentStrip(addFiles: addFiles, edit: { showDocuments = true })
+                .onGeometryChange(for: CGFloat.self) { (proxy: GeometryProxy) -> CGFloat in
+                    proxy.size.height
+                } action: { (height: CGFloat) in
+                    belowStage = height
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, spacing)
         }
+        .scrollBounceBehavior(.basedOnSize)
     }
-
-    /// The iPad's top tab bar leaves the screen without a title, so the task is named above the preview. A phone in
-    /// landscape uses this layout too, and has its title bar.
-    private var showsTitle: Bool { horizontalSizeClass == .regular && verticalSizeClass != .compact }
 
     private func landscape(_ size: CGSize) -> some View {
         HStack(spacing: 0) {
-            stageArea(CGSize(width: size.width * 0.5, height: size.height))
+            stageArea(CGSize(width: size.width * 0.6, height: size.height))
             ScrollView {
                 VStack(spacing: 12) {
-                    if showsTitle, let task = state.task {
-                        Text(TaskCatalog.definition(task).title)
-                            .font(.title2.weight(.semibold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityAddTraits(.isHeader)
-                            .accessibilityIdentifier("print.title")
-                    }
                     PrinterButton(action: showPrinters)
                     if !sheets.isEmpty {
                         previewBar
                         notes
                     }
                     if !state.documents.isEmpty {
-                        DocumentStrip(addFiles: addFiles, edit: { showDocuments = true })
+                        DocumentBar(addFiles: addFiles, edit: { showDocuments = true })
                     }
                 }
                 .padding(16)
@@ -213,7 +239,29 @@ struct PrintScreen: View {
 
     private var sheets: [Sheet] { state.jobPlan?.plan.sheets ?? [] }
 
+    private var sideCount: Int { state.jobPlan?.plan.sideCount ?? 0 }
+
     private var position: PreviewPosition { PreviewPosition(side: state.previewSide, sheets: sheets) }
+
+    /// "Page 3 \u{00B7} Sheet 2", with the side when the sheet has two.
+    private var positionText: String {
+        "\(pagesInView) \u{00B7} Sheet \(position.sheet + 1)\(sideInView.map { " " + $0 } ?? "")"
+    }
+
+    /// The same for VoiceOver, with how many sheets there are.
+    private var positionLabel: String {
+        "\(pagesInView), sheet \(position.sheet + 1) of \(position.count)\(sideInView.map { ", " + $0 } ?? "")"
+    }
+
+    private var pagesInView: String {
+        let sheet: Sheet = sheets[position.sheet]
+        let side: SheetSide = position.back ? sheet.back ?? sheet.front : sheet.front
+        return PreviewPosition.pages(on: side, pageCounts: state.documents.map { $0.loaded.pages.count })
+    }
+
+    private var sideInView: String? {
+        sheets[position.sheet].back == nil ? nil : position.back ? "back" : "front"
+    }
 
     private func stageArea(_ size: CGSize) -> some View {
         Group {
@@ -256,93 +304,68 @@ struct PrintScreen: View {
         .accessibilityIdentifier("print.empty")
     }
 
-    /// The sheet, as large as the stage lets it be; its pixels follow the stage's size and the screen's.
+    /// The page, as large as the stage lets it be; its pixels follow the stage's size and the screen's.
     private func stage(_ size: CGSize) -> some View {
         let paper: LayoutSize = state.jobPlan?.plan.area.paper ?? LayoutSize(width: 612, height: 792)
-        let fit: Double = min((size.width - 2 * Self.stagePadding) / paper.width,
-                              (size.height - 2 * Self.stagePadding) / paper.height)
+        let fit: Double = max(0.1, min((size.width - 2 * Self.stagePadding) / paper.width,
+                                       (size.height - 2 * Self.stagePadding) / paper.height))
         // Whole steps of a quarter, so a small resize draws nothing.
-        let wanted: Double = min(4, max(0.5, (max(fit, 0.1) * displayScale * 4).rounded(.up) / 4))
-        let now: PreviewPosition = position
+        let wanted: Double = min(4, max(0.5, (fit * displayScale * 4).rounded(.up) / 4))
+        let model: AppState = state
         return ZStack {
             scheme == .dark ? Color(white: 0.08) : Color(uiColor: .systemGroupedBackground)
-            if let image = state.preview {
-                Image(decorative: image, scale: displayScale)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
-                    .padding(Self.stagePadding)
-            }
+            // The view is exactly the paper's size, since all of it folds.
+            PageCurlView(count: sideCount, side: $state.previewSide, image: state.preview,
+                         drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
+                         draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) })
+                .frame(width: paper.width * fit, height: paper.height * fit)
+                .background(Color.white.shadow(color: .black.opacity(0.35), radius: 6, y: 2))
         }
-        .gesture(DragGesture(minimumDistance: 30).onEnded { (drag: DragGesture.Value) in
-            if drag.translation.width < -50 {
-                move(by: 1)
-            } else if drag.translation.width > 50 {
-                move(by: -1)
-            }
-        })
         .onChange(of: wanted, initial: true) { (_: Double, scale: Double) in
             state.previewScale = scale
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Sheet \(now.sheet + 1), \(now.back ? "back" : "front")")
+        .accessibilityLabel(positionLabel)
         .accessibilityAdjustableAction { (direction: AccessibilityAdjustmentDirection) in
             switch direction {
-            case .increment: move(by: 1)
-            case .decrement: move(by: -1)
+            case .increment: turn(by: 1)
+            case .decrement: turn(by: -1)
             @unknown default: break
             }
         }
         .accessibilityIdentifier("preview.stage")
     }
 
-    private func move(by offset: Int) {
-        let now: PreviewPosition = position
-        let target: Int = now.sheet + offset
-        guard target >= 0, target < now.count else { return }
-        state.previewSide = PreviewPosition.side(sheet: target, back: false, in: sheets)
+    private func turn(by offset: Int) {
+        let target: Int = state.previewSide + offset
+        guard target >= 0, target < sideCount else { return }
+        state.previewSide = target
     }
 
     private var previewBar: some View {
-        let now: PreviewPosition = position
-        let hasBack: Bool = sheets[min(now.sheet, sheets.count - 1)].back != nil
-        return VStack(spacing: 8) {
-            HStack(spacing: 20) {
-                Button {
-                    move(by: -1)
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .frame(minWidth: 32, minHeight: 32)
-                }
-                .disabled(now.sheet == 0)
-                .accessibilityLabel("Previous sheet")
-                .accessibilityIdentifier("print.previous")
-                Text("Sheet \(now.sheet + 1) of \(now.count)")
-                    .monospacedDigit()
-                    .accessibilityIdentifier("preview.position")
-                Button {
-                    move(by: 1)
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .frame(minWidth: 32, minHeight: 32)
-                }
-                .disabled(now.sheet >= now.count - 1)
-                .accessibilityLabel("Next sheet")
-                .accessibilityIdentifier("print.next")
+        HStack(spacing: 16) {
+            Button {
+                turn(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(minWidth: 32, minHeight: 32)
             }
-            if hasBack {
-                Picker("Side", selection: Binding(
-                    get: { now.back },
-                    set: { (back: Bool) in state.previewSide = PreviewPosition.side(sheet: now.sheet, back: back, in: sheets) })) {
-                    Text("Front").tag(false)
-                    Text("Back").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 240)
-                .accessibilityIdentifier("print.side")
+            .disabled(state.previewSide == 0)
+            .accessibilityLabel("Previous page")
+            .accessibilityIdentifier("print.previous")
+            Text(positionText)
+                .monospacedDigit()
+                .accessibilityLabel(positionLabel)
+                .accessibilityIdentifier("preview.position")
+            Button {
+                turn(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(minWidth: 32, minHeight: 32)
             }
+            .disabled(state.previewSide >= sideCount - 1)
+            .accessibilityLabel("Next page")
+            .accessibilityIdentifier("print.next")
         }
     }
 
@@ -488,36 +511,27 @@ struct PrintScreen: View {
     }
 }
 
-/// The documents under the preview, in print order: a thumbnail of the first page, the name and the page count. Add files
-/// is a menu of Files and Photos, which the caller opens; Edit opens the sheet that reorders and removes. Twin of the Mac's strip.
-private struct DocumentStrip: View {
+/// A line under the preview: how many documents and pages, Edit to open the sheet that reorders and removes them, and the
+/// plus that adds more.
+private struct DocumentBar: View {
     @EnvironmentObject private var state: AppState
     let addFiles: (FileSource) -> Void
     let edit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(summary)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("documents.summary")
-                Spacer(minLength: 8)
-                Button("Edit", action: edit)
-                    .disabled(state.isBusy)
-                    .accessibilityIdentifier("documents.edit")
-                AddFilesMenu(identifier: "documents.add", pick: addFiles)
-                    .disabled(state.isBusy || state.isAddingFiles)
-            }
-            .buttonStyle(.borderless)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(Array(state.documents.enumerated()), id: \.offset) { _, document in
-                        card(document)
-                    }
-                }
-            }
+        HStack {
+            Text(summary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("documents.summary")
+            Spacer(minLength: 8)
+            Button("Edit", action: edit)
+                .disabled(state.isBusy)
+                .accessibilityIdentifier("documents.edit")
+            AddFilesMenu(identifier: "documents.add", pick: addFiles)
+                .disabled(state.isBusy || state.isAddingFiles)
         }
+        .buttonStyle(.borderless)
         .padding(.horizontal, 16)
     }
 
@@ -525,27 +539,6 @@ private struct DocumentStrip: View {
         let documents: Int = state.documents.count
         let pages: Int = state.pageCount
         return "\(documents) document\(documents == 1 ? "" : "s") \u{00B7} \(pages) page\(pages == 1 ? "" : "s")"
-    }
-
-    private func card(_ document: OpenedDocument) -> some View {
-        let pages: Int = document.loaded.pages.count
-        let count: String = "\(pages) page\(pages == 1 ? "" : "s")"
-        return VStack(alignment: .leading, spacing: 4) {
-            Thumbnail(document: document)
-                .frame(width: 96, height: 96)
-            Text(document.loaded.name)
-                .font(.callout)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Text(count)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(8)
-        .frame(width: 112, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(document.loaded.name), \(count)")
     }
 }
 

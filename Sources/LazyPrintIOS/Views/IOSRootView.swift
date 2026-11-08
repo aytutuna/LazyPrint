@@ -4,13 +4,8 @@ import QuickLook
 import SwiftUI
 import UIKit
 
-enum RootTab: Hashable {
-    case print
-    case jobs
-}
-
-/// The app's window: Print and Jobs in a tab bar. The printer in use is a button at the top of Print, which
-/// opens the printers; the error bar and the bar after a job sit above the tab bar. Also the sheets that hang off the state
+/// The app's window: the Print screen, with Jobs in a panel that slides in from the left. The printer in use is a button at
+/// the top of Print, which opens the printers; the error bar and the bar after a job sit at the bottom. Also the sheets that hang off the state
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
 /// certificate question, and the files that come in: from the Add files menu (Files and Photos), from Open In and the share sheet
 /// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL only brings the app
@@ -24,7 +19,7 @@ public struct IOSRootView: View {
     private let fixture: IOSLaunchFixture?
     private let companion: IOSCompanionBrowser?
 
-    @State private var tab: RootTab = .print
+    @State private var showJobs = false
     @State private var source: FileSource?
     @State private var showPrinters = false
     @State private var showTroubleshooter = false
@@ -43,17 +38,12 @@ public struct IOSRootView: View {
     }
 
     public var body: some View {
-        TabView(selection: $tab) {
+        ZStack(alignment: .leading) {
             PrintScreen(addFiles: { (picked: FileSource) in source = picked }, pickTask: { (task: PrintTask) in
                 Task { await start(task) }
-            }, showPrinters: { showPrinters = true })
-                .modifier(Bars(tab: $tab, showTroubleshooter: $showTroubleshooter))
-                .tabItem { Label("Print", systemImage: "printer") }
-                .tag(RootTab.print)
-            JobsScreen()
-                .modifier(Bars(tab: $tab, showTroubleshooter: $showTroubleshooter))
-                .tabItem { Label("Jobs", systemImage: "clock.arrow.circlepath") }
-                .tag(RootTab.jobs)
+            }, showPrinters: { showPrinters = true }, showJobs: { showJobs = true })
+                .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
+            JobsPanel(isOpen: $showJobs)
         }
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
         .sheet(isPresented: $showPrinters) {
@@ -120,7 +110,6 @@ public struct IOSRootView: View {
     private func start(_ task: PrintTask) async {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }
-        tab = .print
         if state.documents.isEmpty {
             source = task == .photos || task == .photoSheet ? .photos : .files
         }
@@ -166,22 +155,55 @@ public struct IOSRootView: View {
             (name: name, reason: DocumentText.unreadable)
         }
         await state.addFiles(files, alsoNotAdded: unreadable)
-        if !state.documents.isEmpty { tab = .print }
+        if !state.documents.isEmpty { showJobs = false }
     }
 }
 
-/// The error bar and the bar after a job, above the tab bar.
+/// Jobs, sliding in from the left over the dimmed Print screen. A tap beside it or a drag to the left closes it.
+private struct JobsPanel: View {
+    @Binding var isOpen: Bool
+    @State private var drag: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { (geometry: GeometryProxy) in
+            ZStack(alignment: .leading) {
+                if isOpen {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture { isOpen = false }
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
+                    JobsScreen(close: { isOpen = false })
+                        .frame(width: min(360, geometry.size.width * 0.85))
+                        .background(Color(uiColor: .systemGroupedBackground).shadow(color: .black.opacity(0.3), radius: 8).ignoresSafeArea())
+                        .offset(x: min(0, drag))
+                        .gesture(DragGesture(minimumDistance: 20).onChanged { (value: DragGesture.Value) in
+                            drag = value.translation.width
+                        }.onEnded { (value: DragGesture.Value) in
+                            if value.predictedEndTranslation.width < -80 { isOpen = false }
+                            drag = 0
+                        })
+                        .accessibilityAddTraits(.isModal)
+                        .accessibilityAction(.escape) { isOpen = false }
+                        .transition(.move(edge: .leading))
+                }
+            }
+        }
+        .allowsHitTesting(isOpen)
+        .animation(.easeOut(duration: 0.25), value: isOpen)
+        .animation(.easeOut(duration: 0.15), value: drag)
+    }
+}
+
+/// The error bar and the bar after a job, at the bottom of the window.
 private struct Bars: ViewModifier {
     @EnvironmentObject private var state: AppState
-    @Binding var tab: RootTab
+    @Binding var showJobs: Bool
     @Binding var showTroubleshooter: Bool
 
     func body(content: Content) -> some View {
         content.safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                if state.isBusy && tab != .print {
-                    busyBar
-                }
                 if let error = state.error {
                     errorBar(error)
                 }
@@ -223,23 +245,6 @@ private struct Bars: ViewModifier {
         .background(.bar, ignoresSafeAreaEdges: [])
     }
 
-    /// A job that was not started from the Print screen (the test page): what it is doing, and a way to stop it.
-    private var busyBar: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-            Text(state.status)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("bar.busy")
-            Spacer(minLength: 8)
-            Button("Cancel") { state.cancelJob() }
-                .accessibilityIdentifier("bar.busy.cancel")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.bar, ignoresSafeAreaEdges: [])
-    }
-
     private func sentBar(_ sent: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle")
@@ -249,10 +254,8 @@ private struct Bars: ViewModifier {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("bar.sent")
             Spacer(minLength: 8)
-            if tab != .jobs {
-                Button("Jobs") { tab = .jobs }
-                    .accessibilityIdentifier("bar.sent.jobs")
-            }
+            Button("Jobs") { showJobs = true }
+                .accessibilityIdentifier("bar.sent.jobs")
             Button {
                 state.dismissSent()
             } label: {

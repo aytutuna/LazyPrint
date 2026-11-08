@@ -3,9 +3,10 @@ import LazyPrintKit
 import SwiftUI
 
 /// This session's jobs, newest first, each with its state, Cancel while it runs, Print again once it is over and Show for
-/// the demo printer's pictures (the share sheet). Twin of the Mac's Jobs tab.
+/// the demo printer's pictures (the share sheet). Twin of the Mac's Jobs tab. Shown in the panel the Print screen opens.
 struct JobsScreen: View {
     @EnvironmentObject private var state: AppState
+    let close: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,14 @@ struct JobsScreen: View {
             }
             .navigationTitle("Jobs")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: close) {
+                        Label("Close", systemImage: "xmark")
+                    }
+                    .accessibilityIdentifier("jobs.close")
+                }
+            }
         }
     }
 }

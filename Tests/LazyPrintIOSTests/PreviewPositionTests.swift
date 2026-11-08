@@ -3,8 +3,8 @@ import LazyPrintKit
 import XCTest
 @testable import LazyPrintIOS
 
-// The preview counts sides over the front and the back of each sheet in turn; the Print screen shows "Sheet 2 of 5" and
-// moves by whole sheets.
+// The preview counts sides over the front and the back of each sheet in turn, and the Print screen says which pages and
+// which sheet are in view.
 
 final class PreviewPositionTests: XCTestCase {
     private let side = SheetSide(placements: [], borders: false)
@@ -58,21 +58,27 @@ final class PreviewPositionTests: XCTestCase {
         XCTAssertEqual(position.count, 0)
     }
 
-    func test_sideOf_isTheInverse() {
-        let plan = sheets([true, false, true])
-
-        XCTAssertEqual(PreviewPosition.side(sheet: 0, back: false, in: plan), 0)
-        XCTAssertEqual(PreviewPosition.side(sheet: 0, back: true, in: plan), 1)
-        XCTAssertEqual(PreviewPosition.side(sheet: 1, back: false, in: plan), 2)
-        XCTAssertEqual(PreviewPosition.side(sheet: 2, back: true, in: plan), 4)
-        for side in 0..<5 {
-            let position = PreviewPosition(side: side, sheets: plan)
-            XCTAssertEqual(PreviewPosition.side(sheet: position.sheet, back: position.back, in: plan), side)
-        }
+    private func onSide(_ pages: [(document: Int, index: Int)]) -> SheetSide {
+        let frame = LayoutRect(x: 0, y: 0, width: 1, height: 1)
+        let size = LayoutSize(width: 1, height: 1)
+        return SheetSide(placements: pages.map {
+            Placement(page: SourcePage(document: $0.document, index: $0.index, size: size), frame: frame, turns: 0, crop: nil)
+        }, borders: false)
     }
 
-    func test_sideOf_ignoresASheetBeforeTheFirst() {
-        XCTAssertEqual(PreviewPosition.side(sheet: -1, back: false, in: sheets([true])), 0)
+    func test_pages_nameOnePageARunAndAGap() {
+        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 2)]), pageCounts: [5]), "Page 3")
+        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 3), (0, 2)]), pageCounts: [5]), "Pages 3\u{2013}4")
+        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 7), (0, 0)]), pageCounts: [8]), "Pages 1, 8")
+    }
+
+    func test_pages_runOnOverTheDocuments() {
+        XCTAssertEqual(PreviewPosition.pages(on: onSide([(1, 0)]), pageCounts: [4, 2]), "Page 5")
+    }
+
+    func test_pages_aSideWithoutPagesIsBlank_andCopiesCountOnce() {
+        XCTAssertEqual(PreviewPosition.pages(on: onSide([]), pageCounts: [4]), "Blank")
+        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 1), (0, 1)]), pageCounts: [4]), "Page 2")
     }
 }
 #endif

@@ -42,12 +42,12 @@ extension XCUIApplication {
         return position
     }
 
-    /// Waits for the preview to say `label` ("Sheet 1 of 2"). A file opened at launch is laid out first without what the
+    /// Waits for the preview to say which sheet it is on ("Sheet 1 of 2"), which is in its spoken label. A file opened at launch is laid out first without what the
     /// printer can do, and again when that is read, so the count is not final when the preview first shows.
     @MainActor
     func waitForSheet(_ label: String, file: StaticString = #filePath, line: UInt = #line) {
         let position: XCUIElement = waitForPreview(file: file, line: line)
-        waitUntil(position, "label == '\(label)'", "The preview says \(label)", file: file, line: line)
+        waitUntil(position, "label CONTAINS[c] '\(label)'", "The preview says \(label)", file: file, line: line)
     }
 
     /// Waits for Print to be enabled and says what its label is.
@@ -72,21 +72,12 @@ extension XCUIApplication {
         waitUntil(element, "exists == false", message, timeout: timeout, file: file, line: line)
     }
 
-    /// A tab of the bar. The iPad's bar is not in the tab bar query; its buttons are found by label, and by the symbol that
-    /// is their identifier, since the Print and Jobs buttons elsewhere share the labels.
+    /// Opens the Jobs panel from the Print screen's bar.
     @MainActor
-    func tabButton(_ name: String) -> XCUIElement {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            return buttons.matching(NSPredicate(format: "label == %@ AND identifier IN {'printer', 'clock.arrow.circlepath'}", name)).firstMatch
-        }
-        return tabBars.buttons[name]
-    }
-
-    @MainActor
-    func openTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let tab: XCUIElement = tabButton(name)
-        XCTAssertTrue(tab.waitForExistence(timeout: 30), "The \(name) tab", file: file, line: line)
-        tab.tap()
+    func openJobs(file: StaticString = #filePath, line: UInt = #line) {
+        let jobs: XCUIElement = item("print.jobs", title: "Jobs")
+        XCTAssertTrue(jobs.waitForExistence(timeout: 30), "The Jobs button", file: file, line: line)
+        jobs.tap()
     }
 
     /// A control by its identifier, or failing that by its title: a menu, and the items in one, can lose their identifier.

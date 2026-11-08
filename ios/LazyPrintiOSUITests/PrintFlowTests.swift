@@ -38,7 +38,7 @@ final class PrintFlowTests: XCTestCase {
         let sent: XCUIElement = app.staticTexts["bar.sent"]
         XCTAssertTrue(sent.waitForExistence(timeout: 120), "The Sent bar")
         XCTAssertTrue(sent.label.hasPrefix("Sent 2 sheets"), sent.label)
-        app.openTab("Jobs")
+        app.openJobs()
         let state: XCUIElement = app.staticTexts["jobs.state"]
         XCTAssertTrue(state.waitForExistence(timeout: 30), "The job's state")
         XCTAssertEqual(state.label, "Done")
@@ -58,19 +58,49 @@ final class PrintFlowTests: XCTestCase {
         pages.typeText("1-2")
         app.item("options.done").tap()
 
-        app.waitUntil(app.staticTexts["preview.position"], "label == 'Sheet 1 of 1'", "One sheet for pages 1-2")
+        app.waitForSheet("Sheet 1 of 1")
         XCTAssertEqual(app.waitForPrint().label, "Print 1 sheet")
     }
 
     @MainActor
-    func test_nextSheet_movesThePreview() throws {
+    func test_next_turnsThePage() throws {
         let app = try XCUIApplication.launched()
         app.waitForSheet("Sheet 1 of 2")
+        let position: XCUIElement = app.staticTexts["preview.position"]
+        let first: String = position.label
 
         app.item("print.next").tap()
 
-        app.waitUntil(app.staticTexts["preview.position"], "label == 'Sheet 2 of 2'", "The second sheet")
-        XCTAssertTrue(app.item("print.previous").isEnabled, "Previous after the first sheet")
+        app.waitUntil(position, "label != '\(first)'", "The next page")
+        XCTAssertTrue(app.item("print.previous").isEnabled, "Previous after the first page")
+    }
+
+    @MainActor
+    func test_swipingThePage_foldsItOverAndBack() throws {
+        let app = try XCUIApplication.launched()
+        app.waitForSheet("Sheet 1 of 2")
+        let position: XCUIElement = app.staticTexts["preview.position"]
+        let first: String = position.label
+
+        app.item("preview.stage").swipeLeft()
+        app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
+
+        app.item("preview.stage").swipeRight()
+        app.waitUntil(position, "label == '\(first)'", "A swipe to the right turns back")
+    }
+
+    @MainActor
+    func test_jobsPanel_opensFromTheCornerAndCloses() throws {
+        let app = try XCUIApplication.launched()
+        app.waitForPreview()
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "No bar at the bottom")
+
+        app.openJobs()
+
+        let close: XCUIElement = app.item("jobs.close", title: "Close")
+        XCTAssertTrue(close.waitForExistence(timeout: 30), "The panel's Close")
+        close.tap()
+        app.waitUntilGone(close, "The panel closed")
     }
 
     @MainActor

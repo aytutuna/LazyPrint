@@ -51,7 +51,7 @@ final class TwoSidedTests: XCTestCase {
         app.item("duplex.cancel").tap()
 
         app.waitUntilGone(title, "The card gone after Cancel")
-        app.openTab("Jobs")
+        app.openJobs()
         let state: XCUIElement = app.staticTexts["jobs.state"]
         XCTAssertTrue(state.waitForExistence(timeout: 30), "The job's state")
         XCTAssertEqual(state.label, "Canceled")

@@ -139,7 +139,7 @@ final class ScreenshotTests: XCTestCase {
             shot(app, "skipped-06-jobs")
             return
         }
-        if tapIfThere(app, tab: "Jobs", for: "06-jobs") {
+        if tapIfThere(app, "print.jobs", for: "06-jobs") {
             if app.staticTexts["jobs.state"].waitForExistence(timeout: 10) {
                 settle()
                 shot(app, "06-jobs")
@@ -226,17 +226,6 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     private func tapIfThere(_ app: XCUIApplication, _ id: String, title: String? = nil, for screen: String) -> Bool {
         let target: XCUIElement = title.map { app.item(id, title: $0) } ?? app.item(id)
-        guard target.waitForExistence(timeout: 10) else {
-            shot(app, "skipped-\(screen)")
-            return false
-        }
-        target.tap()
-        return true
-    }
-
-    @MainActor
-    private func tapIfThere(_ app: XCUIApplication, tab name: String, for screen: String) -> Bool {
-        let target: XCUIElement = app.tabButton(name)
         guard target.waitForExistence(timeout: 10) else {
             shot(app, "skipped-\(screen)")
             return false
