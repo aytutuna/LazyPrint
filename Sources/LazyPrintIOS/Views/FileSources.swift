@@ -17,7 +17,7 @@ enum PhotoNames {
     }
 }
 
-/// The Add files menu: Files or Photos. It sets the source straight away; a dialog in between would still be closing when
+/// The Add files menu, a plus that opens Files or Photos. It sets the source straight away; a dialog in between would still be closing when
 /// the picker opened, and UIKit drops a picker presented over a dismissal.
 struct AddFilesMenu: View {
     let identifier: String
@@ -39,6 +39,9 @@ struct AddFilesMenu: View {
             .accessibilityIdentifier("source.photos")
         } label: {
             Label("Add files\u{2026}", systemImage: "plus")
+                .labelStyle(.iconOnly)
+                .imageScale(.large)
+                .frame(minWidth: 32, minHeight: 32)
         }
         .accessibilityIdentifier(identifier)
     }
