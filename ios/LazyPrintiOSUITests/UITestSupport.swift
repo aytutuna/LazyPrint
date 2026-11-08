@@ -89,10 +89,9 @@ extension XCUIApplication {
         tab.tap()
     }
 
-    /// An item of the open Task menu: by its identifier ("task.twoSided"), or failing that by its title, since a menu
-    /// item can lose its identifier.
+    /// A control by its identifier, or failing that by its title: a menu, and the items in one, can lose their identifier.
     @MainActor
-    func taskItem(_ id: String, title: String) -> XCUIElement {
+    func item(_ id: String, title: String) -> XCUIElement {
         let byId: XCUIElement = item(id)
         if byId.waitForExistence(timeout: 5) { return byId }
         return descendants(matching: .any).matching(NSPredicate(format: "label == %@", title)).firstMatch
@@ -104,7 +103,7 @@ extension XCUIApplication {
         let menu: XCUIElement = item("print.task")
         XCTAssertTrue(menu.waitForExistence(timeout: 30), "The Task menu", file: file, line: line)
         menu.tap()
-        let task: XCUIElement = taskItem(id, title: title)
+        let task: XCUIElement = item(id, title: title)
         XCTAssertTrue(task.waitForExistence(timeout: 30), "The \(title) item in the Task menu", file: file, line: line)
         task.tap()
     }

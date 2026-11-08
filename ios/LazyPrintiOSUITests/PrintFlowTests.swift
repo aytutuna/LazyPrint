@@ -22,8 +22,8 @@ final class PrintFlowTests: XCTestCase {
         XCTAssertTrue(app.item("print.task").waitForExistence(timeout: 60), "The Task menu")
         XCTAssertTrue(app.item("printer.button").exists, "The printer button")
         app.item("print.task").tap()
-        XCTAssertTrue(app.taskItem("task.document", title: "Print a document").waitForExistence(timeout: 30), "The Print a document item")
-        XCTAssertTrue(app.taskItem("task.twoSided", title: "Two-sided").exists, "The Two-sided item")
+        XCTAssertTrue(app.item("task.document", title: "Print a document").waitForExistence(timeout: 30), "The Print a document item")
+        XCTAssertTrue(app.item("task.twoSided", title: "Two-sided").exists, "The Two-sided item")
     }
 
     @MainActor
@@ -95,7 +95,7 @@ final class PrintFlowTests: XCTestCase {
         XCTAssertTrue(add.waitForExistence(timeout: 30), "Add files in the documents sheet")
 
         add.tap()
-        let photos: XCUIElement = app.item("source.photos")
+        let photos: XCUIElement = app.item("source.photos", title: "Photos")
         XCTAssertTrue(photos.waitForExistence(timeout: 30), "The Files and Photos menu")
         photos.tap()
 
@@ -110,10 +110,11 @@ final class PrintFlowTests: XCTestCase {
     @MainActor
     func test_addFilesMenu_photosStaysOpen() throws {
         let app = try XCUIApplication.launched(opening: nil)
-        XCTAssertTrue(app.item("print.addFiles").waitForExistence(timeout: 60), "Add files on the empty Print screen")
+        let add: XCUIElement = app.item("print.addFiles", title: "Add files\u{2026}")
+        XCTAssertTrue(add.waitForExistence(timeout: 60), "Add files on the empty Print screen")
 
-        app.item("print.addFiles").tap()
-        let photos: XCUIElement = app.item("source.photos")
+        add.tap()
+        let photos: XCUIElement = app.item("source.photos", title: "Photos")
         XCTAssertTrue(photos.waitForExistence(timeout: 30), "Photos in the menu")
         photos.tap()
 
@@ -127,10 +128,11 @@ final class PrintFlowTests: XCTestCase {
     @MainActor
     func test_addFilesMenu_filesStaysOpen() throws {
         let app = try XCUIApplication.launched(opening: nil)
-        XCTAssertTrue(app.item("print.addFiles").waitForExistence(timeout: 60), "Add files on the empty Print screen")
+        let add: XCUIElement = app.item("print.addFiles", title: "Add files\u{2026}")
+        XCTAssertTrue(add.waitForExistence(timeout: 60), "Add files on the empty Print screen")
 
-        app.item("print.addFiles").tap()
-        let files: XCUIElement = app.item("source.files")
+        add.tap()
+        let files: XCUIElement = app.item("source.files", title: "Files")
         XCTAssertTrue(files.waitForExistence(timeout: 30), "Files in the menu")
         files.tap()
 

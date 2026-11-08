@@ -225,7 +225,7 @@ final class ScreenshotTests: XCTestCase {
     /// Taps the element if it comes, else keeps a "skipped-" screenshot of what is there instead.
     @MainActor
     private func tapIfThere(_ app: XCUIApplication, _ id: String, title: String? = nil, for screen: String) -> Bool {
-        let target: XCUIElement = title.map { app.taskItem(id, title: $0) } ?? app.item(id)
+        let target: XCUIElement = title.map { app.item(id, title: $0) } ?? app.item(id)
         guard target.waitForExistence(timeout: 10) else {
             shot(app, "skipped-\(screen)")
             return false

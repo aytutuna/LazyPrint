@@ -252,6 +252,7 @@ struct PrintScreen: View {
         }
         .multilineTextAlignment(.center)
         .padding()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("print.empty")
     }
 
