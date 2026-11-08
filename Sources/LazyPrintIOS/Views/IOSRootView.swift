@@ -42,9 +42,10 @@ public struct IOSRootView: View {
             PrintScreen(addFiles: { (picked: FileSource) in source = picked }, pickTask: { (task: PrintTask) in
                 Task { await start(task) }
             }, showPrinters: { showPrinters = true }, showJobs: { showJobs = true })
-                .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
             JobsPanel(isOpen: $showJobs)
         }
+        // Outside the panel's dimming, so what a job in the panel says can be read and acted on.
+        .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
         .sheet(isPresented: $showPrinters) {
             PrintersScreen(airPrint: airPrint, companion: companion)
@@ -162,7 +163,7 @@ public struct IOSRootView: View {
 /// Jobs, sliding in from the left over the dimmed Print screen. A tap beside it or a drag to the left closes it.
 private struct JobsPanel: View {
     @Binding var isOpen: Bool
-    @State private var drag: CGFloat = 0
+    @GestureState private var drag: CGFloat = 0
 
     var body: some View {
         GeometryReader { (geometry: GeometryProxy) in
@@ -177,11 +178,10 @@ private struct JobsPanel: View {
                         .frame(width: min(360, geometry.size.width * 0.85))
                         .background(Color(uiColor: .systemGroupedBackground).shadow(color: .black.opacity(0.3), radius: 8).ignoresSafeArea())
                         .offset(x: min(0, drag))
-                        .gesture(DragGesture(minimumDistance: 20).onChanged { (value: DragGesture.Value) in
-                            drag = value.translation.width
+                        .gesture(DragGesture(minimumDistance: 20).updating($drag) { (value: DragGesture.Value, offset: inout CGFloat, _: inout Transaction) in
+                            offset = value.translation.width
                         }.onEnded { (value: DragGesture.Value) in
                             if value.predictedEndTranslation.width < -80 { isOpen = false }
-                            drag = 0
                         })
                         .accessibilityAddTraits(.isModal)
                         .accessibilityAction(.escape) { isOpen = false }
