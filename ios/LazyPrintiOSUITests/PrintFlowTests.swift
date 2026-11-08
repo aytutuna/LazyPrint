@@ -86,7 +86,7 @@ final class PrintFlowTests: XCTestCase {
     }
 
     @MainActor
-    func test_addFilesFromTheDocumentsSheet_opensTheChoiceOnceTheSheetHasClosed() throws {
+    func test_addFilesFromTheDocumentsSheet_opensThePickerOnceTheSheetHasClosed() throws {
         let app = try XCUIApplication.launched()
         app.waitForPreview()
         app.scrollTo(app.item("documents.edit"))
@@ -95,9 +95,50 @@ final class PrintFlowTests: XCTestCase {
         XCTAssertTrue(add.waitForExistence(timeout: 30), "Add files in the documents sheet")
 
         add.tap()
+        let photos: XCUIElement = app.item("source.photos")
+        XCTAssertTrue(photos.waitForExistence(timeout: 30), "The Files and Photos menu")
+        photos.tap()
 
-        XCTAssertTrue(app.buttons["Photos"].waitForExistence(timeout: 30), "The choice of Files or Photos")
+        let cancel: XCUIElement = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 30), "The photo picker")
         XCTAssertFalse(add.exists, "The documents sheet is closed")
+        cancel.tap()
+    }
+
+    // The pickers closed again at once when a dialog was still going away as they opened, so each is looked at again after
+    // a pause. Their Cancel button is what the Simulator shows of them.
+    @MainActor
+    func test_addFilesMenu_photosStaysOpen() throws {
+        let app = try XCUIApplication.launched(opening: nil)
+        XCTAssertTrue(app.item("print.addFiles").waitForExistence(timeout: 60), "Add files on the empty Print screen")
+
+        app.item("print.addFiles").tap()
+        let photos: XCUIElement = app.item("source.photos")
+        XCTAssertTrue(photos.waitForExistence(timeout: 30), "Photos in the menu")
+        photos.tap()
+
+        let cancel: XCUIElement = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 30), "The photo picker")
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertTrue(cancel.exists, "The photo picker is still up")
+        cancel.tap()
+    }
+
+    @MainActor
+    func test_addFilesMenu_filesStaysOpen() throws {
+        let app = try XCUIApplication.launched(opening: nil)
+        XCTAssertTrue(app.item("print.addFiles").waitForExistence(timeout: 60), "Add files on the empty Print screen")
+
+        app.item("print.addFiles").tap()
+        let files: XCUIElement = app.item("source.files")
+        XCTAssertTrue(files.waitForExistence(timeout: 30), "Files in the menu")
+        files.tap()
+
+        let cancel: XCUIElement = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 30), "The document browser")
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertTrue(cancel.exists, "The document browser is still up")
+        cancel.tap()
     }
 
     @MainActor
@@ -106,8 +147,8 @@ final class PrintFlowTests: XCTestCase {
         app.waitForPreview()
 
         XCTAssertTrue(app.item("preview.stage").exists, "The preview")
-        app.scrollTo(app.item("print.options"))
         app.scrollTo(app.item("documents.summary"))
+        XCTAssertTrue(app.item("print.options").isHittable, "Options above Print")
         XCTAssertTrue(app.item("print.button").isHittable, "Print at the foot")
     }
 
@@ -120,7 +161,7 @@ final class PrintFlowTests: XCTestCase {
 
         let stage: XCUIElement = app.item("preview.stage")
         XCTAssertTrue(stage.waitForExistence(timeout: 30), "The preview")
-        app.scrollTo(app.item("print.options"))
+        XCTAssertTrue(app.item("print.options").isHittable, "Options above Print")
         XCTAssertTrue(app.item("print.button").isHittable, "Print at the foot")
         XCTAssertGreaterThan(app.frame.width, app.frame.height, "The app turned")
     }

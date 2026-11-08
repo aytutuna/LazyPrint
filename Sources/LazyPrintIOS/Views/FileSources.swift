@@ -4,9 +4,8 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Where files come from: the choice of Files or Photos, then the Files app's importer or the photo library's picker.
+/// Where files come from: the Files app's importer or the photo library's picker.
 enum FileSource {
-    case choice
     case files
     case photos
 }
@@ -18,8 +17,35 @@ enum PhotoNames {
     }
 }
 
-/// The choice of Files or Photos and the two pickers behind it, for the view that owns `source`. What they bring in goes
-/// to `take`, as files in the inbox.
+/// The Add files menu: Files or Photos. It sets the source straight away; a dialog in between would still be closing when
+/// the picker opened, and UIKit drops a picker presented over a dismissal.
+struct AddFilesMenu: View {
+    let identifier: String
+    let pick: (FileSource) -> Void
+
+    var body: some View {
+        Menu {
+            Button {
+                pick(.files)
+            } label: {
+                Label("Files", systemImage: "folder")
+            }
+            .accessibilityIdentifier("source.files")
+            Button {
+                pick(.photos)
+            } label: {
+                Label("Photos", systemImage: "photo.on.rectangle")
+            }
+            .accessibilityIdentifier("source.photos")
+        } label: {
+            Label("Add files\u{2026}", systemImage: "plus")
+        }
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The two pickers behind the Add files menu, for the view that owns `source`. What they bring in goes to `take`, as
+/// files in the inbox.
 struct FileSources: ViewModifier {
     @EnvironmentObject private var state: AppState
     @Binding var source: FileSource?
@@ -29,13 +55,6 @@ struct FileSources: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog("Add files", isPresented: shown(.choice), titleVisibility: .visible) {
-                Button("Files") { source = .files }
-                    .accessibilityIdentifier("source.files")
-                Button("Photos") { source = .photos }
-                    .accessibilityIdentifier("source.photos")
-                Button("Cancel", role: .cancel) {}
-            }
             .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
                 if case .success(let urls) = result { take(inbox.receive(urls)) }
             }
@@ -48,7 +67,7 @@ struct FileSources: ViewModifier {
     }
 
     /// True while `source` is `kind`. Closing one (the importer says so after a pick) does not clear a source another
-    /// choice has set since.
+    /// pick has set since.
     private func shown(_ kind: FileSource) -> Binding<Bool> {
         Binding(get: { source == kind }, set: { (on: Bool) in
             if !on && source == kind { source = nil }

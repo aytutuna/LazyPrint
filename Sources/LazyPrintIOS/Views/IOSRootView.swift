@@ -12,7 +12,7 @@ enum RootTab: Hashable {
 /// The app's window: Print and Jobs in a tab bar. The printer in use is a button at the top of Print, which
 /// opens the printers; the error bar and the bar after a job sit above the tab bar. Also the sheets that hang off the state
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
-/// certificate question, and the files that come in: from the Files and Photos choice, from Open In and the share sheet
+/// certificate question, and the files that come in: from the Add files menu (Files and Photos), from Open In and the share sheet
 /// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL only brings the app
 /// forward.
 public struct IOSRootView: View {
@@ -44,7 +44,7 @@ public struct IOSRootView: View {
 
     public var body: some View {
         TabView(selection: $tab) {
-            PrintScreen(addFiles: { source = .choice }, pickTask: { (task: PrintTask) in
+            PrintScreen(addFiles: { (picked: FileSource) in source = picked }, pickTask: { (task: PrintTask) in
                 Task { await start(task) }
             }, showPrinters: { showPrinters = true })
                 .modifier(Bars(tab: $tab, showTroubleshooter: $showTroubleshooter))
@@ -118,14 +118,14 @@ public struct IOSRootView: View {
     // MARK: Files and tasks
 
     /// A task was picked from the Task menu: its settings are applied, and a task that starts with files asks for them,
-    /// unless some are there already; cancelling the choice leaves the empty Print screen. The test page prints at once,
-    /// and its result shows in the bars. The photo tasks go straight to the photo library.
+    /// unless some are there already; cancelling the picker leaves the empty Print screen. The test page prints at once,
+    /// and its result shows in the bars. The photo tasks open the photo library, the others the Files app.
     private func start(_ task: PrintTask) async {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }
         tab = .print
         if state.documents.isEmpty {
-            source = task == .photos || task == .photoSheet ? .photos : .choice
+            source = task == .photos || task == .photoSheet ? .photos : .files
         }
     }
 

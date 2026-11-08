@@ -50,16 +50,16 @@ struct PrintScreen: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.colorScheme) private var scheme
 
-    /// Opens the choice of Files or Photos.
-    var addFiles: () -> Void
+    /// Opens the Files importer or the photo picker.
+    var addFiles: (FileSource) -> Void
     /// A task was picked from the Task menu.
     var pickTask: (PrintTask) -> Void
     var showPrinters: () -> Void
 
     @State private var showOptions = false
     @State private var showDocuments = false
-    /// Add files was asked from the documents sheet: the choice opens once that sheet has closed.
-    @State private var addAfterDocuments = false
+    /// Add files was asked from the documents sheet, with this source: it opens once that sheet has closed.
+    @State private var addAfterDocuments: FileSource?
     /// The files are being sent to the paired computer.
     @State private var sending = false
 
@@ -98,13 +98,13 @@ struct PrintScreen: View {
                 OptionsSheet()
             }
             .sheet(isPresented: $showDocuments, onDismiss: {
-                if addAfterDocuments {
-                    addAfterDocuments = false
-                    addFiles()
+                if let source = addAfterDocuments {
+                    addAfterDocuments = nil
+                    addFiles(source)
                 }
             }) {
-                DocumentsSheet(addFiles: {
-                    addAfterDocuments = true
+                DocumentsSheet(addFiles: { (source: FileSource) in
+                    addAfterDocuments = source
                     showDocuments = false
                 })
             }
@@ -169,13 +169,15 @@ struct PrintScreen: View {
                     previewBar
                     notes
                 }
-                controls
+                if !state.documents.isEmpty {
+                    DocumentStrip(addFiles: addFiles, edit: { showDocuments = true })
+                }
             }
             .padding(.vertical, 8)
         }
     }
 
-    /// The iPad's top tab bar leaves the screen without a title, so the task is named above the controls. A phone in
+    /// The iPad's top tab bar leaves the screen without a title, so the task is named above the preview. A phone in
     /// landscape uses this layout too, and has its title bar.
     private var showsTitle: Bool { horizontalSizeClass == .regular && verticalSizeClass != .compact }
 
@@ -196,7 +198,9 @@ struct PrintScreen: View {
                         previewBar
                         notes
                     }
-                    controls
+                    if !state.documents.isEmpty {
+                        DocumentStrip(addFiles: addFiles, edit: { showDocuments = true })
+                    }
                 }
                 .padding(16)
             }
@@ -231,15 +235,10 @@ struct PrintScreen: View {
                     .font(.title3.weight(.semibold))
                 Text("Pages you add appear here.")
                     .foregroundStyle(.secondary)
-                Button {
-                    addFiles()
-                } label: {
-                    Label("Add files\u{2026}", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-                .padding(.top, 4)
-                .disabled(state.isBusy)
-                .accessibilityIdentifier("print.addFiles")
+                AddFilesMenu(identifier: "print.addFiles", pick: addFiles)
+                    .buttonStyle(.bordered)
+                    .padding(.top, 4)
+                    .disabled(state.isBusy)
             } else {
                 Text("No pages to print")
                     .font(.title3.weight(.semibold))
@@ -362,39 +361,33 @@ struct PrintScreen: View {
 
     // MARK: Controls
 
-    private var controls: some View {
-        VStack(spacing: 12) {
-            Button {
-                showOptions = true
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Options")
-                            .foregroundStyle(.primary)
-                        if !optionsSummary.isEmpty {
-                            Text(optionsSummary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.leading)
-                        }
+    private var optionsButton: some View {
+        Button {
+            showOptions = true
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Options")
+                        .foregroundStyle(.primary)
+                    if !optionsSummary.isEmpty {
+                        Text(optionsSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
                     }
-                    Spacer(minLength: 8)
-                    Image(systemName: "slider.horizontal.3")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
                 }
-                .padding(12)
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
-                .contentShape(RoundedRectangle(cornerRadius: 10))
+                Spacer(minLength: 8)
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .disabled(state.isBusy)
-            .padding(.horizontal, 16)
-            .accessibilityIdentifier("print.options")
-            if !state.documents.isEmpty {
-                DocumentStrip(addFiles: addFiles, edit: { showDocuments = true })
-            }
+            .padding(12)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
         }
+        .buttonStyle(.plain)
+        .disabled(state.isBusy)
+        .accessibilityIdentifier("print.options")
     }
 
     /// What differs from the defaults, so a setting is never out of sight.
@@ -405,10 +398,12 @@ struct PrintScreen: View {
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 
-    /// Print says what it does; greyed out, it says why. Once a computer is paired, Send to it sits beside Print.
+    /// Options above Print, both always in reach. Print says what it does; greyed out, it says why. Once a computer is
+    /// paired, Send to it sits beside Print.
     private var printBar: some View {
         let reason: String? = state.printDisabledReason
         return VStack(spacing: 6) {
+            optionsButton
             if IOSCompanionText.offersSend(state.companionStatus) {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
@@ -483,10 +478,10 @@ struct PrintScreen: View {
 }
 
 /// The documents under the preview, in print order: a thumbnail of the first page, the name and the page count. Add files
-/// opens the choice the caller owns; Edit opens the sheet that reorders and removes. Twin of the Mac's strip.
+/// is a menu of Files and Photos, which the caller opens; Edit opens the sheet that reorders and removes. Twin of the Mac's strip.
 private struct DocumentStrip: View {
     @EnvironmentObject private var state: AppState
-    let addFiles: () -> Void
+    let addFiles: (FileSource) -> Void
     let edit: () -> Void
 
     var body: some View {
@@ -500,13 +495,8 @@ private struct DocumentStrip: View {
                 Button("Edit", action: edit)
                     .disabled(state.isBusy)
                     .accessibilityIdentifier("documents.edit")
-                Button {
-                    addFiles()
-                } label: {
-                    Label("Add files\u{2026}", systemImage: "plus")
-                }
-                .disabled(state.isBusy)
-                .accessibilityIdentifier("documents.add")
+                AddFilesMenu(identifier: "documents.add", pick: addFiles)
+                    .disabled(state.isBusy)
             }
             .buttonStyle(.borderless)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -552,7 +542,7 @@ private struct DocumentStrip: View {
 private struct DocumentsSheet: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss
-    let addFiles: () -> Void
+    let addFiles: (FileSource) -> Void
 
     var body: some View {
         NavigationStack {
@@ -570,12 +560,7 @@ private struct DocumentsSheet: View {
                         state.remove(at: index)
                     }
                 }
-                Button {
-                    addFiles()
-                } label: {
-                    Label("Add files\u{2026}", systemImage: "plus")
-                }
-                .accessibilityIdentifier("documents.sheetAdd")
+                AddFilesMenu(identifier: "documents.sheetAdd", pick: addFiles)
             }
             .environment(\.editMode, .constant(.active))
             .disabled(state.isBusy)
