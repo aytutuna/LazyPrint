@@ -571,13 +571,17 @@ private struct DocumentsSheet: View {
                         state.remove(at: index)
                     }
                 }
-                AddFilesMenu(identifier: "documents.sheetAdd", pick: addFiles)
             }
             .environment(\.editMode, .constant(.active))
             .disabled(state.isBusy || state.isAddingFiles)
             .navigationTitle("Documents")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // A menu in a row of a list in edit mode doesn't open, so Add files sits in the bar.
+                ToolbarItem(placement: .topBarLeading) {
+                    AddFilesMenu(identifier: "documents.sheetAdd", pick: addFiles)
+                        .disabled(state.isBusy || state.isAddingFiles)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .accessibilityIdentifier("documents.done")

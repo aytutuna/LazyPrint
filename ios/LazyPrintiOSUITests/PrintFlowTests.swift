@@ -91,7 +91,7 @@ final class PrintFlowTests: XCTestCase {
         app.waitForPreview()
         app.scrollTo(app.item("documents.edit"))
         app.item("documents.edit").tap()
-        let add: XCUIElement = app.item("documents.sheetAdd")
+        let add: XCUIElement = app.item("documents.sheetAdd", title: "Add files\u{2026}")
         XCTAssertTrue(add.waitForExistence(timeout: 30), "Add files in the documents sheet")
 
         add.tap()
@@ -101,7 +101,7 @@ final class PrintFlowTests: XCTestCase {
 
         let cancel: XCUIElement = app.buttons["Cancel"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 30), "The photo picker")
-        XCTAssertFalse(add.exists, "The documents sheet is closed")
+        XCTAssertFalse(app.item("documents.done").exists, "The documents sheet is closed")
         cancel.tap()
     }
 
