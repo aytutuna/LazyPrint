@@ -8,7 +8,8 @@ import UIKit
 /// the top of Print, which opens the printers; the error bar and the bar after a job sit at the bottom. Also the sheets that hang off the state
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
 /// certificate question, and the files that come in: from the Add files menu (Files and Photos), from Open In and the share sheet
-/// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL only brings the app
+/// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL naming a hand-off
+/// folder of the shared app group (Lazy Scan's Print) brings its files in the same way; any other only brings the app
 /// forward.
 public struct IOSRootView: View {
     @EnvironmentObject private var state: AppState
@@ -61,8 +62,13 @@ public struct IOSRootView: View {
         }
         .quickLookPreview($fileActions.previewURL)
         .printCertificateAlert(state)
-        // Files from Open In and the share sheet arrive here; a lazyprint: URL only brings the app forward.
+        // Files from Open In and the share sheet arrive here, and the folder Lazy Scan hands over in the app group; any
+        // other lazyprint: URL only brings the app forward.
         .onOpenURL { (url: URL) in
+            if let id = LazyPrintUrl.handoff(url.absoluteString) {
+                receiveHandoff(id)
+                return
+            }
             guard url.isFileURL else { return }
             receive([url], delivered: true)
         }
@@ -118,7 +124,7 @@ public struct IOSRootView: View {
 
     /// Copies the files the importer and Open In hand over into the inbox, then takes them. `delivered` files came from
     /// Open In: once tried, the original is removed from the app's Inbox folder, whether or not the copy worked.
-    private func receive(_ urls: [URL], delivered: Bool = false) {
+    private func receive(_ urls: [URL], delivered: Bool = false, then done: (() -> Void)? = nil) {
         let before: Task<Void, Never>? = opening
         opening = Task {
             await before?.value
@@ -129,8 +135,16 @@ public struct IOSRootView: View {
             if delivered {
                 for url in urls { inbox.discardDelivered(url) }
             }
+            done?()
             await open(received.copies, notAdded: received.failed)
         }
+    }
+
+    /// Brings in the files Lazy Scan left in the app group for hand-off `id`: they are copied to the inbox like any other
+    /// file, and the hand-off folder is deleted once they are.
+    private func receiveHandoff(_ id: UUID) {
+        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: LazyPrintUrl.handoffGroup) else { return }
+        receive(IOSFileInbox.handoffFiles(id, in: container), then: { IOSFileInbox.removeHandoff(id, in: container) })
     }
 
     /// Takes files already in the inbox. The names in `notAdded` are files that could not be brought in; they are reported

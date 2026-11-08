@@ -1,5 +1,6 @@
 #if os(iOS)
 import Foundation
+import LazyPrintKit
 
 /// Where the files the pickers and Open In hand over wait to be printed. What those give is security-scoped or may go
 /// away when the picker closes, so each file is copied to `lp-files/<uuid>/<name>` in the temporary folder, under its
@@ -62,6 +63,26 @@ public struct IOSFileInbox: Sendable {
     public func discardDelivered(_ url: URL) {
         guard url.deletingLastPathComponent().lastPathComponent == "Inbox" else { return }
         try? FileManager.default.removeItem(at: url)
+    }
+
+    /// The files Lazy Scan left for hand-off `id` in the app group's `container`, by name; none when the folder is not
+    /// there. `id` is a UUID, so the folder cannot lie outside `Handoff`.
+    public static func handoffFiles(_ id: UUID, in container: URL) -> [URL] {
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        let found: [URL] = (try? FileManager.default.contentsOfDirectory(at: handoffFolder(id, in: container),
+                                                                         includingPropertiesForKeys: keys)) ?? []
+        let files: [URL] = found.filter { (try? $0.resourceValues(forKeys: Set(keys)).isRegularFile) == true }
+        return files.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Deletes hand-off `id`'s folder, once its files are copied.
+    public static func removeHandoff(_ id: UUID, in container: URL) {
+        try? FileManager.default.removeItem(at: handoffFolder(id, in: container))
+    }
+
+    private static func handoffFolder(_ id: UUID, in container: URL) -> URL {
+        container.appendingPathComponent(LazyPrintUrl.handoffFolder, isDirectory: true)
+            .appendingPathComponent(id.uuidString, isDirectory: true)
     }
 
     /// A file made of `data` (a photo from the library), named `name`.

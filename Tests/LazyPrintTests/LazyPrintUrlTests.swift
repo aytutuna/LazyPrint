@@ -57,4 +57,35 @@ final class LazyPrintUrlTests: XCTestCase {
     func testTheOtherFiles_StillCome() {
         XCTAssertEqual(LazyPrintUrl.parse("lazyprint:open?file=%2Fa.pdf&file=b.pdf&file=%2Fc.pdf"), ["/a.pdf", "/c.pdf"])
     }
+
+    // Swift only: the iPhone's hand-off address has no Windows twin.
+    func testHandoff_IsAPlainUuid() {
+        let id = "6F9619FF-8B86-D011-B42D-00C04FC964FF"
+        XCTAssertEqual(LazyPrintUrl.handoff("lazyprint:open?handoff=" + id)?.uuidString, id)
+        XCTAssertEqual(LazyPrintUrl.handoff("lazyprint:open?handoff=" + id.lowercased())?.uuidString, id)
+        XCTAssertEqual(LazyPrintUrl.handoff("LazyPrint:?other=1&handoff=" + id + "#top")?.uuidString, id)
+    }
+
+    func testHandoff_RefusesAnythingThatIsNotAUuid() {
+        let names = ["", "..", "..%2F..%2Fetc", "%2Ftmp%2Fa", "6F9619FF-8B86-D011-B42D-00C04FC964FF%2F..",
+                     "6F9619FF-8B86-D011-B42D-00C04FC964FF%2F", "6F9619FF8B86D011B42D00C04FC964FF", "a.pdf"]
+        for name in names {
+            XCTAssertNil(LazyPrintUrl.handoff("lazyprint:open?handoff=" + name), name)
+        }
+    }
+
+    func testHandoff_NeedsOurAddress() {
+        let id = "6F9619FF-8B86-D011-B42D-00C04FC964FF"
+        XCTAssertNil(LazyPrintUrl.handoff(nil))
+        XCTAssertNil(LazyPrintUrl.handoff("lazyprint:open"))
+        XCTAssertNil(LazyPrintUrl.handoff("lazyprint:open?file=%2Fa.pdf"))
+        XCTAssertNil(LazyPrintUrl.handoff("lazyscan:open?handoff=" + id))
+        XCTAssertNil(LazyPrintUrl.handoff("lazyprint:close?handoff=" + id))
+    }
+
+    func testHandoff_DoesNotChangeTheFiles() {
+        let id = "6F9619FF-8B86-D011-B42D-00C04FC964FF"
+        XCTAssertEqual(LazyPrintUrl.parse("lazyprint:open?handoff=" + id), [])
+        XCTAssertEqual(LazyPrintUrl.parse("lazyprint:open?handoff=" + id + "&file=%2Fa.pdf"), ["/a.pdf"])
+    }
 }

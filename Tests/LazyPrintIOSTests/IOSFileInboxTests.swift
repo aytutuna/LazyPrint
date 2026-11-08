@@ -46,6 +46,38 @@ final class IOSFileInboxTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: elsewhere.path), "Only the Inbox folder is the app's")
     }
 
+    func test_handoffFiles_areTheOnesInTheFolderOfThatUuid_byName() throws {
+        let id = UUID()
+        let other = UUID()
+        let folder = root.appendingPathComponent("Handoff/\(id.uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Nested"), withIntermediateDirectories: true)
+        try Data("b".utf8).write(to: folder.appendingPathComponent("b.pdf"))
+        try Data("a".utf8).write(to: folder.appendingPathComponent("a.pdf"))
+        let elsewhere = root.appendingPathComponent("Handoff/\(other.uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        try Data("c".utf8).write(to: elsewhere.appendingPathComponent("c.pdf"))
+
+        XCTAssertEqual(IOSFileInbox.handoffFiles(id, in: root).map { $0.lastPathComponent }, ["a.pdf", "b.pdf"])
+        XCTAssertEqual(IOSFileInbox.handoffFiles(UUID(), in: root), [])
+    }
+
+    func test_removingAHandoff_leavesTheCopiesAndTheOtherHandoffs() async throws {
+        let id = UUID()
+        let other = UUID()
+        for name in [id, other] {
+            let folder = root.appendingPathComponent("Handoff/\(name.uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data("one".utf8).write(to: folder.appendingPathComponent("Scan.pdf"))
+        }
+        let (copies, failed) = await inbox().receive(IOSFileInbox.handoffFiles(id, in: root))
+        IOSFileInbox.removeHandoff(id, in: root)
+
+        XCTAssertTrue(failed.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: copies[0]), Data("one".utf8), "The copy outlives the hand-off folder")
+        XCTAssertEqual(IOSFileInbox.handoffFiles(id, in: root), [])
+        XCTAssertEqual(IOSFileInbox.handoffFiles(other, in: root).count, 1)
+    }
+
     func test_copies_keepTheirNamesAndBytes() async throws {
         let inbox = inbox()
         let first = try source("Invoice.pdf", bytes: "one")
