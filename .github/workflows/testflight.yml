@@ -59,10 +59,9 @@ jobs:
           umask 077
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s\n' "$APPSTORE_PRIVATE_KEY" > "$RUNNER_TEMP/keys/AuthKey_$APPSTORE_KEY_ID.p8"
-      # The archive is signed ad hoc, which keeps the app group entitlement in the binary, and signed for
-      # real on export: an automatically signed archive wants a development profile, which needs a
-      # registered device, and CI has none. The run number is the build number, so every upload gets a
-      # new one.
+      # The archive is left unsigned and signed on export instead: an automatically signed archive
+      # wants a development profile, which needs a registered device, and CI has none. The run
+      # number is the build number, so every upload gets a new one.
       - name: Archive
         run: |
           set -o pipefail
@@ -77,6 +76,11 @@ jobs:
             CODE_SIGN_IDENTITY=- \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
+      # An unsigned build drops the entitlements, so the app is signed ad hoc with them before the
+      # export, which then signs it for real and keeps the app group.
+      - name: Keep the entitlements
+        run: |
+          codesign --force --sign - --entitlements ios/LazyPrintiOS/LazyPrint.entitlements             "$RUNNER_TEMP/LazyPrint.xcarchive/Products/Applications/LazyPrint.app"
       - name: Sign and upload
         run: |
           set -o pipefail
