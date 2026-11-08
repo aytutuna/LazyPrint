@@ -30,6 +30,7 @@ targets:
       - path: LazyPrintiOS
         excludes:
           - Info.plist
+          - LazyPrint.entitlements
           - PrivacyInfo.xcprivacy
       - path: LazyPrintiOS/PrivacyInfo.xcprivacy
         buildPhase: resources
@@ -42,6 +43,7 @@ targets:
         PRODUCT_MODULE_NAME: LazyPrintiOS
         PRODUCT_BUNDLE_IDENTIFIER: com.lazyprint.lazyprint
         INFOPLIST_FILE: LazyPrintiOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: LazyPrintiOS/LazyPrint.entitlements
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
