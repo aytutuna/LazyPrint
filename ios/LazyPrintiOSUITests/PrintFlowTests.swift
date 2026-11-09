@@ -90,6 +90,19 @@ final class PrintFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_swipingThePage_stillTurnsItAfterTheScreenRotates() throws {
+        let app = try XCUIApplication.launched()
+        app.waitForSheet("Sheet 1 of 2")
+        let position: XCUIElement = app.staticTexts["preview.position"]
+        let first: String = position.label
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.item("preview.stage").swipeLeft()
+
+        app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
+    }
+
+    @MainActor
     func test_jobsPanel_opensFromTheCornerAndCloses() throws {
         let app = try XCUIApplication.launched()
         app.waitForPreview()
