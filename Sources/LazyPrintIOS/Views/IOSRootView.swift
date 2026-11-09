@@ -254,8 +254,10 @@ private struct Bars: ViewModifier {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("bar.sent")
             Spacer(minLength: 8)
-            Button("Jobs") { showJobs = true }
-                .accessibilityIdentifier("bar.sent.jobs")
+            if !showJobs {
+                Button("Jobs") { showJobs = true }
+                    .accessibilityIdentifier("bar.sent.jobs")
+            }
             Button {
                 state.dismissSent()
             } label: {
