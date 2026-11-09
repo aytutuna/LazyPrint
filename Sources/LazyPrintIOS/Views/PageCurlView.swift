@@ -1,12 +1,15 @@
 #if os(iOS)
+import LazyPrintKit
 import SwiftUI
 import UIKit
 
-/// The sides of the plan as a stack of paper. A drag folds the page over and follows the finger; let go and it turns or falls
-/// back. The fold is `UIPageViewController`'s page curl, which shows the side under the page as soon as the drag starts, so
-/// the sides next to the current one are drawn ahead of it.
+/// The sides of the plan as sheets of paper. A drag folds the page over and follows the finger; let go and it turns or falls
+/// back. The fold is `UIPageViewController`'s double-sided page curl: the flap is the other face of the sheet, as it will come
+/// out of the printer (a short-edge back upside down, a one-sided sheet's blank), and under it is the next side. So the
+/// curl's pages are two for each side, the side and its reverse, and the sides around the current one are drawn ahead.
 struct PageCurlView: UIViewControllerRepresentable {
     let count: Int
+    let sheets: [Sheet]
     @Binding var side: Int
     /// `AppState.preview`. Only its changes are used, as the sign that the current side has been drawn or looks different.
     let image: CGImage?
@@ -19,6 +22,7 @@ struct PageCurlView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIPageViewController {
         let controller = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal)
+        controller.isDoubleSided = true
         controller.dataSource = context.coordinator
         controller.delegate = context.coordinator
         // A tap on the page's edge would turn it by accident, and fast taps at either end of the plan can crash the curl.
@@ -38,25 +42,28 @@ struct PageCurlView: UIViewControllerRepresentable {
         var view: PageCurlView
         private var isTurning = false
         private var lastImage: CGImage?
+        private var lastSheets: [Sheet] = []
         private var neighbours: Task<Void, Never>?
 
         init(_ view: PageCurlView) {
             self.view = view
         }
 
-        /// Turns to the state's side, and redraws the page when the preview changed. A turn in progress finishes first, since
-        /// setting the pages during one can leave them out of step.
+        /// Turns to the state's side, and redraws the pages when the preview or the plan changed. A turn in progress finishes
+        /// first, since setting the pages during one can leave them out of step.
         func sync(_ controller: UIPageViewController) {
             guard !isTurning else { return }
             let shown: PageController? = controller.viewControllers?.first as? PageController
             if shown?.side != view.side {
-                let page: PageController = PageController(side: view.side)
-                page.show(view.drawn(view.side))
+                let front: PageController = PageController(side: view.side, isReverse: false)
+                let reverse: PageController = PageController(side: view.side, isReverse: true)
+                front.show(view.drawn(view.side))
+                load(reverse)
                 // Off screen the animation's completion may never come, and it is what ends the turn.
                 let animated: Bool = shown != nil && !UIAccessibility.isReduceMotionEnabled && controller.view.window != nil
                 isTurning = animated
                 controller.view.isUserInteractionEnabled = !animated
-                controller.setViewControllers([page], direction: view.side > (shown?.side ?? 0) ? .forward : .reverse,
+                controller.setViewControllers([front, reverse], direction: view.side > (shown?.side ?? 0) ? .forward : .reverse,
                                               animated: animated) { [weak self, weak controller] (_: Bool) in
                     guard animated, let self, let controller else { return }
                     self.isTurning = false
@@ -64,33 +71,53 @@ struct PageCurlView: UIViewControllerRepresentable {
                     self.sync(controller)
                 }
             }
-            if view.image !== lastImage {
+            if view.image !== lastImage || view.sheets != lastSheets {
                 lastImage = view.image
-                if let page = controller.viewControllers?.first as? PageController {
-                    load(page)
+                lastSheets = view.sheets
+                for page in controller.viewControllers?.compactMap({ $0 as? PageController }) ?? [] {
+                    // The current side is the state's to draw, and it comes with the change of image.
+                    if page.isReverse {
+                        load(page)
+                    } else if let image = view.drawn(page.side) {
+                        page.show(image)
+                    }
                 }
                 drawNeighbours()
             }
         }
 
+        /// The side of the plan a page shows, if any.
+        private func side(on page: PageController) -> Int? {
+            page.isReverse ? PreviewPosition.otherSide(of: page.side, sheets: view.sheets) : page.side
+        }
+
         private func load(_ page: PageController) {
-            if let image = view.drawn(page.side) {
+            guard let side = side(on: page) else {
+                page.show(nil)
+                return
+            }
+            if let image = view.drawn(side) {
                 page.show(image)
                 return
             }
             let draw: @MainActor (Int) async -> CGImage? = view.draw
             Task { [weak self, weak page] in
-                guard let side = page?.side else { return }
                 _ = await draw(side)
-                // Read back rather than show what was drawn, which is the old layout if the plan changed meanwhile.
-                page?.show(self?.view.drawn(side))
+                // Read back rather than show what was drawn, which is the old layout if the plan changed meanwhile. By then
+                // this page may show another side, or none.
+                guard let self, let page, self.side(on: page) == side, let image = self.view.drawn(side) else { return }
+                page.show(image)
             }
         }
 
         private func drawNeighbours() {
             neighbours?.cancel()
             let draw: @MainActor (Int) async -> CGImage? = view.draw
-            let around: [Int] = [view.side + 1, view.side - 1].filter { (0..<view.count).contains($0) }
+            let current: Int = view.side
+            let around: [Int] = [PreviewPosition.otherSide(of: current, sheets: view.sheets), current + 1, current - 1,
+                                 PreviewPosition.otherSide(of: current - 1, sheets: view.sheets)]
+                .compactMap { $0 }
+                .filter { $0 != current && (0..<view.count).contains($0) }
             neighbours = Task {
                 for side in around where !Task.isCancelled {
                     _ = await draw(side)
@@ -98,21 +125,23 @@ struct PageCurlView: UIViewControllerRepresentable {
             }
         }
 
-        private func page(_ side: Int) -> UIViewController? {
+        private func page(_ side: Int, isReverse: Bool) -> UIViewController? {
             guard (0..<view.count).contains(side) else { return nil }
-            let page: PageController = PageController(side: side)
+            let page: PageController = PageController(side: side, isReverse: isReverse)
             load(page)
             return page
         }
 
         func pageViewController(_ pageViewController: UIPageViewController,
                                 viewControllerBefore viewController: UIViewController) -> UIViewController? {
-            (viewController as? PageController).flatMap { page($0.side - 1) }
+            guard let current = viewController as? PageController else { return nil }
+            return current.isReverse ? page(current.side, isReverse: false) : page(current.side - 1, isReverse: true)
         }
 
         func pageViewController(_ pageViewController: UIPageViewController,
                                 viewControllerAfter viewController: UIViewController) -> UIViewController? {
-            (viewController as? PageController).flatMap { page($0.side + 1) }
+            guard let current = viewController as? PageController else { return nil }
+            return current.isReverse ? page(current.side + 1, isReverse: false) : page(current.side, isReverse: true)
         }
 
         func pageViewController(_ pageViewController: UIPageViewController,
@@ -134,10 +163,12 @@ struct PageCurlView: UIViewControllerRepresentable {
 
 private final class PageController: UIViewController {
     let side: Int
+    let isReverse: Bool
     private let imageView = UIImageView()
 
-    init(side: Int) {
+    init(side: Int, isReverse: Bool) {
         self.side = side
+        self.isReverse = isReverse
         super.init(nibName: nil, bundle: nil)
     }
 

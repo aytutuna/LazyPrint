@@ -66,6 +66,24 @@ final class PreviewPositionTests: XCTestCase {
         }, borders: false)
     }
 
+    func test_otherSide_isTheSheetsOtherFace() {
+        let side = onSide([])
+        let twoSided = [Sheet(front: side, back: side), Sheet(front: side, back: side)]
+
+        XCTAssertEqual(PreviewPosition.otherSide(of: 0, sheets: twoSided), 1)
+        XCTAssertEqual(PreviewPosition.otherSide(of: 1, sheets: twoSided), 0)
+        XCTAssertEqual(PreviewPosition.otherSide(of: 2, sheets: twoSided), 3)
+        XCTAssertEqual(PreviewPosition.otherSide(of: 3, sheets: twoSided), 2)
+    }
+
+    func test_otherSide_isNothingOnOneSidedPaperOrPastThePlan() {
+        let side = onSide([])
+
+        XCTAssertNil(PreviewPosition.otherSide(of: 0, sheets: [Sheet(front: side, back: nil)]))
+        XCTAssertNil(PreviewPosition.otherSide(of: -1, sheets: [Sheet(front: side, back: side)]))
+        XCTAssertNil(PreviewPosition.otherSide(of: 2, sheets: [Sheet(front: side, back: side)]))
+    }
+
     func test_pages_nameOnePageARunAndAGap() {
         XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 2)]), pageCounts: [5]), "Page 3")
         XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 3), (0, 2)]), pageCounts: [5]), "Pages 3\u{2013}4")

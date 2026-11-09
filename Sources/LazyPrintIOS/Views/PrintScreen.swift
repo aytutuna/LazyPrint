@@ -30,6 +30,13 @@ struct PreviewPosition: Equatable {
         self.count = sheets.count
     }
 
+    /// The side on the other face of this one's sheet. A two-sided plan gives every sheet a back, so a sheet's faces are an
+    /// even side and the one after it; on a one-sided plan the other face has nothing printed on it.
+    static func otherSide(of side: Int, sheets: [Sheet]) -> Int? {
+        guard sheets.first?.back != nil, (0..<sheets.count * 2).contains(side) else { return nil }
+        return side ^ 1
+    }
+
     /// The pages on a side, numbered over the documents in turn: "Page 3", "Pages 3-4", "Pages 1, 8". `pageCounts` is the
     /// pages of each document. A side with no pages on it is "Blank".
     static func pages(on side: SheetSide, pageCounts: [Int]) -> String {
@@ -315,7 +322,7 @@ struct PrintScreen: View {
         return ZStack {
             scheme == .dark ? Color(white: 0.08) : Color(uiColor: .systemGroupedBackground)
             // The view is exactly the paper's size, since all of it folds.
-            PageCurlView(count: sideCount, side: $state.previewSide, image: state.preview,
+            PageCurlView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
                          drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
                          draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) })
                 .frame(width: paper.width * fit, height: paper.height * fit)
