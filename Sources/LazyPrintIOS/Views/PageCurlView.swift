@@ -22,7 +22,6 @@ struct PageCurlView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIPageViewController {
         let controller = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal)
-        controller.isDoubleSided = true
         controller.dataSource = context.coordinator
         controller.delegate = context.coordinator
         // A tap on the page's edge would turn it by accident, and fast taps at either end of the plan can crash the curl.
@@ -63,6 +62,8 @@ struct PageCurlView: UIViewControllerRepresentable {
                 let animated: Bool = shown != nil && !UIAccessibility.isReduceMotionEnabled && controller.view.window != nil
                 isTurning = animated
                 controller.view.isUserInteractionEnabled = !animated
+                // Set when the controller was made, this is gone by the time its view has loaded, and the pages are counted against it.
+                controller.isDoubleSided = true
                 controller.setViewControllers([front, reverse], direction: view.side > (shown?.side ?? 0) ? .forward : .reverse,
                                               animated: animated) { [weak self, weak controller] (_: Bool) in
                     guard animated, let self, let controller else { return }
