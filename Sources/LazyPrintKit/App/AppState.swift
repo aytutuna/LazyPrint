@@ -110,6 +110,7 @@ public final class AppState: ObservableObject {
         didSet {
             // A file can come back changed at the same path, and the drawn sides are only known by their paths.
             drawnSides.removeAll()
+            drawingSides.removeAll()
         }
     }
     /// The page range as typed ("1-3, 5"); empty is every page.
@@ -179,6 +180,7 @@ public final class AppState: ObservableObject {
     var previewKey: PreviewKey?
     /// The last sides drawn, so turning back and forth through a plan does not draw them again.
     var drawnSides: [(key: PreviewKey, image: CGImage)] = []
+    private var drawingSides: [(key: PreviewKey, task: Task<CGImage?, Never>)] = []
 
     var queues: [SystemPrinter] = []
     var networkServices: [IppService] = []
@@ -552,10 +554,14 @@ public final class AppState: ObservableObject {
     public func previewImage(ofSide index: Int) async -> CGImage? {
         guard let key = sideKey(index) else { return nil }
         if let drawn = drawnImage(key) { return drawn }
+        if let drawing = drawingSides.first(where: { $0.key == key }) { return await drawing.task.value }
         let renderer = SheetRenderer(documents: documents)
-        let image = await Task.detached(priority: .userInitiated) {
+        let task = Task.detached(priority: .userInitiated) {
             (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: false))?.image()
-        }.value
+        }
+        drawingSides.append((key: key, task: task))
+        let image = await task.value
+        drawingSides.removeAll { $0.key == key }
         keep(image, key)
         return image
     }
