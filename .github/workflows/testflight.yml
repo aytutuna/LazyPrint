@@ -73,9 +73,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/LazyPrint.xcarchive" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_IDENTITY=- \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
+            CODE_SIGNING_ALLOWED=NO
       # An unsigned build drops the entitlements, so the app is signed ad hoc with them before the
       # export, which then signs it for real and keeps the app group.
       - name: Keep the entitlements
