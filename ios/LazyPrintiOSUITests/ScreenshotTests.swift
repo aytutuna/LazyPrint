@@ -22,6 +22,27 @@ final class ScreenshotTests: XCTestCase {
         try walk("dark")
     }
 
+    /// The page held half folded, with the back of the sheet on the flap. The press keeps the main run loop turning while it
+    /// holds, which is when the picture is taken; if it does not, the picture shows the page lying flat.
+    @MainActor
+    func test_fold() throws {
+        let app = try XCUIApplication.launched()
+        app.waitForSheet("Sheet 1 of 2")
+        settle()
+        let stage: XCUIElement = app.item("preview.stage")
+        let taken = XCTestExpectation(description: "The picture of the fold")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+            MainActor.assumeIsolated {
+                self.shot(app, "03-fold")
+                taken.fulfill()
+            }
+        }
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.7))
+            .press(forDuration: 0.1, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.6)),
+                   withVelocity: .slow, thenHoldForDuration: 10)
+        _ = XCTWaiter.wait(for: [taken], timeout: 30)
+    }
+
     override func tearDownWithError() throws {
         XCUIDevice.shared.orientation = .portrait
     }
