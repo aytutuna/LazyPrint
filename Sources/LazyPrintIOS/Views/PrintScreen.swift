@@ -85,6 +85,13 @@ struct PrintScreen: View {
     /// What sits above and under the page in portrait, which gets the rest of the height.
     @State private var aboveStage: CGFloat = 56
     @State private var belowStage: CGFloat = 90
+    /// A two-sided job zoomed into one page rather than shown as two decks.
+    @State private var singlePage = false
+    /// How far the single page is zoomed in, 1 to 4.
+    @State private var zoom: CGFloat = 1
+    /// The arrows on the page, clear until the page is touched and faint a moment after.
+    @State private var arrowsShown = true
+    @State private var fadeArrows: Task<Void, Never>?
 
     private static let stagePadding: CGFloat = 10
 
@@ -248,26 +255,46 @@ struct PrintScreen: View {
 
     private var sideCount: Int { state.jobPlan?.plan.sideCount ?? 0 }
 
-    private var position: PreviewPosition { PreviewPosition(side: state.previewSide, sheets: sheets) }
+    private var twoSided: Bool { sheets.first?.back != nil }
 
-    /// "Page 3 \u{00B7} Sheet 2", with the side when the sheet has two.
+    private var showsDecks: Bool { twoSided && !singlePage }
+
+    /// The sides in view: the current one, or the two of the decks' spread.
+    private var sidesInView: [Int] {
+        guard showsDecks else { return [state.previewSide] }
+        let spread: Int = PageDecksView.spread(of: state.previewSide)
+        return [2 * spread - 1, 2 * spread].filter { (0..<sideCount).contains($0) }
+    }
+
+    /// "Page 3 \u{00B7} Sheet 2 front", or across the decks "Pages 2\u{2013}3 \u{00B7} Sheets 1\u{2013}2".
     private var positionText: String {
-        "\(pagesInView) \u{00B7} Sheet \(position.sheet + 1)\(sideInView.map { " " + $0 } ?? "")"
+        let positions: [PreviewPosition] = sidesInView.map { PreviewPosition(side: $0, sheets: sheets) }
+        guard let first = positions.first, let last = positions.last else { return "" }
+        if first.sheet != last.sheet {
+            return "\(pagesInView) \u{00B7} Sheets \(first.sheet + 1)\u{2013}\(last.sheet + 1)"
+        }
+        let side: String = sheets[first.sheet].back == nil ? "" : first.back ? " back" : " front"
+        return "\(pagesInView) \u{00B7} Sheet \(first.sheet + 1)\(side)"
     }
 
     /// The same for VoiceOver, with how many sheets there are.
     private var positionLabel: String {
-        "\(pagesInView), sheet \(position.sheet + 1) of \(position.count)\(sideInView.map { ", " + $0 } ?? "")"
+        let sides: [String] = sidesInView.map { (side: Int) -> String in
+            let position = PreviewPosition(side: side, sheets: sheets)
+            let face: String = sheets[position.sheet].back == nil ? "" : position.back ? ", back" : ", front"
+            return "sheet \(position.sheet + 1) of \(position.count)\(face)"
+        }
+        return "\(pagesInView), " + sides.joined(separator: " and ")
     }
 
     private var pagesInView: String {
-        let sheet: Sheet = sheets[position.sheet]
-        let side: SheetSide = position.back ? sheet.back ?? sheet.front : sheet.front
-        return PreviewPosition.pages(on: side, pageCounts: state.documents.map { $0.loaded.pages.count })
-    }
-
-    private var sideInView: String? {
-        sheets[position.sheet].back == nil ? nil : position.back ? "back" : "front"
+        let placements: [Placement] = sidesInView.flatMap { (side: Int) -> [Placement] in
+            let position = PreviewPosition(side: side, sheets: sheets)
+            let sheet: Sheet = sheets[position.sheet]
+            return (position.back ? sheet.back ?? sheet.front : sheet.front).placements
+        }
+        return PreviewPosition.pages(on: SheetSide(placements: placements, borders: false),
+                                     pageCounts: state.documents.map { $0.loaded.pages.count })
     }
 
     private func stageArea(_ size: CGSize) -> some View {
@@ -311,69 +338,129 @@ struct PrintScreen: View {
         .accessibilityIdentifier("print.empty")
     }
 
-    /// The page, as large as the stage lets it be; its pixels follow the stage's size and the screen's.
+    /// The page, or the two decks, as large as the stage lets them be; their pixels follow the stage's size, the zoom and the
+    /// screen's.
     private func stage(_ size: CGSize) -> some View {
         let paper: LayoutSize = state.jobPlan?.plan.area.paper ?? LayoutSize(width: 612, height: 792)
-        let fit: Double = max(0.1, min((size.width - 2 * Self.stagePadding) / paper.width,
+        let decks: Bool = showsDecks
+        let across: Double = decks ? 2 * paper.width : paper.width
+        let fit: Double = max(0.1, min((size.width - 2 * Self.stagePadding) / across,
                                        (size.height - 2 * Self.stagePadding) / paper.height))
         // Whole steps of a quarter, so a small resize draws nothing.
-        let wanted: Double = min(4, max(0.5, (fit * displayScale * 4).rounded(.up) / 4))
-        let model: AppState = state
+        let wanted: Double = min(4, max(0.5, (fit * displayScale * (decks ? 1 : zoom) * 4).rounded(.up) / 4))
         return ZStack {
             scheme == .dark ? Color(white: 0.08) : Color(uiColor: .systemGroupedBackground)
-            // The view is exactly the paper's size, since all of it folds.
-            PageFoldView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
-                         drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
-                         draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) })
-                .frame(width: paper.width * fit, height: paper.height * fit)
-                .background(Color.white.shadow(color: .black.opacity(0.35), radius: 6, y: 2))
+            pages(decks: decks, paper: CGSize(width: paper.width * fit, height: paper.height * fit))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(positionLabel)
+                .accessibilityAdjustableAction { (direction: AccessibilityAdjustmentDirection) in
+                    switch direction {
+                    case .increment: turn(by: 1)
+                    case .decrement: turn(by: -1)
+                    @unknown default: break
+                    }
+                }
+                .accessibilityIdentifier("preview.stage")
+            arrows
         }
+        .simultaneousGesture(TapGesture().onEnded { showArrows() })
+        .onAppear { showArrows() }
+        .onChange(of: state.previewSide) { showArrows() }
         .onChange(of: wanted, initial: true) { (_: Double, scale: Double) in
             state.previewScale = scale
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(positionLabel)
-        .accessibilityAdjustableAction { (direction: AccessibilityAdjustmentDirection) in
-            switch direction {
-            case .increment: turn(by: 1)
-            case .decrement: turn(by: -1)
-            @unknown default: break
+    }
+
+    @ViewBuilder
+    private func pages(decks: Bool, paper: CGSize) -> some View {
+        let model: AppState = state
+        if decks {
+            PageDecksView(count: sideCount, side: $state.previewSide, image: state.preview,
+                          drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
+                          draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) },
+                          zoomIn: { (side: Int) in
+                              state.previewSide = side
+                              singlePage = true
+                          })
+                .frame(width: 2 * paper.width, height: paper.height)
+        } else {
+            PageFoldView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
+                         drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
+                         draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) },
+                         paperSize: paper,
+                         zoomOut: twoSided ? {
+                             zoom = 1
+                             singlePage = false
+                         } : nil,
+                         zoomed: { (scale: CGFloat) in zoom = scale })
+        }
+    }
+
+    /// Previous and next on the page's edges.
+    private var arrows: some View {
+        HStack {
+            arrow("chevron.left", label: "Previous page", id: "print.previous", enabled: canTurn(by: -1)) { turn(by: -1) }
+            Spacer(minLength: 0)
+            arrow("chevron.right", label: "Next page", id: "print.next", enabled: canTurn(by: 1)) { turn(by: 1) }
+        }
+        .padding(.horizontal, 8)
+        .opacity(arrowsShown ? 1 : 0.25)
+        .animation(.easeInOut(duration: 0.4), value: arrowsShown)
+    }
+
+    private func arrow(_ symbol: String, label: String, id: String, enabled: Bool,
+                       action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            showArrows()
+        } label: {
+            Image(systemName: symbol)
+                .font(.title3.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
+    }
+
+    private func showArrows() {
+        arrowsShown = true
+        fadeArrows?.cancel()
+        fadeArrows = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            if !Task.isCancelled {
+                arrowsShown = false
             }
         }
-        .accessibilityIdentifier("preview.stage")
+    }
+
+    /// The side a step of the arrows lands on: a side, or across the decks a spread.
+    private func target(by offset: Int) -> Int {
+        guard showsDecks else { return state.previewSide + offset }
+        let spread: Int = PageDecksView.spread(of: state.previewSide) + offset
+        guard spread >= 0, spread <= sideCount / 2 else { return -1 }
+        return PageDecksView.side(of: spread, count: sideCount)
+    }
+
+    private func canTurn(by offset: Int) -> Bool {
+        let side: Int = target(by: offset)
+        return side >= 0 && side < sideCount && side != state.previewSide
     }
 
     private func turn(by offset: Int) {
-        let target: Int = state.previewSide + offset
-        guard target >= 0, target < sideCount else { return }
-        state.previewSide = target
+        guard canTurn(by: offset) else { return }
+        state.previewSide = target(by: offset)
     }
 
     private var previewBar: some View {
-        HStack(spacing: 16) {
-            Button {
-                turn(by: -1)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .frame(minWidth: 32, minHeight: 32)
-            }
-            .disabled(state.previewSide == 0)
-            .accessibilityLabel("Previous page")
-            .accessibilityIdentifier("print.previous")
-            Text(positionText)
-                .monospacedDigit()
-                .accessibilityLabel(positionLabel)
-                .accessibilityIdentifier("preview.position")
-            Button {
-                turn(by: 1)
-            } label: {
-                Image(systemName: "chevron.right")
-                    .frame(minWidth: 32, minHeight: 32)
-            }
-            .disabled(state.previewSide >= sideCount - 1)
-            .accessibilityLabel("Next page")
-            .accessibilityIdentifier("print.next")
-        }
+        Text(positionText)
+            .monospacedDigit()
+            .accessibilityLabel(positionLabel)
+            .accessibilityIdentifier("preview.position")
+            .frame(minHeight: 32)
     }
 
     /// What the plan did to the pages: blanks added, edges cut off.

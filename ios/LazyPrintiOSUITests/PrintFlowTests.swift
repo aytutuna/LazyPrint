@@ -100,8 +100,9 @@ final class PrintFlowTests: XCTestCase {
         let stage: XCUIElement = app.item("preview.stage")
         app.waitUntil(stage, "isHittable == true", "The page after the rotation")
         Thread.sleep(forTimeInterval: 1)
-        // From the middle, since a phone on its side shows the page narrower than the stage and a plain swipe starts beside it.
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        // On the right deck, just past the spine: a phone on its side shows the paper narrower than the stage, and a plain
+        // swipe starts beside it.
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.56, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
                    withVelocity: .fast, thenHoldForDuration: 0)
 
