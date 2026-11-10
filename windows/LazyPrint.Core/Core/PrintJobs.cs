@@ -17,7 +17,7 @@ public sealed record LoadedDocument(string Name, DocumentKind Kind, IReadOnlyLis
 /// <param name="ManualDuplex">Two-sided was asked for and the printer can't: two passes.</param>
 /// <param name="Passes">One pass, or the fronts then the backs.</param>
 /// <param name="CopiesInJob">The copies the printer makes; the rest are repeated in the stream (<see cref="PrintCopies"/>).</param>
-/// <param name="Notes">For the user: "2 blank pages added", "Pages made smaller (82 %)".</param>
+/// <param name="Notes">For the user: "2 blank pages added", "Edges cut off (3 mm)".</param>
 public sealed record JobPlan(SheetPlan Plan, bool ManualDuplex, IReadOnlyList<DuplexPass> Passes, int CopiesInJob, IReadOnlyList<string> Notes)
 {
     public bool Equals(JobPlan? other) =>
@@ -225,7 +225,6 @@ public static class PrintJobs
     private static List<string> Notes(IReadOnlyList<PlanWarning> warnings) => [.. warnings.Select(w => w switch
     {
         PlanWarning.PaddedWithBlanks padded => PrintText.BlanksAdded(padded.Count),
-        PlanWarning.Shrunk shrunk => PrintText.MadeSmaller(shrunk.Percent),
         PlanWarning.Clipped clipped => PrintText.EdgesCut(Math.Max(1, (int)Math.Round(clipped.Points * 25.4 / 72))),
         _ => "",
     }).Where(text => text.Length > 0)];

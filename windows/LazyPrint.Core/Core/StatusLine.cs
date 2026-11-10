@@ -27,7 +27,6 @@ public static class StatusLine
     private static readonly (Regex Note, string Short)[] JobNotes =
     [
         (new(@"(\d+) blank pages? added"), "$1 blank added"),
-        (new(@"Pages made smaller \((\d+) %\)"), "Shrunk to $1 %"),
     ];
 
     /// <param name="message">The app's status sentence.</param>

@@ -37,9 +37,6 @@ public static class PrintText
     /// <summary>A note about a job, added after the status sentence: "2 blank pages added".</summary>
     public static string BlanksAdded(int count) => $"{count} blank page{(count == 1 ? "" : "s")} added";
 
-    /// <summary>A note about a job, added after the status sentence: "Pages made smaller (82 %)".</summary>
-    public static string MadeSmaller(int percent) => $"Pages made smaller ({percent} %)";
-
     /// <summary>A note about a job, added after the status sentence: "Edges cut off (3 mm)".</summary>
     public static string EdgesCut(int millimetres) => $"Edges cut off ({millimetres} mm)";
 }

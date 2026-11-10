@@ -54,16 +54,14 @@ public class StatusLineTests
                      StatusLine.Short($"{PrintText.Sent(3, "HP LaserJet")}. {PrintText.BlanksAdded(2)}"));
         Assert.Equal("Sent 3 sheets · 1 blank added",
                      StatusLine.Short($"{PrintText.Sent(3, "HP LaserJet")} {PrintText.BlanksAdded(1)}"));
-        Assert.Equal("Sent 2 sheets · shrunk to 82 %",
-                     StatusLine.Short($"{PrintText.Sent(2, "HP LaserJet")}. {PrintText.MadeSmaller(82)}"));
         // A task is picked: "Ready — printer" and the note.
-        Assert.Equal("Ready — HP LaserJet · shrunk to 82 %",
-                     StatusLine.Short($"{PrintText.Ready("Booklet")} {PrintText.MadeSmaller(82)}", "HP LaserJet"));
-        // Both notes, and a message too long to keep: the warnings win.
-        string both = $"{PrintText.Printing(2, 5)}. {PrintText.BlanksAdded(2)}. {PrintText.MadeSmaller(82)}";
-        Assert.Equal("2 blank added · shrunk to 82 %", StatusLine.Short(both));
-        string noRoom = $"Sent 12 sheets to HP LaserJet. {PrintText.BlanksAdded(2)}. {PrintText.MadeSmaller(82)}";
-        Assert.Equal("2 blank added · shrunk to 82 %", StatusLine.Short(noRoom));
+        Assert.Equal("Ready — HP LaserJet · 2 blank added",
+                     StatusLine.Short($"{PrintText.Ready("Booklet")} {PrintText.BlanksAdded(2)}", "HP LaserJet"));
+        // A message too long to keep: the warning wins, or the head is cut to fit.
+        string both = $"{PrintText.Printing(2, 5)}. {PrintText.BlanksAdded(2)}";
+        Assert.Equal("2 blank added", StatusLine.Short(both));
+        string noRoom = $"Sent 12 sheets to HP LaserJet. {PrintText.BlanksAdded(2)}";
+        Assert.Equal("Sent 12 sheets · 2 blank added", StatusLine.Short(noRoom));
         foreach (var message in new[] { both, noRoom })
         {
             Assert.InRange(StatusLine.Words(StatusLine.Short(message, "HP LaserJet")), 1, StatusLine.MaxWords);
@@ -81,9 +79,9 @@ public class StatusLineTests
     [Fact]
     public void WithWarnings_AddsTheNotesToAHead()
     {
-        string message = $"{PrintText.Sent(3, "HP LaserJet")}. {PrintText.MadeSmaller(82)}";
-        Assert.Equal(["Shrunk to 82 %"], StatusLine.Warnings(message));
-        Assert.Equal("Printed · shrunk to 82 %", StatusLine.WithWarnings("Printed", message));
+        string message = $"{PrintText.Sent(3, "HP LaserJet")}. {PrintText.BlanksAdded(2)}";
+        Assert.Equal(["2 blank added"], StatusLine.Warnings(message));
+        Assert.Equal("Printed · 2 blank added", StatusLine.WithWarnings("Printed", message));
         // Without a note, just the head.
         Assert.Empty(StatusLine.Warnings(PrintText.Sent(3, "HP LaserJet")));
         Assert.Equal("Printed", StatusLine.WithWarnings("Printed", PrintText.Sent(3, "HP LaserJet")));
