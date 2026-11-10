@@ -1,4 +1,5 @@
 #if os(iOS)
+import LazyPrintKit
 import SwiftUI
 import UIKit
 
@@ -10,6 +11,7 @@ import UIKit
 struct PageDecksView: UIViewControllerRepresentable {
     /// The plan's sides, front and back of each sheet in turn.
     let count: Int
+    let sheets: [Sheet]
     @Binding var side: Int
     /// `AppState.preview`. Only its changes are used, as the sign that the sides have been drawn or look different.
     let image: CGImage?
@@ -56,7 +58,7 @@ struct PageDecksView: UIViewControllerRepresentable {
         var view: PageDecksView
         private var isTurning = false
         private var lastImage: CGImage?
-        private var lastCount = 0
+        private var lastSheets: [Sheet] = []
         private var neighbours: Task<Void, Never>?
         private var pinchedIn = false
 
@@ -71,9 +73,10 @@ struct PageDecksView: UIViewControllerRepresentable {
             let wanted: Int = PageDecksView.spread(of: view.side)
             let shown: Int? = (controller.viewControllers?.first as? DeckPage).map { $0.entry / 2 }
             if shown != wanted {
-                let pages: [DeckPage] = [DeckPage(entry: 2 * wanted, count: view.count),
-                                         DeckPage(entry: 2 * wanted + 1, count: view.count)]
-                pages.forEach(load)
+                let pages: [DeckPage] = [DeckPage(entry: 2 * wanted), DeckPage(entry: 2 * wanted + 1)]
+                for page in pages {
+                    load(page)
+                }
                 let animated: Bool = shown.map { abs($0 - wanted) == 1 } == true && !UIAccessibility.isReduceMotionEnabled
                     && controller.view.window != nil
                 isTurning = animated
@@ -86,9 +89,10 @@ struct PageDecksView: UIViewControllerRepresentable {
                     self.sync(controller)
                 }
             }
-            if view.image !== lastImage || view.count != lastCount {
+            // The sheets as well as the picture: turning the backs over for a short edge leaves the front in view as it was.
+            if view.image !== lastImage || view.sheets != lastSheets {
                 lastImage = view.image
-                lastCount = view.count
+                lastSheets = view.sheets
                 for page in controller.viewControllers?.compactMap({ $0 as? DeckPage }) ?? [] {
                     load(page)
                 }
@@ -97,7 +101,9 @@ struct PageDecksView: UIViewControllerRepresentable {
         }
 
         private func load(_ page: DeckPage) {
-            guard let side = page.side, side < view.count else {
+            // The plan may have grown or shrunk since the page was made.
+            page.side = page.entry >= 1 && page.entry <= view.count ? page.entry - 1 : nil
+            guard let side = page.side else {
                 page.show(nil, isPaper: false)
                 return
             }
@@ -131,7 +137,7 @@ struct PageDecksView: UIViewControllerRepresentable {
 
         private func page(_ entry: Int) -> UIViewController? {
             guard (0...view.count + 1).contains(entry) else { return nil }
-            let page = DeckPage(entry: entry, count: view.count)
+            let page = DeckPage(entry: entry)
             load(page)
             return page
         }
@@ -184,12 +190,11 @@ struct PageDecksView: UIViewControllerRepresentable {
 /// One entry of the curl's run: a side of the plan, or nothing before the first sheet and after the last.
 private final class DeckPage: UIViewController {
     let entry: Int
-    let side: Int?
+    var side: Int?
     private let imageView = UIImageView()
 
-    init(entry: Int, count: Int) {
+    init(entry: Int) {
         self.entry = entry
-        self.side = entry >= 1 && entry <= count ? entry - 1 : nil
         super.init(nibName: nil, bundle: nil)
     }
 

@@ -375,7 +375,7 @@ struct PrintScreen: View {
     private func pages(decks: Bool, paper: CGSize) -> some View {
         let model: AppState = state
         if decks {
-            PageDecksView(count: sideCount, side: $state.previewSide, image: state.preview,
+            PageDecksView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
                           drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
                           draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) },
                           zoomIn: { (side: Int) in
@@ -393,6 +393,8 @@ struct PrintScreen: View {
                              singlePage = false
                          } : nil,
                          zoomed: { (scale: CGFloat) in zoom = scale })
+                // A new page view starts at full size, whatever an old one was zoomed to.
+                .onAppear { zoom = 1 }
         }
     }
 
