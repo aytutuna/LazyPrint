@@ -160,7 +160,8 @@ final class FoldingPaper: UIView {
         }
         var shown: Any? = drawn(side)
         if shown == nil {
-            shown = [front, back, under].first { $0 !== face && $0.side == side }?.layer.contents
+            let faces: [Face] = [front, back, under]
+            shown = faces.first { (other: Face) -> Bool in other !== face && other.side == side }?.layer.contents
         }
         quietly { face.layer.contents = shown }
         guard shown == nil, draws else { return }
