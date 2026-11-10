@@ -1,5 +1,6 @@
 #if os(iOS)
 import Foundation
+import LazyPrintKit
 
 /// Where the files the pickers and Open In hand over wait to be printed. What those give is security-scoped or may go
 /// away when the picker closes, so each file is copied to `lp-files/<uuid>/<name>` in the temporary folder, under its
@@ -62,6 +63,38 @@ public struct IOSFileInbox: Sendable {
     public func discardDelivered(_ url: URL) {
         guard url.deletingLastPathComponent().lastPathComponent == "Inbox" else { return }
         try? FileManager.default.removeItem(at: url)
+    }
+
+    /// The files Lazy Scan left for hand-off `id` in the shared App Group folder, by name; nil when the folder is not
+    /// there or holds nothing. They are read in place and copied by `receive`, then `removeHandoff` clears the folder.
+    public static func handoffFiles(_ id: UUID) -> [URL]? {
+        guard let folder = handoffRoot()?.appendingPathComponent(id.uuidString, isDirectory: true) else { return nil }
+        let files: [URL] = IOSFileActions.files(in: folder)
+        return files.isEmpty ? nil : files
+    }
+
+    public static func removeHandoff(_ id: UUID) {
+        guard let root = handoffRoot() else { return }
+        try? FileManager.default.removeItem(at: root.appendingPathComponent(id.uuidString, isDirectory: true))
+    }
+
+    /// Removes hand-off folders more than a day old: Lazy Scan clears its own side, but a hand-off whose address never
+    /// reached the app would stay.
+    public static func removeOldHandoffs() {
+        guard let root = handoffRoot() else { return }
+        let keys: [URLResourceKey] = [.creationDateKey]
+        let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: keys)) ?? []
+        let cutoff: Date = Date(timeIntervalSinceNow: -24 * 60 * 60)
+        for folder in listed {
+            if let made = (try? folder.resourceValues(forKeys: Set(keys)))?.creationDate, made < cutoff {
+                try? FileManager.default.removeItem(at: folder)
+            }
+        }
+    }
+
+    private static func handoffRoot() -> URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: LazyPrintUrl.handoffGroup)?
+            .appendingPathComponent(LazyPrintUrl.handoffFolder, isDirectory: true)
     }
 
     /// A file made of `data` (a photo from the library), named `name`.

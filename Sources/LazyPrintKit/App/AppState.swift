@@ -467,6 +467,11 @@ public final class AppState: ObservableObject {
         reportNotAdded(names.map { (name: $0, reason: DocumentText.unreadable) })
     }
 
+    /// Lazy Scan's hand-off address came but the files it named are gone.
+    public func reportMissingHandoff() {
+        showFailure("Not added", "The file from Lazy Scan was not there. Share it from Lazy Scan again.")
+    }
+
     /// Reports files that were named but not opened, each with the same `reason`.
     public func reportUnreadable(_ names: [String], because reason: String) {
         reportNotAdded(names.map { (name: $0, reason: reason) })

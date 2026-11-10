@@ -8,8 +8,8 @@ import UIKit
 /// the top of Print, which opens the printers; the error bar and the bar after a job sit at the bottom. Also the sheets that hang off the state
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
 /// certificate question, and the files that come in: from the Add files menu (Files and Photos), from Open In and the share sheet
-/// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL only brings the app
-/// forward.
+/// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL with `handoff` brings
+/// the files Lazy Scan left in the shared folder; any other only brings the app forward.
 public struct IOSRootView: View {
     @EnvironmentObject private var state: AppState
     @ObservedObject private var fileActions: IOSFileActions
@@ -61,10 +61,14 @@ public struct IOSRootView: View {
         }
         .quickLookPreview($fileActions.previewURL)
         .printCertificateAlert(state)
-        // Files from Open In and the share sheet arrive here; a lazyprint: URL only brings the app forward.
+        // Files from Open In and the share sheet arrive here, and Lazy Scan's hand-off address; any other lazyprint: URL only
+        // brings the app forward.
         .onOpenURL { (url: URL) in
-            guard url.isFileURL else { return }
-            receive([url], delivered: true)
+            if let id = LazyPrintUrl.parseHandoff(url.absoluteString) {
+                receiveHandoff(id)
+            } else if url.isFileURL {
+                receive([url], delivered: true)
+            }
         }
         // The printers are read, and read again, only while the app is in front.
         .onChange(of: scenePhase, initial: true) { (_: ScenePhase, phase: ScenePhase) in
@@ -129,6 +133,24 @@ public struct IOSRootView: View {
             if delivered {
                 for url in urls { inbox.discardDelivered(url) }
             }
+            await open(received.copies, notAdded: received.failed)
+        }
+    }
+
+    /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice.
+    private func receiveHandoff(_ id: UUID) {
+        let before: Task<Void, Never>? = opening
+        opening = Task {
+            await before?.value
+            guard let urls = IOSFileInbox.handoffFiles(id) else {
+                state.reportMissingHandoff()
+                return
+            }
+            var received: (copies: [URL], failed: [String]) = (copies: [], failed: [])
+            await state.whileAddingFiles {
+                received = await inbox.receive(urls)
+            }
+            IOSFileInbox.removeHandoff(id)
             await open(received.copies, notAdded: received.failed)
         }
     }

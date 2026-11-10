@@ -20,6 +20,7 @@ public struct LazyPrintIOSApp: App {
         let options: IOSLaunchOptions = IOSLaunchOptions(arguments: process.arguments, environment: process.environment)
         let files: IOSFileInbox = IOSFileInbox()
         files.empty()
+        IOSFileInbox.removeOldHandoffs()
         let actions: IOSFileActions = IOSFileActions()
         let printerSystem: IOSPrinterSystem = IOSPrinterSystem()
         let browser: IOSCompanionBrowser? = options.demoPrinterOnly ? nil : IOSCompanionBrowser()
