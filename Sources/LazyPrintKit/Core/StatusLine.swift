@@ -52,7 +52,6 @@ public enum StatusLine {
     /// short form (a template): a warning stays visible, not only in the label.
     private static let jobNotes = [
         (pattern: "(\\d+) blank pages? added", short: "$1 blank added"),
-        (pattern: "Pages made smaller \\((\\d+) %\\)", short: "Shrunk to $1 %"),
     ]
 
     /// The warnings in `text`, and where the first note starts (UTF-16 offset; the text's length

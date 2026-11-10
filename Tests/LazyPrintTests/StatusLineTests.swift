@@ -49,16 +49,14 @@ final class StatusLineTests: XCTestCase {
         let sent3 = PrintText.sent(3, printerName: "HP LaserJet")
         XCTAssertEqual(StatusLine.short("\(sent3). \(PrintText.blanksAdded(2))"), "Sent 3 sheets \u{00B7} 2 blank added")
         XCTAssertEqual(StatusLine.short("\(sent3) \(PrintText.blanksAdded(1))"), "Sent 3 sheets \u{00B7} 1 blank added")
-        XCTAssertEqual(StatusLine.short("\(PrintText.sent(2, printerName: "HP LaserJet")). \(PrintText.madeSmaller(82))"),
-                       "Sent 2 sheets \u{00B7} shrunk to 82 %")
         // A task is picked: "Ready — printer" and the note.
-        XCTAssertEqual(StatusLine.short("\(PrintText.ready("Booklet")) \(PrintText.madeSmaller(82))", printerName: "HP LaserJet"),
-                       "Ready \u{2014} HP LaserJet \u{00B7} shrunk to 82 %")
-        // Both notes, and a message too long to keep: the warnings win.
-        let both = "\(PrintText.printing(2, of: 5)). \(PrintText.blanksAdded(2)). \(PrintText.madeSmaller(82))"
-        XCTAssertEqual(StatusLine.short(both), "2 blank added \u{00B7} shrunk to 82 %")
-        let noRoom = "Sent 12 sheets to HP LaserJet. \(PrintText.blanksAdded(2)). \(PrintText.madeSmaller(82))"
-        XCTAssertEqual(StatusLine.short(noRoom), "2 blank added \u{00B7} shrunk to 82 %")
+        XCTAssertEqual(StatusLine.short("\(PrintText.ready("Booklet")) \(PrintText.blanksAdded(2))", printerName: "HP LaserJet"),
+                       "Ready \u{2014} HP LaserJet \u{00B7} 2 blank added")
+        // A message too long to keep: the warning wins, or the head is cut to fit.
+        let both = "\(PrintText.printing(2, of: 5)). \(PrintText.blanksAdded(2))"
+        XCTAssertEqual(StatusLine.short(both), "2 blank added")
+        let noRoom = "Sent 12 sheets to HP LaserJet. \(PrintText.blanksAdded(2))"
+        XCTAssertEqual(StatusLine.short(noRoom), "Sent 12 sheets \u{00B7} 2 blank added")
         for message in [both, noRoom] {
             let shown = StatusLine.short(message, printerName: "HP LaserJet")
             XCTAssertTrue((1...StatusLine.maxWords).contains(StatusLine.words(shown)), shown)
@@ -73,9 +71,9 @@ final class StatusLineTests: XCTestCase {
 
     func test_withWarnings_addsTheNotesToAHead() {
         let sent = PrintText.sent(3, printerName: "HP LaserJet")
-        let message = "\(sent). \(PrintText.madeSmaller(82))"
-        XCTAssertEqual(StatusLine.warnings(message), ["Shrunk to 82 %"])
-        XCTAssertEqual(StatusLine.withWarnings("Printed", message: message), "Printed \u{00B7} shrunk to 82 %")
+        let message = "\(sent). \(PrintText.blanksAdded(2))"
+        XCTAssertEqual(StatusLine.warnings(message), ["2 blank added"])
+        XCTAssertEqual(StatusLine.withWarnings("Printed", message: message), "Printed \u{00B7} 2 blank added")
         // Without a note, just the head.
         XCTAssertEqual(StatusLine.warnings(sent), [])
         XCTAssertEqual(StatusLine.withWarnings("Printed", message: sent), "Printed")

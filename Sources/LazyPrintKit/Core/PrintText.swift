@@ -43,11 +43,6 @@ public enum PrintText {
         "\(count) blank page\(count == 1 ? "" : "s") added"
     }
 
-    /// A note about a job, added after the status sentence: "Pages made smaller (82 %)".
-    public static func madeSmaller(_ percent: Int) -> String {
-        "Pages made smaller (\(percent) %)"
-    }
-
     /// A note about a job, added after the status sentence: "Edges cut off (3 mm)".
     public static func edgesCut(_ millimetres: Int) -> String {
         "Edges cut off (\(millimetres) mm)"

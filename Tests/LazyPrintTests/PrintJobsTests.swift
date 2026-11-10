@@ -194,8 +194,7 @@ final class PrintJobsTests: XCTestCase {
     func test_plan_notes_sayWhatHappenedToThePages() {
         let big = LoadedDocument(name: "Poster", kind: .pdf(encrypted: false), pages: [LayoutSize(width: 1000, height: 1400)])
         let shrunk = makePlan([big], makeSettings(), hp)
-        XCTAssertEqual(shrunk.notes.count, 1)
-        XCTAssertTrue(shrunk.notes[0].hasPrefix("Pages made smaller ("))
+        XCTAssertEqual(shrunk.notes, [])
 
         let clipped = makePlan([big], makeSettings { $0.scaling = .actualSize }, hp)
         XCTAssertEqual(clipped.notes.count, 1)

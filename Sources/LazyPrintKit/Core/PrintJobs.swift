@@ -17,7 +17,7 @@ public struct LoadedDocument: Equatable, Sendable {
 
 /// What a job will print. `manualDuplex`: two-sided was asked for and the printer can't, so two passes. `passes` is one
 /// pass, or the fronts then the backs. `copiesInJob` is the copies the printer makes; the rest are repeated in the stream
-/// (`PrintCopies`). `notes` are for the user: "2 blank pages added", "Pages made smaller (82 %)".
+/// (`PrintCopies`). `notes` are for the user: "2 blank pages added", "Edges cut off (3 mm)".
 public struct JobPlan: Equatable, Sendable {
     public var plan: SheetPlan
     public var manualDuplex: Bool
@@ -245,12 +245,12 @@ public enum PrintJobs {
     }
 
     private static func notes(_ warnings: [PlanWarning]) -> [String] {
-        warnings.map { warning in
+        warnings.compactMap { warning in
             switch warning {
             case .paddedWithBlanks(let count):
                 return PrintText.blanksAdded(count)
-            case .shrunk(let percent):
-                return PrintText.madeSmaller(percent)
+            case .shrunk:
+                return nil
             case .clipped(let points):
                 return PrintText.edgesCut(max(1, Int((points * 25.4 / 72).rounded(.toNearestOrEven))))
             }
