@@ -229,9 +229,9 @@ final class FoldingPaper: UIView {
         guard top >= 0, bottom < count, bounds.width > 0 else { return false }
         let rest: CGPoint = forward ? start : CGPoint(x: -start.x, y: start.y)
         turn = Turn(top: top, bottom: bottom, forward: forward, byHand: byHand, start: start, rest: rest, corner: rest)
-        show(front, side: top, draws: top != side)
+        show(front, side: top, draws: top != wanted)
         show(back, side: otherSide(top))
-        show(under, side: bottom, draws: bottom != side)
+        show(under, side: bottom, draws: bottom != wanted)
         layoutFold()
         return true
     }
@@ -253,12 +253,19 @@ final class FoldingPaper: UIView {
         let moved: CGPoint = pan.translation(in: self)
         switch pan.state {
         case .began:
-            let touched = CGPoint(x: pan.location(in: self).x - moved.x, y: pan.location(in: self).y - moved.y)
-            _ = begin(forward: pan.velocity(in: self).x < 0, at: touched, byHand: true)
+            let forward: Bool = pan.velocity(in: self).x < 0
+            // Going back the page comes in from the far edge, so it is lifted by its free edge and the fold crosses all of it.
+            let touched = CGPoint(x: forward ? pan.location(in: self).x - moved.x : bounds.width,
+                                  y: pan.location(in: self).y - moved.y)
+            _ = begin(forward: forward, at: touched, byHand: true)
         case .changed:
             guard var turn, turn.byHand else { return }
-            // Twice the finger's travel, so the fold, halfway to the corner, stays under the finger.
+            // Twice the finger's travel, so the fold, halfway to the corner, moves with the finger. Past the lifted point the
+            // page lies flat; any further and the fold would turn the other part of it over.
             turn.corner = CGPoint(x: turn.rest.x + 2 * moved.x, y: turn.rest.y + 2 * moved.y)
+            if turn.corner.x >= turn.start.x {
+                turn.corner = turn.start
+            }
             self.turn = turn
             layoutFold()
         case .ended, .cancelled, .failed:
@@ -311,7 +318,10 @@ final class FoldingPaper: UIView {
         settle(on: max(0, min(landed, count - 1)))
         if turn.byHand && completed {
             wanted = side
-            onTurn(side)
+            // Not during the update that may have taken the view off screen.
+            let onTurn: (Int) -> Void = onTurn
+            let landed: Int = side
+            DispatchQueue.main.async { onTurn(landed) }
         } else if wanted != side {
             go(to: wanted)
         }
