@@ -376,7 +376,7 @@ struct PrintScreen: View {
         }
     }
 
-    /// What the plan did to fit the pages: blanks added, pages made smaller.
+    /// What the plan did to the pages: blanks added, edges cut off.
     @ViewBuilder
     private var notes: some View {
         if let notes = state.jobPlan?.notes, !notes.isEmpty {
@@ -431,7 +431,7 @@ struct PrintScreen: View {
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 
-    /// Options above Print, both always in reach. Print says what it does; greyed out, it says why. Once a computer is
+    /// Options above Print, both always in reach. Print says what it does; greyed out, VoiceOver says why. Once a computer is
     /// paired, Send to it sits beside Print.
     private var printBar: some View {
         let reason: String? = state.printDisabledReason
@@ -469,11 +469,6 @@ struct PrintScreen: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("print.adding")
                 }
-            } else if let reason {
-                Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("print.reason")
             }
         }
         .padding(.horizontal, 16)
