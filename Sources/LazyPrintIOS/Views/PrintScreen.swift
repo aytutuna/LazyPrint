@@ -322,7 +322,7 @@ struct PrintScreen: View {
         return ZStack {
             scheme == .dark ? Color(white: 0.08) : Color(uiColor: .systemGroupedBackground)
             // The view is exactly the paper's size, since all of it folds.
-            PageCurlView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
+            PageFoldView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
                          drawn: { (side: Int) -> CGImage? in model.drawnPreviewImage(ofSide: side) },
                          draw: { (side: Int) -> CGImage? in await model.previewImage(ofSide: side) })
                 .frame(width: paper.width * fit, height: paper.height * fit)
