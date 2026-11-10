@@ -590,7 +590,8 @@ public final class AppState: ObservableObject {
         guard let image else { return }
         drawnSides.removeAll { $0.key == key }
         drawnSides.append((key: key, image: image))
-        if drawnSides.count > 5 { drawnSides.removeFirst() }
+        // Two decks show two sides and draw the two either side of them ahead.
+        if drawnSides.count > 6 { drawnSides.removeFirst() }
     }
 
     private func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {

@@ -8,7 +8,8 @@ import UIKit
 /// and it turns or falls back. The flap is the other face of the sheet as it will come out of the printer (a short-edge back
 /// upside down, a one-sided sheet's blank), and under the page is the next side. `UIPageViewController`'s curl cannot show a
 /// back with one page in view (it wants a single page with the spine at the edge), so the fold is drawn here, as paper
-/// folded flat along a line.
+/// folded flat along a line. A pinch zooms the page, which then pans instead of folding; on a two-sided job a pinch inward
+/// at full size goes back to the two decks.
 struct PageFoldView: UIViewRepresentable {
     let count: Int
     let sheets: [Sheet]
@@ -17,12 +18,20 @@ struct PageFoldView: UIViewRepresentable {
     let image: CGImage?
     let drawn: @MainActor (Int) -> CGImage?
     let draw: @MainActor (Int) async -> CGImage?
+    /// The page's size at full zoom out, centred in the view.
+    let paperSize: CGSize
+    let zoomOut: (() -> Void)?
+    let zoomed: (CGFloat) -> Void
 
-    func makeUIView(context: Context) -> FoldingPaper {
-        FoldingPaper()
+    func makeUIView(context: Context) -> PaperScroll {
+        PaperScroll()
     }
 
-    func updateUIView(_ paper: FoldingPaper, context: Context) {
+    func updateUIView(_ scroll: PaperScroll, context: Context) {
+        scroll.zoomOut = zoomOut
+        scroll.zoomed = zoomed
+        scroll.paperSize = paperSize
+        let paper: FoldingPaper = scroll.paper
         let side: Binding<Int> = $side
         paper.onTurn = { side.wrappedValue = $0 }
         paper.drawn = drawn
@@ -31,8 +40,104 @@ struct PageFoldView: UIViewRepresentable {
     }
 }
 
+/// The page in a scroll view for zooming. At full size the scroll view keeps still, so a drag folds the page and the screen
+/// around it still scrolls.
+final class PaperScroll: UIScrollView, UIScrollViewDelegate {
+    let paper = FoldingPaper()
+    var zoomOut: (() -> Void)?
+    var zoomed: (CGFloat) -> Void = { _ in }
+    var paperSize: CGSize = .zero {
+        didSet {
+            guard paperSize != oldValue else { return }
+            let wasZoomed: Bool = zoomScale > 1
+            setZoomScale(1, animated: false)
+            holder.bounds = CGRect(origin: .zero, size: paperSize)
+            holder.layer.shadowPath = UIBezierPath(rect: holder.bounds).cgPath
+            paper.frame = holder.bounds
+            contentSize = paperSize
+            setNeedsLayout()
+            if wasZoomed {
+                // Not during the update that set the size.
+                DispatchQueue.main.async { [zoomed] in zoomed(1) }
+            }
+        }
+    }
+    private let holder = UIView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        delegate = self
+        minimumZoomScale = 1
+        maximumZoomScale = 4
+        showsHorizontalScrollIndicator = false
+        showsVerticalScrollIndicator = false
+        contentInsetAdjustmentBehavior = .never
+        panGestureRecognizer.isEnabled = false
+        holder.layer.shadowColor = UIColor.black.cgColor
+        holder.layer.shadowOpacity = 0.35
+        holder.layer.shadowRadius = 6
+        holder.layer.shadowOffset = CGSize(width: 0, height: 2)
+        holder.addSubview(paper)
+        addSubview(holder)
+        let twice = UITapGestureRecognizer(target: self, action: #selector(tappedTwice(_:)))
+        twice.numberOfTapsRequired = 2
+        addGestureRecognizer(twice)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let size: CGSize = holder.frame.size
+        holder.center = CGPoint(x: max(size.width, bounds.width) / 2, y: max(size.height, bounds.height) / 2)
+    }
+
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+        holder
+    }
+
+    func scrollViewDidZoom(_ scrollView: UIScrollView) {
+        let isZoomed: Bool = zoomScale > 1.01
+        panGestureRecognizer.isEnabled = isZoomed
+        paper.isFoldable = !isZoomed
+        setNeedsLayout()
+    }
+
+    func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+        // Room to pinch inward past full size, which is the way back to the decks.
+        minimumZoomScale = zoomOut == nil ? 1 : 0.6
+    }
+
+    func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+        minimumZoomScale = 1
+        if scale < 0.9, let zoomOut {
+            zoomOut()
+        } else if scale < 1 {
+            setZoomScale(1, animated: true)
+        }
+        zoomed(max(1, scale))
+    }
+
+    @objc private func tappedTwice(_ tap: UITapGestureRecognizer) {
+        if zoomScale > 1.01 {
+            setZoomScale(1, animated: true)
+            zoomed(1)
+        } else {
+            let point: CGPoint = tap.location(in: holder)
+            let size = CGSize(width: bounds.width / 2.5, height: bounds.height / 2.5)
+            zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height),
+                 animated: true)
+        }
+    }
+}
+
 final class FoldingPaper: UIView {
     var onTurn: (Int) -> Void = { _ in }
+    /// Off while the page is zoomed, when a drag pans it.
+    var isFoldable = true
     var drawn: @MainActor (Int) -> CGImage? = { _ in nil }
     var draw: @MainActor (Int) async -> CGImage? = { _ in nil }
 
@@ -109,6 +214,7 @@ final class FoldingPaper: UIView {
         for sublayer in [under.layer, edgeShadow, front.layer, flapShadow, flap] {
             layer.addSublayer(sublayer)
         }
+        pan.maximumNumberOfTouches = 1
         addGestureRecognizer(pan)
         layoutFold()
     }
@@ -246,7 +352,7 @@ final class FoldingPaper: UIView {
         guard gesture === pan else { return super.gestureRecognizerShouldBegin(gesture) }
         let velocity: CGPoint = pan.velocity(in: self)
         // Up and down is the screen's scrolling.
-        guard turn == nil, abs(velocity.x) > abs(velocity.y) else { return false }
+        guard isFoldable, turn == nil, abs(velocity.x) > abs(velocity.y) else { return false }
         return velocity.x < 0 ? side + 1 < count : side > 0
     }
 
