@@ -46,7 +46,8 @@ public enum PrintJobs {
                              rightToLeft: settings.rightToLeft,
                              scaling: settings.scaling,
                              sides: photos ? .oneSided : settings.sides,
-                             pageBorders: settings.pageBorders)
+                             pageBorders: settings.pageBorders,
+                             scale: settings.scale)
     }
 
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless

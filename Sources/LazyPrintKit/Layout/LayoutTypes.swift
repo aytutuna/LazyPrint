@@ -126,15 +126,19 @@ public struct LayoutOptions: Equatable, Sendable {
     public var sides: Sides
     /// A thin line around each page when there are several on a side.
     public var pageBorders: Bool
+    /// The size of a page alone on its side, in percent of its own; `scaling` still keeps it inside the printable area
+    /// when it shrinks to fit. Cells of several pages, booklets and fit or fill ignore it.
+    public var scale: Int
 
     public init(pagesPerSheet: Int = 1, booklet: Bool = false, rightToLeft: Bool = false,
-                scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false) {
+                scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100) {
         self.pagesPerSheet = pagesPerSheet
         self.booklet = booklet
         self.rightToLeft = rightToLeft
         self.scaling = scaling
         self.sides = sides
         self.pageBorders = pageBorders
+        self.scale = scale
     }
 }
 

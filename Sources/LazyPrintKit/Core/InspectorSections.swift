@@ -74,6 +74,9 @@ public enum InspectorSections {
         }
         if !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
         if (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
+        if !s.booklet && s.pagesPerSheet == 1 && s.scale != 100 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
+            parts.append("\(s.scale) %")
+        }
         if s.scaling != .shrinkToFit {
             switch s.scaling {
             case .fit: parts.append("Fit to page")

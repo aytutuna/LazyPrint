@@ -45,7 +45,7 @@ public enum Imposition {
             var placements: [Placement] = []
             for page in sidePages {
                 if perSide == 1 {
-                    placements.append(alone(page, area: area, scaling: scaling, notes: notes))
+                    placements.append(alone(page, area: area, scaling: scaling, scale: options.scale, notes: notes))
                     continue
                 }
                 let index = placements.count
@@ -123,10 +123,12 @@ public enum Imposition {
     }
 
     /// One page on its side: landscape pages get the landscape view.
-    private static func alone(_ page: SourcePage, area: PrintableArea, scaling: Scaling, notes: Notes) -> Placement {
+    private static func alone(_ page: SourcePage, area: PrintableArea, scaling: Scaling, scale: Int, notes: Notes) -> Placement {
         let landscape = page.size.width > page.size.height
         let cell = viewPrintable(area, landscape: landscape)
-        let fitted = shown(page.size, cell: cell, scaling: scaling, turn: false)
+        let factor = scaling == .shrinkToFit || scaling == .actualSize ? Double(max(10, min(400, scale))) / 100 : 1
+        let sized = LayoutSize(width: page.size.width * factor, height: page.size.height * factor)
+        let fitted = shown(sized, cell: cell, scaling: scaling, turn: false)
         if scaling == .actualSize {
             notes.clipped = max(notes.clipped, max(fitted.frame.width - cell.width, fitted.frame.height - cell.height) / 2)
         } else if scaling == .shrinkToFit || scaling == .fit {

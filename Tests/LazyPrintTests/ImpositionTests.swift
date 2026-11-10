@@ -80,6 +80,20 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(plan.warnings, [.shrunk(percent: 94)])
     }
 
+    func test_plan_scale_sizesAPageAlone_andStillShrinksToFit() throws {
+        let half = makePlan([makePage(0, 300, 400)], LayoutOptions(scale: 50))
+        assertLayoutRect(231, 296, 150, 200, try onlyElement(frontSide(half).placements).frame)
+
+        // 600 by 800 is 8 pt too tall for Letter.
+        let double = makePlan([makePage(0, 300, 400)], LayoutOptions(scale: 200))
+        assertLayoutRect(9, 0, 594, 792, try onlyElement(frontSide(double).placements).frame)
+    }
+
+    func test_plan_scale_isLeftOutWhenFitting() throws {
+        let plan = makePlan([makePage(0, 306, 396)], LayoutOptions(scaling: .fit, scale: 50))
+        assertLayoutRect(0, 0, 612, 792, try onlyElement(frontSide(plan).placements).frame)
+    }
+
     func test_plan_smallPageFit_isMadeAsLargeAsFits() throws {
         let plan = makePlan([makePage(0, 306, 396)], LayoutOptions(scaling: .fit))
         assertLayoutRect(0, 0, 612, 792, try onlyElement(frontSide(plan).placements).frame)
