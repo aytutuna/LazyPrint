@@ -129,12 +129,14 @@ public enum TaskCatalog {
             s.pagesPerSheet = 1
             s.booklet = false
             s.scaling = .shrinkToFit
+            s.scale = 100
             s.sides = printer?.sidesSupported.contains("two-sided-long-edge") == true ? .longEdge : .oneSided
         case .twoSided:
             // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
             s.pagesPerSheet = 1
             s.booklet = false
             s.scaling = .shrinkToFit
+            s.scale = 100
             s.sides = .longEdge
         case .booklet:
             s.booklet = true
