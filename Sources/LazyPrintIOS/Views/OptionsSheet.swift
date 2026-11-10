@@ -88,10 +88,22 @@ struct OptionsSheet: View {
                 Toggle("Page borders", isOn: $state.settings.pageBorders)
                     .accessibilityIdentifier("print.borders")
             }
-            Choice(title: "Scaling", selection: $state.settings.scaling,
-                   options: [("Shrink to fit", Scaling.shrinkToFit), ("Fit to page", Scaling.fit),
-                             ("Actual size", Scaling.actualSize), ("Fill", Scaling.fill)],
-                   id: "print.scaling")
+            Toggle(isOn: Binding(
+                get: { state.settings.scaling != .actualSize },
+                set: { (on: Bool) in state.settings.scaling = on ? .shrinkToFit : .actualSize })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Margins")
+                    Text("Keeps pages inside what the printer can reach")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityIdentifier("print.margins")
+            Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
+                LabeledContent("Scale", value: "\(state.settings.scale) %")
+            }
+            .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1)
+            .accessibilityIdentifier("print.scale")
         }
     }
 
