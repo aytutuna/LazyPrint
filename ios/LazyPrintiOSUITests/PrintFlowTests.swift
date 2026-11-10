@@ -82,10 +82,16 @@ final class PrintFlowTests: XCTestCase {
         let position: XCUIElement = app.staticTexts["preview.position"]
         let first: String = position.label
 
-        app.item("preview.stage").swipeLeft()
+        // Either side of the spine, since a two-sided job shows two decks.
+        let stage: XCUIElement = app.item("preview.stage")
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.56, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
+                   withVelocity: .fast, thenHoldForDuration: 0)
         app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
 
-        app.item("preview.stage").swipeRight()
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.44, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)),
+                   withVelocity: .fast, thenHoldForDuration: 0)
         app.waitUntil(position, "label == '\(first)'", "A swipe to the right turns back")
     }
 
