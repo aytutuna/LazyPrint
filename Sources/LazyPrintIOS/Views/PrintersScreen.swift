@@ -33,8 +33,6 @@ func stateColor(_ state: PrinterState) -> Color {
 /// the demo printer says it is no hardware.
 struct PrinterLabel: View {
     let printer: PrinterInfo
-    /// Just the name and the ink, for the button at the top of Print; the demo printer still says it is no hardware.
-    var slim = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -124,7 +122,7 @@ struct PrinterButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 if let printer = state.selectedPrinter {
-                    PrinterLabel(printer: printer, slim: true)
+                    PrinterLabel(printer: printer)
                 } else {
                     Label("No printer", systemImage: "printer")
                         .foregroundStyle(.secondary)
