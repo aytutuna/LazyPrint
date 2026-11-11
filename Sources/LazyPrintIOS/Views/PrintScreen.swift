@@ -541,6 +541,7 @@ struct PrintScreen: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .readableWidth()
         .frame(maxWidth: .infinity)
         .background(.bar)
     }
