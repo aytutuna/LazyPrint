@@ -234,6 +234,19 @@ public class IppDiscoveryTests
         Assert.NotEqual(Printer(endpoint), Printer(preferred));
     }
 
+    [Fact]
+    public void APlainAddressNeverGoesAheadOfASecureOne()
+    {
+        var endpoint = Assert.Single(IppEndpoint.Choose(
+        [
+            Service("HP M479 (A1B2C3)", secure: true, ["192.168.1.20"], HpTxt),
+            Service("HP M479 (A1B2C3)", secure: false, ["192.168.1.20"], HpTxt),
+        ]));
+        var plain = endpoint.Addresses.First(a => !a.Secure && a.Host == "192.168.1.20");
+        Assert.Same(endpoint, endpoint.Preferring(plain));
+        Assert.True(endpoint.Preferring(plain).Addresses[0].Secure);
+    }
+
     private static PrinterInfo Printer(IppEndpoint endpoint) =>
         new("ipp:x", "HP", null, null, PrinterRoute.Ipp, endpoint, false, PrinterState.Idle, [], []);
 

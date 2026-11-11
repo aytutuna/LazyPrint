@@ -33,8 +33,8 @@ public sealed class IppEndpoint
     /// <summary>The TXT record of the first service (the secure one when both are advertised).</summary>
     public required IppTxtRecord Txt { get; init; }
     /// <summary>
-    /// Where to connect, best first: every ipps address before every ipp one, and within
-    /// each, IPv4 addresses, then the host name, then IPv6 addresses.
+    /// Where to connect, best first: every ipps address before every ipp one (a read that
+    /// answered on plain ipp does not change that), and within each, IPv4 addresses, then the host name, then IPv6 addresses.
     /// </summary>
     public required IReadOnlyList<PrinterAddress> Addresses { get; init; }
     /// <summary>The service instance names it was advertised under, e.g. "HP LaserJet Pro M404dn (A1B2C3)", without repeats.</summary>
@@ -43,9 +43,17 @@ public sealed class IppEndpoint
     /// <summary>The printer UUID from the TXT record, as advertised; null when there is none.</summary>
     public string? Uuid => Txt.Uuid;
 
-    /// <summary>The endpoint with <paramref name="address"/> tried first; as it is when the address is not one of its own.</summary>
+    /// <summary>
+    /// The endpoint with <paramref name="address"/> tried first; as it is when the address is not one of its own.
+    /// A plain ipp address never goes ahead of an ipps one: the ipps address of the same host goes first
+    /// instead, and the order stays when there is none.
+    /// </summary>
     public IppEndpoint Preferring(PrinterAddress address)
     {
+        if (!address.Secure && Addresses.Any(a => a.Secure))
+        {
+            address = Addresses.FirstOrDefault(a => a.Secure && a.Host == address.Host) ?? Addresses[0];
+        }
         if (Addresses[0].Equals(address) || !Addresses.Contains(address)) return this;
         return new IppEndpoint
         {

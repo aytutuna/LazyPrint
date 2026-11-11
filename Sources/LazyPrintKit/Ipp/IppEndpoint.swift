@@ -40,8 +40,8 @@ public struct IppEndpoint: Equatable, Sendable {
     public var name: String
     /// The TXT record of the first service (the secure one when both are advertised).
     public var txt: IppTxtRecord
-    /// Where to connect, best first: every ipps address before every ipp one, and within each, IPv4
-    /// addresses, then the host name, then IPv6 addresses.
+    /// Where to connect, best first: every ipps address before every ipp one (a read that answered on
+    /// plain ipp does not change that), and within each, IPv4 addresses, then the host name, then IPv6 addresses.
     public var addresses: [PrinterAddress]
     /// The service instance names it was advertised under, e.g. "HP LaserJet Pro M404dn (A1B2C3)", without repeats.
     public var instanceNames: [String]
@@ -57,8 +57,14 @@ public struct IppEndpoint: Equatable, Sendable {
     /// The printer UUID from the TXT record, as advertised; nil when there is none.
     public var uuid: String? { txt.uuid }
 
-    /// The endpoint with `address` tried first; as it is when the address is not one of its own.
+    /// The endpoint with `address` tried first; as it is when the address is not one of its own. A plain
+    /// ipp address never goes ahead of an ipps one: the ipps address of the same host goes first instead,
+    /// and the order stays when there is none.
     public func preferring(_ address: PrinterAddress) -> IppEndpoint {
+        var address = address
+        if !address.secure && addresses.contains(where: { $0.secure }) {
+            address = addresses.first(where: { $0.secure && $0.host == address.host }) ?? addresses[0]
+        }
         guard addresses.first != address, addresses.contains(address) else { return self }
         var endpoint = self
         endpoint.addresses = [address] + addresses.filter { $0 != address }
