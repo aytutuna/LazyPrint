@@ -4,6 +4,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 using LazyPrint.App.Printing;
 using LazyPrint.App.Services;
@@ -392,6 +393,35 @@ public partial class MainWindow : Window
     private async void Print_Click(object sender, RoutedEventArgs e) => await ViewModel.PrintAsync();
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => ViewModel.CancelJob();
+
+    // MARK: - Keyboard shortcuts
+
+    /// <summary>Ctrl+O adds files, Ctrl+P prints, Ctrl+V pastes files and Delete removes the focused document. Paste and Delete are left to a text box.</summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ViewModel.ManualStep != DuplexStep.None) return;
+        bool typing = Keyboard.FocusedElement is TextBoxBase;
+        bool ctrl = Keyboard.Modifiers == ModifierKeys.Control;
+        if (ctrl && e.Key == Key.O)
+        {
+            AskForFiles();
+            e.Handled = true;
+        }
+        else if (ctrl && e.Key == Key.P && PrintTab.IsSelected && ViewModel.CanPrint)
+        {
+            _ = ViewModel.PrintAsync();
+            e.Handled = true;
+        }
+        else if (ctrl && e.Key == Key.V && !typing)
+        {
+            e.Handled = PasteFiles();
+        }
+        else if (e.Key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None && !typing && CardOf(Keyboard.FocusedElement) is { } card)
+        {
+            ViewModel.RemoveDocument(card.Document);
+            e.Handled = true;
+        }
+    }
 
     // MARK: - Dialogs and menus
 

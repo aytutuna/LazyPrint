@@ -7,6 +7,7 @@
         WindowStartupLocation="CenterScreen"
         Icon="{x:Static local:AppIcon.Image}"
         FontFamily="{StaticResource TextFontFamily}"
+        PreviewKeyDown="Window_PreviewKeyDown"
         AllowDrop="True" PreviewDragEnter="Window_PreviewDragOver" PreviewDragOver="Window_PreviewDragOver"
         PreviewDragLeave="Window_PreviewDragLeave" PreviewDrop="Window_PreviewDrop">
     <Window.Resources>
@@ -290,7 +291,7 @@
                                         <TextBlock Text="{x:Static local:ShortText.AddFiles}" Style="{StaticResource EmptyStateBodyStyle}" />
                                         <Button x:Name="EmptyAddFilesButton" Style="{StaticResource SubtleButtonStyle}"
                                                 local:Icon.Glyph="&#xE710;" Content="Add files…" HorizontalAlignment="Center"
-                                                Margin="0,16,0,0" ToolTip="Add PDFs and pictures" Click="AddFiles_Click" />
+                                                Margin="0,16,0,0" ToolTip="Add PDFs and pictures (Ctrl+O)" Click="AddFiles_Click" />
                                         <TextBlock Text="{x:Static local:ShortText.DropHint}" Style="{StaticResource CaptionText}"
                                                    TextAlignment="Center" TextWrapping="Wrap" Margin="0,2,0,0" />
                                     </StackPanel>
@@ -340,7 +341,7 @@
                                 <StackPanel>
                                     <DockPanel Margin="2,0,0,6">
                                         <Button DockPanel.Dock="Right" x:Name="AddFilesButton" Style="{StaticResource SubtleButtonStyle}"
-                                                local:Icon.Glyph="&#xE710;" Content="Add files…" ToolTip="Add PDFs and pictures"
+                                                local:Icon.Glyph="&#xE710;" Content="Add files…" ToolTip="Add PDFs and pictures (Ctrl+O)"
                                                 Click="AddFiles_Click" />
                                         <TextBlock x:Name="DocumentStripLabel" Style="{StaticResource CaptionText}" TextWrapping="NoWrap"
                                                    VerticalAlignment="Center" />
@@ -382,7 +383,7 @@
                                                                     ToolTip="Move earlier" AutomationProperties.Name="Move earlier"
                                                                     IsEnabled="{Binding CanMoveEarlier}" Click="DocumentEarlier_Click" />
                                                             <Button Style="{StaticResource PageActionButtonStyle}" Content="&#xE74D;"
-                                                                    ToolTip="Remove" AutomationProperties.Name="Remove"
+                                                                    ToolTip="Remove (Delete)" AutomationProperties.Name="Remove"
                                                                     Click="DocumentRemove_Click" />
                                                             <Button Style="{StaticResource PageActionButtonStyle}" Content="&#xE76C;"
                                                                     ToolTip="Move later" AutomationProperties.Name="Move later"

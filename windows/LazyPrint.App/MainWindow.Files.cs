@@ -70,12 +70,25 @@ public partial class MainWindow
         _ = TakeFilesAsync(paths);
     }
 
+    /// <summary>Takes the files on the clipboard as a drop would; false when it holds none.</summary>
+    private bool PasteFiles()
+    {
+        if (!Clipboard.ContainsFileDropList() || ViewModel.IsBusy) return false;
+        if (ExistingFiles(Clipboard.GetFileDropList().Cast<string>()) is not { } paths) return false;
+        _ = TakeFilesAsync(paths);
+        return true;
+    }
+
     /// <summary>The files a drag carries, when the window takes them now.</summary>
     private string[]? DroppedFiles(DragEventArgs e)
     {
         if (ViewModel.IsBusy || (e.AllowedEffects & DragDropEffects.Copy) == 0) return null;
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return null;
-        // Folders are left; any file is taken, and the loader says why one is not a PDF or a picture.
+        return e.Data.GetData(DataFormats.FileDrop) is string[] paths ? ExistingFiles(paths) : null;
+    }
+
+    /// <summary>Folders are left; any file is taken, and the loader says why one is not a PDF or a picture.</summary>
+    private static string[]? ExistingFiles(IEnumerable<string> paths)
+    {
         var files = paths.Where(File.Exists).ToArray();
         return files.Length == 0 ? null : files;
     }
