@@ -178,7 +178,9 @@ public struct IOSRootView: View {
         let unreadable: [(name: String, reason: String)] = notAdded.map { (name: String) -> (name: String, reason: String) in
             (name: name, reason: DocumentText.unreadable)
         }
-        await state.addFiles(files, alsoNotAdded: unreadable)
+        await state.whileAddingFiles {
+            await state.addFiles(files, alsoNotAdded: unreadable)
+        }
         if !state.documents.isEmpty { showJobs = false }
     }
 }

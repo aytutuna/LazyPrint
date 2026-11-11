@@ -1137,6 +1137,8 @@ final class AppStateSeamTests: XCTestCase {
 
         await rig.state.whileAddingFiles {
             XCTAssertTrue(rig.state.isAddingFiles)
+            XCTAssertEqual(rig.state.printDisabledReason, "Opening files\u{2026}")
+            XCTAssertEqual(rig.state.statusAccessible, "Opening files\u{2026}")
             await rig.state.whileAddingFiles {}
             XCTAssertTrue(rig.state.isAddingFiles)
         }
