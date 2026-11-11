@@ -65,6 +65,11 @@ public struct IOSFileInbox: Sendable {
         try? FileManager.default.removeItem(at: url)
     }
 
+    /// Removes the files Open In delivered, except those whose names `receive` reported as not copied.
+    public func discardDelivered(_ urls: [URL], failed: [String]) {
+        for url in urls where !failed.contains(url.lastPathComponent) { discardDelivered(url) }
+    }
+
     /// The files Lazy Scan left for hand-off `id` in the shared App Group folder, by name; nil when the folder is not
     /// there or holds nothing. They are read in place and copied by `receive`, then `removeHandoff` clears the folder.
     public static func handoffFiles(_ id: UUID) -> [URL]? {

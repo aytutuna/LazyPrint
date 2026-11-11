@@ -123,7 +123,7 @@ public struct IOSRootView: View {
     }
 
     /// Copies the files the importer and Open In hand over into the inbox, then takes them. `delivered` files came from
-    /// Open In: once tried, the original is removed from the app's Inbox folder, whether or not the copy worked.
+    /// Open In: the original is removed from the app's Inbox folder once its copy is made, and kept when the copy failed.
     private func receive(_ urls: [URL], delivered: Bool = false) {
         let before: Task<Void, Never>? = opening
         opening = Task {
@@ -133,13 +133,14 @@ public struct IOSRootView: View {
                 received = await inbox.receive(urls)
             }
             if delivered {
-                for url in urls { inbox.discardDelivered(url) }
+                inbox.discardDelivered(urls, failed: received.failed)
             }
             await open(received.copies, notAdded: received.failed)
         }
     }
 
-    /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice.
+    /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice. When a
+    /// file did not copy the folder stays, and the hand-off can be tried again.
     private func receiveHandoff(_ id: UUID) {
         let before: Task<Void, Never>? = opening
         opening = Task {
@@ -152,7 +153,7 @@ public struct IOSRootView: View {
             await state.whileAddingFiles {
                 received = await inbox.receive(urls)
             }
-            IOSFileInbox.removeHandoff(id)
+            if received.failed.isEmpty { IOSFileInbox.removeHandoff(id) }
             await open(received.copies, notAdded: received.failed)
         }
     }

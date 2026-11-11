@@ -46,6 +46,16 @@ final class IOSFileInboxTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: elsewhere.path), "Only the Inbox folder is the app's")
     }
 
+    func test_aDeliveredFileWhoseCopyFailed_isKept() throws {
+        let copied = try source("Copied.pdf", in: "Inbox")
+        let failed = try source("Failed.pdf", in: "Inbox")
+
+        inbox().discardDelivered([copied, failed], failed: ["Failed.pdf"])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copied.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: failed.path))
+    }
+
     func test_copies_keepTheirNamesAndBytes() async throws {
         let inbox = inbox()
         let first = try source("Invoice.pdf", bytes: "one")
