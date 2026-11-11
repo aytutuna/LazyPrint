@@ -73,7 +73,10 @@ public struct LayoutOptions: Equatable, Sendable {
     public var sides: Sides = .oneSided
     public var pageBorders: Bool = false           // a thin line around each page when there are several on a side
     public var scale: Int = 100                    // percent, 10...400, for a page alone on its side under shrinkToFit or actualSize
+    public var orientation: SheetOrientation = .automatic   // a booklet ignores it
 }
+
+public enum SheetOrientation: String, Codable, CaseIterable, Sendable { case automatic, portrait, landscape }
 
 public struct Placement: Equatable, Sendable {
     public var page: SourcePage
@@ -103,7 +106,8 @@ Rules `Imposition.plan` keeps (each has a test):
 - Paper is always fed portrait. A side that reads landscape (a landscape page alone, a 2- or 6-up grid that comes out landscape, a booklet spread) is worked out on a landscape "reading view" and turned onto the paper a quarter turn counterclockwise: the reading view's top goes to the paper's left edge, and its pages get `turns = 3`. The printer never needs an orientation setting.
 - Backs are given as the back looks after the sheet is turned over on its long edge, top edge still at the top: the page image of a `two-sided-long-edge` job. A back is turned 180° exactly when the sheet turns over on its short edge: `shortEdge`, and every booklet back. The reading view does not change this. Worked cases (front's top edge T, bottom B, left L, right R; each a test): portrait long edge, back's top at T, no turn; portrait short edge, top at B, turn; landscape long edge (a calendar's flip), top at R, no turn; landscape short edge (a book's flip), top at L, turn; booklet, turn. So the duplex request is always long edge.
 - When any back may be turned (two-sided, booklets, manual duplex), both sides are laid out in `area.symmetric`, so the front and the back line up and a turned back is not cut by an uneven margin.
-- One page per side: the page is placed by `scaling` in the printable area, centred, and turned a quarter counterclockwise when it is landscape on portrait paper.
+- One page per side: the page is placed by `scaling` in the printable area, centred, and turned a quarter counterclockwise when it is landscape on portrait paper. That is `orientation` automatic, decided page by page. Forced to portrait or landscape every page gets that reading view whatever its own shape and is not turned within it, only sized by `scaling` (a landscape page on a portrait sheet is made smaller, not turned). The sheet itself stays portrait paper with its content turned, so the job always tells the printer portrait (`orientation-requested` 3, CUPS `orientation-requested=3`, `PageOrientation` Portrait) and the printer must not turn it again.
+- Several per side with `orientation` forced: the reading view is the one asked for instead of the one chosen from the first page. A booklet is always a landscape spread and ignores `orientation`; the inspector hides it then. A job printed as it is by the printer (`IppSheetPrinter` as-is) is only sent so when `orientation` is automatic.
 - Several per side: the grid (2, 4, 6, 9, 16 pages: 1×2, 2×2, 2×3, 3×3, 4×4, its longer count along the reading view's longer side, so 2 per side are two rows in the portrait view and two columns in the landscape one) is chosen once per job, from the first page: portrait or landscape reading view, whichever makes that page larger; on a tie the view where pages need no turn wins. Pages are read left to right, top to bottom in the reading view (right to left with `rightToLeft`). Each page is fitted to its cell (`fit`; `fill` crops it to the cell; `actualSize` and `shrinkToFit` mean `fit` here) and turned a quarter counterclockwise only when that makes it strictly larger.
 - Booklet: always two-sided (`sides` is ignored). The pages are padded with blanks after the last page to a multiple of 4 (`paddedWithBlanks`); sheet k of n/4 has front (left, right) = (n−1−2k, 2k) and back = (2k+1, n−2−2k), swapped for `rightToLeft`; folded sheets nest in order. The spread's two halves are split at the paper's centre line (the fold), each half met with the printable area. `pagesPerSheet` is ignored.
 - Several documents run on as one; a document does not start a new sheet.
@@ -138,6 +142,10 @@ public enum PhotoLayout {
 ### Layout/PageRange
 
 `PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept; separators are commas, semicolons or spaces, a range takes a hyphen, en dash or em dash, "3-" runs to the last page and "5-2" gives 5, 4, 3, 2); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
+
+### Layout/PagePicker
+
+`PagePicker.apply(_ pages: [Int], selection: PageSelection, reverse: Bool) -> [Int]` (C#: `Apply`) cuts the pages a job asks for down to the odd or even ones and then reverses them. `pages` are 0-based places in the run of all documents, as `PageRange.parse` gives them (or every page when no range is typed); `PageSelection` is `all`, `odd`, `even`, and odd or even is the page's number in that run (page 1 is odd, so index 0), not its place in the typed range: the range 2-5 with odd gives 3 and 5. The order is the range's, kept, then reversed whole. `PrintJobs.plan` applies it after the page range (and drops indices past the end) and before the layout, so imposition, two-sided and booklets are made from the pages that are left. Manual two-sided printing is made after the layout, from the sheets: the fronts and backs passes are of those sheets, so odd or even and reverse apply to document pages and never to the passes (odd pages of 5 two-sided by hand are pages 1, 3, 5: sheet 1 has 1 over 3, sheet 2 has 5 over a blank back, and the fronts pass prints 1 then 5). The settings `pageSelection` and `reverseOrder` are not saved; `orientation` is. Inspector: "Which pages" (All pages, Odd pages only, Even pages only) and "Reverse order" under the page range, "Orientation" (Automatic, Portrait, Landscape) in Layout under Pages per side.
 
 ### Layout/ManualDuplex (two-sided on a printer that prints one side)
 
@@ -343,6 +351,9 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var pageBorders: Bool = false
     public var scaling: Scaling = .shrinkToFit
     public var scale: Int = 100
+    public var orientation: SheetOrientation = .automatic   // saved as "orientation"
+    public var pageSelection: PageSelection = .all          // not saved: asked for one job at a time
+    public var reverseOrder: Bool = false                   // not saved
     public var paperId: String = "auto"         // PaperSize raw value; auto = what the printer has loaded, else the regional default
     public var photoSizeId: String = "4x6"
     public var photoFill: Bool = true
