@@ -272,7 +272,9 @@ public sealed class PdfSheetWriter : IDisposable
             foreach (var placement in side.Placements)
             {
                 var f = placement.Frame;
-                Path(page, [Pdf(f.X, f.Y), Pdf(f.X + f.Width, f.Y), Pdf(f.X + f.Width, f.Y + f.Height), Pdf(f.X, f.Y + f.Height)],
+                // Like the pixels, the borders are not turned with the rest of a turned side.
+                Point Up(double x, double y) => new(x, paper.Height - y);
+                Path(page, [Up(f.X, f.Y), Up(f.X + f.Width, f.Y), Up(f.X + f.Width, f.Y + f.Height), Up(f.X, f.Y + f.Height)],
                      close: true, fill: null, stroke: TestColor.Gray(128), BorderWidth);
             }
         }

@@ -176,6 +176,7 @@ public class PdfSheetWriterTests
         AssertColor(Pixels.Blue, turned(612 - 425, 792 - 525), "the rectangle, turned");
         AssertColor(Pixels.White, upright(612 - 425, 792 - 525), "where the turned one lies");
         AssertColor((128, 128, 128), upright(200, 500), "the border", 80);
+        AssertColor((128, 128, 128), turned(200, 500), "the border, not turned", 80);
     }
 
     [Fact]
