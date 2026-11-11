@@ -18,6 +18,7 @@ extension AppState {
     }
 
     func unlock(_ url: URL, with password: String) async {
+        passwordRequest = nil
         let opener = loader
         do {
             var document = try await Task.detached { try opener.load(url, password: password) }.value
