@@ -49,5 +49,9 @@ public static class PrintText
     /// <summary>A note about a job, added after the status sentence: "Edges cut off (3 mm)".</summary>
     public static string EdgesCut(int millimetres) => $"Edges cut off ({millimetres} mm)";
 
+    /// <summary>The job's name: the first file's, and "and N more" when there are several.</summary>
+    public static string JobName(IReadOnlyList<string> names) =>
+        names.Count > 1 ? $"{names[0]} and {names.Count - 1} more" : names[0];
+
     public const string PrintedInGray = "Printed in gray: this printer has no color";
 }

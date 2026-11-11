@@ -33,7 +33,7 @@ extension AppState {
     public func print() async {
         guard canPrint, let printer = selectedPrinter, jobPlan != nil else { return }
         await printDocuments(JobInputs(printer: printer, capabilities: capabilities, settings: settings, task: task,
-                                       documents: documents, range: pageRangeIndexes(), name: documents[0].loaded.name))
+                                       documents: documents, range: pageRangeIndexes(), name: PrintText.jobName(documents.map { $0.loaded.name })))
     }
 
     /// Plans and prints the documents. A job done by hand prints its fronts and then waits on the two-sided card for the

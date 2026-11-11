@@ -60,5 +60,10 @@ public enum PrintText {
         "Edges cut off (\(millimetres) mm)"
     }
 
+    /// The job's name: the first file's, and "and N more" when there are several.
+    public static func jobName(_ names: [String]) -> String {
+        names.count > 1 ? "\(names[0]) and \(names.count - 1) more" : names[0]
+    }
+
     public static let printedInGray = "Printed in gray: this printer has no color"
 }

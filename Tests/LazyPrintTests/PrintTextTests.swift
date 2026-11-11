@@ -26,4 +26,9 @@ final class PrintTextTests: XCTestCase {
         XCTAssertEqual(PrintText.sheetCount(2, copies: 3), "2 sheets \u{00D7} 3")
         XCTAssertEqual(PrintText.sent(2, copies: 3, printerName: "HP LaserJet"), "Sent 2 sheets \u{00D7} 3 to HP LaserJet")
     }
+
+    func test_jobName_isTheFirstFileAndHowManyMore() {
+        XCTAssertEqual(PrintText.jobName(["Report.pdf"]), "Report.pdf")
+        XCTAssertEqual(PrintText.jobName(["Report.pdf", "a.png", "b.png"]), "Report.pdf and 2 more")
+    }
 }
