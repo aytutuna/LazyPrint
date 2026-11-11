@@ -175,18 +175,17 @@ struct PrintScreen: View {
         .accessibilityIdentifier("print.task")
     }
 
-    /// The current task is the checked item; one that cannot be started says why under its title.
+    /// The current task is the checked item, and picking it again applies its settings again. Under the title goes what the
+    /// task does, or why it cannot be started.
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability: TaskAvailability = state.availability(of: definition.task)
-        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (on: Bool) in
-            if on { pickTask(definition.task) }
+        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (_: Bool) in
+            pickTask(definition.task)
         })
         return Toggle(isOn: isCurrent) {
             Label {
                 Text(definition.title)
-                if let reason = availability.reason, !availability.isAvailable {
-                    Text(reason)
-                }
+                Text(availability.reason.flatMap { availability.isAvailable ? nil : $0 } ?? definition.subtitle)
             } icon: {
                 Image(systemName: TaskSymbols.systemImage(definition.iconKey))
             }
