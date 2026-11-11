@@ -50,6 +50,29 @@ final class JobSidesTests: XCTestCase {
         XCTAssertEqual(sides.map { $0.side }, [sent[0], sent[0], sent[0], sent[1], sent[1], sent[1]])
     }
 
+    func test_of_notCollatedTwoSidedCopiesKeepAFrontAndItsBackTogether() throws {
+        let document = try openLetterPDF(pages: 4)
+        let job = PrintFixtures.job(PrintFixtures.letter { $0.copies = 2; $0.collate = false; $0.sides = .longEdge }, document: document,
+                                    capabilities: duplexCapabilities(copies: 1))
+        let sent = job.plan.passes[0].sides
+
+        XCTAssertEqual(JobSides.of(job, pass: 0).map { $0.side }, [sent[0], sent[1], sent[0], sent[1], sent[2], sent[3], sent[2], sent[3]])
+    }
+
+    func test_of_notCollatedCopiesOfAPassDoneByHandRepeatEachSide() throws {
+        let document = try openLetterPDF(pages: 4)
+        var oneSided = PrinterCapabilities()
+        oneSided.sidesSupported = ["one-sided"]
+        oneSided.copiesSupported = CopiesRange(lower: 1, upper: 1)
+        let path = PrinterPrefs(paperPath: PaperPath(turnStackOver: false, turnBacks: false, checked: true))
+        let job = PrintFixtures.job(PrintFixtures.letter { $0.copies = 2; $0.collate = false; $0.sides = .longEdge }, document: document,
+                                    capabilities: oneSided, prefs: path)
+        let sent = job.plan.passes[1].sides
+
+        XCTAssertTrue(job.plan.manualDuplex)
+        XCTAssertEqual(JobSides.of(job, pass: 1).map { $0.side }, [sent[0], sent[0], sent[1], sent[1]])
+    }
+
     func test_of_isThePassesSidesOnceForOneCopy() throws {
         let document = try openLetterPDF(pages: 3)
         let job = PrintFixtures.job(PrintFixtures.letter(), document: document)
