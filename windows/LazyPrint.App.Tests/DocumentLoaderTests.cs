@@ -302,7 +302,28 @@ public class DocumentLoaderTests
     {
         var error = new NotSupportedException("", new System.Runtime.InteropServices.COMException("", unchecked((int)code)));
 
-        Assert.Equal(asks, DocumentLoader.LacksCodec(extension, error));
+        Assert.Equal(asks, DocumentLoader.LacksCodec("missing", extension, error));
+    }
+
+    [Theory]
+    [InlineData(".webp", "RIFF    WEBPVP8 ", DocumentText.NeedsWebP)]
+    [InlineData(".heic", "   ftypheic    ", DocumentText.NeedsHeif)]
+    [InlineData(".heif", "   ftypmif1    ", DocumentText.NeedsHeif)]
+    [InlineData(".webp", "not a picture at all", null)]
+    [InlineData(".heic", "RIFF    WEBPVP8 ", null)]
+    public void AnUnknownFormatAsksForTheExtensionOnlyForTheRealThing(string extension, string content, string? asks)
+    {
+        string path = WriteText(extension, System.Text.Encoding.Latin1.GetBytes(content));
+        try
+        {
+            var error = new NotSupportedException("", new System.Runtime.InteropServices.COMException("", unchecked((int)0x88982F07)));
+
+            Assert.Equal(asks, DocumentLoader.LacksCodec(path, extension, error));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     private static string WriteText(string name, byte[] bytes)

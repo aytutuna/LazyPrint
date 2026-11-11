@@ -66,9 +66,9 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 {
                     picture = await Task.Run(() => PictureSource.Open(path), token);
                 }
-                catch (Exception e) when (LacksCodec(extension, e) is not null)
+                catch (Exception e) when (LacksCodec(path, extension, e) is not null)
                 {
-                    throw new InvalidOperationException(LacksCodec(extension, e), e);
+                    throw new InvalidOperationException(LacksCodec(path, extension, e), e);
                 }
                 catch (Exception e) when (!named && e is not OperationCanceledException)
                 {
@@ -131,9 +131,10 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
 
     /// <summary>
     /// The sentence for a HEIC, HEIF or WebP file that WIC has no decoder for (WINCODEC_ERR_COMPONENTNOTFOUND): the Store's
-    /// extension is missing. Null for any other failure.
+    /// extension is missing. Null for any other failure. Where WIC reports an unknown image format instead, the file's own
+    /// bytes say whether it is one of these.
     /// </summary>
-    internal static string? LacksCodec(string extension, Exception e)
+    internal static string? LacksCodec(string path, string extension, Exception e)
     {
         string? needs = extension switch
         {
@@ -144,8 +145,32 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         if (needs is null) return null;
         // WPF wraps the COMException in a NotSupportedException.
         for (var x = e; x is not null; x = x.InnerException)
+        {
             if (x.HResult == unchecked((int)0x88982F50)) return needs;
+            if (x.HResult == unchecked((int)0x88982F07) && IsFormat(path, extension)) return needs;
+        }
         return null;
+    }
+
+    private static bool IsFormat(string path, string extension)
+    {
+        var start = new byte[16];
+        int read;
+        try
+        {
+            using var stream = OpenShared(path);
+            read = stream.ReadAtLeast(start, start.Length, throwOnEndOfStream: false);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        if (read < 12) return false;
+        if (extension == ".webp") return start.AsSpan(0, 4).SequenceEqual("RIFF"u8) && start.AsSpan(8, 4).SequenceEqual("WEBP"u8);
+        if (!start.AsSpan(4, 4).SequenceEqual("ftyp"u8)) return false;
+        var brand = start.AsSpan(8, 4);
+        return brand.SequenceEqual("heic"u8) || brand.SequenceEqual("heix"u8) || brand.SequenceEqual("mif1"u8)
+            || brand.SequenceEqual("msf1"u8) || brand.SequenceEqual("heif"u8);
     }
 
     public BitmapSource Render(LoadedDocument document, int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
