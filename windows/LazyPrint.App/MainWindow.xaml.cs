@@ -401,6 +401,8 @@ public partial class MainWindow : Window
 
     private async void Print_Click(object sender, RoutedEventArgs e) => await ViewModel.PrintAsync();
 
+    private async void SavePdf_Click(object sender, RoutedEventArgs e) => await SavePdfAsync();
+
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel.IsBusy) ViewModel.CancelJob();
@@ -409,7 +411,7 @@ public partial class MainWindow : Window
 
     // MARK: - Keyboard shortcuts
 
-    /// <summary>Ctrl+O adds files, Ctrl+P prints, Ctrl+V pastes files and Delete removes the focused document. Paste and Delete are left to a text box.</summary>
+    /// <summary>Ctrl+O adds files, Ctrl+P prints, Ctrl+Shift+S saves a PDF, Ctrl+V pastes files and Delete removes the focused document. Paste and Delete are left to a text box.</summary>
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (ViewModel.ManualStep != DuplexStep.None) return;
@@ -434,6 +436,11 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.P && PrintTab.IsSelected && ViewModel.CanPrint)
         {
             _ = ViewModel.PrintAsync();
+            e.Handled = true;
+        }
+        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.S && PrintTab.IsSelected)
+        {
+            _ = SavePdfAsync();
             e.Handled = true;
         }
         else if (ctrl && e.Key == Key.V && !typing)

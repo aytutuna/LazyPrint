@@ -1,4 +1,5 @@
 using LazyPrint.App;
+using LazyPrint.App.Printing;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
 using Xunit;
@@ -178,6 +179,26 @@ public sealed class DocumentListTests
         Assert.Equal("Print 4 sheets", model.PrintLabel);
         // The A4 page does not fit Letter's printable area at real size, so it is shrunk, and the note says so.
         Assert.StartsWith("Shrunk to ", Assert.Single(plan.Notes));
+    }
+
+    [Fact]
+    public async Task TheSheetsAreSavedAsOnePdfWithNoPrinter()
+    {
+        using var rig = new Rig();
+        var loader = new DocumentLoader();
+        var model = new AppViewModel(rig.Spooler, loader, rig.Sheets, rig.Diagnostics, rig.Directory);
+        Assert.Equal("Add files to save", model.SavePdfDisabledReason);
+        model.Settings.PaperId = "letter";
+        model.Settings.Copies = 3;
+        await model.AddFilesAsync([DocumentFixtures.PathOf("mixed.pdf"), DocumentFixtures.PathOf("halves-300dpi.png")]);
+
+        Assert.Null(model.SavePdfDisabledReason);
+        var job = model.SaveJob()!;
+        byte[] pdf = await StaWork.Run(() => SheetPdf.Make(job, SheetPdf.AllSides(job), loader, loader));
+
+        using var saved = PdfiumDocument.Open(pdf)!;
+        Assert.Equal(4, saved.PageCount);
+        Assert.Equal((612, 792), saved.PageSize(0));
     }
 
     [Fact]

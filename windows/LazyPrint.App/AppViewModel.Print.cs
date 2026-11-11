@@ -340,6 +340,36 @@ public sealed partial class AppViewModel
 
     public bool CanPrint => PrintDisabledReason is null;
 
+    /// <summary>Why the sheets cannot be saved as a PDF; null when they can. No printer is needed.</summary>
+    public string? SavePdfDisabledReason =>
+        IsBusy ? "Printing…"
+        : IsAddingFiles ? "Opening files…"
+        : _manual is not null ? PrintText.FinishTwoSided
+        : Documents.Count == 0 ? "Add files to save"
+        : PageRangeError is { } error ? error
+        : null;
+
+    /// <summary>The job the saved PDF is laid out from: the plan of the settings for the selected printer's paper, one copy, no printer to send it to.</summary>
+    public SheetJob? SaveJob()
+    {
+        if (Plan() is null) return null;
+        var settings = Settings with { Copies = 1 };
+        var printer = SelectedPrinter ?? new PrinterInfo("pdf", "PDF file", null, null, PrinterRoute.Demo, null, false, PrinterState.Idle, [], []);
+        IReadOnlyList<LoadedDocument> documents = [.. Documents];
+        var plan = PrintJobs.Plan(documents, PageRangeIndexes(), settings, SelectedTask, SelectedCapabilities, SelectedPrefs);
+        return new SheetJob(PrintText.JobName([.. documents.Select(d => d.Name)]), printer, SelectedCapabilities, settings, plan, documents, "",
+                            null, MarksOf(SelectedTask, settings), FrameMarksOf(SelectedTask, settings));
+    }
+
+    public void ReportSaved(string path)
+    {
+        ClearMessages();
+        SentMessage = $"Saved {Path.GetFileName(path)}";
+        NotifyAll();
+    }
+
+    public void ReportNotSaved(string name, string reason) => ShowFailure("Not saved", $"{name}: {reason}", null);
+
     /// <summary>The job being followed is in the system's print queue, which keeps it when the app closes.</summary>
     public bool JobIsInSpooler => _job is not null && _spooled;
 

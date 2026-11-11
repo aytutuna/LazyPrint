@@ -310,5 +310,9 @@ public partial class MainWindow
         string? trouble = ViewModel.PrinterTrouble;
         PrintButton.ToolTip = reason ?? (trouble is null ? "Print (Ctrl+P)" : $"{trouble}. Print (Ctrl+P)");
         AutomationProperties.SetName(PrintButton, reason is null ? (trouble is null ? label : $"{label}, {trouble}") : $"{label}, not available: {reason}");
+
+        string? saveReason = ViewModel.SavePdfDisabledReason;
+        SavePdfButton.IsEnabled = saveReason is null;
+        SavePdfButton.ToolTip = saveReason ?? "Save the sheets as a PDF (Ctrl+Shift+S)";
     }
 }

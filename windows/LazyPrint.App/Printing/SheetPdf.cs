@@ -17,6 +17,10 @@ internal static class SheetPdf
         return writer.Save();
     }
 
+    /// <summary>Every side of every pass, in the order the passes are sent.</summary>
+    public static List<DrawnSide> AllSides(SheetJob job) =>
+        [.. Enumerable.Range(0, job.Plan.Passes.Count).SelectMany(pass => JobSides.Of(job, pass))];
+
     /// <summary>Whether pdfium.dll loads; says so in the log when it does not.</summary>
     public static bool Available
     {
