@@ -175,6 +175,22 @@ public sealed class PrintSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Printers_KeepTheTrayAndPaperType()
+    {
+        var settings = new PrintSettings { MediaSource = "tray-2", MediaType = "photographic-glossy" };
+        var prefs = new PrinterPrefs().Remembering(settings);
+        var other = new PrintSettings();
+        prefs.ApplyTo(other);
+        Assert.Equal("tray-2", other.MediaSource);
+        Assert.Equal("photographic-glossy", other.MediaType);
+
+        var untouched = new PrintSettings { MediaSource = "manual" };
+        new PrinterPrefs().ApplyTo(untouched);
+        Assert.Equal("manual", untouched.MediaSource);
+        Assert.Equal("auto", new PrintSettings().MediaType);
+    }
+
+    [Fact]
     public void Printers_Unreadable_AreMovedAside_AndEmpty()
     {
         File.WriteAllText(Printers, "[1, 2");

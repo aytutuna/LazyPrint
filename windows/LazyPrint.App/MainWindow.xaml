@@ -546,6 +546,18 @@
                                                            Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                                                 <TextBlock x:Name="PaperNoteText" Style="{StaticResource ReasonText}" />
                                             </DockPanel>
+                                            <StackPanel x:Name="TrayRow" Visibility="Collapsed">
+                                                <Label Content="_Tray" Target="{Binding ElementName=TrayBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                                <ComboBox x:Name="TrayBox" HorizontalAlignment="Stretch"
+                                                          AutomationProperties.Name="Tray"
+                                                          SelectionChanged="Setting_Changed" />
+                                            </StackPanel>
+                                            <StackPanel x:Name="PaperTypeRow" Visibility="Collapsed">
+                                                <Label Content="Paper _type" Target="{Binding ElementName=PaperTypeBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                                <ComboBox x:Name="PaperTypeBox" HorizontalAlignment="Stretch"
+                                                          AutomationProperties.Name="Paper type"
+                                                          SelectionChanged="Setting_Changed" />
+                                            </StackPanel>
                                             <Label Content="_Quality" Target="{Binding ElementName=QualityBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="QualityBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Quality"

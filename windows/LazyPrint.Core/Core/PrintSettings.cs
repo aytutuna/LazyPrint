@@ -41,6 +41,10 @@ public sealed record PrintSettings
     public int Scale { get; set; } = 100;
     /// <summary>A <see cref="PaperSize"/> raw value; "auto" is what the printer has loaded, else the regional default.</summary>
     public string PaperId { get; set; } = "auto";
+    /// <summary>A media-source keyword the printer lists ("main", "tray-2", "manual"); "auto" lets the printer pick.</summary>
+    public string MediaSource { get; set; } = MediaChoices.Auto;
+    /// <summary>A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.</summary>
+    public string MediaType { get; set; } = MediaChoices.Auto;
     public string PhotoSizeId { get; set; } = "4x6";
     public bool PhotoFill { get; set; } = true;
     public bool CutMarks { get; set; } = true;
@@ -55,18 +59,23 @@ public sealed record PrinterPrefs
     public Sides? Sides { get; set; }
     public ColorChoice? Color { get; set; }
     public QualityChoice? Quality { get; set; }
+    public string? MediaSource { get; set; }
+    public string? MediaType { get; set; }
 
-    /// <summary>Brings back the paper, sides, color and quality last used with the printer; copies, range and layout stay.</summary>
+    /// <summary>Brings back the paper, tray, paper type, sides, color and quality last used with the printer; copies, range and layout stay.</summary>
     public void ApplyTo(PrintSettings settings)
     {
         settings.PaperId = PaperId ?? settings.PaperId;
         settings.Sides = Sides ?? settings.Sides;
         settings.Color = Color ?? settings.Color;
         settings.Quality = Quality ?? settings.Quality;
+        settings.MediaSource = MediaSource ?? settings.MediaSource;
+        settings.MediaType = MediaType ?? settings.MediaType;
     }
 
     public PrinterPrefs Remembering(PrintSettings settings) =>
-        this with { PaperId = settings.PaperId, Sides = settings.Sides, Color = settings.Color, Quality = settings.Quality };
+        this with { PaperId = settings.PaperId, Sides = settings.Sides, Color = settings.Color, Quality = settings.Quality,
+            MediaSource = settings.MediaSource, MediaType = settings.MediaType };
 }
 
 public static class SettingsStore

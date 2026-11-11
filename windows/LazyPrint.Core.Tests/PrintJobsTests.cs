@@ -425,4 +425,67 @@ public class PrintJobsTests
         var plan = Plan([Doc(1)], Settings(s => s.PaperId = "iso_a3_297x420mm"), null);
         Assert.Equal(297 * 72 / 25.4, plan.Plan.Area.Paper.Width, 0.1);
     }
+
+    private static PrinterCapabilities WithMedia(PrinterCapabilities basis, string[] types) => new()
+    {
+        SidesSupported = basis.SidesSupported,
+        CopiesSupported = basis.CopiesSupported,
+        MediaColDatabase = basis.MediaColDatabase,
+        MediaColReady = basis.MediaColReady,
+        MediaColSupported = ["media-size", "media-top-margin", "media-type", "media-source"],
+        MediaTypeSupported = types,
+        MediaSourceSupported = ["main", "tray-2"],
+    };
+
+    private static string Member(IppJobTicket ticket, string name) =>
+        ((IppValue.Keyword)ticket.Media.Entry!.Single(m => m.Name == name).Values[0]).Value;
+
+    [Fact]
+    public void Ticket_TheTypeAndTrayGoInTheMediaCol_InPlaceOfTheEntrys()
+    {
+        var printer = WithMedia(Hp, ["stationery", "labels"]);
+        var settings = Settings(s => { s.PaperId = "letter"; s.MediaType = "labels"; s.MediaSource = "tray-2"; });
+        var ticket = PrintJobs.Ticket(Plan([Doc(1)], settings, printer), settings, "application/pdf", printer, "x");
+        Assert.Equal("labels", Member(ticket, "media-type"));
+        Assert.Equal("tray-2", Member(ticket, "media-source"));
+        Assert.Contains(ticket.Media.Entry!, m => m.Name == "media-size");
+    }
+
+    [Fact]
+    public void Ticket_ASheetWithNoEntryIsSentAsAMediaColWhenATypeIsAsked()
+    {
+        var printer = new PrinterCapabilities
+        {
+            MediaColSupported = ["media-size", "media-type"],
+            MediaTypeSupported = ["stationery", "cardstock"],
+        };
+        var settings = Settings(s => s.MediaType = "cardstock");
+        var ticket = PrintJobs.Ticket(Plan([Doc(1)], settings, printer), settings, "application/pdf", printer, "x");
+        Assert.Equal(["media-size", "media-type"], ticket.Media.Entry!.Select(m => m.Name));
+
+        var none = Settings();
+        Assert.Null(PrintJobs.Ticket(Plan([Doc(1)], none, printer), none, "application/pdf", printer, "x").Media.Entry);
+    }
+
+    [Fact]
+    public void Ticket_ATypeTheMediaColDoesNotTakeIsLeftOut()
+    {
+        var printer = new PrinterCapabilities
+        {
+            MediaColDatabase = Hp.MediaColDatabase, MediaColSupported = ["media-size"], MediaTypeSupported = ["labels"],
+        };
+        var settings = Settings(s => { s.PaperId = "letter"; s.MediaType = "labels"; });
+        var ticket = PrintJobs.Ticket(Plan([Doc(1)], settings, printer), settings, "application/pdf", printer, "x");
+        Assert.DoesNotContain(ticket.Media.Entry ?? [], m => m.Values[0] is IppValue.Keyword { Value: "labels" });
+    }
+
+    [Fact]
+    public void Ticket_APhotoTaskAsksForThePhotoType()
+    {
+        var printer = WithMedia(Epson, ["stationery", "photographic-glossy"]);
+        var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
+        var settings = Settings(s => s.TaskId = "photos");
+        var ticket = PrintJobs.Ticket(Plan([photo], settings, printer, task: PrintTask.Photos), settings, "image/jpeg", printer, "x");
+        Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
+    }
 }

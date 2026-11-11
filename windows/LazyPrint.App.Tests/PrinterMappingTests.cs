@@ -186,6 +186,21 @@ public sealed class PrinterMappingTests
         PrinterMapping.Capabilities("HP", "HP Driver", duplex ?? [], colors ?? [], copies, collation ?? [], quality ?? [], []);
 
     [Fact]
+    public void TraysAndPaperTypesBecomeTheKeywordsAPrinterWouldList()
+    {
+        var caps = PrinterMapping.Capabilities("HP", null, [], [], null, [], [], [], false,
+            [InputBin.AutoSelect, InputBin.Manual, InputBin.Cassette],
+            [PageMediaType.Plain, PageMediaType.Stationery, PageMediaType.PhotographicGlossy, PageMediaType.Unknown]);
+        Assert.Equal(["manual", "tray-1"], caps.MediaSourceSupported);
+        Assert.Equal(["stationery", "photographic-glossy"], caps.MediaTypeSupported);
+        Assert.Empty(Caps().MediaSourceSupported);
+        Assert.Empty(Caps().MediaTypeSupported);
+        Assert.Equal(InputBin.Manual, PrinterMapping.Tray("manual"));
+        Assert.Null(PrinterMapping.Tray("tray-9"));
+        Assert.Equal(PageMediaType.CardStock, PrinterMapping.PaperType("cardstock"));
+    }
+
+    [Fact]
     public void ADriverWithoutDuplexPrintsOneSide()
     {
         Assert.Equal(["one-sided"], Caps().SidesSupported);

@@ -141,7 +141,7 @@ public static class PrintJobs
             job.CopiesInJob,
             sides,
             mode,
-            Media(area, printer),
+            Media(area, printer, MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer)),
             printer?.PrintQualitySupported.Contains(quality) == true ? quality : null,
             PrintScaling(settings.Scaling, printer, asIs),
             hasCopies && settings.Collate && printer?.MultipleDocumentHandlingSupported.Contains(CollatedCopies) == true);
@@ -157,13 +157,33 @@ public static class PrintJobs
         return wanted.FirstOrDefault(w => listed.Contains(w));
     }
 
-    /// <summary>The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name.</summary>
-    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer)
+    /// <summary>
+    /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name. The type
+    /// and tray, when asked for, go in the media-col in place of the entry's own.
+    /// </summary>
+    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? type, string? source)
     {
         string name = MediaName(area.Paper);
-        if (printer?.Match(area.Paper, area.Margins == default) is { } entry) return new IppMediaChoice(entry.Attributes, name);
-
         var supported = printer?.MediaColSupported ?? [];
+        bool Takes(string member) => supported.Count == 0 || supported.Contains(member);
+        List<IppAttribute> Chosen(List<IppAttribute> members)
+        {
+            if (type is not null && Takes("media-type"))
+            {
+                members.RemoveAll(m => m.Name == "media-type");
+                members.Add(new IppAttribute("media-type", new IppValue.Keyword(type)));
+            }
+            if (source is not null && Takes("media-source"))
+            {
+                members.RemoveAll(m => m.Name == "media-source");
+                members.Add(new IppAttribute("media-source", new IppValue.Keyword(source)));
+            }
+            return members;
+        }
+
+        if (printer?.Match(area.Paper, area.Margins == default) is { } entry)
+            return new IppMediaChoice(entry.Attributes.Count > 0 ? Chosen([.. entry.Attributes]) : entry.Attributes, name);
+
         int Hundredths(double points) => (int)Math.Round(points * 2540 / 72);
         var members = new List<IppAttribute>
         {
@@ -180,6 +200,7 @@ public static class PrintJobs
         };
         foreach (var (margin, points) in margins.Where(m => supported.Contains(m.Name)))
             members.Add(new IppAttribute(margin, new IppValue.Integer(Hundredths(points))));
+        Chosen(members);
         return new IppMediaChoice(members.Count > 1 ? members : null, name);
     }
 

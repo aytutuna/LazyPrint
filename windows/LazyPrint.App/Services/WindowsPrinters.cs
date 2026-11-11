@@ -97,11 +97,35 @@ internal static class PrinterMapping
     /// </summary>
     private static readonly PaperRange CustomRange = new(5080, 48260, 5080, 48260);
 
+    private static readonly (InputBin Bin, string Id)[] Trays =
+        [(InputBin.AutoSheetFeeder, "main"), (InputBin.Cassette, "tray-1"), (InputBin.Manual, "manual")];
+
+    private static readonly (PageMediaType Type, string Id)[] PaperTypes =
+    [
+        (PageMediaType.Plain, "stationery"), (PageMediaType.Stationery, "stationery"), (PageMediaType.Bond, "bond"),
+        (PageMediaType.Photographic, "photographic"), (PageMediaType.PhotographicGlossy, "photographic-glossy"),
+        (PageMediaType.PhotographicHighGloss, "photographic-high-gloss"), (PageMediaType.PhotographicMatte, "photographic-matte"),
+        (PageMediaType.PhotographicSatin, "photographic-satin"), (PageMediaType.PhotographicSemiGloss, "photographic-semi-gloss"),
+        (PageMediaType.PhotographicFilm, "photographic-film"), (PageMediaType.EnvelopePlain, "envelope-plain"),
+        (PageMediaType.EnvelopeWindow, "envelope-window"), (PageMediaType.Label, "labels"), (PageMediaType.CardStock, "cardstock"),
+        (PageMediaType.Transparency, "transparency"),
+    ];
+
+    /// <summary>A tray as the keyword a printer's media-source-supported would use; null for the driver's own choice and trays with no keyword.</summary>
+    public static string? TrayId(InputBin bin) => Array.Find(Trays, t => t.Bin == bin).Id;
+
+    public static InputBin? Tray(string id) => Array.Find(Trays, t => t.Id == id) is { Id: not null } found ? found.Bin : null;
+
+    /// <summary>A paper type as the keyword a printer's media-type-supported would use; null for the driver's own choice and types with no keyword.</summary>
+    public static string? TypeId(PageMediaType type) => Array.Find(PaperTypes, t => t.Type == type).Id;
+
+    public static PageMediaType? PaperType(string id) => Array.Find(PaperTypes, t => t.Id == id) is { Id: not null } found ? found.Type : null;
+
     /// <summary>What a driver lists, as the capabilities the layout and the job read.</summary>
     public static PrinterCapabilities Capabilities(
         string name, string? model, IEnumerable<Duplexing> duplex, IEnumerable<OutputColor> colors, int? maxCopies,
         IEnumerable<Collation> collation, IEnumerable<OutputQuality> quality, IReadOnlyList<MediaEntry> papers,
-        bool customPaper = false)
+        bool customPaper = false, IEnumerable<InputBin>? trays = null, IEnumerable<PageMediaType>? types = null)
     {
         var sides = new List<string> { "one-sided" };
         var duplexList = duplex.ToList();
@@ -131,6 +155,8 @@ internal static class PrinterMapping
             PrintQualitySupported = qualities,
             MediaColDatabase = papers,
             CustomPaper = customPaper ? CustomRange : null,
+            MediaSourceSupported = [.. (trays ?? []).Select(TrayId).OfType<string>().Distinct()],
+            MediaTypeSupported = [.. (types ?? []).Select(TypeId).OfType<string>().Distinct()],
         };
     }
 }
@@ -231,7 +257,8 @@ public sealed class WindowsPrinters : IPrinterSystem
             }
             return PrinterMapping.Capabilities(
                 queueName, queue.QueueDriver?.Name, capabilities.DuplexingCapability, capabilities.OutputColorCapability,
-                capabilities.MaxCopyCount, capabilities.CollationCapability, capabilities.OutputQualityCapability, papers, custom);
+                capabilities.MaxCopyCount, capabilities.CollationCapability, capabilities.OutputQualityCapability, papers, custom,
+                capabilities.InputBinCapability, capabilities.PageMediaTypeCapability);
         }
         catch (Exception e) when (e is PrintQueueException or PrintSystemException or InvalidOperationException)
         {
