@@ -470,6 +470,11 @@ public final class AppState: ObservableObject {
         reportNotAdded(names.map { (name: $0, reason: DocumentText.unreadable) })
     }
 
+    /// The file picker failed.
+    public func reportImportFailure(_ error: Error) {
+        showFailure("Not added", error.localizedDescription)
+    }
+
     /// Lazy Scan's hand-off address came but the files it named are gone.
     public func reportMissingHandoff() {
         showFailure("Not added", "The file from Lazy Scan was not there. Share it from Lazy Scan again.")

@@ -1,5 +1,6 @@
 #if os(iOS)
 import LazyPrintKit
+import Photos
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -14,6 +15,25 @@ enum FileSource {
 enum PhotoNames {
     static func make(number: Int, type: UTType?) -> String {
         "Photo \(number)." + (type?.preferredFilenameExtension ?? "jpg")
+    }
+
+    /// "Photo 2026-11-11 14.03.22.heic": the date the picture was taken.
+    static func make(date: Date, type: UTType?) -> String {
+        let format: DateFormatter = DateFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "Photo \(format.string(from: date))." + (type?.preferredFilenameExtension ?? "jpg")
+    }
+
+    /// The highest n of the "Photo n.ext" names, 0 when there are none. A name made from a date is not one.
+    static func highest(in names: [String]) -> Int {
+        names.compactMap { (name: String) -> Int? in
+            guard name.hasPrefix("Photo ") else { return nil }
+            let rest: Substring = name.dropFirst("Photo ".count)
+            let digits: Substring = rest.prefix { $0.isNumber }
+            guard rest.dropFirst(digits.count).first == "." else { return nil }
+            return Int(digits)
+        }.max() ?? 0
     }
 }
 
@@ -70,9 +90,15 @@ struct FileSources: ViewModifier {
     func body(content: Content) -> some View {
         content
             .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
-                if case .success(let urls) = result { pick(urls) }
+                switch result {
+                case .success(let urls):
+                    pick(urls)
+                case .failure(let error):
+                    if (error as? CocoaError)?.code != .userCancelled { state.reportImportFailure(error) }
+                }
             }
-            .photosPicker(isPresented: shown(.photos), selection: $photos, matching: .images)
+            // With the shared library the items carry an identifier, which is how the date a photo was taken is found.
+            .photosPicker(isPresented: shown(.photos), selection: $photos, matching: .images, photoLibrary: .shared())
             .onChange(of: photos) { (_: [PhotosPickerItem], items: [PhotosPickerItem]) in
                 guard !items.isEmpty else { return }
                 photos = []
@@ -88,13 +114,22 @@ struct FileSources: ViewModifier {
         })
     }
 
-    /// The photos as files in the inbox, named in the order picked.
+    /// The photos as files in the inbox, named by the date taken when the library says it, else numbered on from the
+    /// highest "Photo n" in the list, in the order picked.
     private func receive(_ items: [PhotosPickerItem]) async {
         var urls: [URL] = []
         var failed: [String] = []
+        var number: Int = PhotoNames.highest(in: state.documents.map { $0.loaded.name })
         await state.whileAddingFiles {
-            for (index, item) in items.enumerated() {
-                let name: String = PhotoNames.make(number: index + 1, type: item.supportedContentTypes.first)
+            for item in items {
+                let type: UTType? = item.supportedContentTypes.first
+                let name: String
+                if let taken = item.itemIdentifier.flatMap({ PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: nil).firstObject?.creationDate }) {
+                    name = PhotoNames.make(date: taken, type: type)
+                } else {
+                    number += 1
+                    name = PhotoNames.make(number: number, type: type)
+                }
                 // An original kept in iCloud may not come down without a network.
                 guard let data = try? await item.loadTransferable(type: Data.self) else {
                     failed.append(name)
