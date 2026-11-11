@@ -33,7 +33,7 @@ public static class PrintJobs
 
     /// <summary>
     /// The layout the settings ask for. Photo tasks print one side, never a booklet. The task is only
-    /// consulted for that: the other tasks have already set what they mean in the settings.
+    /// consulted for that: the other tasks have already set what they mean in the settings. Photos have no extra margin either.
     /// </summary>
     public static LayoutOptions LayoutOptions(PrintSettings settings, PrintTask? task)
     {
@@ -47,6 +47,9 @@ public static class PrintJobs
             Sides = photos ? Sides.OneSided : settings.Sides,
             PageBorders = settings.PageBorders,
             Scale = settings.Scale,
+            Orientation = settings.Orientation,
+            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm),
+            Poster = photos ? 0 : settings.Poster,
         };
     }
 
@@ -65,7 +68,8 @@ public static class PrintJobs
 
     /// <summary>
     /// The sheets of a job. The pages of all documents run on as one, and <paramref name="pageRange"/> (0-based, as
-    /// <see cref="PageRange.Parse"/> gives it) counts along that run; an index past its end is skipped. Photo prints
+    /// <see cref="PageRange.Parse"/> gives it) counts along that run; an index past its end is skipped. The settings' odd or even pages and
+    /// reverse order (<see cref="PagePicker"/>) come next, before the layout. Photo prints
     /// are laid out by <see cref="PhotoLayout"/>, everything else by <see cref="Imposition"/>. A printer without
     /// two-sided gets the fronts and the backs as two passes, the backs turned and ordered for the learnt
     /// <see cref="PrinterPrefs.PaperPath"/>.
@@ -76,7 +80,8 @@ public static class PrintJobs
         var all = documents
             .SelectMany((document, d) => document.Pages.Select((size, i) => new SourcePage(d, i, size)))
             .ToList();
-        var pages = pageRange is null ? all : pageRange.Where(i => i >= 0 && i < all.Count).Select(i => all[i]).ToList();
+        var chosen = pageRange?.Where(i => i >= 0 && i < all.Count) ?? Enumerable.Range(0, all.Count);
+        var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();
 
         bool photos = task == PrintTask.Photos;
         var paper = PaperSizes.Parse(settings.PaperId);

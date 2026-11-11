@@ -114,6 +114,14 @@ public enum Sides: String, Codable, CaseIterable, Sendable {
     case shortEdge
 }
 
+/// How the sheet is turned. Automatic gives each page the orientation it has; the others make every sheet portrait or landscape.
+/// Stored as the case name.
+public enum SheetOrientation: String, Codable, CaseIterable, Sendable {
+    case automatic
+    case portrait
+    case landscape
+}
+
 /// What `Imposition.plan` is asked for.
 public struct LayoutOptions: Equatable, Sendable {
     /// 1, 2, 4, 6, 9 or 16; any other number is 1.
@@ -129,9 +137,19 @@ public struct LayoutOptions: Equatable, Sendable {
     /// The size of a page alone on its side, in percent of its own; `scaling` still keeps it inside the printable area
     /// when it shrinks to fit. Cells of several pages, booklets and fit or fill ignore it.
     public var scale: Int
+    /// The orientation of the sheets. A booklet is always a landscape spread and ignores it.
+    public var orientation: SheetOrientation
+    /// A distance kept clear on every sheet edge, in points, on top of what the printer cannot reach. Used when pages are
+    /// sized to fit (`.shrinkToFit`, `.fit`, several per side, a booklet, a poster); not at `.actualSize` on a lone page,
+    /// nor with `.fill`.
+    public var margin: Double
+    /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
+    /// Any other number is no poster; a poster comes before `booklet` and `pagesPerSheet`.
+    public var poster: Int
 
     public init(pagesPerSheet: Int = 1, booklet: Bool = false, rightToLeft: Bool = false,
-                scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100) {
+                scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100,
+                orientation: SheetOrientation = .automatic, margin: Double = 0, poster: Int = 0) {
         self.pagesPerSheet = pagesPerSheet
         self.booklet = booklet
         self.rightToLeft = rightToLeft
@@ -139,6 +157,35 @@ public struct LayoutOptions: Equatable, Sendable {
         self.sides = sides
         self.pageBorders = pageBorders
         self.scale = scale
+        self.orientation = orientation
+        self.margin = margin
+        self.poster = poster
+    }
+}
+
+/// The margin choices. Stored as the case name.
+public enum MarginChoice: String, Codable, CaseIterable, Sendable {
+    case none
+    case small
+    case normal
+    case custom
+}
+
+public enum MarginChoices {
+    public static let maxMillimetres = 50
+
+    /// 0, 6, 12, or the custom distance held between 0 and `maxMillimetres`.
+    public static func millimetres(_ choice: MarginChoice, custom: Int) -> Int {
+        switch choice {
+        case .none: return 0
+        case .small: return 6
+        case .normal: return 12
+        case .custom: return min(max(custom, 0), maxMillimetres)
+        }
+    }
+
+    public static func points(_ choice: MarginChoice, custom: Int) -> Double {
+        Double(millimetres(choice, custom: custom)) * 72 / 25.4
     }
 }
 
@@ -165,10 +212,13 @@ public struct Placement: Equatable, Sendable {
 public struct SheetSide: Equatable, Sendable {
     public var placements: [Placement]
     public var borders: Bool
+    /// Short marks outside each placement's corners, for the tiles of a poster.
+    public var cutMarks: Bool
 
-    public init(placements: [Placement], borders: Bool) {
+    public init(placements: [Placement], borders: Bool, cutMarks: Bool = false) {
         self.placements = placements
         self.borders = borders
+        self.cutMarks = cutMarks
     }
 }
 

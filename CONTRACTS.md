@@ -73,7 +73,15 @@ public struct LayoutOptions: Equatable, Sendable {
     public var sides: Sides = .oneSided
     public var pageBorders: Bool = false           // a thin line around each page when there are several on a side
     public var scale: Int = 100                    // percent, 10...400, for a page alone on its side under shrinkToFit or actualSize
+    public var orientation: SheetOrientation = .automatic   // a booklet ignores it
+    public var margin: Double = 0                  // points kept clear on every sheet edge, on top of the printer's own; see "Margins"
+    public var poster: Int = 0                     // 2, 3 or 4: one page across n x n sheets; any other number is no poster
 }
+
+public enum SheetOrientation: String, Codable, CaseIterable, Sendable { case automatic, portrait, landscape }
+public enum MarginChoice: String, Codable, CaseIterable, Sendable { case none, small, normal, custom }   // 0, 6, 12 mm, or `marginMm`
+public enum MarginChoices { static func millimetres(_ choice: MarginChoice, custom: Int) -> Int; static func points(_ choice: MarginChoice, custom: Int) -> Double }   // C#: MarginChoices.Millimetres, Points
+public enum PageSelection: String, Codable, CaseIterable, Sendable { case all, odd, even }
 
 public struct Placement: Equatable, Sendable {
     public var page: SourcePage
@@ -81,7 +89,7 @@ public struct Placement: Equatable, Sendable {
     public var turns: Int               // quarter turns clockwise applied to the page, 0...3 (3 = a quarter counterclockwise)
     public var crop: LayoutRect?        // the part of the page shown (page points), for .fill; nil = whole page
 }
-public struct SheetSide: Equatable, Sendable { public var placements: [Placement]; public var borders: Bool }
+public struct SheetSide: Equatable, Sendable { public var placements: [Placement]; public var borders: Bool; public var cutMarks: Bool = false }
 public struct Sheet: Equatable, Sendable { public var front: SheetSide; public var back: SheetSide? }
 
 public enum PlanWarning: Equatable, Sendable { case clipped(points: Double), paddedWithBlanks(count: Int), shrunk(percent: Int) }
@@ -103,9 +111,12 @@ Rules `Imposition.plan` keeps (each has a test):
 - Paper is always fed portrait. A side that reads landscape (a landscape page alone, a 2- or 6-up grid that comes out landscape, a booklet spread) is worked out on a landscape "reading view" and turned onto the paper a quarter turn counterclockwise: the reading view's top goes to the paper's left edge, and its pages get `turns = 3`. The printer never needs an orientation setting.
 - Backs are given as the back looks after the sheet is turned over on its long edge, top edge still at the top: the page image of a `two-sided-long-edge` job. A back is turned 180° exactly when the sheet turns over on its short edge: `shortEdge`, and every booklet back. The reading view does not change this. Worked cases (front's top edge T, bottom B, left L, right R; each a test): portrait long edge, back's top at T, no turn; portrait short edge, top at B, turn; landscape long edge (a calendar's flip), top at R, no turn; landscape short edge (a book's flip), top at L, turn; booklet, turn. So the duplex request is always long edge.
 - When any back may be turned (two-sided, booklets, manual duplex), both sides are laid out in `area.symmetric`, so the front and the back line up and a turned back is not cut by an uneven margin.
-- One page per side: the page is placed by `scaling` in the printable area, centred, and turned a quarter counterclockwise when it is landscape on portrait paper.
+- One page per side: the page is placed by `scaling` in the printable area, centred, and turned a quarter counterclockwise when it is landscape on portrait paper. That is `orientation` automatic, decided page by page. Forced to portrait or landscape every page gets that reading view whatever its own shape and is not turned within it, only sized by `scaling` (a landscape page on a portrait sheet is made smaller, not turned). The sheet itself stays portrait paper with its content turned, so the job always tells the printer portrait and the printer must not turn it again: IPP sends no `orientation-requested`, CUPS sends `orientation-requested=3`, the Windows PrintTicket says Portrait and AirPrint `.portrait`.
+- Several per side with `orientation` forced: the reading view is the one asked for instead of the one chosen from the first page. A booklet is always a landscape spread and ignores `orientation`; the inspector hides it then. A PDF printed as it is by the printer (`IppSheetPrinter` as-is) is only sent so when `orientation` is automatic; a photo only when its one placement is upright and fills the printable area, as the Photos task lays it out, so a margin or a forced orientation in the Document task draws it instead.
 - Several per side: the grid (2, 4, 6, 9, 16 pages: 1×2, 2×2, 2×3, 3×3, 4×4, its longer count along the reading view's longer side, so 2 per side are two rows in the portrait view and two columns in the landscape one) is chosen once per job, from the first page: portrait or landscape reading view, whichever makes that page larger; on a tie the view where pages need no turn wins. Pages are read left to right, top to bottom in the reading view (right to left with `rightToLeft`). Each page is fitted to its cell (`fit`; `fill` crops it to the cell; `actualSize` and `shrinkToFit` mean `fit` here) and turned a quarter counterclockwise only when that makes it strictly larger.
 - Booklet: always two-sided (`sides` is ignored). The pages are padded with blanks after the last page to a multiple of 4 (`paddedWithBlanks`); sheet k of n/4 has front (left, right) = (n−1−2k, 2k) and back = (2k+1, n−2−2k), swapped for `rightToLeft`; folded sheets nest in order. The spread's two halves are split at the paper's centre line (the fold), each half met with the printable area. `pagesPerSheet` is ignored.
+- Margins: `margin` (points) raises each edge of the area the layout uses to at least that distance, so it never goes below what the printer cannot reach. It is applied in `Imposition.plan` to the area the pages are laid out in; `SheetPlan.area` stays the printer's. It applies wherever pages are sized to fit: `shrinkToFit` and `fit` on a page alone, every grid and booklet (they fit their cells whatever `scaling` says), and a poster; it does not apply to a lone page at `actualSize` or to `fill`. `Imposition.keepsMargin(options)` (C#: `KeepsMargin`) says so, and the inspector greys the choice out with "Not used at actual size or fill" when it is false. Photo tasks print through `PhotoLayout` or `fill` and get `margin` 0 from `PrintJobs.layoutOptions`, so borderless photo printing ignores it. A PDF is not printed as it is by the printer when a margin or a poster is set.
+- Poster: `poster` 2, 3 or 4 enlarges each page, one after the other, across n x n sheets, one-sided (`sides`, booklet and `pagesPerSheet` are ignored; `scaling` too, the page is always fitted). Each sheet's printable area, less a 6 pt strip all round that holds the cut marks, is a tile; tiles overlap their neighbours by 10 mm. The page is scaled to fit the n tiles together, kept at its shape, anchored at the top left, and a tile is cut from it in reading order (row by row); a tile with less than 1 pt of the page on it is left out. A tile is a sheet with one placement whose `crop` is the part of the page it shows (so `Placement.frame` is the tile's visible part, at the strip's inner corner), and `SheetSide.cutMarks` is true: the renderer draws a short 0.5 pt gray mark outside each corner of the frame. A landscape page (automatic orientation) uses the landscape reading view like a page alone does. `shrunk` is reported when the page had to be made smaller than itself.
 - Several documents run on as one; a document does not start a new sheet.
 - A blank page has no placement; with `duplex` every sheet has a back, so copies of a two-sided job never start on a back.
 
@@ -139,6 +150,10 @@ public enum PhotoLayout {
 
 `PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept; separators are commas, semicolons or spaces, a range takes a hyphen, en dash or em dash, "3-" runs to the last page and "5-2" gives 5, 4, 3, 2); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
 
+### Layout/PagePicker
+
+`PagePicker.apply(_ pages: [Int], selection: PageSelection, reverse: Bool) -> [Int]` (C#: `Apply`) cuts the pages a job asks for down to the odd or even ones and then reverses them. `pages` are 0-based places in the run of all documents, as `PageRange.parse` gives them (or every page when no range is typed); `PageSelection` is `all`, `odd`, `even`, and odd or even is the page's number in that run (page 1 is odd, so index 0), not its place in the typed range: the range 2-5 with odd gives 3 and 5. The order is the range's, kept, then reversed whole. `PrintJobs.plan` applies it after the page range (and drops indices past the end) and before the layout, so imposition, two-sided and booklets are made from the pages that are left. Manual two-sided printing is made after the layout, from the sheets: the fronts and backs passes are of those sheets, so odd or even and reverse apply to document pages and never to the passes (odd pages of 5 two-sided by hand are pages 1, 3, 5: sheet 1 has 1 over 3, sheet 2 has 5 over a blank back, and the fronts pass prints 1 then 5). The settings `pageSelection` and `reverseOrder` are not saved, except in `pending-backs.json` (so the backs of a restored job come from the same order); `orientation` is. When the choice leaves no sheets (even pages of one page) Print is off with "No pages to print". A poster is one-sided: the Pages summary and the Two-sided control show One-sided and no by-hand note appears. Inspector: "Which pages" (All pages, Odd pages only, Even pages only) and "Reverse order" under the page range, "Orientation" (Automatic, Portrait, Landscape) in Layout under Pages per side.
+
 ### Layout/ManualDuplex (two-sided on a printer that prints one side)
 
 Both sides of every sheet in two passes: the fronts, then, once the user has put the stack back, the backs. Each pass is a one-sided job. How the stack must go back depends on the printer's paper path, which Lazy Print learns once per printer with one sheet (the two-sided check); until then it assumes the usual one (turn the stack over, backs upright).
@@ -166,7 +181,7 @@ public enum DuplexCheckAnswer: String, Sendable { case sameEdge, oppositeEdges, 
 - Sheets stack in the output tray in the order they were printed, whichever way up they land, and the tray feeds its top sheet first: turning the stack over puts the first sheet on top, so the backs go in sheet order; reloading it as it lies puts the last sheet on top, so they go in reverse. Both passes are sent with the page order forced normal (the spooler's `JobPageOrder` Standard, CUPS `outputorder=normal`), so a driver set to reverse order cannot undo this.
 - Every front gets a back. In reverse order a blank back gets one near-white dot (0.5 pt, gray 250) in a corner, so a driver that skips blank pages cannot put the backs out of step.
 - `learn`: `sameEdge` keeps the path and marks it checked; `oppositeEdges` toggles `turnBacks`; `bothOnOneSide` toggles `turnStackOver` and leaves `checked` false, so the check runs again with the other reloading.
-- On the iPhone, where iOS may end the app while the sheets are out, a job waiting for its backs is kept in `pending-backs.json` in the settings folder (`PendingBacks`: printer id, settings, task, range and the file paths; written by `keepBacks()`, which clears it when the job is over). At launch `restoreBacks()` opens the files again and, if they are all there and the printer turns up, shows the reload card as for the next pass (a check sheet in between starts over); otherwise it clears the file. The files in the inbox it names are kept at launch. Windows and the Mac keep nothing.
+- On the iPhone, where iOS may end the app while the sheets are out, a job waiting for its backs is kept in `pending-backs.json` in the settings folder (`PendingBacks`: printer id, settings, task, range, page selection, reverse order and the file paths; written by `keepBacks()`, which clears it when the job is over). At launch `restoreBacks()` opens the files again and, if they are all there and the printer turns up, shows the reload card as for the next pass (a check sheet in between starts over); otherwise it clears the file. The files in the inbox it names are kept at launch. Windows and the Mac keep nothing.
 - `ManualDuplexText` holds the step card's words, the same on all three platforms: "Printing the fronts", "Take the 7 printed sheets out. Turn the stack over and put it back in the tray, top edge first." or, for the other paper path, "Put the stack back in the tray as it is, top edge first.", "Print the backs", "Check with one sheet", the check's question and its three answers. Counts are of sheets.
 
 ### Layout/TestPage
@@ -343,6 +358,12 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var pageBorders: Bool = false
     public var scaling: Scaling = .shrinkToFit
     public var scale: Int = 100
+    public var orientation: SheetOrientation = .automatic   // saved as "orientation"
+    public var margin: MarginChoice = .none     // saved as "margin": none, small (6 mm), normal (12 mm) or custom
+    public var marginMm: Int = 10               // saved as "marginMm": 0...50, what custom means (MarginChoices.millimetres)
+    public var poster: Int = 0                  // saved as "poster": 0 for no poster, else 2, 3 or 4
+    public var pageSelection: PageSelection = .all          // not saved: asked for one job at a time
+    public var reverseOrder: Bool = false                   // not saved
     public var paperId: String = "auto"         // PaperSize raw value; auto = what the printer has loaded, else the regional default
     public var photoSizeId: String = "4x6"
     public var photoFill: Bool = true
@@ -441,7 +462,7 @@ Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won
 
 ### Core/StatusLine, InspectorSections, PrintText
 
-`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, scaling, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Waiting for HP LaserJet: Paper jam", "Canceling…", "Printed", "Load the backs", errors titled by their problem.
+`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, poster, scaling, margins, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Waiting for HP LaserJet: Paper jam", "Canceling…", "Printed", "Load the backs", errors titled by their problem.
 
 ## Render/ (both platforms)
 

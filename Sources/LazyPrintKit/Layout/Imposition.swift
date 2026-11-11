@@ -12,15 +12,26 @@ public enum Imposition {
     /// Less than this much cut off (0.05 in, Lazy Scan's clip warning) is not worth a warning.
     private static let clipTolerance: Double = 0.05 * 72
 
+    private static let posterOverlap: Double = 10 * 72 / 25.4
+    /// The cut marks of a poster tile are this long, in the strip kept clear around it.
+    static let posterMarkLength: Double = 6
+
     /// The sheets for `pages` (several documents run on as one) on paper with the printable `area`.
     /// When any back may turn (two-sided, booklet) both sides use `PrintableArea.symmetric`.
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan {
-        let duplex = options.booklet || options.sides != .oneSided
+        let poster = (2...4).contains(options.poster)
+        let duplex = !poster && (options.booklet || options.sides != .oneSided)
         let used = duplex ? area.symmetric : area
+        let laid = keepsMargin(options) ? withMargin(used, options.margin) : used
         let notes = Notes()
-        let sheets = options.booklet
-            ? bookletSheets(pages, options: options, area: used, notes: notes)
-            : flatSheets(pages, options: options, duplex: duplex, area: used, notes: notes)
+        let sheets: [Sheet]
+        if poster {
+            sheets = posterSheets(pages, options: options, area: laid, notes: notes)
+        } else if options.booklet {
+            sheets = bookletSheets(pages, options: options, area: laid, notes: notes)
+        } else {
+            sheets = flatSheets(pages, options: options, duplex: duplex, area: laid, notes: notes)
+        }
 
         var warnings: [PlanWarning] = []
         if notes.clipped > clipTolerance { warnings.append(.clipped(points: notes.clipped)) }
@@ -30,13 +41,63 @@ public enum Imposition {
         return SheetPlan(area: used, sheets: sheets, duplex: duplex, warnings: warnings)
     }
 
+    /// Whether the sizing in use lets the margin apply: not a lone page at actual size, nor fill.
+    public static func keepsMargin(_ options: LayoutOptions) -> Bool {
+        if (2...4).contains(options.poster) { return true }
+        let cells = grid(options.pagesPerSheet, landscape: false)
+        let alone = !options.booklet && cells.rows == 1 && cells.columns == 1
+        return options.scaling != .fill && !(alone && options.scaling == .actualSize)
+    }
+
+    private static func withMargin(_ area: PrintableArea, _ margin: Double) -> PrintableArea {
+        let m = area.margins
+        return PrintableArea(paper: area.paper, margins: LayoutInsets(top: max(m.top, margin), left: max(m.left, margin),
+                                                                      bottom: max(m.bottom, margin), right: max(m.right, margin)))
+    }
+
+    /// Each page enlarged to fit n × n printable areas that overlap by 1 cm, anchored top left, one tile per sheet in reading
+    /// order; a tile with nothing of the page on it is left out. Each tile keeps a strip clear around it for its cut marks.
+    private static func posterSheets(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea, notes: Notes) -> [Sheet] {
+        let n = options.poster
+        var sheets: [Sheet] = []
+        for page in pages {
+            let landscape = options.orientation == .automatic ? page.size.width > page.size.height : options.orientation == .landscape
+            let full = viewPrintable(area, landscape: landscape)
+            let view = LayoutRect(x: full.x + posterMarkLength, y: full.y + posterMarkLength,
+                                  width: max(0, full.width - 2 * posterMarkLength), height: max(0, full.height - 2 * posterMarkLength))
+            let totalWidth = Double(n) * view.width - Double(n - 1) * posterOverlap
+            let totalHeight = Double(n) * view.height - Double(n - 1) * posterOverlap
+            if page.size.width <= 0 || page.size.height <= 0 || totalWidth <= 0 || totalHeight <= 0 { continue }
+
+            let scale = fitScale(page.size.width, page.size.height, LayoutRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
+            let posterWidth = page.size.width * scale
+            let posterHeight = page.size.height * scale
+            notes.smallestScale = min(notes.smallestScale, scale)
+            for row in 0..<n {
+                for column in 0..<n {
+                    let left = Double(column) * (view.width - posterOverlap)
+                    let top = Double(row) * (view.height - posterOverlap)
+                    let width = min(view.width, posterWidth - left)
+                    let height = min(view.height, posterHeight - top)
+                    if width < 1 || height < 1 { continue }
+                    let crop = LayoutRect(x: left / scale, y: top / scale, width: width / scale, height: height / scale)
+                    let shown = Fitted(frame: LayoutRect(x: view.x, y: view.y, width: width, height: height), crop: crop, scale: scale)
+                    let side = SheetSide(placements: [place(page, shown: shown, landscape: landscape, turned: false, paper: area.paper)],
+                                         borders: false, cutMarks: true)
+                    sheets.append(Sheet(front: side, back: nil))
+                }
+            }
+        }
+        return sheets
+    }
+
     private static func flatSheets(_ pages: [SourcePage], options: LayoutOptions, duplex: Bool,
                                    area: PrintableArea, notes: Notes) -> [Sheet] {
         let portraitGrid = grid(options.pagesPerSheet, landscape: false)
         let perSide = portraitGrid.rows * portraitGrid.columns
         let perSheet = duplex ? 2 * perSide : perSide
         let turnBacks = options.sides == .shortEdge
-        let landscape = perSide > 1 && !pages.isEmpty && chooseLandscape(pages[0].size, pagesPerSheet: options.pagesPerSheet, area: area)
+        let landscape = perSide > 1 && !pages.isEmpty && chooseLandscape(pages[0].size, options: options, area: area)
         let (rows, columns) = grid(options.pagesPerSheet, landscape: landscape)
         let scaling: Scaling = perSide > 1 && options.scaling != .fill ? .fit : options.scaling
         let borders = options.pageBorders && perSide > 1
@@ -45,7 +106,7 @@ public enum Imposition {
             var placements: [Placement] = []
             for page in sidePages {
                 if perSide == 1 {
-                    placements.append(alone(page, area: area, scaling: scaling, scale: options.scale, notes: notes))
+                    placements.append(alone(page, area: area, scaling: scaling, scale: options.scale, orientation: options.orientation, notes: notes))
                     continue
                 }
                 let index = placements.count
@@ -122,9 +183,11 @@ public enum Imposition {
         return landscape ? (counts.fewer, counts.more) : (counts.more, counts.fewer)
     }
 
-    /// One page on its side: landscape pages get the landscape view.
-    private static func alone(_ page: SourcePage, area: PrintableArea, scaling: Scaling, scale: Int, notes: Notes) -> Placement {
-        let landscape = page.size.width > page.size.height
+    /// One page on its side: with automatic orientation landscape pages get the landscape view. A page of the other shape
+    /// than a forced orientation is not turned; it is sized in the sheet as it is.
+    private static func alone(_ page: SourcePage, area: PrintableArea, scaling: Scaling, scale: Int, orientation: SheetOrientation,
+                              notes: Notes) -> Placement {
+        let landscape = orientation == .automatic ? page.size.width > page.size.height : orientation == .landscape
         let cell = viewPrintable(area, landscape: landscape)
         let factor = scaling == .shrinkToFit || scaling == .actualSize ? Double(max(10, min(400, scale))) / 100 : 1
         let sized = LayoutSize(width: page.size.width * factor, height: page.size.height * factor)
@@ -150,8 +213,10 @@ public enum Imposition {
         return Placement(page: page, frame: frame, turns: ((landscape ? 3 : 0) + (turned ? 3 : 0)) % 4, crop: shown.crop)
     }
 
-    /// The first page decides the grid's reading view for the whole job.
-    private static func chooseLandscape(_ first: LayoutSize, pagesPerSheet: Int, area: PrintableArea) -> Bool {
+    /// A forced orientation is the grid's reading view; otherwise the first page decides it for the whole job.
+    private static func chooseLandscape(_ first: LayoutSize, options: LayoutOptions, area: PrintableArea) -> Bool {
+        if options.orientation != .automatic { return options.orientation == .landscape }
+        let pagesPerSheet = options.pagesPerSheet
         let tall = grid(pagesPerSheet, landscape: false)
         let wide = grid(pagesPerSheet, landscape: true)
         let portrait = bestFit(first, cell: cellAt(viewPrintable(area, landscape: false), rows: tall.rows, columns: tall.columns, row: 0, column: 0))

@@ -41,6 +41,8 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertFalse(s.rightToLeft)
         XCTAssertFalse(s.pageBorders)
         XCTAssertEqual(s.scaling, .shrinkToFit)
+        XCTAssertEqual(s.margin, MarginChoice.none)
+        XCTAssertEqual(s.poster, 0)
         XCTAssertEqual(s.paperId, "auto")
         XCTAssertEqual(s.photoSizeId, "4x6")
         XCTAssertTrue(s.photoFill)
@@ -62,6 +64,10 @@ final class PrintSettingsTests: XCTestCase {
         s.rightToLeft = true
         s.pageBorders = true
         s.scaling = .fill
+        s.orientation = .landscape
+        s.margin = .custom
+        s.marginMm = 20
+        s.poster = 3
         s.paperId = "a4"
         s.photoSizeId = "10x15cm"
         s.photoFill = false
@@ -151,5 +157,20 @@ final class PrintSettingsTests: XCTestCase {
         let kept = try files()
         XCTAssertEqual(kept.count, 1)
         XCTAssertTrue(kept[0].hasPrefix("printers.unreadable-"), kept[0])
+    }
+
+    func test_orientation_isSaved_butPageSelectionAndReverseAreForOneJob() throws {
+        var s = PrintSettings()
+        s.orientation = .portrait
+        s.pageSelection = .odd
+        s.reverseOrder = true
+        SettingsStore.save(s, in: directory)
+        let json = try String(contentsOf: settingsURL, encoding: .utf8)
+        XCTAssertTrue(json.contains("\"orientation\" : \"portrait\""), json)
+        XCTAssertFalse(json.contains("pageSelection"), json)
+        XCTAssertFalse(json.contains("reverseOrder"), json)
+        var expected = PrintSettings()
+        expected.orientation = .portrait
+        XCTAssertEqual(SettingsStore.load(in: directory), expected)
     }
 }

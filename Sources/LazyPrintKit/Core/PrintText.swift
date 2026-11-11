@@ -6,6 +6,9 @@ public enum PrintText {
     /// Why a task cannot be started: no printer is set up.
     public static let noPrinterReason = "Needs a printer"
 
+    /// Why Print is off: the page choice leaves nothing to print.
+    public static let noPagesReason = "No pages to print"
+
     /// The chosen printer on the iPhone, before and after the search for it has run its time.
     public static func lookingFor(_ printerName: String) -> String {
         "Looking for \(printerName)\u{2026}"

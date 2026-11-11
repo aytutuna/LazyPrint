@@ -38,7 +38,7 @@ public enum PrintJobs {
     private static let collatedCopies = "separate-documents-collated-copies"
 
     /// The layout the settings ask for. Photo tasks print one side, never a booklet. The task is only
-    /// consulted for that: the other tasks have already set what they mean in the settings.
+    /// consulted for that: the other tasks have already set what they mean in the settings. Photos have no extra margin either.
     public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions {
         let photos = task == .photos || task == .photoSheet
         return LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
@@ -47,7 +47,10 @@ public enum PrintJobs {
                              scaling: settings.scaling,
                              sides: photos ? .oneSided : settings.sides,
                              pageBorders: settings.pageBorders,
-                             scale: settings.scale)
+                             scale: settings.scale,
+                             orientation: settings.orientation,
+                             margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm),
+                             poster: photos ? 0 : settings.poster)
     }
 
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless
@@ -61,7 +64,8 @@ public enum PrintJobs {
     }
 
     /// The sheets of a job. The pages of all documents run on as one, and `pageRange` (0-based, as
-    /// `PageRange.parse` gives it) counts along that run; an index past its end is skipped. Photo prints
+    /// `PageRange.parse` gives it) counts along that run; an index past its end is skipped. The settings' odd or even pages and
+    /// reverse order (`PagePicker`) come next, before the layout. Photo prints
     /// are laid out by `PhotoLayout`, everything else by `Imposition`. A printer without two-sided gets the
     /// fronts and the backs as two passes, the backs turned and ordered for the learnt `PrinterPrefs.paperPath`.
     public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings, task: PrintTask?,
@@ -72,12 +76,8 @@ public enum PrintJobs {
                 all.append(SourcePage(document: d, index: i, size: size))
             }
         }
-        let pages: [SourcePage]
-        if let pageRange {
-            pages = pageRange.filter { $0 >= 0 && $0 < all.count }.map { all[$0] }
-        } else {
-            pages = all
-        }
+        let chosen = (pageRange ?? Array(0..<all.count)).filter { $0 >= 0 && $0 < all.count }
+        let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
         let photos = task == .photos
         let paper = PaperSizes.parse(settings.paperId)

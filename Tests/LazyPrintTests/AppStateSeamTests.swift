@@ -1668,6 +1668,46 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_backsWaiting_keepTheReverseOrderAndPageSelectionAcrossARestore() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]
+        rig.spooler.capable["Test Printer"] = Rig.capabilities(duplex: false)
+        await rig.state.refreshPrinters()
+        rig.state.settings.paperId = "letter"
+        rig.state.settings.sides = .longEdge
+        rig.state.settings.reverseOrder = true
+        rig.state.settings.pageSelection = .all
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 6, in: rig.folder)])
+        await rig.state.print()
+        let saved = PendingBacks.load(in: rig.folder)
+        XCTAssertEqual(saved?.reverseOrder, true)
+        XCTAssertEqual(saved?.pageSelection, PageSelection.all)
+
+        let next = rig.open()
+        await next.refreshPrinters()
+        await next.restoreBacks()
+        await next.printBacks()
+
+        let first = rig.sheets.passes[0].job.plan.plan.sheets.map { $0.front.placements[0].page.index }
+        let backs = rig.sheets.passes[1].job.plan.plan.sheets.map { $0.front.placements[0].page.index }
+        XCTAssertEqual(backs, first)
+        XCTAssertEqual(rig.sheets.passes[1].job.settings.reverseOrder, true)
+    }
+
+    @MainActor
+    func test_printIsOff_whenTheEvenPagesOfOnePageAreAsked() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]
+        rig.spooler.capable["Test Printer"] = Rig.capabilities(duplex: true)
+        await rig.state.refreshPrinters()
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 1, in: rig.folder)])
+        XCTAssertTrue(rig.state.canPrint)
+        rig.state.settings.pageSelection = .even
+
+        XCTAssertEqual(rig.state.printDisabledReason, PrintText.noPagesReason)
+    }
+
+    @MainActor
     func test_backsWaiting_areNotRestoredWhenAFileIsGone() async throws {
         let rig = try makeRig(platform: .ios)
         rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]

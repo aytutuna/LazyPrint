@@ -20,6 +20,14 @@ internal static class ShortText
     public const string BookletTwoSided = "Booklets are two-sided";
     /// <summary>A booklet sets how many pages go on a side.</summary>
     public const string BookletPages = "Set by Booklet";
+    /// <summary>A poster is one page across several one-sided sheets.</summary>
+    public const string PosterOneSided = "Posters are one-sided";
+    /// <summary>A poster sets how many pages go on a side.</summary>
+    public const string PosterPages = "Set by Poster";
+    /// <summary>The poster choice while a booklet or several pages per side are on.</summary>
+    public const string PosterAlone = "Needs one page per side";
+    /// <summary>The margin choice while the pages are not sized to fit.</summary>
+    public const string MarginsUnused = "Not used at actual size or fill";
     /// <summary>The bar's title while files wait for a job to end.</summary>
     public const string FilesQueuedTitle = "Files waiting";
     public const string FilesQueued = "They are added when the job ends.";

@@ -54,7 +54,11 @@ public static class InspectorSections
         int copies = PrintCopies.Clamp(s.Copies);
         if (copies > 1) parts.Add($"{copies} copies");
         if (copies > 1 && !s.Collate) parts.Add("Not collated");
-        if (s.Sides == Sides.ShortEdge) parts.Add("Two-sided, short edge");
+        if (s.PageSelection != PageSelection.All) parts.Add(s.PageSelection == PageSelection.Odd ? "Odd pages" : "Even pages");
+        if (s.ReverseOrder) parts.Add("Reverse order");
+        bool poster = s.Poster is >= 2 and <= 4;
+        if (poster) { }
+        else if (s.Sides == Sides.ShortEdge) parts.Add("Two-sided, short edge");
         else if (s.Sides == Sides.LongEdge) parts.Add("Two-sided");
         return Join(parts);
     }
@@ -63,18 +67,23 @@ public static class InspectorSections
     public static string LayoutSummary(PrintSettings s)
     {
         var parts = new List<string>();
-        if (s.Booklet) parts.Add("Booklet");
+        bool poster = s.Poster is >= 2 and <= 4;
+        if (poster) parts.Add($"Poster {s.Poster} × {s.Poster}");
+        else if (s.Booklet) parts.Add("Booklet");
         else if (s.PagesPerSheet > 1) parts.Add($"{s.PagesPerSheet} per side");
-        if (!s.Booklet && s.PagesPerSheet > 1 && s.PageBorders) parts.Add("Borders");
-        if ((s.Booklet || s.PagesPerSheet > 1) && s.RightToLeft) parts.Add("Right to left");
-        if (!s.Booklet && s.PagesPerSheet == 1 && s.Scale != 100 && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize)
+        if (!s.Booklet && s.Orientation != SheetOrientation.Automatic) parts.Add(s.Orientation == SheetOrientation.Portrait ? "Portrait" : "Landscape");
+        if (!poster && !s.Booklet && s.PagesPerSheet > 1 && s.PageBorders) parts.Add("Borders");
+        if (!poster && (s.Booklet || s.PagesPerSheet > 1) && s.RightToLeft) parts.Add("Right to left");
+        if (!poster && !s.Booklet && s.PagesPerSheet == 1 && s.Scale != 100 && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize)
         {
             parts.Add($"{s.Scale} %");
         }
-        if (s.Scaling != Scaling.ShrinkToFit)
+        if (!poster && s.Scaling != Scaling.ShrinkToFit)
         {
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
+        int margin = MarginChoices.Millimetres(s.Margin, s.MarginMm);
+        if (margin > 0 && Imposition.KeepsMargin(PrintJobs.LayoutOptions(s, null))) parts.Add($"{margin} mm margins");
         return Join(parts);
     }
 

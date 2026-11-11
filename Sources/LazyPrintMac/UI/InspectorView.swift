@@ -79,11 +79,18 @@ struct InspectorView: View {
                 if let problem = state.pageRangeError {
                     note(problem, error: true)
                 }
+                Picker("Which pages", selection: $state.settings.pageSelection) {
+                    Text("All pages").tag(PageSelection.all)
+                    Text("Odd pages only").tag(PageSelection.odd)
+                    Text("Even pages only").tag(PageSelection.even)
+                }
+                .labelsHidden()
+                Toggle("Reverse order", isOn: $state.settings.reverseOrder)
             }
             if rules.showSides {
                 field("Two-sided") {
                     Picker("Two-sided", selection: Binding(
-                        get: { state.settings.booklet ? Sides.longEdge : state.settings.sides },
+                        get: { (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
                         set: { state.settings.sides = $0 })) {
                         Text("Off").tag(Sides.oneSided)
                         Text("Long edge").tag(Sides.longEdge)
@@ -113,7 +120,31 @@ struct InspectorView: View {
                 .disabled(!rules.pagesPerSideEnabled)
                 if let reason = rules.pagesPerSideReason { note(reason) }
             }
+            if rules.showOrientation {
+                field("Orientation") {
+                    Picker("Orientation", selection: $state.settings.orientation) {
+                        Text("Automatic").tag(SheetOrientation.automatic)
+                        Text("Portrait").tag(SheetOrientation.portrait)
+                        Text("Landscape").tag(SheetOrientation.landscape)
+                    }
+                    .labelsHidden()
+                }
+            }
             Toggle("Booklet", isOn: $state.settings.booklet)
+                .disabled(!rules.bookletEnabled)
+            field("Poster") {
+                Picker("Poster", selection: Binding(
+                    get: { (2...4).contains(state.settings.poster) ? state.settings.poster : 0 },
+                    set: { state.settings.poster = $0 })) {
+                    Text("Off").tag(0)
+                    ForEach(2...4, id: \.self) { count in
+                        Text("\(count) \u{00D7} \(count) sheets").tag(count)
+                    }
+                }
+                .labelsHidden()
+                .disabled(!rules.posterEnabled)
+                if let reason = rules.posterReason { note(reason) }
+            }
             if rules.showRightToLeft { Toggle("Right to left", isOn: $state.settings.rightToLeft) }
             if rules.showBorders { Toggle("Page borders", isOn: $state.settings.pageBorders) }
             field("Scaling") {
@@ -124,13 +155,33 @@ struct InspectorView: View {
                     Text("Fill").tag(Scaling.fill)
                 }
                 .labelsHidden()
+                .disabled(rules.poster)
                 if state.settings.scaling == .actualSize || state.settings.scaling == .shrinkToFit {
                     Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                         Text("\(state.settings.scale) %")
                     }
-                    .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1)
+                    .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1 || rules.poster)
                     .accessibilityLabel("Scale")
                     .accessibilityValue("\(state.settings.scale) %")
+                }
+            }
+            field("Margins") {
+                Picker("Margins", selection: $state.settings.margin) {
+                    Text("None").tag(MarginChoice.none)
+                    Text("Small, 6 mm").tag(MarginChoice.small)
+                    Text("Normal, 12 mm").tag(MarginChoice.normal)
+                    Text("Custom").tag(MarginChoice.custom)
+                }
+                .labelsHidden()
+                .disabled(!rules.marginEnabled)
+                if let reason = rules.marginReason { note(reason) }
+                if state.settings.margin == .custom {
+                    Stepper(value: $state.settings.marginMm, in: 0...MarginChoices.maxMillimetres) {
+                        Text("\(state.settings.marginMm) mm")
+                    }
+                    .disabled(!rules.marginEnabled)
+                    .accessibilityLabel("Margin in millimetres")
+                    .accessibilityValue("\(state.settings.marginMm) mm")
                 }
             }
         }
@@ -249,6 +300,13 @@ struct InspectorView: View {
         var pagesPerSideReason: String?
         var showRightToLeft = false
         var showBorders = false
+        var showOrientation = true
+        var poster = false
+        var bookletEnabled = true
+        var posterEnabled = true
+        var posterReason: String?
+        var marginEnabled = true
+        var marginReason: String?
         var showPhotos = false
         var photoSizeEnabled = false
         var photoSizeReason: String?
@@ -262,20 +320,30 @@ struct InspectorView: View {
             let photos = task == .photos || task == .photoSheet
             let canTurn = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
-            let twoSided = s.booklet || s.sides != .oneSided
+            let twoSided = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
             let grayOnly = capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
             let noQuality = capabilities.map { $0.printQualitySupported.isEmpty } ?? false
 
+            let poster = (2...4).contains(s.poster)
+            let margins = Imposition.keepsMargin(PrintJobs.layoutOptions(s, task: task))
+
             showCollate = s.copies > 1
             showSides = !photos
-            sidesEnabled = !s.booklet
-            sidesReason = s.booklet ? "Booklets are two-sided" : nil
+            sidesEnabled = !s.booklet && !poster
+            sidesReason = poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
             sidesNote = twoSided && !photos && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
             showLayout = task != .photos
-            pagesPerSideEnabled = !s.booklet
-            pagesPerSideReason = s.booklet ? "Set by Booklet" : nil
-            showRightToLeft = s.booklet || s.pagesPerSheet > 1
-            showBorders = !s.booklet && s.pagesPerSheet > 1
+            pagesPerSideEnabled = !s.booklet && !poster
+            pagesPerSideReason = poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
+            showRightToLeft = !poster && (s.booklet || s.pagesPerSheet > 1)
+            showBorders = !poster && !s.booklet && s.pagesPerSheet > 1
+            showOrientation = !s.booklet
+            self.poster = poster
+            bookletEnabled = !poster
+            posterEnabled = poster || (!s.booklet && s.pagesPerSheet == 1)
+            posterReason = posterEnabled ? nil : "Needs one page per side"
+            marginEnabled = margins
+            marginReason = margins ? nil : "Not used at actual size or fill"
             showPhotos = photos
             photoSizeEnabled = task == .photos
             photoSizeReason = task == .photoSheet ? "Set by Photo sheet" : nil

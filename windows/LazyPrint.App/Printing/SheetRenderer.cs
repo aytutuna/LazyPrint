@@ -123,6 +123,23 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
                 dc.DrawRectangle(null, pen, new Rect(frame.X, frame.Y, frame.Width, frame.Height));
             }
         }
+        if (side.CutMarks)
+        {
+            var pen = new Pen(new SolidColorBrush(Color.FromRgb(128, 128, 128)), 0.5);
+            double length = Imposition.PosterMarkLength;
+            foreach (var placement in side.Placements)
+            {
+                var f = placement.Frame;
+                foreach (var (x, dx) in new[] { (f.X, -1), (f.X + f.Width, 1) })
+                {
+                    foreach (var (y, dy) in new[] { (f.Y, -1), (f.Y + f.Height, 1) })
+                    {
+                        dc.DrawLine(pen, new Point(x, y), new Point(x + dx * length, y));
+                        dc.DrawLine(pen, new Point(x, y), new Point(x, y + dy * length));
+                    }
+                }
+            }
+        }
         // A turned side (the back of the two-sided check) is drawn half a turn about the middle of the paper.
         if (turned) dc.PushTransform(new RotateTransform(180, area.Paper.Width / 2, area.Paper.Height / 2));
         foreach (var item in items ?? [])

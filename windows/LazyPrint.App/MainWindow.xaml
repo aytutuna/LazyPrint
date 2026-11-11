@@ -461,6 +461,13 @@
                                                 <TextBlock x:Name="PageRangeProblemText" Style="{StaticResource ReasonText}"
                                                            AutomationProperties.LiveSetting="Polite" />
                                             </DockPanel>
+                                            <ComboBox x:Name="PageSelectionBox" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                                      AutomationProperties.Name="Which pages"
+                                                      SelectionChanged="Setting_Changed" />
+                                            <CheckBox x:Name="ReverseBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,8,0,0"
+                                                      Content="Reverse order"
+                                                      ToolTip="Prints the last page first"
+                                                      Checked="Setting_Changed" Unchecked="Setting_Changed" />
 
                                             <StackPanel x:Name="SidesGroup">
                                                 <TextBlock Text="Two-sided" Style="{StaticResource FieldLabelText}" Margin="0,12,0,4" />
@@ -494,10 +501,26 @@
                                                 <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
                                                 <TextBlock x:Name="PerSideReasonText" Style="{StaticResource ReasonText}" />
                                             </DockPanel>
+                                            <StackPanel x:Name="OrientationGroup">
+                                                <Label Content="Or_ientation" Target="{Binding ElementName=OrientationBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                                <ComboBox x:Name="OrientationBox" HorizontalAlignment="Stretch"
+                                                          AutomationProperties.Name="Orientation"
+                                                          SelectionChanged="Setting_Changed" />
+                                            </StackPanel>
                                             <CheckBox x:Name="BookletBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,12,0,0"
                                                       Content="Booklet"
                                                       ToolTip="Two pages on each side, in the order that folds into a booklet"
+                                                      ToolTipService.ShowOnDisabled="True"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                                            <Label Content="Pos_ter" Target="{Binding ElementName=PosterBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                            <ComboBox x:Name="PosterBox" HorizontalAlignment="Stretch"
+                                                      AutomationProperties.Name="Poster"
+                                                      ToolTipService.ShowOnDisabled="True"
+                                                      SelectionChanged="Setting_Changed" />
+                                            <DockPanel x:Name="PosterReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
+                                                <TextBlock x:Name="PosterReasonText" Style="{StaticResource ReasonText}" />
+                                            </DockPanel>
                                             <CheckBox x:Name="RightToLeftBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,0"
                                                       Content="Right to left"
                                                       ToolTip="Pages read from right to left"
@@ -523,6 +546,23 @@
                                                         AutomationProperties.Name="Scale"
                                                         ToolTip="Size of each page, in percent of its own"
                                                         ValueChanged="ScaleSlider_ValueChanged" />
+                                            </DockPanel>
+                                            <Label Content="_Margins" Target="{Binding ElementName=MarginBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                            <ComboBox x:Name="MarginBox" HorizontalAlignment="Stretch"
+                                                      AutomationProperties.Name="Margins"
+                                                      ToolTipService.ShowOnDisabled="True"
+                                                      SelectionChanged="Setting_Changed" />
+                                            <DockPanel x:Name="MarginReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
+                                                <TextBlock x:Name="MarginReasonText" Style="{StaticResource ReasonText}" />
+                                            </DockPanel>
+                                            <DockPanel x:Name="MarginMmRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                                <TextBlock x:Name="MarginMmText" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
+                                                           VerticalAlignment="Center" Style="{StaticResource BodyText}" />
+                                                <Slider x:Name="MarginMmSlider" Minimum="0" Maximum="50" SmallChange="1" LargeChange="5"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        AutomationProperties.Name="Margin in millimetres"
+                                                        ValueChanged="MarginMmSlider_ValueChanged" />
                                             </DockPanel>
                                         </StackPanel>
                                     </Expander>

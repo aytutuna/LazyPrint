@@ -445,4 +445,169 @@ final class ImpositionTests: XCTestCase {
         XCTAssertTrue(frontSide(plan).borders)
         XCTAssertTrue(backSide(plan).borders)
     }
+
+    // MARK: - Orientation
+
+    func test_plan_forcedPortrait_keepsALandscapePageUprightAndSizedToFit() throws {
+        let plan = makePlan([makePage(0, 792, 612)], LayoutOptions(orientation: .portrait))
+        let placement = try onlyElement(frontSide(plan).placements)
+        let height = 612 * 612 / 792.0
+        assertLayoutRect(0, (792 - height) / 2, 612, height, placement.frame)
+        XCTAssertEqual(placement.turns, 0)
+    }
+
+    func test_plan_forcedLandscape_turnsAPortraitPageOntoALandscapeSheet() throws {
+        let plan = makePlan([makePage(0, 612, 792)], LayoutOptions(orientation: .landscape))
+        let placement = try onlyElement(frontSide(plan).placements)
+        let width = 612 * 612 / 792.0
+        assertLayoutRect(0, (792 - width) / 2, 612, width, placement.frame)
+        XCTAssertEqual(placement.turns, 3)
+    }
+
+    func test_plan_forcedLandscape_keepsALandscapePageAsAutomaticDoes() {
+        let page = makePage(0, 792, 612)
+        XCTAssertEqual(makePlan([page], LayoutOptions(orientation: .landscape)), makePlan([page]))
+    }
+
+    func test_plan_automaticOrientation_isDecidedPageByPage() {
+        let plan = makePlan([makePage(0, 612, 792), makePage(1, 792, 612)], LayoutOptions(orientation: .automatic))
+        XCTAssertEqual(frontSide(plan, 0).placements[0].turns, 0)
+        XCTAssertEqual(frontSide(plan, 1).placements[0].turns, 3)
+    }
+
+    func test_plan_forcedLandscape_choosesTheLandscapeViewOfAGrid() {
+        let pages = [makePage(0, 792, 612), makePage(1, 792, 612)]
+        let placements = frontSide(makePlan(pages, LayoutOptions(pagesPerSheet: 2, orientation: .landscape))).placements
+        // Left to right in the landscape view; the pages are turned in their 396 x 612 cells, as large as that makes them.
+        let height = 792 * 396 / 612.0
+        assertLayoutRect((612 - height) / 2, 396, height, 396, placements[0].frame)
+        XCTAssertEqual(placements[0].turns, 2)
+    }
+
+    func test_plan_forcedPortrait_choosesThePortraitViewOfAGrid() {
+        let placements = frontSide(makePlan(portraitPages(2), LayoutOptions(pagesPerSheet: 2, orientation: .portrait))).placements
+        // Two 612 x 396 cells stacked; a portrait page is larger turned in one.
+        XCTAssertEqual(placements[0].frame.y, 0)
+        XCTAssertEqual(placements[1].frame.y, 396)
+    }
+
+    func test_plan_bookletIgnoresOrientation() {
+        XCTAssertEqual(makePlan(portraitPages(4), LayoutOptions(booklet: true)),
+                       makePlan(portraitPages(4), LayoutOptions(booklet: true, orientation: .portrait)))
+    }
+
+    // MARK: - Margins
+
+    func test_plan_marginWithFit_keepsEveryEdgeClear() {
+        let plan = makePlan(portraitPages(1), LayoutOptions(scaling: .fit, margin: 36))
+        let frame = frontSide(plan).placements[0].frame
+        XCTAssertGreaterThanOrEqual(frame.x, 36 - 1e-6)
+        XCTAssertGreaterThanOrEqual(frame.y, 36 - 1e-6)
+        XCTAssertLessThanOrEqual(frame.x + frame.width, 612 - 36 + 1e-6)
+        XCTAssertLessThanOrEqual(frame.y + frame.height, 792 - 36 + 1e-6)
+        XCTAssertEqual(plan.area, wholePaper(layoutLetter))
+    }
+
+    func test_plan_marginWithShrinkToFit_shrinksALargePageAndWarns() {
+        let plan = makePlan([makePage(0, 612, 792)], LayoutOptions(margin: 36))
+        let height = 540 * 792 / 612.0
+        assertLayoutRect(36, (792 - height) / 2, 540, height, frontSide(plan).placements[0].frame)
+        XCTAssertTrue(plan.warnings.contains { if case .shrunk = $0 { return true } else { return false } })
+    }
+
+    func test_plan_margin_neverGoesBelowThePrintersOwn() {
+        let plan = makePlan(portraitPages(1), LayoutOptions(scaling: .fit, margin: 10), area: paperWithMargins(layoutLetter, 36))
+        let height = 540 * 792 / 612.0
+        assertLayoutRect(36, (792 - height) / 2, 540, height, frontSide(plan).placements[0].frame)
+    }
+
+    func test_plan_margin_isIgnoredAtActualSizeAndFill() {
+        let actual = makePlan([makePage(0, 300, 400)], LayoutOptions(scaling: .actualSize, margin: 200))
+        assertLayoutRect(156, 196, 300, 400, frontSide(actual).placements[0].frame)
+        let fill = makePlan(portraitPages(1), LayoutOptions(scaling: .fill, margin: 100))
+        assertLayoutRect(0, 0, 612, 792, frontSide(fill).placements[0].frame)
+    }
+
+    func test_plan_margin_appliesToGridsAndBooklets() {
+        let four = makePlan(portraitPages(4), LayoutOptions(pagesPerSheet: 4, scaling: .actualSize, margin: 36))
+        for p in frontSide(four).placements {
+            XCTAssertTrue(p.frame.x >= 36 - 1e-6 && p.frame.y >= 36 - 1e-6)
+            XCTAssertTrue(p.frame.x + p.frame.width <= 612 - 36 + 1e-6 && p.frame.y + p.frame.height <= 792 - 36 + 1e-6)
+        }
+        let booklet = makePlan(portraitPages(4), LayoutOptions(booklet: true, margin: 36))
+        for p in frontSide(booklet).placements {
+            XCTAssertTrue(p.frame.x >= 36 - 1e-6 && p.frame.x + p.frame.width <= 612 - 36 + 1e-6)
+        }
+    }
+
+    // MARK: - Poster
+
+    private let posterOverlap: Double = 10 * 72 / 25.4
+
+    func test_plan_poster_isOneSheetPerTileInReadingOrder() throws {
+        let plan = makePlan(portraitPages(1), LayoutOptions(poster: 2))
+        XCTAssertEqual(plan.sheets.count, 4)
+        XCTAssertFalse(plan.duplex)
+        for sheet in plan.sheets {
+            XCTAssertNil(sheet.back)
+            XCTAssertEqual(sheet.front.placements.count, 1)
+            XCTAssertNotNil(sheet.front.placements[0].crop)
+            XCTAssertTrue(sheet.front.cutMarks)
+        }
+
+        let scale: Double = (2 * 600 - posterOverlap) / 612
+        let first = frontSide(plan, 0).placements[0]
+        assertLayoutRect(6, 6, 600, 780, first.frame)
+        assertLayoutRect(0, 0, 600 / scale, 780 / scale, try XCTUnwrap(first.crop))
+        let second = try XCTUnwrap(frontSide(plan, 1).placements[0].crop)
+        let third = try XCTUnwrap(frontSide(plan, 2).placements[0].crop)
+        XCTAssertTrue(second.x > 0 && second.y == 0)
+        XCTAssertTrue(third.x == 0 && third.y > 0)
+    }
+
+    func test_plan_poster_tilesOverlapByACentimetre() throws {
+        let plan = makePlan(portraitPages(1), LayoutOptions(poster: 3))
+        XCTAssertEqual(plan.sheets.count, 9)
+        let a = try XCTUnwrap(frontSide(plan, 0).placements[0].crop)
+        let b = try XCTUnwrap(frontSide(plan, 1).placements[0].crop)
+        let scale: Double = frontSide(plan, 0).placements[0].frame.width / a.width
+        XCTAssertEqual((a.x + a.width - b.x) * scale, posterOverlap, accuracy: 1e-6)
+    }
+
+    func test_plan_poster_reachesTheEndOfThePage() throws {
+        let plan = makePlan(portraitPages(1), LayoutOptions(poster: 4))
+        let last = try XCTUnwrap(frontSide(plan, 15).placements[0].crop)
+        XCTAssertEqual(last.x + last.width, 612, accuracy: 1e-6)
+        XCTAssertEqual(last.y + last.height, 792, accuracy: 1e-6)
+    }
+
+    func test_plan_poster_ofALandscapePageUsesLandscapeSheets() {
+        let plan = makePlan([makePage(0, 792, 612)], LayoutOptions(poster: 2))
+        XCTAssertEqual(plan.sheets.count, 4)
+        for sheet in plan.sheets {
+            XCTAssertEqual(sheet.front.placements[0].turns, 3)
+        }
+    }
+
+    func test_plan_poster_comesBeforeBookletGridAndTwoSided() {
+        let plan = makePlan(portraitPages(1), LayoutOptions(pagesPerSheet: 4, booklet: true, sides: .longEdge, poster: 2))
+        XCTAssertEqual(plan.sheets.count, 4)
+        XCTAssertFalse(plan.duplex)
+    }
+
+    func test_plan_poster_runsOnForEachPage() {
+        let plan = makePlan(portraitPages(2), LayoutOptions(poster: 2))
+        XCTAssertEqual(plan.sheets.count, 8)
+        XCTAssertEqual(frontSide(plan, 4).placements[0].page.index, 1)
+    }
+
+    func test_plan_poster_keepsTheMarksInsideTheMargin() {
+        let plan = makePlan(portraitPages(1), LayoutOptions(margin: 36, poster: 2), area: paperWithMargins(layoutLetter, 10))
+        assertLayoutRect(42, 42, 528, 708, frontSide(plan).placements[0].frame)
+    }
+
+    func test_plan_posterOfOne_isNoPoster() {
+        XCTAssertEqual(makePlan(portraitPages(1), LayoutOptions()), makePlan(portraitPages(1), LayoutOptions(poster: 1)))
+        XCTAssertEqual(makePlan(portraitPages(1), LayoutOptions(poster: 5)).sheets.count, 1)
+    }
 }

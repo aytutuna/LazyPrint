@@ -63,6 +63,17 @@ public enum Sides
     ShortEdge,
 }
 
+/// <summary>
+/// How the sheet is turned. Automatic gives each page the orientation it has; the others make every sheet portrait or landscape.
+/// Stored as the camelCase name.
+/// </summary>
+public enum SheetOrientation
+{
+    Automatic,
+    Portrait,
+    Landscape,
+}
+
 /// <summary>What <see cref="Imposition.Plan"/> is asked for.</summary>
 public sealed record LayoutOptions
 {
@@ -81,6 +92,44 @@ public sealed record LayoutOptions
     /// area when it shrinks to fit. Cells of several pages, booklets and fit or fill ignore it.
     /// </summary>
     public int Scale { get; init; } = 100;
+    /// <summary>The orientation of the sheets. A booklet is always a landscape spread and ignores it.</summary>
+    public SheetOrientation Orientation { get; init; } = SheetOrientation.Automatic;
+    /// <summary>
+    /// A distance kept clear on every sheet edge, in points, on top of what the printer cannot reach. Used when pages are
+    /// sized to fit (<see cref="Scaling.ShrinkToFit"/>, <see cref="Scaling.Fit"/>, several per side, a booklet, a poster); not at
+    /// <see cref="Scaling.ActualSize"/> on a lone page, nor with <see cref="Scaling.Fill"/>.
+    /// </summary>
+    public double Margin { get; init; }
+    /// <summary>
+    /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
+    /// Any other number is no poster; a poster comes before <see cref="Booklet"/> and <see cref="PagesPerSheet"/>.
+    /// </summary>
+    public int Poster { get; init; }
+}
+
+/// <summary>The margin choices. Stored as the camelCase name.</summary>
+public enum MarginChoice
+{
+    None,
+    Small,
+    Normal,
+    Custom,
+}
+
+public static class MarginChoices
+{
+    public const int MaxMillimetres = 50;
+
+    /// <summary>0, 6, 12, or the custom distance held between 0 and <see cref="MaxMillimetres"/>.</summary>
+    public static int Millimetres(MarginChoice choice, int custom) => choice switch
+    {
+        MarginChoice.Small => 6,
+        MarginChoice.Normal => 12,
+        MarginChoice.Custom => Math.Clamp(custom, 0, MaxMillimetres),
+        _ => 0,
+    };
+
+    public static double Points(MarginChoice choice, int custom) => Millimetres(choice, custom) * 72 / 25.4;
 }
 
 /// <summary>Where one page goes on a sheet side.</summary>
@@ -91,12 +140,13 @@ public sealed record LayoutOptions
 public sealed record Placement(SourcePage Page, LayoutRect Frame, int Turns, LayoutRect? Crop);
 
 /// <summary>One side of a sheet.</summary>
-public sealed record SheetSide(IReadOnlyList<Placement> Placements, bool Borders)
+/// <param name="CutMarks">Short marks outside each placement's corners, for the tiles of a poster.</param>
+public sealed record SheetSide(IReadOnlyList<Placement> Placements, bool Borders, bool CutMarks = false)
 {
     public bool Equals(SheetSide? other) =>
-        other is not null && Borders == other.Borders && Placements.SequenceEqual(other.Placements);
+        other is not null && Borders == other.Borders && CutMarks == other.CutMarks && Placements.SequenceEqual(other.Placements);
 
-    public override int GetHashCode() => HashCode.Combine(Placements.Count, Borders);
+    public override int GetHashCode() => HashCode.Combine(Placements.Count, Borders, CutMarks);
 }
 
 /// <summary>A sheet of paper; <paramref name="Back"/> is null for a one-sided plan.</summary>

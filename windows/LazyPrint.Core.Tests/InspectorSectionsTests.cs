@@ -104,4 +104,26 @@ public class InspectorSectionsTests
         Assert.Equal("Whole page · Fill · Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "page" }));
         Assert.Equal("6x8 · Fill · Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "6x8" }));
     }
+
+    [Fact]
+    public void Summaries_NamePageOrderAndOrientation()
+    {
+        var s = new PrintSettings { PageSelection = PageSelection.Odd, ReverseOrder = true, Orientation = SheetOrientation.Landscape };
+        Assert.Equal("Odd pages · Reverse order", InspectorSections.PagesSummary(s));
+        Assert.Equal("Landscape", InspectorSections.LayoutSummary(s));
+        Assert.Equal("Even pages", InspectorSections.PagesSummary(new PrintSettings { PageSelection = PageSelection.Even }));
+        Assert.Equal("", InspectorSections.PagesSummary(new PrintSettings { Sides = Sides.LongEdge, Poster = 2 }));
+        Assert.Equal("Booklet", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, Orientation = SheetOrientation.Landscape }));
+    }
+
+    [Fact]
+    public void LayoutSummary_NamesAPosterAndTheMarginsThatApply()
+    {
+        Assert.Equal("Poster 3 × 3", InspectorSections.LayoutSummary(new PrintSettings { Poster = 3, PagesPerSheet = 4, RightToLeft = true }));
+        Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
+        Assert.Equal("Fit to page · 6 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit, Margin = MarginChoice.Small }));
+        Assert.Equal("Actual size", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize, Margin = MarginChoice.Normal }));
+        Assert.Equal("Fill", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
+        Assert.Equal("Poster 2 × 2 · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Poster = 2, Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
+    }
 }

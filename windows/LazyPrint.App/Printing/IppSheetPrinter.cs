@@ -63,7 +63,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
     /// <summary>
     /// The document of a job that is printed as it is, with the bytes of the file to send: one PDF whose pages go one to a side, in order
     /// (a run of them goes as page-ranges when the printer takes those), fit, shrink to fit or actual size; or one upright JPEG printed whole on paper of its own size. Copies the
-    /// printer does not make itself, a booklet and manual two-sided are sheets drawn by Lazy Print.
+    /// printer does not make itself, a poster, extra margins, a booklet and manual two-sided are sheets drawn by Lazy Print.
     /// </summary>
     private (DocumentKind Kind, byte[] Bytes, (int First, int Last)? Pages)? AsIs(SheetJob job, PrinterCapabilities caps)
     {
@@ -83,7 +83,8 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 var settings = job.Settings;
                 bool ascending = placed.Count > 0 && placed.Select((page, i) => page.Document == 0 && page.Index == placed[0].Index + i).All(ok => ok);
                 bool whole = placed.Count == document.Pages.Count;
-                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet
+                bool plain = settings.Poster == 0 && MarginChoices.Millimetres(settings.Margin, settings.MarginMm) == 0
+                    && settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
                     && (settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit
                     || settings.Scaling == Scaling.ActualSize && caps.PrintScalingSupported.Contains("none"));
                 if (!ascending || !plain || !whole && !caps.PageRangesSupported) return null;
@@ -91,7 +92,12 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             case DocumentKind.Photo:
                 var paper = job.Plan.Plan.Area.Paper;
                 var photo = document.Pages[0];
+                var frame = job.Plan.Plan.Area.Printable;
+                // Only a photo the plan laid out filling the printable area upright goes as it is: a margin or a forced orientation shrinks or turns it.
                 bool ownSize = placed.Count == 1
+                               && job.Plan.Plan.Sheets[0].Front.Placements[0] is { Turns: 0 } placement
+                               && (Math.Abs(placement.Frame.Width - frame.Width) <= PaperSizes.FitTolerance
+                                   || Math.Abs(placement.Frame.Height - frame.Height) <= PaperSizes.FitTolerance)
                                && Math.Abs(Math.Min(photo.Width, photo.Height) - paper.Width) <= PaperSizes.FitTolerance
                                && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance;
                 return ownSize ? (document.Kind, bytes, null) : null;

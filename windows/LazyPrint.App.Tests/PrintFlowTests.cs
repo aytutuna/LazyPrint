@@ -177,6 +177,19 @@ public sealed class PrintFlowTests
     }
 
     [Fact]
+    public async Task PrintIsOffWhenTheEvenPagesOfOnePageAreAsked()
+    {
+        using var rig = new Rig(demo: true);
+        rig.Loader.Pages = [new LayoutSize(612, 792)];
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        Assert.True(rig.Model.CanPrint);
+        rig.Model.Settings.PageSelection = PageSelection.Even;
+
+        Assert.Equal("No pages to print", rig.Model.PrintDisabledReason);
+    }
+
+    [Fact]
     public async Task PrintIsNotOfferedWhileTheCardIsUp()
     {
         using var rig = await ManualRig();

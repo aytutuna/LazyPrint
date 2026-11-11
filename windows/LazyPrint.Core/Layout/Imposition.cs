@@ -15,6 +15,10 @@ public static class Imposition
     /// <summary>Less than this much cut off (0.05 in, Lazy Scan's clip warning) is not worth a warning.</summary>
     private const double ClipTolerance = 0.05 * 72;
 
+    private const double PosterOverlap = 10 * 72 / 25.4;
+    /// <summary>The cut marks of a poster tile are this long, in the strip kept clear around it.</summary>
+    internal const double PosterMarkLength = 6;
+
     /// <summary>
     /// The sheets for <paramref name="pages"/> (several documents run on as one) on paper with the
     /// printable <paramref name="area"/>. When any back may turn (two-sided, booklet) both sides use
@@ -22,10 +26,14 @@ public static class Imposition
     /// </summary>
     public static SheetPlan Plan(IReadOnlyList<SourcePage> pages, LayoutOptions options, PrintableArea area)
     {
-        bool duplex = options.Booklet || options.Sides != Sides.OneSided;
+        bool poster = options.Poster is >= 2 and <= 4;
+        bool duplex = !poster && (options.Booklet || options.Sides != Sides.OneSided);
         var used = duplex ? area.Symmetric : area;
+        var laid = KeepsMargin(options) ? WithMargin(used, options.Margin) : used;
         var notes = new Notes();
-        var sheets = options.Booklet ? BookletSheets(pages, options, used, notes) : FlatSheets(pages, options, duplex, used, notes);
+        var sheets = poster ? PosterSheets(pages, options, laid, notes)
+            : options.Booklet ? BookletSheets(pages, options, laid, notes)
+            : FlatSheets(pages, options, duplex, laid, notes);
 
         var warnings = new List<PlanWarning>();
         if (notes.Clipped > ClipTolerance) warnings.Add(new PlanWarning.Clipped(notes.Clipped));
@@ -35,6 +43,57 @@ public static class Imposition
         return new SheetPlan(used, sheets, duplex, warnings);
     }
 
+    /// <summary>Whether the sizing in use lets the margin apply: not a lone page at actual size, nor fill.</summary>
+    public static bool KeepsMargin(LayoutOptions options)
+    {
+        if (options.Poster is >= 2 and <= 4) return true;
+        bool alone = !options.Booklet && Grid(options.PagesPerSheet, false) == (1, 1);
+        return options.Scaling != Scaling.Fill && !(alone && options.Scaling == Scaling.ActualSize);
+    }
+
+    private static PrintableArea WithMargin(PrintableArea area, double margin)
+    {
+        var m = area.Margins;
+        return area with { Margins = new LayoutInsets(Math.Max(m.Top, margin), Math.Max(m.Left, margin), Math.Max(m.Bottom, margin), Math.Max(m.Right, margin)) };
+    }
+
+    /// <summary>
+    /// Each page enlarged to fit n × n printable areas that overlap by 1 cm, anchored top left, one tile per sheet in reading
+    /// order; a tile with nothing of the page on it is left out. Each tile keeps a strip clear around it for its cut marks.
+    /// </summary>
+    private static List<Sheet> PosterSheets(IReadOnlyList<SourcePage> pages, LayoutOptions options, PrintableArea area, Notes notes)
+    {
+        int n = options.Poster;
+        var sheets = new List<Sheet>();
+        foreach (var page in pages)
+        {
+            bool landscape = options.Orientation == SheetOrientation.Automatic ? page.Size.Width > page.Size.Height : options.Orientation == SheetOrientation.Landscape;
+            var full = ViewPrintable(area, landscape);
+            var view = new LayoutRect(full.X + PosterMarkLength, full.Y + PosterMarkLength,
+                                      Math.Max(0, full.Width - 2 * PosterMarkLength), Math.Max(0, full.Height - 2 * PosterMarkLength));
+            double totalWidth = n * view.Width - (n - 1) * PosterOverlap, totalHeight = n * view.Height - (n - 1) * PosterOverlap;
+            if (page.Size.Width <= 0 || page.Size.Height <= 0 || totalWidth <= 0 || totalHeight <= 0) continue;
+
+            double scale = FitScale(page.Size.Width, page.Size.Height, new LayoutRect(0, 0, totalWidth, totalHeight));
+            double posterWidth = page.Size.Width * scale, posterHeight = page.Size.Height * scale;
+            notes.SmallestScale = Math.Min(notes.SmallestScale, scale);
+            for (int row = 0; row < n; row++)
+            {
+                for (int column = 0; column < n; column++)
+                {
+                    double left = column * (view.Width - PosterOverlap), top = row * (view.Height - PosterOverlap);
+                    double width = Math.Min(view.Width, posterWidth - left), height = Math.Min(view.Height, posterHeight - top);
+                    if (width < 1 || height < 1) continue;
+                    var crop = new LayoutRect(left / scale, top / scale, width / scale, height / scale);
+                    var shown = new Fitted(new LayoutRect(view.X, view.Y, width, height), crop, scale);
+                    var side = new SheetSide([Place(page, shown, landscape, false, area.Paper)], false, true);
+                    sheets.Add(new Sheet(side, null));
+                }
+            }
+        }
+        return sheets;
+    }
+
     private static List<Sheet> FlatSheets(IReadOnlyList<SourcePage> pages, LayoutOptions options, bool duplex,
                                           PrintableArea area, Notes notes)
     {
@@ -42,7 +101,7 @@ public static class Imposition
         int perSide = portraitRows * portraitColumns;
         int perSheet = duplex ? 2 * perSide : perSide;
         bool turnBacks = options.Sides == Sides.ShortEdge;
-        bool landscape = perSide > 1 && pages.Count > 0 && ChooseLandscape(pages[0].Size, options.PagesPerSheet, area);
+        bool landscape = perSide > 1 && pages.Count > 0 && ChooseLandscape(pages[0].Size, options, area);
         var (rows, columns) = Grid(options.PagesPerSheet, landscape);
         var scaling = perSide > 1 && options.Scaling != Scaling.Fill ? Scaling.Fit : options.Scaling;
         bool borders = options.PageBorders && perSide > 1;
@@ -54,7 +113,7 @@ public static class Imposition
             {
                 if (perSide == 1)
                 {
-                    placements.Add(Alone(page, area, scaling, options.Scale, notes));
+                    placements.Add(Alone(page, area, scaling, options.Scale, options.Orientation, notes));
                     continue;
                 }
                 int index = placements.Count, row = index / columns, column = index % columns;
@@ -126,10 +185,14 @@ public static class Imposition
         return landscape ? (fewer, more) : (more, fewer);
     }
 
-    /// <summary>One page on its side: landscape pages get the landscape view.</summary>
-    private static Placement Alone(SourcePage page, PrintableArea area, Scaling scaling, int scale, Notes notes)
+    /// <summary>
+    /// One page on its side: with automatic orientation landscape pages get the landscape view. A page of the other shape
+    /// than a forced orientation is not turned; it is sized in the sheet as it is.
+    /// </summary>
+    private static Placement Alone(SourcePage page, PrintableArea area, Scaling scaling, int scale, SheetOrientation orientation,
+                                   Notes notes)
     {
-        bool landscape = page.Size.Width > page.Size.Height;
+        bool landscape = orientation == SheetOrientation.Automatic ? page.Size.Width > page.Size.Height : orientation == SheetOrientation.Landscape;
         var cell = ViewPrintable(area, landscape);
         double factor = scaling is Scaling.ShrinkToFit or Scaling.ActualSize ? Math.Clamp(scale, 10, 400) / 100.0 : 1;
         var sized = new LayoutSize(page.Size.Width * factor, page.Size.Height * factor);
@@ -158,9 +221,11 @@ public static class Imposition
         return new Placement(page, frame, ((landscape ? 3 : 0) + (turned ? 3 : 0)) % 4, shown.Crop);
     }
 
-    /// <summary>The first page decides the grid's reading view for the whole job.</summary>
-    private static bool ChooseLandscape(LayoutSize first, int pagesPerSheet, PrintableArea area)
+    /// <summary>A forced orientation is the grid's reading view; otherwise the first page decides it for the whole job.</summary>
+    private static bool ChooseLandscape(LayoutSize first, LayoutOptions options, PrintableArea area)
     {
+        if (options.Orientation != SheetOrientation.Automatic) return options.Orientation == SheetOrientation.Landscape;
+        int pagesPerSheet = options.PagesPerSheet;
         var (rows, columns) = Grid(pagesPerSheet, false);
         var (portraitScale, portraitTurn) = BestFit(first, CellAt(ViewPrintable(area, false), rows, columns, 0, 0));
         (rows, columns) = Grid(pagesPerSheet, true);

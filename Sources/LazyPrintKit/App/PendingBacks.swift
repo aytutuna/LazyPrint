@@ -7,6 +7,9 @@ public struct PendingBacks: Codable, Equatable, Sendable {
     var settings: PrintSettings
     var taskId: String?
     var range: [Int]?
+    /// Kept beside the settings, which leave them out; optional so a file saved before they were added still loads.
+    var pageSelection: PageSelection?
+    var reverseOrder: Bool?
     /// The documents' files; the job is not restored once any of them is gone.
     public var paths: [String]
 

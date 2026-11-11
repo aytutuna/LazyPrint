@@ -360,6 +360,7 @@ public sealed partial class AppViewModel
         : SelectedPrinter is null ? PrintText.NoPrinterReason
         : Documents.Count == 0 ? "Add files to print"
         : PageRangeError is { } error ? error
+        : Plan() is { Plan.Sheets.Count: 0 } ? PrintText.NoPagesReason
         : null;
 
     public bool CanPrint => PrintDisabledReason is null;

@@ -381,4 +381,48 @@ final class PrintJobsTests: XCTestCase {
         done.state = .done
         XCTAssertNotEqual(record, done)
     }
+
+    // MARK: - Page order and orientation
+
+    private func fronts(_ job: JobPlan) -> [Int] {
+        job.plan.sheets.flatMap { $0.front.placements.map { $0.page.index } }
+    }
+
+    func test_plan_oddPages_areCutFromTheRangeBeforeTheLayout() {
+        XCTAssertEqual(fronts(makePlan([doc(5)], makeSettings { $0.pageSelection = .odd }, hp)), [0, 2, 4])
+        XCTAssertEqual(fronts(makePlan([doc(6)], makeSettings { $0.pageSelection = .even }, hp, range: [1, 2, 3, 4])), [1, 3])
+    }
+
+    func test_plan_reverseOrder_printsTheLastPageFirst() {
+        XCTAssertEqual(fronts(makePlan([doc(3)], makeSettings { $0.reverseOrder = true }, hp)), [2, 1, 0])
+        XCTAssertEqual(fronts(makePlan([doc(3)], makeSettings { $0.reverseOrder = true; $0.pageSelection = .odd }, hp)), [2, 0])
+    }
+
+    func test_plan_oddPagesTwoSidedByHand_areMadeIntoFrontsAndBacksFromWhatIsLeft() {
+        let job = makePlan([doc(5)], makeSettings { $0.pageSelection = .odd; $0.sides = .longEdge }, plain)
+        XCTAssertTrue(job.manualDuplex)
+        // Pages 1, 3 and 5 make two sheets: 1 over 3, and 5 over a blank back.
+        XCTAssertEqual(job.passes[0].sides.map { $0.placements[0].page.index }, [0, 4])
+        XCTAssertEqual(job.passes[1].sides[0].placements[0].page.index, 2)
+        XCTAssertTrue(job.passes[1].sides[1].placements.isEmpty)
+    }
+
+    func test_layoutOptions_carryTheOrientation() {
+        XCTAssertEqual(PrintJobs.layoutOptions(makeSettings { $0.orientation = .landscape }, task: .document).orientation, .landscape)
+    }
+
+    func test_layoutOptions_carryTheMarginInPoints() {
+        let cases: [(MarginChoice, Int, Int)] = [(MarginChoice.none, 0, 0), (.small, 0, 6), (.normal, 0, 12), (.custom, 20, 20), (.custom, 900, 50)]
+        for (choice, custom, millimetres) in cases {
+            let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom }, task: .document)
+            XCTAssertEqual(options.margin, Double(millimetres) * 72 / 25.4, accuracy: 1e-6)
+        }
+    }
+
+    func test_layoutOptions_photosHaveNoMarginAndNoPoster() {
+        let settings = makeSettings { $0.margin = .normal; $0.poster = 2 }
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, task: .photos).margin, 0)
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, task: .photoSheet).poster, 0)
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, task: .document).poster, 2)
+    }
 }

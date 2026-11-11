@@ -64,6 +64,24 @@ public class SheetRendererTests
     }
 
     [Fact]
+    public async Task ASideWithCutMarksGetsMarksOutsideTheFramesCorners()
+    {
+        var (document, renderer) = await Open("mixed.pdf");
+        var frame = new LayoutRect(100, 100, 300, 400);
+        var marked = new SheetSide([Place(0, document.Pages[0], frame)], false, true);
+        var plain = new SheetSide([Place(0, document.Pages[0], frame)], false);
+
+        var withMarks = await Sta(() => renderer.Render(marked, Letter, 72));
+        var without = await Sta(() => renderer.Render(plain, Letter, 72));
+
+        // Left of the top-left corner, where only a mark can be.
+        bool Inked(System.Windows.Media.Imaging.BitmapSource bitmap) =>
+            Enumerable.Range(96, 4).Any(x => Enumerable.Range(99, 2).Any(y => Pixels.At(bitmap, x, y) != Pixels.White));
+        Assert.True(Inked(withMarks));
+        Assert.False(Inked(without));
+    }
+
+    [Fact]
     public async Task ALandscapePageIsTurnedOntoThePortraitSheet()
     {
         var (document, renderer) = await Open("rotated.pdf");

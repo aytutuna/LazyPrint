@@ -102,6 +102,7 @@ public static class TaskCatalog
                 return s with
                 {
                     PagesPerSheet = 1,
+                    Poster = 0,
                     Booklet = false,
                     Scaling = Scaling.ShrinkToFit,
                     Sides = canTwoSided ? Sides.LongEdge : Sides.OneSided,
@@ -109,11 +110,11 @@ public static class TaskCatalog
                 };
             case PrintTask.TwoSided:
                 // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
-                return s with { PagesPerSheet = 1, Booklet = false, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { PagesPerSheet = 1, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
             case PrintTask.Booklet:
-                return s with { Booklet = true, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { Poster = 0, Booklet = true, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
             case PrintTask.Handouts:
-                return s with { PagesPerSheet = 2, Booklet = false, Scaling = Scaling.ShrinkToFit, PageBorders = true, Quality = QualityChoice.Normal };
+                return s with { PagesPerSheet = 2, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, PageBorders = true, Quality = QualityChoice.Normal };
             case PrintTask.Photos:
                 return s with
                 {
@@ -124,7 +125,7 @@ public static class TaskCatalog
                     Color = ColorChoice.Color,
                 };
             case PrintTask.PhotoSheet:
-                return s with { PagesPerSheet = 4, Booklet = false, Scaling = Scaling.Fill, CutMarks = true };
+                return s with { PagesPerSheet = 4, Poster = 0, Booklet = false, Scaling = Scaling.Fill, CutMarks = true };
             default:
                 return s;
         }

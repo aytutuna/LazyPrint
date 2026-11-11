@@ -35,6 +35,15 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var scaling = Scaling.shrinkToFit
     /// Percent, 10 to 400 (`LayoutOptions.scale`).
     public var scale = 100
+    public var orientation = SheetOrientation.automatic
+    public var margin = MarginChoice.none
+    /// Millimetres, 0 to `MarginChoices.maxMillimetres`; what `MarginChoice.custom` means.
+    public var marginMm = 10
+    /// 0 for no poster, else 2, 3 or 4 sheets across and down (`LayoutOptions.poster`).
+    public var poster = 0
+    /// Odd or even pages only, and the reverse order: asked for one job at a time, so not saved (`PagePicker`).
+    public var pageSelection = PageSelection.all
+    public var reverseOrder = false
     /// A `PaperSize` raw value; "auto" is what the printer has loaded, else the regional default.
     public var paperId = "auto"
     public var photoSizeId = "4x6"
@@ -45,7 +54,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
-        case pageBorders, scaling, scale, paperId, photoSizeId, photoFill, cutMarks
+        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, photoSizeId, photoFill, cutMarks
     }
 }
 
@@ -65,6 +74,10 @@ extension PrintSettings {
         pageBorders = c.decodeLenient(forKey: .pageBorders, default: pageBorders)
         scaling = c.decodeLenient(forKey: .scaling, default: scaling)
         scale = c.decodeLenient(forKey: .scale, default: scale)
+        orientation = c.decodeLenient(forKey: .orientation, default: orientation)
+        margin = c.decodeLenient(forKey: .margin, default: margin)
+        marginMm = c.decodeLenient(forKey: .marginMm, default: marginMm)
+        poster = c.decodeLenient(forKey: .poster, default: poster)
         paperId = c.decodeLenient(forKey: .paperId, default: paperId)
         photoSizeId = c.decodeLenient(forKey: .photoSizeId, default: photoSizeId)
         photoFill = c.decodeLenient(forKey: .photoFill, default: photoFill)

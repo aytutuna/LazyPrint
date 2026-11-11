@@ -104,4 +104,26 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "page" }), "Whole page \u{00B7} Fill \u{00B7} Cut marks")
         XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "6x8" }), "6x8 \u{00B7} Fill \u{00B7} Cut marks")
     }
+
+    func test_summaries_namePageOrderAndOrientation() {
+        let s = settings { $0.pageSelection = .odd; $0.reverseOrder = true; $0.orientation = .landscape }
+        XCTAssertEqual(InspectorSections.pagesSummary(s), "Odd pages \u{00B7} Reverse order")
+        XCTAssertEqual(InspectorSections.layoutSummary(s), "Landscape")
+        XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.pageSelection = .even }), "Even pages")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.orientation = .landscape }), "Booklet")
+    }
+
+    func test_pagesSummary_leavesOutTwoSidedForAPoster() {
+        XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.sides = .longEdge; $0.poster = 2 }), "")
+    }
+
+    func test_layoutSummary_namesAPosterAndTheMarginsThatApply() {
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 3; $0.pagesPerSheet = 4; $0.rightToLeft = true }), "Poster 3 \u{00D7} 3")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fit; $0.margin = .small }), "Fit to page \u{00B7} 6 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize; $0.margin = .normal }), "Actual size")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill; $0.margin = .normal }), "Fill")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 2; $0.scaling = .fill; $0.margin = .normal }),
+                       "Poster 2 \u{00D7} 2 \u{00B7} 12 mm margins")
+    }
 }
