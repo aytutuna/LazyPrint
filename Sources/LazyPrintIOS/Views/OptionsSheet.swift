@@ -124,9 +124,7 @@ struct OptionsSheet: View {
             Choice(title: "Paper", selection: Binding(
                 get: { PaperSizes.parse(state.settings.paperId) },
                 set: { (paper: PaperSize) in state.settings.paperId = paper.rawValue }),
-                   options: PaperSizes.displayOrder(region: Locale.current.region?.identifier).map { (paper: PaperSize) -> (String, PaperSize) in
-                       (paper.label, paper)
-                   },
+                   options: listedPapers().map { (paper: PaperSize) -> (String, PaperSize) in (paper.label, paper) },
                    reason: rules.paperNote, id: "print.paper")
             Choice(title: "Quality", selection: Binding(
                 get: { rules.qualityEnabled ? state.settings.quality : QualityChoice.normal },
@@ -138,6 +136,17 @@ struct OptionsSheet: View {
                 set: { (color: ColorChoice) in state.settings.color = color }),
                    options: [("Color", ColorChoice.color), ("Gray", ColorChoice.gray)],
                    segmented: true, enabled: rules.colorEnabled, reason: rules.colorReason, id: "print.color")
+        }
+    }
+
+    /// The sizes the printer lists when it lists any, and always Automatic and the one chosen.
+    private func listedPapers() -> [PaperSize] {
+        let all: [PaperSize] = PaperSizes.displayOrder(region: Locale.current.region?.identifier)
+        guard let capabilities: PrinterCapabilities = state.capabilities, !capabilities.mediaColDatabase.isEmpty else { return all }
+        let chosen: PaperSize = PaperSizes.parse(state.settings.paperId)
+        return all.filter { (paper: PaperSize) -> Bool in
+            guard paper != .auto, paper != chosen else { return true }
+            return PaperSizes.points(paper).map { capabilities.match($0) != nil } ?? false
         }
     }
 
