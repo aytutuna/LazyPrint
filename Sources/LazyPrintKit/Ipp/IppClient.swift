@@ -82,7 +82,7 @@ final class IppTrustDelegate: NSObject, URLSessionTaskDelegate, @unchecked Senda
     }
 }
 
-/// IPP over HTTP for one printer: its capabilities, Print-Job, Get-Job-Attributes and Cancel-Job. URLSession with
+/// IPP over HTTP for one printer: its capabilities, Print-Job, Get-Job-Attributes, Get-Jobs and Cancel-Job. URLSession with
 /// an ephemeral configuration and no proxy. Failures are `PrintError`s, or an `IppCertificateError` when
 /// `validator` refused the printer's certificate. Twin of C# `IppClient`. Its session is released with the client.
 public final class IppClient: @unchecked Sendable {
@@ -201,6 +201,16 @@ public final class IppClient: @unchecked Sendable {
             reasons.append(reason)
         }
         return reasons
+    }
+
+    /// Get-Jobs: what the printer still has to print, with who sent it. A printer that does not list jobs has none.
+    public func jobs() async throws -> [QueuedJob] {
+        let response = try await roundTrip(document: nil) { uri, requestId in
+            IppRequests.getJobs(printerUri: uri, userName: self.userName, requestId: requestId)
+        }
+        if response.code == IppStatus.serverErrorOperationNotSupported.rawValue { return [] }
+        try IppClient.succeeded(response)
+        return QueuedJob.from(response, userName: userName)
     }
 
     /// Cancel-Job. A job the printer does not know, or can no longer cancel, is already over.

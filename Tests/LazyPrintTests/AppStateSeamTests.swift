@@ -66,6 +66,8 @@ private final class SeamPrinterSystem: PrinterSystem {
     private(set) var capabilityReads = 0
     private(set) var cleared: [String] = []
     private(set) var resumed: [String] = []
+    var held: [String: [QueuedJob]] = [:]
+    private(set) var cancelledJobs: [String] = []
     private var waiting: CheckedContinuation<Void, Never>?
 
     func queues() async -> [SystemPrinter] {
@@ -91,6 +93,8 @@ private final class SeamPrinterSystem: PrinterSystem {
 
     func clearJobs(ofQueue name: String) async throws { cleared.append(name) }
     func resume(queue name: String) async throws { resumed.append(name) }
+    func jobs(ofQueue name: String) async throws -> [QueuedJob] { held[name] ?? [] }
+    func cancel(job id: Int, ofQueue name: String) async throws { cancelledJobs.append("\(name):\(id)") }
 }
 
 /// The system's printer: records every pass it is sent, fails or waits when the test says so.
@@ -326,6 +330,35 @@ final class AppStateSeamTests: XCTestCase {
 
         XCTAssertEqual(rig.state.printers.map { $0.id }, ["system:HP LaserJet", "system:Brother", "demo"])
         XCTAssertTrue(rig.state.hasRealPrinters)
+    }
+
+    @MainActor
+    func test_aSystemQueue_listsItsJobsAndCancelsOne() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        let job = QueuedJob(id: 7, name: "Report.pdf", owner: "anna", state: .waiting, pages: 0, canCancel: true)
+        rig.spooler.held["HP LaserJet"] = [job]
+        await rig.state.refreshPrinters()
+        let printer = try XCTUnwrap(rig.state.selectedPrinter)
+
+        XCTAssertTrue(rig.state.hasQueue(printer))
+        let jobs = try await rig.state.queuedJobs(of: printer)
+        XCTAssertEqual(jobs, [job])
+        await rig.state.cancelQueuedJob(7, of: printer)
+        XCTAssertEqual(rig.spooler.cancelledJobs, ["HP LaserJet:7"])
+    }
+
+    @MainActor
+    func test_theDemoPrinterAndAnAirPrintPrinter_haveNoQueue() async throws {
+        let rig = try makeRig(demo: true)
+        await rig.state.refreshPrinters()
+        let demo = try XCTUnwrap(rig.state.printers.first { $0.route == .demo })
+        XCTAssertFalse(rig.state.hasQueue(demo))
+
+        let phone = try makeRig(platform: .ios)
+        phone.spooler.listed = [Rig.queue("AirPrint")]
+        await phone.state.refreshPrinters()
+        XCTAssertFalse(phone.state.hasQueue(try XCTUnwrap(phone.state.printers.first { $0.route == .system })))
     }
 
     @MainActor

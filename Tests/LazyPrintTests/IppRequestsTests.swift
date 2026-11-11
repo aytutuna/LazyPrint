@@ -112,6 +112,13 @@ final class IppRequestsTests: XCTestCase {
         try IppFixtures.golden("get-job-attributes", request.encoded())
     }
 
+    func test_getJobs_isTheGoldenRequest() throws {
+        let request = IppRequests.getJobs(printerUri: uri, userName: "anna", requestId: 42)
+        XCTAssertEqual(names(request, IppTag.operationAttributes),
+                       ["attributes-charset", "attributes-natural-language", "printer-uri", "requesting-user-name", "which-jobs", "requested-attributes"])
+        try IppFixtures.golden("get-jobs", request.encoded())
+    }
+
     func test_cancelJob_isTheGoldenRequest() throws {
         let request = IppRequests.cancelJob(printerUri: uri, userName: "anna", jobId: 42)
         XCTAssertEqual(names(request, IppTag.operationAttributes),

@@ -42,6 +42,7 @@ public partial class MainWindow : Window
 
         SetUpPhone();
         SetUpPreview();
+        SetUpQueue();
         BuildChoices();
         SetUpInspectorSections();
         Placeholders.Attach(PageRangeBox, PageRangePlaceholder);
@@ -218,6 +219,7 @@ public partial class MainWindow : Window
         PushSettingsToUi();
         UpdateEmptyPrintersHint();
         SyncJobs();
+        SyncQueue();
         SyncDuplexCard();
         SyncDocuments();
     }
@@ -339,6 +341,7 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(e.OriginalSource, MainTabs)) return;
         SentJobsButton.Visibility = JobsTab.IsSelected ? Visibility.Collapsed : Visibility.Visible;
         if (PrintTab.IsSelected) PushSettingsToUi();
+        SyncQueue();
     }
 
     /// <summary>The banner above the sheet preview: the Task menu, and the task in use if there is one.</summary>

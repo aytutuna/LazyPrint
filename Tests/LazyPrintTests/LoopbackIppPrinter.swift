@@ -70,6 +70,17 @@ struct LoopbackAnswer {
         ])
     }
 
+    /// A job group as a Get-Jobs response lists a job.
+    static func queuedJob(_ id: Int, _ state: Int, name: String, user: String, impressions: Int = 0) -> IppGroup {
+        IppGroup(tag: IppTag.jobAttributes, attributes: [
+            IppAttribute("job-id", .integer(Int32(id))),
+            IppAttribute("job-name", .name(name)),
+            IppAttribute("job-originating-user-name", .name(user)),
+            IppAttribute("job-state", .enumValue(Int32(state))),
+            IppAttribute("job-impressions-completed", .integer(Int32(impressions))),
+        ])
+    }
+
     /// A printer group with its printer-state-reasons.
     static func printerState(_ reasons: String...) -> IppGroup {
         IppGroup(tag: IppTag.printerAttributes, attributes: [

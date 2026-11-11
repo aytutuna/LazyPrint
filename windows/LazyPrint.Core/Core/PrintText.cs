@@ -54,6 +54,29 @@ public static class PrintText
     public static string SheetCount(int sheets, int copies = 1) =>
         $"{sheets} sheet{(sheets == 1 ? "" : "s")}{(copies > 1 ? $" × {copies}" : "")}";
 
+    public const string QueueHeading = "In the printer's queue";
+
+    public const string QueueEmpty = "Nothing is waiting in the printer's queue.";
+
+    public const string QueueUnreadable = "Couldn't read the printer's queue.";
+
+    public static string QueueState(QueuedJobState state) => state switch
+    {
+        QueuedJobState.Held => "On hold",
+        QueuedJobState.Printing => "Printing",
+        QueuedJobState.Stopped => "Stopped",
+        _ => "Waiting",
+    };
+
+    /// <summary>"anna · Printing · 3 pages": who sent it, where it is, and its pages when the queue says.</summary>
+    public static string QueuedJobLine(QueuedJob job) =>
+        string.Join(" · ", new[]
+        {
+            job.Owner,
+            QueueState(job.State),
+            job.Pages > 0 ? $"{job.Pages} page{(job.Pages == 1 ? "" : "s")}" : "",
+        }.Where(part => part.Length > 0));
+
     /// <summary>"Sent 1 sheet to HP LaserJet", "Sent 3 sheets to HP LaserJet", "Sent 2 sheets × 3 to HP LaserJet".</summary>
     public static string Sent(int sheets, string printerName, int copies = 1) =>
         $"Sent {SheetCount(sheets, copies)} to {printerName}";

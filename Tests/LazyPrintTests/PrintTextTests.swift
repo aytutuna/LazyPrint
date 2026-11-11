@@ -32,6 +32,14 @@ final class PrintTextTests: XCTestCase {
         XCTAssertEqual(PrintText.sent(2, copies: 3, printerName: "HP LaserJet"), "Sent 2 sheets \u{00D7} 3 to HP LaserJet")
     }
 
+    func test_queuedJobLine_saysWhoWhereAndHowManyPages() {
+        XCTAssertEqual(PrintText.queuedJobLine(QueuedJob(id: 1, name: "a.pdf", owner: "anna", state: .printing, pages: 3, canCancel: true)),
+                       "anna \u{00B7} Printing \u{00B7} 3 pages")
+        XCTAssertEqual(PrintText.queuedJobLine(QueuedJob(id: 1, name: "a.pdf", owner: "anna", state: .held, pages: 1, canCancel: true)),
+                       "anna \u{00B7} On hold \u{00B7} 1 page")
+        XCTAssertEqual(PrintText.queuedJobLine(QueuedJob(id: 1, name: "a.pdf", owner: "", state: .waiting, pages: 0, canCancel: false)), "Waiting")
+    }
+
     func test_jobName_isTheFirstFileAndHowManyMore() {
         XCTAssertEqual(PrintText.jobName(["Report.pdf"]), "Report.pdf")
         XCTAssertEqual(PrintText.jobName(["Report.pdf", "a.png", "b.png"]), "Report.pdf and 2 more")

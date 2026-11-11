@@ -601,6 +601,10 @@
                 <!-- Jobs: this session's, newest first. -->
                 <TabItem Header="Jobs" x:Name="JobsTab" local:Icon.Glyph="&#xE81C;">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <StackPanel x:Name="EmptyJobs" Style="{StaticResource EmptyStatePanelStyle}">
                             <Border Style="{StaticResource EmptyStateCircleStyle}">
                                 <TextBlock Text="&#xE81C;" Style="{StaticResource EmptyStateGlyphStyle}" />
@@ -654,6 +658,41 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        <!-- What the chosen printer holds, whoever sent it (PrinterQueue). -->
+                        <StackPanel x:Name="QueueSection" Grid.Row="1" Margin="12,0,12,12" Visibility="Collapsed">
+                            <TextBlock Text="In the printer's queue" Style="{StaticResource SubtitleText}" Margin="0,0,0,4"
+                                       AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock x:Name="QueueNote" Style="{StaticResource CaptionText}" Margin="0,0,0,4" />
+                            <ListBox x:Name="QueueList" Style="{StaticResource NavListBoxStyle}" MaxHeight="220"
+                                     AutomationProperties.Name="In the printer's queue" KeyboardNavigation.TabNavigation="Local">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavListBoxItemStyle}">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Description}" />
+                                        <Setter Property="Focusable" Value="False" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel>
+                                            <Button x:Name="CancelQueuedButton" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}"
+                                                    local:Icon.Glyph="&#xE711;" Content="Cancel" VerticalAlignment="Center"
+                                                    ToolTip="Take this job out of the printer's queue" Click="QueueCancel_Click" />
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Job.Name}" Style="{StaticResource BodyText}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionText}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding Job.CanCancel}" Value="False">
+                                                <Setter TargetName="CancelQueuedButton" Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
                     </Grid>
                 </TabItem>
             </TabControl>

@@ -330,7 +330,7 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
     }
 
     /// <summary>The queue of a printer, local or a connection to a shared one; the caller disposes it.</summary>
-    private static PrintQueue? FindQueue(LocalPrintServer server, PrinterInfo printer)
+    internal static PrintQueue? FindQueue(LocalPrintServer server, PrinterInfo printer)
     {
         string name = printer.Id["system:".Length..];
         PrintQueue? found = null;

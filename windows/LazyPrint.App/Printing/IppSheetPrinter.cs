@@ -52,7 +52,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         await Follow(client, job.Printer.Name, sent,JobSides.Of(job, pass).Count, progress, token);
     }
 
-    private static Func<PrinterInfo, IppClient> DefaultClient(IppTrustStore store) => printer =>
+    internal static Func<PrinterInfo, IppClient> DefaultClient(IppTrustStore store) => printer =>
     {
         var endpoint = printer.IppEndpoint
                        ?? throw new PrintException(new PrintError.Unreachable(printer.Name, "it has no network address"));

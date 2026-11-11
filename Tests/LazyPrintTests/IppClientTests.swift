@@ -200,6 +200,34 @@ final class IppClientTests: XCTestCase {
         XCTAssertEqual(refused as? PrintError, .refused(status: 0x0401, detail: ""))
     }
 
+    func test_jobs_listsTheJobsStillToPrint_andMarksTheUsersOwn() async throws {
+        let printer = try await startPrinter()
+        printer.script(.ipp(.successfulOk,
+                            LoopbackAnswer.queuedJob(7, 5, name: "Report.pdf", user: "Tester", impressions: 3),
+                            LoopbackAnswer.queuedJob(8, 3, name: "Menu.pdf", user: "anna"),
+                            LoopbackAnswer.queuedJob(9, 4, name: "Held.pdf", user: "anna"),
+                            LoopbackAnswer.queuedJob(10, 9, name: "Done.pdf", user: "tester")))
+        let client = try makeClient(printer)
+        let jobs = try await client.jobs()
+        XCTAssertEqual(try XCTUnwrap(printer.requests.first).body,
+                       IppRequests.getJobs(printerUri: try printer.address().printerUri, userName: user).encoded())
+        XCTAssertEqual(jobs, [
+            QueuedJob(id: 7, name: "Report.pdf", owner: "Tester", state: .printing, pages: 3, canCancel: true),
+            QueuedJob(id: 8, name: "Menu.pdf", owner: "anna", state: .waiting, pages: 0, canCancel: false),
+            QueuedJob(id: 9, name: "Held.pdf", owner: "anna", state: .held, pages: 0, canCancel: false),
+        ])
+    }
+
+    func test_jobs_isEmpty_forAnIdlePrinterAndForOneThatCannotListJobs() async throws {
+        let printer = try await startPrinter()
+        printer.script(.ipp(.successfulOk), .ipp(.serverErrorOperationNotSupported))
+        let client = try makeClient(printer)
+        let idle = try await client.jobs()
+        XCTAssertTrue(idle.isEmpty)
+        let unsupported = try await client.jobs()
+        XCTAssertTrue(unsupported.isEmpty)
+    }
+
     // MARK: - Busy printers
 
     func test_aBusyPrinterIsAskedAgain_withTheFileSentAgain() async throws {

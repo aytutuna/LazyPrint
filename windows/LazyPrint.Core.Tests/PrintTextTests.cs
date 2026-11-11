@@ -41,6 +41,14 @@ public class PrintTextTests
     }
 
     [Fact]
+    public void QueuedJobLine_SaysWhoWhereAndHowManyPages()
+    {
+        Assert.Equal("anna · Printing · 3 pages", PrintText.QueuedJobLine(new QueuedJob(1, "a.pdf", "anna", QueuedJobState.Printing, 3, true)));
+        Assert.Equal("anna · On hold · 1 page", PrintText.QueuedJobLine(new QueuedJob(1, "a.pdf", "anna", QueuedJobState.Held, 1, true)));
+        Assert.Equal("Waiting", PrintText.QueuedJobLine(new QueuedJob(1, "a.pdf", "", QueuedJobState.Waiting, 0, false)));
+    }
+
+    [Fact]
     public void JobName_IsTheFirstFileAndHowManyMore()
     {
         Assert.Equal("Report.pdf", PrintText.JobName(["Report.pdf"]));
