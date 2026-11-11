@@ -35,7 +35,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         if (!caps.IsAcceptingJobs)
             throw new PrintException(new PrintError.Refused((ushort)IppStatus.ServerErrorNotAcceptingJobs, PrintText.NotAcceptingJobs(job.Printer.Name)));
         var original = pass == 0 ? await Task.Run(() => AsIs(job, caps), token) : null;
-        string format = DocumentFormats.Choose(caps.DocumentFormatsSupported, original?.Kind ?? new DocumentKind.Imposed(), canWritePdf: false)
+        string format = DocumentFormats.Choose(caps.DocumentFormatsSupported, original?.Kind ?? new DocumentKind.Imposed(), canWritePdf: files is not null && SheetPdf.Available)
                         ?? throw new PrintException(new PrintError.NeedsDriver());
 
         IppJob sent;
@@ -118,12 +118,27 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 return spool.Complete();
             }, token);
         }
+        else if (format == DocumentFormats.Pdf)
+        {
+            path = await SpoolPdf(spool, job, pass, progress, token);
+        }
         else
         {
             path = await Spool(spool, job, pass, caps, ticket, progress, token);
         }
         progress.Report(new JobStatus(JobState.Sending, 0));
         return await client.PrintAsync(path, ticket, token);
+    }
+
+    /// <summary>Lays the sides out as one PDF into the spool file.</summary>
+    private async Task<string> SpoolPdf(IppSpool spool, SheetJob job, int pass, IProgress<JobStatus> progress, CancellationToken token)
+    {
+        progress.Report(new JobStatus(JobState.Preparing, 0));
+        var sides = JobSides.Of(job, pass);
+        byte[] sheets = await StaWork.Run(() => SheetPdf.Make(job, sides, files!, pages));
+        token.ThrowIfCancellationRequested();
+        spool.Write(output => output.Write(sheets));
+        return spool.Complete();
     }
 
     /// <summary>Draws the sides one at a time into the spool file.</summary>

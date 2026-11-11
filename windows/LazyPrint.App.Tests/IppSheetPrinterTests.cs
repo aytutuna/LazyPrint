@@ -123,11 +123,31 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
-    public async Task APdfWithTwoPagesToASideIsDrawnHereEvenWhenThePrinterTakesPdf()
+    public async Task APdfWithTwoPagesToASideIsDrawnHereAsAPdfWhenThePrinterTakesPdf()
     {
         string file = Path.Combine(_folder, "Letter.pdf");
         File.WriteAllBytes(file, "%PDF-1.4"u8.ToArray());
         await Printer(new Files(file)).PrintAsync(Job(s => s.PagesPerSheet = 2, pages: 2), 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        var request = Assert.Single(Sent(IppOperation.PrintJob));
+        Assert.Equal("application/pdf", Attribute(request, "document-format"));
+        Assert.Equal("none", Attribute(request, "print-scaling"));
+        using var sheets = PdfiumDocument.Open(request.Document)!;
+        Assert.Equal(1, sheets.PageCount);
+    }
+
+    [Fact]
+    public async Task SheetsAreRasterWhenThePrinterTakesNoPdf()
+    {
+        var caps = Plain();
+        caps = new PrinterCapabilities
+        {
+            DocumentFormatsSupported = ["image/pwg-raster"], PwgRasterResolutions = caps.PwgRasterResolutions, PwgRasterTypes = caps.PwgRasterTypes,
+            SidesSupported = caps.SidesSupported, CopiesSupported = caps.CopiesSupported, PrintColorModesSupported = caps.PrintColorModesSupported,
+        };
+        string file = Path.Combine(_folder, "Letter.pdf");
+        File.WriteAllBytes(file, "%PDF-1.4"u8.ToArray());
+        await Printer(new Files(file)).PrintAsync(Job(s => s.PagesPerSheet = 2, pages: 2, caps), 0, new Reports<JobStatus>(), CancellationToken.None);
 
         Assert.Equal("image/pwg-raster", Attribute(Assert.Single(Sent(IppOperation.PrintJob)), "document-format"));
     }
@@ -141,8 +161,9 @@ public sealed class IppSheetPrinterTests : IDisposable
         await Printer(new Files(file)).PrintAsync(Job(s => s.Copies = 3, pages: 2, caps), 0, new Reports<JobStatus>(), CancellationToken.None);
 
         var request = Assert.Single(Sent(IppOperation.PrintJob));
-        Assert.Equal("image/pwg-raster", Attribute(request, "document-format"));
-        Assert.Equal(6, RasterReader.Pwg(request.Document).Count);
+        Assert.Equal("application/pdf", Attribute(request, "document-format"));
+        using var sheets = PdfiumDocument.Open(request.Document)!;
+        Assert.Equal(6, sheets.PageCount);
     }
 
     [Fact]
@@ -309,7 +330,7 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
-    public async Task APageRangeOfAPdfIsDrawnHereWhenThePrinterCannotTakeThem()
+    public async Task APageRangeOfAPdfIsDrawnHereAsAPdfWhenThePrinterCannotTakeThem()
     {
         string file = Path.Combine(_folder, "Letter.pdf");
         File.WriteAllBytes(file, "%PDF-1.4"u8.ToArray());
@@ -320,7 +341,10 @@ public sealed class IppSheetPrinterTests : IDisposable
         var job = new SheetJob(document.Name, PrintFixtures.Printer(PrinterRoute.Ipp), caps, settings, plan, [document], "job");
         await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
 
-        Assert.Equal("image/pwg-raster", Attribute(Assert.Single(Sent(IppOperation.PrintJob)), "document-format"));
+        var request = Assert.Single(Sent(IppOperation.PrintJob));
+        Assert.Equal("application/pdf", Attribute(request, "document-format"));
+        using var sheets = PdfiumDocument.Open(request.Document)!;
+        Assert.Equal(2, sheets.PageCount);
     }
 
     [Fact]

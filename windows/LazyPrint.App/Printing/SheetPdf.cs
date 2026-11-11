@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using LazyPrint.App.Services;
 
 namespace LazyPrint.App.Printing;
@@ -14,6 +15,24 @@ internal static class SheetPdf
             writer.AddSide(side.Side, job.Plan.Plan.Area, 300, side.Items, side.Marked, side.Turned);
         }
         return writer.Save();
+    }
+
+    /// <summary>Whether pdfium.dll loads; says so in the log when it does not.</summary>
+    public static bool Available
+    {
+        get
+        {
+            try
+            {
+                RuntimeHelpers.RunClassConstructor(typeof(Pdfium).TypeHandle);
+                return true;
+            }
+            catch (Exception e) when (Unavailable(e))
+            {
+                LogFallback(e);
+                return false;
+            }
+        }
     }
 
     /// <summary>Whether <paramref name="e"/> says pdfium.dll could not be loaded (missing, or built for another architecture).</summary>
