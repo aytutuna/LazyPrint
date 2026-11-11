@@ -42,9 +42,23 @@ extension Notification.Name {
     static let addFilesRequested = Notification.Name("LazyPrintAddFilesRequested")
 }
 
+extension FocusedValues {
+    /// True while one of the window's sheets is up; the window sets it.
+    var sheetOpen: Bool? {
+        get { self[SheetOpenKey.self] }
+        set { self[SheetOpenKey.self] = newValue }
+    }
+}
+
+private struct SheetOpenKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
 /// File > Add Files, Print and Cancel Printing, which do what the buttons in the window do.
 private struct PrintCommands: Commands {
     @ObservedObject var state: AppState
+    // The window's alerts and its open panel do not show over a sheet.
+    @FocusedValue(\.sheetOpen) private var sheetOpen
 
     var body: some Commands {
         // No File > New Window: a second window on the same state would show each sheet and alert twice.
@@ -53,12 +67,12 @@ private struct PrintCommands: Commands {
                 NotificationCenter.default.post(name: .addFilesRequested, object: nil)
             }
             .keyboardShortcut("o")
-            .disabled(state.isBusy)
+            .disabled(state.isBusy || sheetOpen == true)
         }
         CommandGroup(replacing: .printItem) {
             Button("Print\u{2026}") { Task { await state.print() } }
                 .keyboardShortcut("p")
-                .disabled(!state.canPrint)
+                .disabled(!state.canPrint || sheetOpen == true)
             Button("Cancel Printing") { state.cancelJob() }
                 .keyboardShortcut(".")
                 .disabled(!state.isBusy)

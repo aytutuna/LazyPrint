@@ -108,6 +108,7 @@ struct ContentView: View {
                 .environmentObject(state)
         }
         .printCertificateAlert(state)
+        .focusedSceneValue(\.sheetOpen, showTroubleshooter || showAddPrinter || showPhone || state.duplexCard != nil)
         // Files from Open With, the Dock icon and `open` arrive here, and lazyprint:open?file=... from Lazy Scan.
         .onOpenURL { url in
             if url.isFileURL {
