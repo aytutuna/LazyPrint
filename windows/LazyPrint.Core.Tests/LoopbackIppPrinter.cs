@@ -60,6 +60,17 @@ internal sealed record LoopbackAnswer(int Status, byte[] Body, TimeSpan Delay = 
             new IppAttribute("job-state-reasons", [.. (reasons.Length == 0 ? ["none"] : reasons).Select(r => (IppValue)new IppValue.Keyword(r))]),
         ]);
 
+    /// <summary>A job group as a Get-Jobs response lists a job.</summary>
+    public static IppGroup QueuedJob(int id, int state, string name, string user, int impressions = 0) =>
+        new(IppTag.JobAttributes,
+        [
+            new IppAttribute("job-id", new IppValue.Integer(id)),
+            new IppAttribute("job-name", new IppValue.Name(name)),
+            new IppAttribute("job-originating-user-name", new IppValue.Name(user)),
+            new IppAttribute("job-state", new IppValue.EnumValue(state)),
+            new IppAttribute("job-impressions-completed", new IppValue.Integer(impressions)),
+        ]);
+
     /// <summary>A printer group with its printer-state-reasons.</summary>
     public static IppGroup PrinterState(params string[] reasons) =>
         new(IppTag.PrinterAttributes,

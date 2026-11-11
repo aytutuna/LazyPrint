@@ -64,6 +64,23 @@ public final class CupsQueues: PrinterSystem {
         try finish(result)
     }
 
+    public func jobs(ofQueue name: String) async throws -> [QueuedJob] {
+        guard let read = await Self.run({ CupsQueues.readQueued(of: name) }) else {
+            throw PrintError.unreachable(name: name, reason: "the print system did not answer")
+        }
+        return read
+    }
+
+    public func cancel(job id: Int, ofQueue name: String) async throws {
+        let result = await Self.run { () -> CupsResult in
+            let status = Int(cupsCancelJob2(nil, name, Int32(id), 0).rawValue)
+            return CupsResult(done: status < 0x0400, status: status, message: String(cString: cupsLastErrorString()))
+        }
+        // Not found or not possible: the job finished before the cancel arrived.
+        if result.status == 0x0404 || result.status == 0x0406 { return }
+        try finish(result)
+    }
+
     /// An administrator's job: when the scheduler says no, System Settings opens at the printers, where the user can.
     private func finish(_ result: CupsResult) throws {
         if result.done { return }
@@ -241,6 +258,34 @@ public final class CupsQueues: PrinterSystem {
         }
         let minutes = max(0, (Int(Date().timeIntervalSince1970) - oldest) / 60)
         return SystemQueueJobs(count: count, anyInError: inError, oldestMinutes: minutes)
+    }
+
+    /// The jobs of a queue that are still to print, nil when the scheduler did not answer.
+    nonisolated static func readQueued(of queue: String) -> [QueuedJob]? {
+        var found: UnsafeMutablePointer<cups_job_t>?
+        let count = Int(cupsGetJobs2(nil, &found, queue, 0, CUPS_WHICHJOBS_ACTIVE))
+        if count < 0 { return nil }
+        guard let jobs = found, count > 0 else { return [] }
+        defer { cupsFreeJobs(Int32(count), jobs) }
+
+        let me = NSUserName()
+        var queued = [QueuedJob]()
+        for i in 0..<count {
+            let job = jobs[i]
+            let state: QueuedJobState
+            // IPP_JSTATE_PENDING 3, HELD 4, PROCESSING 5, STOPPED 6.
+            switch job.state.rawValue {
+            case 3: state = .waiting
+            case 4: state = .held
+            case 5: state = .printing
+            case 6: state = .stopped
+            default: continue
+            }
+            let owner = job.user.map { String(cString: $0) } ?? ""
+            queued.append(QueuedJob(id: Int(job.id), name: job.title.map { String(cString: $0) } ?? "", owner: owner,
+                                    state: state, pages: 0, canCancel: owner.caseInsensitiveCompare(me) == .orderedSame))
+        }
+        return queued
     }
 
     private nonisolated static func readCapabilities(of name: String) -> PrinterCapabilities? {

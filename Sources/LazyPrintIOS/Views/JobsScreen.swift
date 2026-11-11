@@ -10,32 +10,9 @@ struct JobsScreen: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if state.jobs.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                        Text("No jobs yet")
-                            .font(.title3.weight(.semibold))
-                        Text("What you print in this session appears here.")
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("jobs.empty")
-                } else {
-                    List {
-                        ForEach(state.jobs) { (record: JobRecord) in
-                            JobRow(record: record)
-                        }
-                    }
-                    .readableWidth()
-                    .background(Color(uiColor: .systemGroupedBackground))
-                }
+            VStack(spacing: 0) {
+                jobList
+                QueueSection()
             }
             .navigationTitle("Jobs")
             .navigationBarTitleDisplayMode(.inline)
@@ -48,6 +25,124 @@ struct JobsScreen: View {
                 }
             }
         }
+    }
+
+    private var jobList: some View {
+        Group {
+            if state.jobs.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    Text("No jobs yet")
+                        .font(.title3.weight(.semibold))
+                    Text("What you print in this session appears here.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("jobs.empty")
+            } else {
+                List {
+                    ForEach(state.jobs) { (record: JobRecord) in
+                        JobRow(record: record)
+                    }
+                }
+                .readableWidth()
+                .background(Color(uiColor: .systemGroupedBackground))
+            }
+        }
+    }
+}
+
+/// What the chosen printer holds, whoever sent it; only for printers that can say (not AirPrint).
+private struct QueueSection: View {
+    @EnvironmentObject private var state: AppState
+    @State private var jobs: [QueuedJob] = []
+    @State private var loaded = false
+    @State private var failed = false
+
+    var body: some View {
+        if let printer = state.selectedPrinter, state.hasQueue(printer) {
+            VStack(alignment: .leading, spacing: 4) {
+                Divider()
+                Text(PrintText.queueHeading)
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.top, 8)
+                if failed {
+                    Text(PrintText.queueUnreadable)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if loaded && jobs.isEmpty {
+                    Text(PrintText.queueEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(jobs) { job in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(job.name)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Text(PrintText.queuedJobLine(job))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 12)
+                                if job.canCancel {
+                                    Button {
+                                        Task {
+                                            await state.cancelQueuedJob(job.id, of: printer)
+                                            await refresh(printer)
+                                        }
+                                    } label: {
+                                        Label("Cancel", systemImage: "xmark")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                            }
+                            .padding(.vertical, 6)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityLabel("\(job.name), \(PrintText.queuedJobLine(job))")
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 220)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            .task(id: printer.id) {
+                jobs = []
+                loaded = false
+                failed = false
+                while !Task.isCancelled {
+                    await refresh(printer)
+                    try? await Task.sleep(nanoseconds: 4_000_000_000)
+                }
+            }
+        }
+    }
+
+    private func refresh(_ printer: PrinterInfo) async {
+        do {
+            let read = try await state.queuedJobs(of: printer)
+            if Task.isCancelled { return }
+            jobs = read
+            failed = false
+        } catch {
+            if Task.isCancelled { return }
+            jobs = []
+            failed = true
+        }
+        loaded = true
     }
 }
 

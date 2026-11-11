@@ -146,7 +146,7 @@ extension AppState {
     }
 
     /// The queue's name for a printer printed to through the system.
-    private static func queueName(of printer: PrinterInfo) -> String {
+    static func queueName(of printer: PrinterInfo) -> String {
         String(printer.id.dropFirst("system:".count))
     }
 

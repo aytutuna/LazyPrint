@@ -50,3 +50,11 @@ public sealed class JobRow(JobRecord record, string? folder) : INotifyPropertyCh
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
 }
+
+/// <summary>A job in the printer's queue, for the list under the session's jobs.</summary>
+public sealed record QueueRow(QueuedJob Job)
+{
+    public string Summary => PrintText.QueuedJobLine(Job);
+
+    public string Description => $"{Job.Name}, {Summary}";
+}

@@ -70,6 +70,27 @@ public enum PrintText {
         "\(sheets) sheet\(sheets == 1 ? "" : "s")" + (copies > 1 ? " \u{00D7} \(copies)" : "")
     }
 
+    public static let queueHeading = "In the printer's queue"
+
+    public static let queueEmpty = "Nothing is waiting in the printer's queue."
+
+    public static let queueUnreadable = "Couldn't read the printer's queue."
+
+    public static func queueState(_ state: QueuedJobState) -> String {
+        switch state {
+        case .held: return "On hold"
+        case .printing: return "Printing"
+        case .stopped: return "Stopped"
+        case .waiting: return "Waiting"
+        }
+    }
+
+    /// "anna · Printing · 3 pages": who sent it, where it is, and its pages when the queue says.
+    public static func queuedJobLine(_ job: QueuedJob) -> String {
+        let pages = job.pages > 0 ? "\(job.pages) page\(job.pages == 1 ? "" : "s")" : ""
+        return [job.owner, queueState(job.state), pages].filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
+    }
+
     /// "Sent 1 sheet to HP LaserJet", "Sent 3 sheets to HP LaserJet", "Sent 2 sheets × 3 to HP LaserJet".
     public static func sent(_ sheets: Int, copies: Int = 1, printerName: String) -> String {
         "Sent \(sheetCount(sheets, copies: copies)) to \(printerName)"

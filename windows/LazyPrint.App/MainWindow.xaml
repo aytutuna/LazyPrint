@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:LazyPrint.App"
+        xmlns:core="clr-namespace:LazyPrint.Core;assembly=LazyPrint.Core"
         Title="Lazy Print"
         Width="1200" Height="800" MinWidth="700" MinHeight="560"
         WindowStartupLocation="CenterScreen"
@@ -279,10 +280,19 @@
                             <!-- Stage: the sheet sits on a neutral surface with a soft shadow. -->
                             <Border Grid.Row="1" x:Name="Stage" Style="{StaticResource StageStyle}" Margin="12">
                                 <Grid x:Name="StageHost" SizeChanged="StageHost_SizeChanged">
-                                    <!-- The margin must stay uniform: StageHost_SizeChanged reads it for every side. -->
-                                    <Image x:Name="PreviewImage" Stretch="Uniform" Margin="24" Visibility="Collapsed"
-                                           Effect="{DynamicResource PageShadow}"
-                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <!-- The sheet is sized in code (ApplyZoom): to fit the stage, or by the zoom, which then scrolls or drags. -->
+                                    <ScrollViewer x:Name="PreviewScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                                  PanningMode="Both" Focusable="False" Background="Transparent"
+                                                  PreviewMouseWheel="PreviewScroller_PreviewMouseWheel"
+                                                  PreviewMouseLeftButtonDown="PreviewScroller_MouseDown"
+                                                  PreviewMouseMove="PreviewScroller_MouseMove"
+                                                  PreviewMouseLeftButtonUp="PreviewScroller_MouseUp"
+                                                  LostMouseCapture="PreviewScroller_LostCapture">
+                                        <Image x:Name="PreviewImage" Stretch="Uniform" Margin="24" Visibility="Collapsed"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Effect="{DynamicResource PageShadow}"
+                                               RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </ScrollViewer>
                                     <StackPanel x:Name="EmptyStage" Style="{StaticResource EmptyStatePanelStyle}">
                                         <Border Style="{StaticResource EmptyStateCircleStyle}">
                                             <TextBlock Text="&#xE8A5;" Style="{StaticResource EmptyStateGlyphStyle}" />
@@ -303,6 +313,14 @@
 
                             <!-- Which sheet, and which side of it. -->
                             <DockPanel Grid.Row="2" x:Name="PreviewBar" Margin="12,0,12,0" Visibility="Collapsed">
+                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" x:Name="ZoomBar" AutomationProperties.Name="Zoom">
+                                    <Button x:Name="ZoomOutButton" Style="{StaticResource IconButtonStyle}" Content="&#xE71F;"
+                                            ToolTip="Zoom out (Ctrl+minus)" AutomationProperties.Name="Zoom out" Click="ZoomOut_Click" />
+                                    <Button x:Name="ZoomFitButton" Style="{StaticResource SubtleButtonStyle}" MinWidth="52"
+                                            ToolTip="Fit to window (Ctrl+0)" AutomationProperties.Name="Fit to window" Click="ZoomFit_Click" />
+                                    <Button x:Name="ZoomInButton" Style="{StaticResource IconButtonStyle}" Content="&#xE8A3;"
+                                            ToolTip="Zoom in (Ctrl+plus)" AutomationProperties.Name="Zoom in" Click="ZoomIn_Click" />
+                                </StackPanel>
                                 <Border DockPanel.Dock="Right" x:Name="FaceTrack" Style="{StaticResource SegmentedTrackStyle}"
                                         AutomationProperties.Name="Side shown">
                                     <UniformGrid Columns="2">
@@ -681,6 +699,10 @@
                 <!-- Jobs: this session's, newest first. -->
                 <TabItem Header="Jobs" x:Name="JobsTab" local:Icon.Glyph="&#xE81C;">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <StackPanel x:Name="EmptyJobs" Style="{StaticResource EmptyStatePanelStyle}">
                             <Border Style="{StaticResource EmptyStateCircleStyle}">
                                 <TextBlock Text="&#xE81C;" Style="{StaticResource EmptyStateGlyphStyle}" />
@@ -734,6 +756,41 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        <!-- What the chosen printer holds, whoever sent it (PrinterQueue). -->
+                        <StackPanel x:Name="QueueSection" Grid.Row="1" Margin="12,0,12,12" Visibility="Collapsed">
+                            <TextBlock Text="{x:Static core:PrintText.QueueHeading}" Style="{StaticResource SubtitleText}" Margin="0,0,0,4"
+                                       AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock x:Name="QueueNote" Style="{StaticResource CaptionText}" Margin="0,0,0,4" />
+                            <ListBox x:Name="QueueList" Style="{StaticResource NavListBoxStyle}" MaxHeight="220"
+                                     AutomationProperties.Name="In the printer's queue" KeyboardNavigation.TabNavigation="Local">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavListBoxItemStyle}">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Description}" />
+                                        <Setter Property="Focusable" Value="False" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel>
+                                            <Button x:Name="CancelQueuedButton" DockPanel.Dock="Right" Style="{StaticResource SubtleButtonStyle}"
+                                                    local:Icon.Glyph="&#xE711;" Content="Cancel" VerticalAlignment="Center"
+                                                    ToolTip="Take this job out of the printer's queue" Click="QueueCancel_Click" />
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Job.Name}" Style="{StaticResource BodyText}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionText}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding Job.CanCancel}" Value="False">
+                                                <Setter TargetName="CancelQueuedButton" Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
                     </Grid>
                 </TabItem>
             </TabControl>

@@ -48,6 +48,14 @@ public enum IppRequests {
         ])
     }
 
+    public static func getJobs(printerUri: String, userName: String, requestId: Int32 = 1) -> IppMessage {
+        request(.getJobs, printerUri, userName, requestId, [
+            IppAttribute("which-jobs", .keyword("not-completed")),
+            keywords("requested-attributes", "job-id", "job-name", "job-originating-user-name", "job-state",
+                     "job-impressions-completed"),
+        ])
+    }
+
     public static func getPrinterReasons(printerUri: String, userName: String, requestId: Int32 = 1) -> IppMessage {
         request(.getPrinterAttributes, printerUri, userName, requestId, [keywords("requested-attributes", "printer-state-reasons")])
     }

@@ -12,6 +12,15 @@ public protocol PrinterSystem: AnyObject {
     func clearJobs(ofQueue name: String) async throws
     /// Resumes a paused queue.
     func resume(queue name: String) async throws
+    /// The jobs the queue holds, whoever sent them; none for a system that cannot list them.
+    func jobs(ofQueue name: String) async throws -> [QueuedJob]
+    /// Cancels one of the queue's jobs.
+    func cancel(job id: Int, ofQueue name: String) async throws
+}
+
+extension PrinterSystem {
+    public func jobs(ofQueue name: String) async throws -> [QueuedJob] { [] }
+    public func cancel(job id: Int, ofQueue name: String) async throws {}
 }
 
 /// The printer system of an `AppState` whose app shell passed none: no queues.

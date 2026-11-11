@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -20,7 +21,8 @@ public partial class MainWindow
 
     private const double StagePadding = 24;
     private const int LowestPreviewDpi = 36;
-    private const int HighestPreviewDpi = 300;
+    // Three pixels to a point, as on the iPhone; a bigger zoom stretches the bitmap.
+    private const int HighestPreviewDpi = 216;
 
     private readonly DocumentLoader _loader = new();
     private readonly DispatcherTimer _previewTimer = new() { Interval = PreviewDelay };
@@ -59,7 +61,11 @@ public partial class MainWindow
         _previewTimer.Start();
     }
 
-    private void StageHost_SizeChanged(object sender, SizeChangedEventArgs e) => SchedulePreview();
+    private void StageHost_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ApplyZoom();
+        SchedulePreview();
+    }
 
     // MARK: - The sheet
 
@@ -69,6 +75,7 @@ public partial class MainWindow
         if (plan is null || plan.Plan.Sheets.Count == 0)
         {
             _previewKey = null;
+            _previewPaper = null;
             _previewVersion++;
             PreviewImage.Source = null;
             PreviewImage.Visibility = Visibility.Collapsed;
@@ -83,6 +90,8 @@ public partial class MainWindow
         if (sheet.Back is null) _previewBack = false;
 
         var area = plan.Plan.Area;
+        _previewPaper = area.Paper;
+        ApplyZoom();
         int dpi = PreviewDpi(area.Paper);
         var documents = ViewModel.Documents.ToList();
         bool marks = ViewModel.DrawsCutMarks;
@@ -122,13 +131,13 @@ public partial class MainWindow
         return gray;
     }
 
-    /// <summary>The resolution that fills the stage with the sheet on this screen, in steps so a small resize draws nothing.</summary>
+    /// <summary>The resolution the sheet has at the zoom on this screen, in steps so a small resize draws nothing.</summary>
     private int PreviewDpi(LayoutSize paper)
     {
         double width = StageHost.ActualWidth - 2 * StagePadding, height = StageHost.ActualHeight - 2 * StagePadding;
         if (width <= 0 || height <= 0) return 96;
-        // Device pixels the sheet gets on the stage, over its width in inches.
-        double scale = Math.Min(width / paper.Width, height / paper.Height) * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        // Device pixels to a point of the sheet.
+        double scale = ZoomOf(paper) * DipsPerPoint * VisualTreeHelper.GetDpi(this).DpiScaleX;
         int dpi = (int)(Math.Ceiling(scale * 72 / 12) * 12);
         return Math.Clamp(dpi, LowestPreviewDpi, HighestPreviewDpi);
     }
@@ -177,6 +186,133 @@ public partial class MainWindow
         if (_updatingUi || !IsLoaded) return;
         _previewBack = FaceBack.IsChecked == true;
         _ = UpdatePreviewAsync();
+    }
+
+    // MARK: - Zoom
+
+    /// <summary>The sheet's points are 1/72 inch, WPF's units 1/96.</summary>
+    private const double DipsPerPoint = 96.0 / 72;
+    private const double ZoomStep = 1.25;
+    private const double MaxZoom = 8;
+
+    /// <summary>The zoom as a fraction of the sheet's real size; null fits the sheet to the stage.</summary>
+    private double? _zoom;
+    /// <summary>The paper of the sheet on the stage; null while there is none.</summary>
+    private LayoutSize? _previewPaper;
+    private Point? _panFrom;
+    private double _panHorizontal;
+    private double _panVertical;
+
+    private double FitZoom(LayoutSize paper)
+    {
+        double width = StageHost.ActualWidth - 2 * StagePadding, height = StageHost.ActualHeight - 2 * StagePadding;
+        if (width <= 0 || height <= 0) return 1;
+        return Math.Min(width / (paper.Width * DipsPerPoint), height / (paper.Height * DipsPerPoint));
+    }
+
+    private double ZoomOf(LayoutSize paper) => _zoom ?? FitZoom(paper);
+
+    /// <summary>Sizes the sheet for the zoom and says so on the bar. The bitmap behind it is drawn again at the new size once the changes pause.</summary>
+    private void ApplyZoom()
+    {
+        if (_previewPaper is not { } paper) return;
+        // A stage that grew past the zoom goes back to fitting, so the sheet is never smaller than the fit.
+        if (_zoom <= FitZoom(paper) * 1.001) _zoom = null;
+        double zoom = ZoomOf(paper);
+        PreviewImage.Width = Math.Floor(paper.Width * DipsPerPoint * zoom);
+        PreviewImage.Height = Math.Floor(paper.Height * DipsPerPoint * zoom);
+        ZoomFitButton.Content = $"{Math.Round(zoom * 100)}%";
+        ZoomOutButton.IsEnabled = _zoom is not null;
+        ZoomInButton.IsEnabled = zoom < MaxZoom;
+    }
+
+    /// <summary>Zooms by a factor around a point of the stage (the middle by default); out past the fit goes back to fitting.</summary>
+    private void ZoomBy(double factor, Point? around = null)
+    {
+        if (_previewPaper is not { } paper) return;
+        double fit = FitZoom(paper);
+        double next = Math.Min(Math.Max(ZoomOf(paper) * factor, fit), Math.Max(MaxZoom, fit));
+        SetZoom(next <= fit * 1.001 ? null : next, around);
+    }
+
+    private void SetZoom(double? zoom, Point? around = null)
+    {
+        var at = around ?? new Point(PreviewScroller.ViewportWidth / 2, PreviewScroller.ViewportHeight / 2);
+        // Where the point sits on the sheet, as a fraction of it, whether or not the sheet was scrolling.
+        var on = PreviewScroller.TranslatePoint(at, PreviewImage);
+        double x = PreviewImage.ActualWidth > 0 ? Math.Clamp(on.X / PreviewImage.ActualWidth, 0, 1) : 0.5;
+        double y = PreviewImage.ActualHeight > 0 ? Math.Clamp(on.Y / PreviewImage.ActualHeight, 0, 1) : 0.5;
+        _zoom = zoom;
+        ApplyZoom();
+        PreviewScroller.UpdateLayout();
+        PreviewScroller.ScrollToHorizontalOffset(PreviewImage.Margin.Left + x * PreviewImage.ActualWidth - at.X);
+        PreviewScroller.ScrollToVerticalOffset(PreviewImage.Margin.Top + y * PreviewImage.ActualHeight - at.Y);
+        SchedulePreview();
+    }
+
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) => ZoomBy(ZoomStep);
+
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => ZoomBy(1 / ZoomStep);
+
+    private void ZoomFit_Click(object sender, RoutedEventArgs e) => SetZoom(null);
+
+    /// <summary>Ctrl with plus, minus or 0; the window's key handler asks first.</summary>
+    private bool TryZoomKey(KeyEventArgs e)
+    {
+        var modifiers = Keyboard.Modifiers;
+        if (_previewPaper is null || !PrintTab.IsSelected || Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase
+            || (modifiers & ModifierKeys.Control) == 0 || (modifiers & (ModifierKeys.Alt | ModifierKeys.Windows)) != 0) return false;
+        switch (e.Key)
+        {
+            case Key.OemPlus or Key.Add:
+                ZoomBy(ZoomStep);
+                return true;
+            case Key.OemMinus or Key.Subtract:
+                ZoomBy(1 / ZoomStep);
+                return true;
+            case Key.D0 or Key.NumPad0:
+                SetZoom(null);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // A trackpad's pinch arrives as Ctrl and the wheel.
+    private void PreviewScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || _previewPaper is null) return;
+        ZoomBy(Math.Pow(1.1, e.Delta / 120.0), e.GetPosition(PreviewScroller));
+        e.Handled = true;
+    }
+
+    private void PreviewScroller_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        var at = e.GetPosition(PreviewScroller);
+        // The scroll bars sit outside the viewport and drag themselves.
+        if (at.X >= PreviewScroller.ViewportWidth || at.Y >= PreviewScroller.ViewportHeight
+            || PreviewScroller.ScrollableWidth <= 0 && PreviewScroller.ScrollableHeight <= 0) return;
+        _panFrom = at;
+        _panHorizontal = PreviewScroller.HorizontalOffset;
+        _panVertical = PreviewScroller.VerticalOffset;
+        PreviewScroller.CaptureMouse();
+        PreviewScroller.Cursor = Cursors.Hand;
+    }
+
+    private void PreviewScroller_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_panFrom is not { } from) return;
+        var at = e.GetPosition(PreviewScroller);
+        PreviewScroller.ScrollToHorizontalOffset(_panHorizontal - (at.X - from.X));
+        PreviewScroller.ScrollToVerticalOffset(_panVertical - (at.Y - from.Y));
+    }
+
+    private void PreviewScroller_MouseUp(object sender, MouseButtonEventArgs e) => PreviewScroller.ReleaseMouseCapture();
+
+    private void PreviewScroller_LostCapture(object sender, MouseEventArgs e)
+    {
+        _panFrom = null;
+        PreviewScroller.Cursor = null;
     }
 
     // MARK: - The documents

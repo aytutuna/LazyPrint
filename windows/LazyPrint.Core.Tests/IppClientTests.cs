@@ -180,6 +180,36 @@ public sealed class IppClientTests : IDisposable
         Assert.Equal(new PrintError.Refused(0x0401, ""), refused.Error);
     }
 
+    [Fact]
+    public async Task JobsListsTheJobsStillToPrintAndMarksTheUsersOwn()
+    {
+        using var printer = new LoopbackIppPrinter();
+        printer.Script(LoopbackAnswer.Ipp(IppStatus.SuccessfulOk,
+            LoopbackAnswer.QueuedJob(7, 5, "Report.pdf", "Tester", 3),
+            LoopbackAnswer.QueuedJob(8, 3, "Menu.pdf", "anna"),
+            LoopbackAnswer.QueuedJob(9, 4, "Held.pdf", "anna"),
+            LoopbackAnswer.QueuedJob(10, 9, "Done.pdf", "tester")));
+        using var client = Client(printer);
+        var jobs = await client.JobsAsync();
+        Assert.Equal(IppRequests.GetJobs(printer.Address().PrinterUri, User, 1).Encoded(), printer.Requests[0].Body);
+        Assert.Equal(
+        [
+            new QueuedJob(7, "Report.pdf", "Tester", QueuedJobState.Printing, 3, true),
+            new QueuedJob(8, "Menu.pdf", "anna", QueuedJobState.Waiting, 0, false),
+            new QueuedJob(9, "Held.pdf", "anna", QueuedJobState.Held, 0, false),
+        ], jobs);
+    }
+
+    [Fact]
+    public async Task JobsIsEmptyForAnIdlePrinterAndForOneThatCannotListJobs()
+    {
+        using var printer = new LoopbackIppPrinter();
+        printer.Script(LoopbackAnswer.Ipp(IppStatus.SuccessfulOk), LoopbackAnswer.Ipp(IppStatus.ServerErrorOperationNotSupported));
+        using var client = Client(printer);
+        Assert.Empty(await client.JobsAsync());
+        Assert.Empty(await client.JobsAsync());
+    }
+
     // MARK: - Busy printers
 
     [Fact]

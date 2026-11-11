@@ -3,6 +3,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Threading;
+using LazyPrint.App.Services;
 using LazyPrint.Core;
 
 namespace LazyPrint.App;
@@ -86,5 +88,86 @@ public partial class MainWindow
             IsOpen = true,
         };
         e.Handled = true;
+    }
+
+    // MARK: - The printer's queue
+
+    private static readonly TimeSpan QueueEvery = TimeSpan.FromSeconds(4);
+
+    private readonly PrinterQueue _printerQueue = new();
+    private readonly DispatcherTimer _queueTimer = new() { Interval = QueueEvery };
+    private readonly ObservableCollection<QueueRow> _queueRows = [];
+    /// <summary>The printer whose queue is on show; null while the section is not being kept fresh.</summary>
+    private string? _queuePrinterId;
+    private bool _queueReading;
+
+    private void SetUpQueue()
+    {
+        QueueList.ItemsSource = _queueRows;
+        _queueTimer.Tick += (_, _) => _ = RefreshQueueAsync();
+    }
+
+    /// <summary>The section shows for a printer that has a queue; it is read every few seconds while the Jobs tab is in front.</summary>
+    private void SyncQueue()
+    {
+        var printer = ViewModel.SelectedPrinter;
+        bool has = printer is not null && PrinterQueue.Has(printer);
+        QueueSection.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        if (printer is null || !has || !JobsTab.IsSelected)
+        {
+            _queueTimer.Stop();
+            _queuePrinterId = null;
+            return;
+        }
+        if (_queuePrinterId != printer.Id)
+        {
+            _queuePrinterId = printer.Id;
+            _queueRows.Clear();
+            QueueNote.Text = "";
+            _ = RefreshQueueAsync();
+        }
+        if (!_queueTimer.IsEnabled) _queueTimer.Start();
+    }
+
+    private async Task RefreshQueueAsync()
+    {
+        if (_queueReading || ViewModel.SelectedPrinter is not { } printer || _queuePrinterId != printer.Id
+            || WindowState == WindowState.Minimized) return;
+        _queueReading = true;
+        try
+        {
+            var jobs = await _printerQueue.JobsAsync(printer, CancellationToken.None);
+            if (_queuePrinterId != printer.Id) return;
+            if (!_queueRows.Select(row => row.Job).SequenceEqual(jobs))
+            {
+                _queueRows.Clear();
+                foreach (var job in jobs) _queueRows.Add(new QueueRow(job));
+            }
+            QueueNote.Text = jobs.Count == 0 ? PrintText.QueueEmpty : "";
+        }
+        catch (Exception)
+        {
+            if (_queuePrinterId != printer.Id) return;
+            _queueRows.Clear();
+            QueueNote.Text = PrintText.QueueUnreadable;
+        }
+        finally
+        {
+            _queueReading = false;
+        }
+    }
+
+    private async void QueueCancel_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not QueueRow row || ViewModel.SelectedPrinter is not { } printer) return;
+        try
+        {
+            await _printerQueue.CancelAsync(printer, row.Job.Id, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ShowNotice("Couldn't cancel the job", ex.Message);
+        }
+        await RefreshQueueAsync();
     }
 }
