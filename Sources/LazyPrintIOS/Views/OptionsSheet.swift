@@ -78,6 +78,14 @@ struct OptionsSheet: View {
                     note(problem, error: true)
                 }
             }
+            Choice(title: "Which pages", selection: Binding(
+                get: { state.settings.pageSelection },
+                set: { (selection: PageSelection) in state.settings.pageSelection = selection }),
+                   options: [("All pages", PageSelection.all), ("Odd pages only", PageSelection.odd),
+                             ("Even pages only", PageSelection.even)],
+                   id: "print.pageSelection")
+            Toggle("Reverse order", isOn: $state.settings.reverseOrder)
+                .accessibilityIdentifier("print.reverse")
             if rules.showSides {
                 Choice(title: "Two-sided", selection: Binding(
                     get: { state.settings.booklet ? Sides.longEdge : state.settings.sides },
@@ -96,6 +104,14 @@ struct OptionsSheet: View {
                 set: { (count: Int) in state.settings.pagesPerSheet = count }),
                    options: Self.perSide.map { (count: Int) -> (String, Int) in (count == 1 ? "1 (one per side)" : "\(count) per side", count) },
                    enabled: rules.pagesPerSideEnabled, reason: rules.pagesPerSideReason, id: "print.perSide")
+            if rules.showOrientation {
+                Choice(title: "Orientation", selection: Binding(
+                    get: { state.settings.orientation },
+                    set: { (orientation: SheetOrientation) in state.settings.orientation = orientation }),
+                       options: [("Automatic", SheetOrientation.automatic), ("Portrait", SheetOrientation.portrait),
+                                 ("Landscape", SheetOrientation.landscape)],
+                       id: "print.orientation")
+            }
             Toggle("Booklet", isOn: $state.settings.booklet)
                 .accessibilityIdentifier("print.booklet")
             if rules.showRightToLeft {
@@ -199,6 +215,7 @@ struct OptionsSheet: View {
         var pagesPerSideReason: String?
         var showRightToLeft = false
         var showBorders = false
+        var showOrientation = true
         var showPhotos = false
         var photoSizeEnabled = false
         var photoSizeReason: String?
@@ -228,6 +245,7 @@ struct OptionsSheet: View {
             pagesPerSideReason = s.booklet ? "Set by Booklet" : nil
             showRightToLeft = s.booklet || s.pagesPerSheet > 1
             showBorders = !s.booklet && s.pagesPerSheet > 1
+            showOrientation = !s.booklet
             scalingLimited = s.booklet || s.pagesPerSheet > 1
             scalingReason = scalingLimited ? "Pages are fitted to their spaces" : nil
             showPhotos = photos

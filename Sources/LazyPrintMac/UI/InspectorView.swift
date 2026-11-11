@@ -79,6 +79,13 @@ struct InspectorView: View {
                 if let problem = state.pageRangeError {
                     note(problem, error: true)
                 }
+                Picker("Which pages", selection: $state.settings.pageSelection) {
+                    Text("All pages").tag(PageSelection.all)
+                    Text("Odd pages only").tag(PageSelection.odd)
+                    Text("Even pages only").tag(PageSelection.even)
+                }
+                .labelsHidden()
+                Toggle("Reverse order", isOn: $state.settings.reverseOrder)
             }
             if rules.showSides {
                 field("Two-sided") {
@@ -112,6 +119,16 @@ struct InspectorView: View {
                 .labelsHidden()
                 .disabled(!rules.pagesPerSideEnabled)
                 if let reason = rules.pagesPerSideReason { note(reason) }
+            }
+            if rules.showOrientation {
+                field("Orientation") {
+                    Picker("Orientation", selection: $state.settings.orientation) {
+                        Text("Automatic").tag(SheetOrientation.automatic)
+                        Text("Portrait").tag(SheetOrientation.portrait)
+                        Text("Landscape").tag(SheetOrientation.landscape)
+                    }
+                    .labelsHidden()
+                }
             }
             Toggle("Booklet", isOn: $state.settings.booklet)
             if rules.showRightToLeft { Toggle("Right to left", isOn: $state.settings.rightToLeft) }
@@ -249,6 +266,7 @@ struct InspectorView: View {
         var pagesPerSideReason: String?
         var showRightToLeft = false
         var showBorders = false
+        var showOrientation = true
         var showPhotos = false
         var photoSizeEnabled = false
         var photoSizeReason: String?
@@ -276,6 +294,7 @@ struct InspectorView: View {
             pagesPerSideReason = s.booklet ? "Set by Booklet" : nil
             showRightToLeft = s.booklet || s.pagesPerSheet > 1
             showBorders = !s.booklet && s.pagesPerSheet > 1
+            showOrientation = !s.booklet
             showPhotos = photos
             photoSizeEnabled = task == .photos
             photoSizeReason = task == .photoSheet ? "Set by Photo sheet" : nil

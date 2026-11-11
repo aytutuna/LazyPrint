@@ -163,6 +163,13 @@ public sealed class InspectorStateTests
         Assert.Null(For(new PrintSettings { PaperId = "auto" }, printer: demo).PaperNote);
         Assert.Null(For(new PrintSettings { PaperId = "legal" }).PaperNote);
     }
+
+    [Fact]
+    public void OrientationIsHiddenForABooklet()
+    {
+        Assert.True(For().ShowOrientation);
+        Assert.False(For(new PrintSettings { Booklet = true }).ShowOrientation);
+    }
 }
 
 public sealed class DemoPrinterTests

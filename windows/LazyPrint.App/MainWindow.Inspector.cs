@@ -127,6 +127,12 @@ public partial class MainWindow
     {
         for (int count = 1; count <= PrintCopies.MaxCount; count++) CopiesBox.Items.Add(count);
         foreach (int n in PagesPerSide) PerSideBox.Items.Add(Item(n == 1 ? "1 (one per side)" : $"{n} per side", n));
+        PageSelectionBox.Items.Add(Item("All pages", PageSelection.All));
+        PageSelectionBox.Items.Add(Item("Odd pages only", PageSelection.Odd, "Pages 1, 3, 5 and so on"));
+        PageSelectionBox.Items.Add(Item("Even pages only", PageSelection.Even, "Pages 2, 4, 6 and so on"));
+        OrientationBox.Items.Add(Item("Automatic", SheetOrientation.Automatic, "Each page keeps the way it is turned"));
+        OrientationBox.Items.Add(Item("Portrait", SheetOrientation.Portrait, "Every sheet is upright"));
+        OrientationBox.Items.Add(Item("Landscape", SheetOrientation.Landscape, "Every sheet is on its side"));
         ScalingBox.Items.Add(Item("Shrink to fit", Scaling.ShrinkToFit, "Large pages are made smaller, the others print at real size"));
         ScalingBox.Items.Add(Item("Fit to page", Scaling.Fit, "Each page is made as large as fits"));
         ScalingBox.Items.Add(Item("Actual size", Scaling.ActualSize, "100 %; the edges the printer cannot reach are cut off"));
@@ -175,6 +181,8 @@ public partial class MainWindow
             if (PageRangeBox.Text != range) PageRangeBox.Text = range;
             PageRangePlaceholder.Text = PrintText.PageRangeHint(ViewModel.PageCount, ViewModel.Documents.Count);
             Show(PageRangeProblemRow, PageRangeProblemText, ViewModel.PageRangeError);
+            Select(PageSelectionBox, s.PageSelection);
+            ReverseBox.IsChecked = s.ReverseOrder;
             SidesGroup.Visibility = state.ShowSides ? Visibility.Visible : Visibility.Collapsed;
             var shownSides = s.Booklet ? Sides.LongEdge : s.Sides;
             SidesOne.IsChecked = shownSides == Sides.OneSided;
@@ -189,6 +197,8 @@ public partial class MainWindow
             PerSideBox.IsEnabled = state.PagesPerSideEnabled;
             PerSideBox.ToolTip = state.PagesPerSideReason;
             Show(PerSideReasonRow, PerSideReasonText, state.PagesPerSideReason);
+            OrientationGroup.Visibility = state.ShowOrientation ? Visibility.Visible : Visibility.Collapsed;
+            Select(OrientationBox, s.Orientation);
             BookletBox.IsChecked = s.Booklet;
             RightToLeftBox.Visibility = state.ShowRightToLeft ? Visibility.Visible : Visibility.Collapsed;
             RightToLeftBox.IsChecked = s.RightToLeft;
@@ -249,6 +259,9 @@ public partial class MainWindow
         var s = ViewModel.Settings;
         if (CopiesBox.SelectedItem is int copies) s.Copies = copies;
         s.Collate = CollateBox.IsChecked == true;
+        if (TagOf<PageSelection?>(PageSelectionBox) is { } selection) s.PageSelection = selection;
+        s.ReverseOrder = ReverseBox.IsChecked == true;
+        if (state.ShowOrientation && TagOf<SheetOrientation?>(OrientationBox) is { } orientation) s.Orientation = orientation;
         if (state.SidesEnabled && state.ShowSides)
         {
             s.Sides = SidesLong.IsChecked == true ? Sides.LongEdge : SidesShort.IsChecked == true ? Sides.ShortEdge : Sides.OneSided;
