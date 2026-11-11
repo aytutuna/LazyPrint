@@ -179,7 +179,7 @@ extension AppState {
     private func progress(_ status: JobStatus, recordId: String, sides: Int) {
         guard runningRecord == recordId else { return }
         setJob(recordId, status.state, status.detail)
-        if status.state == .needsUser, let detail = status.detail {
+        if status.state == .needsUser || status.state == .waiting, let detail = status.detail {
             statusOverride = detail
         } else {
             statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)

@@ -19,6 +19,11 @@ public enum PrintText {
 
     public static let printed = "Printed"
 
+    /// A job the printer holds or has not started: "Waiting for HP LaserJet".
+    public static func waiting(for printerName: String) -> String {
+        "Waiting for \(printerName)"
+    }
+
     public static let loadBacks = "Load the backs"
 
     /// The iPhone stopped a job because the system took back the app's time in the background.

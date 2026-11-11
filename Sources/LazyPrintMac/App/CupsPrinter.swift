@@ -45,22 +45,21 @@ public final class CupsPrinter: SheetPrinter {
         progress(JobStatus(state: .sending, sidesDone: 0))
         let sent = await Self.submit(file, queue: queue, title: job.name, options: options)
         guard sent.id > 0 else { throw PrintError.refused(status: UInt16(truncatingIfNeeded: sent.status), detail: sent.message) }
-        try await follow(queue, id: sent.id, sides: sides.count, progress)
+        try await follow(queue, printer: job.printer.name, id: sent.id, sides: sides.count, progress)
     }
 
     /// Asks the scheduler about the job until it is done with it. A scheduler that misses an answer or two is asked again;
-    /// cancelling cancels the job.
-    private func follow(_ queue: String, id: Int, sides: Int, _ progress: @Sendable (JobStatus) -> Void) async throws {
+    /// cancelling cancels the job. A job the scheduler no longer knows may have printed or not, so it ends as sent, the way
+    /// a printer that stopped answering does.
+    private func follow(_ queue: String, printer: String, id: Int, sides: Int,
+                        _ progress: @Sendable (JobStatus) -> Void) async throws {
         progress(JobStatus(state: .waiting, sidesDone: 0))
         var missed = 0
         do {
             while true {
                 try await Task.sleep(nanoseconds: UInt64(poll * 1_000_000_000))
                 let answer = await Self.ask(queue: queue, id: id)
-                if answer.gone {
-                    progress(JobStatus(state: .done, sidesDone: sides))
-                    return
-                }
+                if answer.gone { throw PrintError.lostContact(name: printer) }
                 guard let state = answer.state else {
                     missed += 1
                     if missed < Self.missedAnswers { continue }
@@ -78,11 +77,11 @@ public final class CupsPrinter: SheetPrinter {
                     throw Self.stopped(answer.reasons)
                 case .needsUser:
                     progress(JobStatus(state: .needsUser, sidesDone: answer.impressions,
-                                       detail: Self.problem(answer.reasons)?.title))
+                                       detail: Self.waiting(for: printer, answer)))
                 case .printing:
                     progress(JobStatus(state: .printing, sidesDone: min(answer.impressions, sides)))
                 default:
-                    progress(JobStatus(state: .waiting, sidesDone: 0))
+                    progress(JobStatus(state: .waiting, sidesDone: 0, detail: Self.waiting(for: printer, answer)))
                 }
             }
         } catch {
@@ -111,6 +110,13 @@ public final class CupsPrinter: SheetPrinter {
         IppProblems.describe(reasons: reasons, message: nil, reachable: true).first
     }
 
+    /// "Waiting for HP LaserJet", with the first reason the job or the printer gives that a person can act on.
+    private static func waiting(for printer: String, _ answer: Answer) -> String {
+        let text = PrintText.waiting(for: printer)
+        guard let reason = problem(answer.reasons + answer.printerReasons) else { return text }
+        return text + ": " + reason.title
+    }
+
     private static func stopped(_ reasons: [String]) -> Error {
         if let problem = problem(reasons) { return PrinterProblemError(problem: problem) }
         return PrintError.refused(status: 0, detail: "The printer stopped the job")
@@ -135,6 +141,8 @@ public final class CupsPrinter: SheetPrinter {
         var gone = false
         var state: Int?
         var reasons: [String] = []
+        /// The printer's own reasons as CUPS copied them to the job (job-printer-state-reasons).
+        var printerReasons: [String] = []
         var impressions = 0
     }
 
@@ -195,7 +203,8 @@ public final class CupsPrinter: SheetPrinter {
             ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, "ipp://localhost/printers/" + queue)
             ippAddInteger(request, IPP_TAG_OPERATION, IPP_TAG_INTEGER, "job-id", Int32(id))
             ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", nil, NSUserName())
-            let attributes: [String] = ["job-state", "job-state-reasons", "job-impressions-completed"]
+            let attributes: [String] = ["job-state", "job-state-reasons", "job-printer-state-reasons",
+                                       "job-impressions-completed"]
             let wanted = attributes.map { strdup($0) }
             defer { wanted.forEach { free($0) } }
             let names: [UnsafePointer<CChar>?] = wanted.map { $0.map { UnsafePointer($0) } }
@@ -212,6 +221,11 @@ public final class CupsPrinter: SheetPrinter {
             if let reasons = ippFindAttribute(response, "job-state-reasons", IPP_TAG_KEYWORD) {
                 for i in 0..<Int(ippGetCount(reasons)) {
                     if let reason = ippGetString(reasons, Int32(i), nil) { answer.reasons.append(String(cString: reason)) }
+                }
+            }
+            if let reasons = ippFindAttribute(response, "job-printer-state-reasons", IPP_TAG_KEYWORD) {
+                for i in 0..<Int(ippGetCount(reasons)) {
+                    if let reason = ippGetString(reasons, Int32(i), nil) { answer.printerReasons.append(String(cString: reason)) }
                 }
             }
             if let done = ippFindAttribute(response, "job-impressions-completed", IPP_TAG_INTEGER) {
