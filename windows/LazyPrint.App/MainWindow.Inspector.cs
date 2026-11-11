@@ -294,6 +294,6 @@ public partial class MainWindow
         PrintButton.IsEnabled = reason is null;
         string? trouble = ViewModel.PrinterTrouble;
         PrintButton.ToolTip = reason ?? (trouble is null ? "Print (Ctrl+P)" : $"{trouble}. Print (Ctrl+P)");
-        AutomationProperties.SetName(PrintButton, reason is null ? label : $"{label}, not available: {reason}");
+        AutomationProperties.SetName(PrintButton, reason is null ? (trouble is null ? label : $"{label}, {trouble}") : $"{label}, not available: {reason}");
     }
 }
