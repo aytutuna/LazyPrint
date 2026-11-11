@@ -218,6 +218,8 @@ public final class CupsQueues: PrinterSystem {
             let lower = ippGetRange(copies, 0, &upper)
             caps.copiesSupported = CopiesRange(lower: Int(lower), upper: Int(upper))
         }
+        // CUPS makes and collates the copies itself, whatever the printer behind the queue can do.
+        caps.multipleDocumentHandlingSupported = ["separate-documents-collated-copies"]
         if let qualities = cupsFindDestSupported(nil, dest, info, "print-quality") {
             for i in 0..<Int(ippGetCount(qualities)) {
                 caps.printQualitySupported.append(Int(ippGetInteger(qualities, Int32(i))))
