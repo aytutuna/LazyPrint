@@ -188,6 +188,8 @@ public sealed partial class AppViewModel
             await _addingTurn.WaitAsync(token);
             try
             {
+                // The turn can be handed over just before the cancel reaches this waiter.
+                token.ThrowIfCancellationRequested();
                 await load(token);
             }
             finally
