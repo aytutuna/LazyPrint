@@ -100,6 +100,8 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
     private var failure: Error?
     /// Runs while a pass is being printed; a test holds the job here.
     var hold: (@Sendable (SheetJob, Int) async throws -> Void)?
+    /// What the printer reports as soon as the pass starts.
+    var reports: JobStatus?
 
     var passes: [(job: SheetJob, pass: Int)] {
         lock.lock()
@@ -127,6 +129,7 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
         lock.lock()
         sent.append((job: job, pass: pass))
         lock.unlock()
+        if let reports { progress(reports) }
         if let hold { try await hold(job, pass) }
     }
 }
@@ -1293,6 +1296,18 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
         XCTAssertNil(rig.state.error)
         XCTAssertFalse(rig.state.isBusy)
+    }
+
+    @MainActor
+    func test_aWaitingJobWithADetail_showsTheDetailInsteadOfTheCount() async throws {
+        let rig = try await printingRig()
+        rig.sheets.reports = JobStatus(state: .waiting, sidesDone: 0, detail: "Waiting for Test Printer")
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { rig.state.statusOverride == "Waiting for Test Printer" }
+        rig.state.cancelJob(rig.state.jobs[0].id)
+        await printing.value
     }
 
     @MainActor

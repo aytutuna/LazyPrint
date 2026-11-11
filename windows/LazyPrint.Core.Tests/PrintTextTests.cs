@@ -17,6 +17,12 @@ public class PrintTextTests
     }
 
     [Fact]
+    public void Waiting_NamesThePrinter()
+    {
+        Assert.Equal("Waiting for HP LaserJet", PrintText.WaitingFor("HP LaserJet"));
+    }
+
+    [Fact]
     public void Sent_CountsTheSheets()
     {
         Assert.Equal("Sent 1 sheet to HP LaserJet", PrintText.Sent(1, "HP LaserJet"));

@@ -1,4 +1,5 @@
 import CoreGraphics
+import PDFKit
 import XCTest
 @testable import LazyPrintKit
 
@@ -140,6 +141,23 @@ final class SheetRendererTests: XCTestCase {
         Pixels.assertColor(Pixels.red, bitmap, 306, 780)
         Pixels.assertColor(Pixels.red, bitmap, 60, 396)
         Pixels.assertColor(Pixels.white, bitmap, 20, 396)
+    }
+
+    func test_pdfPage_printsItsAnnotations() throws {
+        let blank = try writePDF(width: 612, height: 792, color: Pixels.white)
+        let marked = try XCTUnwrap(PDFDocument(url: blank))
+        let square = PDFAnnotation(bounds: CGRect(x: 100, y: 100, width: 100, height: 100), forType: .square, withProperties: nil)
+        square.color = .red
+        square.interiorColor = .red
+        marked.page(at: 0)?.addAnnotation(square)
+        let url = tempURL("pdf")
+        XCTAssertTrue(marked.write(to: url))
+        let document = try DocumentLoader().load(url)
+
+        let bitmap = try render([document], side([place(0, document.loaded.pages[0], rect(0, 0, 612, 792))]))
+
+        Pixels.assertColor(Pixels.red, bitmap, 150, 642)
+        Pixels.assertColor(Pixels.white, bitmap, 400, 300)
     }
 
     func test_picture_isUprightByItsOrientationTag() throws {

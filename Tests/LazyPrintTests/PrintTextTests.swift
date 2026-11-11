@@ -14,6 +14,10 @@ final class PrintTextTests: XCTestCase {
                        "Lazy Print ran out of time in the background. Print the check sheet again from the card.")
     }
 
+    func test_waiting_namesThePrinter() {
+        XCTAssertEqual(PrintText.waiting(for: "HP LaserJet"), "Waiting for HP LaserJet")
+    }
+
     func test_sent_countsTheSheets() {
         XCTAssertEqual(PrintText.sent(1, printerName: "HP LaserJet"), "Sent 1 sheet to HP LaserJet")
         XCTAssertEqual(PrintText.sent(3, printerName: "HP LaserJet"), "Sent 3 sheets to HP LaserJet")
