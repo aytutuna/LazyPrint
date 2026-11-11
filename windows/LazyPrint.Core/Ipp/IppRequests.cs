@@ -48,6 +48,13 @@ public static class IppRequests
             Keywords("requested-attributes", "job-state", "job-state-reasons", "job-impressions-completed"),
         ]);
 
+    public static IppMessage GetJobs(string printerUri, string userName, int requestId = 1) =>
+        Request(IppOperation.GetJobs, printerUri, userName, requestId,
+        [
+            new IppAttribute("which-jobs", new IppValue.Keyword("not-completed")),
+            Keywords("requested-attributes", "job-id", "job-name", "job-originating-user-name", "job-state", "job-impressions-completed"),
+        ]);
+
     public static IppMessage GetPrinterReasons(string printerUri, string userName, int requestId = 1) =>
         Request(IppOperation.GetPrinterAttributes, printerUri, userName, requestId, [Keywords("requested-attributes", "printer-state-reasons")]);
 

@@ -26,7 +26,7 @@ public sealed class IppClientOptions
 }
 
 /// <summary>
-/// IPP over HTTP for one printer: its capabilities, Print-Job, Get-Job-Attributes and Cancel-Job. The
+/// IPP over HTTP for one printer: its capabilities, Print-Job, Get-Job-Attributes, Get-Jobs and Cancel-Job. The
 /// transport is an injected <see cref="HttpMessageHandler"/> (no proxy, and for ipps the one of
 /// <see cref="IppCertificateValidator.CreateHandler"/>), so it runs against a loopback printer in tests.
 /// Failures are <see cref="PrintException"/>s, or an <see cref="IppCertificateException"/> when
@@ -111,6 +111,15 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
         var response = await RoundTrip((uri, id) => IppRequests.GetPrinterReasons(uri, userName, id), null, token).ConfigureAwait(false);
         Succeeded(response);
         return response["printer-state-reasons"] is { } reasons ? [.. reasons.Values.OfType<IppValue.Keyword>().Select(k => k.Value)] : [];
+    }
+
+    /// <summary>Get-Jobs: what the printer still has to print, with who sent it. A printer that does not list jobs has none.</summary>
+    public async Task<IReadOnlyList<QueuedJob>> JobsAsync(CancellationToken token = default)
+    {
+        var response = await RoundTrip((uri, id) => IppRequests.GetJobs(uri, userName, id), null, token).ConfigureAwait(false);
+        if (response.Code == (ushort)IppStatus.ServerErrorOperationNotSupported) return [];
+        Succeeded(response);
+        return QueuedJobs.From(response, userName);
     }
 
     /// <summary>Cancel-Job. A job the printer does not know, or can no longer cancel, is already over.</summary>

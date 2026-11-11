@@ -133,6 +133,15 @@ public class IppRequestsTests
     }
 
     [Fact]
+    public void GetJobs_IsTheGoldenRequest()
+    {
+        var request = IppRequests.GetJobs(Uri, "anna", 42);
+        Assert.Equal(["attributes-charset", "attributes-natural-language", "printer-uri", "requesting-user-name", "which-jobs", "requested-attributes"],
+            Names(request, IppTag.OperationAttributes));
+        IppFixtures.Golden("get-jobs", request.Encoded());
+    }
+
+    [Fact]
     public void CancelJob_IsTheGoldenRequest()
     {
         var request = IppRequests.CancelJob(Uri, "anna", 42);
