@@ -455,6 +455,38 @@ public class DocumentLoaderTests
         }
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void AWebPFailureIsAMissingCodecOnlyWhenNoDecoderIsInstalled(bool decoderPresent, bool asksForTheExtension)
+    {
+        string path = WriteText(".webp", Convert.FromBase64String("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="));
+        try
+        {
+            string? text = DocumentLoader.LacksCodec(path, ".webp", new NotSupportedException("any shape"), _ => decoderPresent);
+
+            Assert.Equal(asksForTheExtension ? DocumentText.NeedsWebP : null, text);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AWebPNamedFileThatIsNotWebPIsJustUnreadable()
+    {
+        string path = WriteText(".webp", "not a picture"u8.ToArray());
+        try
+        {
+            Assert.Null(DocumentLoader.LacksCodec(path, ".webp", new NotSupportedException(), _ => false));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ACanceledLoadStopsWithoutAnError()
     {

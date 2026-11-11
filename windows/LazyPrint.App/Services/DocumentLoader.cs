@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using LazyPrint.App.Printing;
 using LazyPrint.Core;
 
@@ -130,11 +131,11 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     }
 
     /// <summary>
-    /// The sentence for a HEIC, HEIF or WebP file that WIC has no decoder for (WINCODEC_ERR_COMPONENTNOTFOUND): the Store's
-    /// extension is missing. Null for any other failure. Where WIC reports an unknown image format instead, the file's own
-    /// bytes say whether it is one of these.
+    /// The sentence for a HEIC, HEIF or WebP file that failed to decode because WIC has no decoder for its format: the
+    /// Store's extension is missing. Null for any other failure. The runners report the missing decoder in different ways,
+    /// so the file's own bytes say what it is and the registry says whether a decoder is installed.
     /// </summary>
-    internal static string? LacksCodec(string path, string extension, Exception e)
+    internal static string? LacksCodec(string path, string extension, Exception e, Func<string, bool>? hasDecoder = null)
     {
         string? needs = extension switch
         {
@@ -142,14 +143,27 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             ".webp" => DocumentText.NeedsWebP,
             _ => null,
         };
-        if (needs is null) return null;
+        if (needs is null || e is OperationCanceledException) return null;
         // WPF wraps the COMException in a NotSupportedException.
         for (var x = e; x is not null; x = x.InnerException)
         {
             if (x.HResult == unchecked((int)0x88982F50)) return needs;
-            if (x.HResult == unchecked((int)0x88982F07) && IsFormat(path, extension)) return needs;
         }
-        return null;
+        return IsFormat(path, extension) && !(hasDecoder ?? HasDecoder)(extension) ? needs : null;
+    }
+
+    private static bool HasDecoder(string extension)
+    {
+        const string categories = @"CLSID\{7ED96837-96F0-4812-B211-F13C24117ED3}\Instance";
+        using var instances = Registry.ClassesRoot.OpenSubKey(categories);
+        if (instances is null) return false;
+        foreach (string clsid in instances.GetSubKeyNames())
+        {
+            using var decoder = Registry.ClassesRoot.OpenSubKey($@"CLSID\{clsid}");
+            if (decoder?.GetValue("FileExtensions") is string extensions
+                && extensions.Split(',', StringSplitOptions.TrimEntries).Contains(extension, StringComparer.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     private static bool IsFormat(string path, string extension)
