@@ -170,14 +170,17 @@ public sealed class NetworkPrinters : INetworkPrinters, IDisposable
     public async Task<AddressCheck> ReadAsync(IppEndpoint endpoint, CancellationToken token)
     {
         AddressCheck? last = null;
+        AddressCheck? refused = null;
         foreach (var address in endpoint.Addresses)
         {
-            var result = await CheckAsync(address, endpoint.Uuid, endpoint.Name, null, token);
             // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
-            if (result.Capabilities is not null || result.Certificate is not null) return result;
-            last = result;
+            // The other addresses still tell how the printer is.
+            var result = await CheckAsync(address, endpoint.Uuid, endpoint.Name, null, token);
+            if (result.Certificate is not null) refused ??= result;
+            else if (result.Capabilities is not null) return result with { Certificate = refused?.Certificate };
+            else last = result;
         }
-        return last ?? new AddressCheck(endpoint.Addresses[0], null, null, "it has no address");
+        return refused ?? last ?? new AddressCheck(endpoint.Addresses[0], null, null, "it has no address");
     }
 
     public Task<AddressCheck> CheckAsync(PrinterAddress address, string? firstUse, CancellationToken token) =>

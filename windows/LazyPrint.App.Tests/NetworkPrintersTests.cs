@@ -130,6 +130,39 @@ public sealed class NetworkPrintersTests : IDisposable
     }
 
     [Fact]
+    public async Task AReadDoesNotPinANewCertificate()
+    {
+        using var certificate = LoopbackIppPrinter.SelfSigned("FakePrinter");
+        _loopback.Certificate = certificate;
+        var network = Network();
+        var service = new IppService("dnssd", "HP LaserJet", true, null, ["127.0.0.1"], _loopback.Port, ["rp=ipp/print"]);
+        var endpoint = Assert.Single(IppEndpoint.Choose([service]));
+
+        var read = await network.ReadAsync(endpoint, CancellationToken.None);
+
+        Assert.Equal(IppTrustVerdict.Unknown, read.Certificate!.Verdict);
+        Assert.Null(read.Capabilities);
+        Assert.Empty(new IppTrustStore(_folder).Certificates);
+    }
+
+    [Fact]
+    public async Task AReadOfAPrinterWithANewCertificateIsAnsweredByItsPlainAddress()
+    {
+        using var certificate = LoopbackIppPrinter.SelfSigned("FakePrinter");
+        _loopback.Certificate = certificate;
+        var network = Network();
+        var secure = new IppService("dnssd-s", "HP LaserJet", true, null, ["127.0.0.1"], _loopback.Port, ["rp=ipp/print"]);
+        var plain = new IppService("dnssd-p", "HP LaserJet", false, null, ["127.0.0.1"], _loopback.Port, ["rp=ipp/print"]);
+        var endpoint = Assert.Single(IppEndpoint.Choose([secure, plain]));
+
+        var read = await network.ReadAsync(endpoint, CancellationToken.None);
+
+        Assert.NotNull(read.Capabilities);
+        Assert.Equal(IppTrustVerdict.Unknown, read.Certificate!.Verdict);
+        Assert.Empty(new IppTrustStore(_folder).Certificates);
+    }
+
+    [Fact]
     public async Task AnAddressThatDoesNotAnswerIsAskedAgainAndListedWhenItDoes()
     {
         new IppHostList(_folder).Add(_loopback.Address());

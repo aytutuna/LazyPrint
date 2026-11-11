@@ -337,7 +337,8 @@ public final class NWBrowserPrinters: NetworkPrinters {
     }
 
     /// A browser's full list: new instances are resolved, a changed TXT record is taken as it is, one that did not resolve
-    /// is tried again, and the instances of its type it no longer reports are gone.
+    /// is tried again, and the instances of its type it no longer reports are gone. A changed report is resolved again too,
+    /// and the old addresses stay in use until the answer.
     private func browserResults(_ browse: Browse, _ results: [BrowseResult]) {
         guard isCurrent(browse) else { return }
         var reported = Set<String>()
@@ -487,12 +488,21 @@ public final class NWBrowserPrinters: NetworkPrinters {
 
     public func read(_ endpoint: IppEndpoint) async -> AddressCheck {
         var last: AddressCheck?
+        var refused: AddressCheck?
         for address in endpoint.addresses {
             // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
+            // The other addresses still tell how the printer is.
             let result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: nil)
-            if result.capabilities != nil || result.certificate != nil { return result }
-            last = result
+            if result.certificate != nil {
+                refused = refused ?? result
+            } else if result.capabilities != nil {
+                return AddressCheck(address: result.address, capabilities: result.capabilities,
+                                    certificate: refused?.certificate, error: nil)
+            } else {
+                last = result
+            }
         }
+        if let refused { return refused }
         resolveAgain(endpoint)
         return last ?? AddressCheck(address: endpoint.addresses[0], capabilities: nil, certificate: nil, error: "it has no address")
     }
@@ -649,7 +659,7 @@ public final class DnssdResolver: Resolving {
 /// The resolve's answer: the operation is kept alive (retained by hand) until it finishes, since the DNS-SD callbacks only
 /// carry a raw pointer to it.
 private let resolveReply: DNSServiceResolveReply = {
-    (_: DNSServiceRef?, _: DNSServiceFlags, interfaceIndex: UInt32, error: DNSServiceErrorType,
+    (_: DNSServiceRef?, _: DNSServiceFlags, _: UInt32, error: DNSServiceErrorType,
      _: UnsafePointer<CChar>?, hostTarget: UnsafePointer<CChar>?, port: UInt16, _: UInt16,
      _: UnsafePointer<UInt8>?, context: UnsafeMutableRawPointer?) -> Void in
     guard let context else { return }
@@ -660,7 +670,7 @@ private let resolveReply: DNSServiceResolveReply = {
     }
     let hostPort: Int = Int(UInt16(bigEndian: port))
     MainActor.assumeIsolated {
-        operation.resolved(error: error, hostTarget: host, port: hostPort, interfaceIndex: interfaceIndex)
+        operation.resolved(error: error, hostTarget: host, port: hostPort)
     }
 }
 
@@ -730,7 +740,7 @@ final class DnssdResolve: ResolveHandle {
     }
 
     /// The service's host and port: its addresses are asked for next.
-    fileprivate func resolved(error: DNSServiceErrorType, hostTarget: String?, port: Int, interfaceIndex: UInt32) {
+    fileprivate func resolved(error: DNSServiceErrorType, hostTarget: String?, port: Int) {
         guard completion != nil, addressRef == nil else { return }
         guard Int(error) == kDNSServiceErr_NoError else {
             finish(DnssdResolve.outcome(error, doing: "resolve"))

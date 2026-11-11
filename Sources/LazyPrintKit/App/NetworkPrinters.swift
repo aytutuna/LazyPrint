@@ -35,8 +35,8 @@ public protocol NetworkPrinters: AnyObject {
     func start()
     /// Searches again where the search stopped, and checks the unanswered addresses now.
     func restart()
-    /// Get-Printer-Attributes at the printer's addresses in order. A new certificate is trusted on first use; a changed
-    /// one is returned, not asked about.
+    /// Get-Printer-Attributes at the printer's addresses in order. A refused certificate, new or changed, is returned,
+    /// not pinned or asked about; the answer of another address of the printer comes with it.
     func read(_ endpoint: IppEndpoint) async -> AddressCheck
     /// What the "Add printer" sheet checks.
     func check(_ address: PrinterAddress, firstUse: String?) async -> AddressCheck

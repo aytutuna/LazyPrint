@@ -171,7 +171,15 @@ extension AppState {
         networkServices = network.services
         // The discovery status is not in the rows, so a change of it alone has to reach the views too.
         objectWillChange.send()
+        let before = Dictionary(printers.compactMap { row in row.ippEndpoint.map { (row.id, $0.addresses) } },
+                                uniquingKeysWith: { first, _ in first })
         rebuildPrinters()
+        // A printer that moved is read at once, not at the next 30 s poll.
+        for row in printers {
+            if let old = before[row.id], let endpoint = row.ippEndpoint, Set(old) != Set(endpoint.addresses) {
+                ippReads[row.id] = nil
+            }
+        }
         Task { await self.refreshNetworkStatus(onlyNew: true) }
         writeLog()
     }

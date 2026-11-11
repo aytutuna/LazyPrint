@@ -238,6 +238,51 @@ final class NWBrowserPrintersTests: XCTestCase {
     }
 
     @MainActor
+    func test_aReadDoesNotPinANewCertificate() async throws {
+        let loopback = try LoopbackIppPrinter(identity: try LoopbackIdentity.load())
+        try await loopback.start()
+        defer { loopback.stop() }
+        let browsers = FakeBrowsers()
+        let resolver = FakeResolver()
+        resolver.answers[hp] = resolved("127.0.0.1", host: nil, port: Int(loopback.port))
+        let folder = try tempFolder()
+        let printers = try makePrinters(browsers, resolver, directory: folder)
+        printers.start()
+        defer { printers.stop() }
+        browsers.latest("_ipps._tcp")?.report([result(type: "_ipps._tcp")])
+        let endpoint = try XCTUnwrap(IppEndpoint.choose(printers.services).first)
+
+        let check = await printers.read(endpoint)
+
+        XCTAssertEqual(check.certificate?.verdict, .unknown)
+        XCTAssertNil(check.capabilities)
+        XCTAssertTrue(IppTrustStore(directory: folder).certificates.isEmpty)
+    }
+
+    @MainActor
+    func test_aReadOfAPrinterWithANewCertificate_isAnsweredByItsPlainAddress() async throws {
+        let loopback = try LoopbackIppPrinter(identity: try LoopbackIdentity.load())
+        try await loopback.start()
+        defer { loopback.stop() }
+        let browsers = FakeBrowsers()
+        let resolver = FakeResolver()
+        resolver.answers[hp] = resolved("127.0.0.1", host: nil, port: Int(loopback.port))
+        let folder = try tempFolder()
+        let printers = try makePrinters(browsers, resolver, directory: folder)
+        printers.start()
+        defer { printers.stop() }
+        browsers.latest("_ipps._tcp")?.report([result(type: "_ipps._tcp")])
+        browsers.latest("_ipp._tcp")?.report([result()])
+        let endpoint = try XCTUnwrap(IppEndpoint.choose(printers.services).first)
+
+        let check = await printers.read(endpoint)
+
+        XCTAssertNotNil(check.capabilities)
+        XCTAssertEqual(check.certificate?.verdict, .unknown)
+        XCTAssertTrue(IppTrustStore(directory: folder).certificates.isEmpty)
+    }
+
+    @MainActor
     func test_aPrinterThatDoesNotAnswer_isResolvedAgain() async throws {
         let loopback = try LoopbackIppPrinter()
         try await loopback.start()

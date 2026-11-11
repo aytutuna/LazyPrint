@@ -129,8 +129,8 @@ public interface INetworkPrinters
     void Restart();
 
     /// <summary>
-    /// Get-Printer-Attributes at the printer's addresses in order. A new certificate is trusted on first use; a changed
-    /// one is returned, not asked about. Never throws, except when cancelled.
+    /// Get-Printer-Attributes at the printer's addresses in order. A refused certificate, new or changed, is returned, not
+    /// pinned or asked about; the answer of another address of the printer comes with it. Never throws, except when cancelled.
     /// </summary>
     Task<AddressCheck> ReadAsync(IppEndpoint endpoint, CancellationToken token);
 
