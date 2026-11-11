@@ -48,7 +48,6 @@ public sealed record PrintSettings
 public sealed record PrinterPrefs
 {
     public PaperPath PaperPath { get; set; } = new();
-    public string? LastPaperId { get; set; }
 }
 
 public static class SettingsStore

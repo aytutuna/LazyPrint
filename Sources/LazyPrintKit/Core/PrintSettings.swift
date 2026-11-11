@@ -72,15 +72,12 @@ extension PrintSettings {
 /// What is remembered about one printer.
 public struct PrinterPrefs: Codable, Equatable, Sendable {
     public var paperPath: PaperPath
-    public var lastPaperId: String?
-
-    public init(paperPath: PaperPath = PaperPath(), lastPaperId: String? = nil) {
+    public init(paperPath: PaperPath = PaperPath()) {
         self.paperPath = paperPath
-        self.lastPaperId = lastPaperId
     }
 
     enum CodingKeys: String, CodingKey {
-        case paperPath, lastPaperId
+        case paperPath
     }
 }
 
@@ -88,7 +85,6 @@ extension PrinterPrefs {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         paperPath = c.decodeLenient(forKey: .paperPath, default: PaperPath())
-        lastPaperId = c.decodeLenient(forKey: .lastPaperId, default: nil as String?)
     }
 }
 

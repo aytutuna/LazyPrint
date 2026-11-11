@@ -123,7 +123,7 @@ final class PrintSettingsTests: XCTestCase {
 
     func test_printers_roundTrip_byId() throws {
         let printers = [
-            "ipp:4509a320": PrinterPrefs(paperPath: PaperPath(turnStackOver: false, turnBacks: true, checked: true), lastPaperId: "letter"),
+            "ipp:4509a320": PrinterPrefs(paperPath: PaperPath(turnStackOver: false, turnBacks: true, checked: true)),
             "system:Office": PrinterPrefs(),
         ]
         SettingsStore.savePrinters(printers, in: directory)
@@ -141,7 +141,6 @@ final class PrintSettingsTests: XCTestCase {
         let x = try XCTUnwrap(loaded["ipp:x"])
         XCTAssertTrue(x.paperPath.turnBacks)
         XCTAssertTrue(x.paperPath.turnStackOver)
-        XCTAssertNil(x.lastPaperId)
     }
 
     func test_printers_unreadable_areMovedAside_andEmpty() throws {

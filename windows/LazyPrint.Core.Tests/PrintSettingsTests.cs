@@ -119,7 +119,7 @@ public sealed class PrintSettingsTests : IDisposable
     {
         var printers = new Dictionary<string, PrinterPrefs>
         {
-            ["ipp:4509a320"] = new() { PaperPath = new PaperPath { TurnStackOver = false, TurnBacks = true, Checked = true }, LastPaperId = "letter" },
+            ["ipp:4509a320"] = new() { PaperPath = new PaperPath { TurnStackOver = false, TurnBacks = true, Checked = true } },
             ["system:Office"] = new(),
         };
         SettingsStore.SavePrinters(printers, _directory);
@@ -141,7 +141,6 @@ public sealed class PrintSettingsTests : IDisposable
         var x = loaded["ipp:x"];
         Assert.True(x.PaperPath.TurnBacks);
         Assert.True(x.PaperPath.TurnStackOver);
-        Assert.Null(x.LastPaperId);
     }
 
     [Fact]
