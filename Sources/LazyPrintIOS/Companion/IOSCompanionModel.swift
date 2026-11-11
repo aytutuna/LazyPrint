@@ -36,6 +36,11 @@ public enum IOSCompanionText {
         "Send to \(desktopName)"
     }
 
+    /// Under Forget when a pairing link was opened while a computer is paired.
+    public static func forgetFirst(_ desktopName: String) -> String {
+        "Forget \(desktopName) first to pair with another computer."
+    }
+
     /// Under the buttons while Send is offered: the options set here do not go with the files.
     public static let sendNote = "The computer prints with its own settings."
 
