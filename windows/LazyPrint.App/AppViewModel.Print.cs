@@ -298,15 +298,17 @@ public sealed partial class AppViewModel
         NotifyAll();
         try
         {
+            int sidesDone = 0;
             var progress = new Progress<JobStatus>(status =>
             {
                 if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
+                sidesDone = Math.Max(sidesDone, status.SidesDone);
                 SetJob(recordId, status.State, status.Detail);
                 _unconfirmed = status.Unconfirmed;
                 if (printer.Route == PrinterRoute.System && status.State != JobState.Sending) _spooled = true;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
-                    : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
+                    : PrintText.Printing(Math.Min(sidesDone + 1, sides), sides);
                 NotifyAll();
             });
             await SendAsync(job, pass, progress, cancellation.Token);
