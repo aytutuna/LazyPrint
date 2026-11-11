@@ -11,6 +11,7 @@ struct OptionsSheet: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss
     @FocusState private var copiesFocused: Bool
+    @State private var exported: PdfFile?
 
     private static let perSide: [Int] = [1, 2, 4, 6, 9, 16]
     private static let scalings: [(String, Scaling)] = [("Shrink to fit", .shrinkToFit), ("Fit to page", .fit),
@@ -24,6 +25,14 @@ struct OptionsSheet: View {
                 if rules.showLayout { layoutSection(rules) }
                 paperSection(rules)
                 if rules.showPhotos { photosSection(rules) }
+                if !state.documents.isEmpty { saveSection }
+            }
+            .fileExporter(isPresented: Binding(get: { exported != nil }, set: { (on: Bool) in
+                if !on { exported = nil }
+            }), document: exported ?? PdfFile(data: Data()), contentType: .pdf, defaultFilename: state.pdfName) { (result: Result<URL, Error>) in
+                if case .failure(let error) = result, (error as? CocoaError)?.code != .userCancelled {
+                    state.reportSaveFailure(error)
+                }
             }
             .disabled(state.isBusy)
             .navigationTitle("Options")
@@ -43,6 +52,16 @@ struct OptionsSheet: View {
     }
 
     // MARK: Sections
+
+    private var saveSection: some View {
+        Section {
+            Button("Save as PDF") {
+                Task { exported = await state.pdfData().map { PdfFile(data: $0) } }
+            }
+            .disabled(!state.canSavePDF)
+            .accessibilityIdentifier("options.savePdf")
+        }
+    }
 
     private func pagesSection(_ rules: Rules) -> some View {
         Section(InspectorSections.title(InspectorSections.pages)) {

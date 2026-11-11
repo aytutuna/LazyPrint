@@ -71,6 +71,9 @@ private struct PrintCommands: Commands {
             }
             .keyboardShortcut("o")
             .disabled(state.isBusy || sheetOpen == true)
+            Button("Save as PDF\u{2026}") { SavePdfPanel.run(state) }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(!state.canSavePDF || sheetOpen == true)
         }
         CommandGroup(after: .toolbar) {
             Button("Print") { NotificationCenter.default.post(name: .tabRequested, object: ContentTab.print.rawValue) }
