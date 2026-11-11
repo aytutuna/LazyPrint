@@ -86,7 +86,8 @@ public partial class MainWindow
         int dpi = PreviewDpi(area.Paper);
         var documents = ViewModel.Documents.ToList();
         bool marks = ViewModel.DrawsCutMarks;
-        bool gray = ViewModel.Settings.Color == ColorChoice.Gray;
+        bool gray = ViewModel.Settings.Color == ColorChoice.Gray
+            || ViewModel.SelectedCapabilities is { PrintColorModesSupported.Count: > 0 } caps && !caps.PrintColorModesSupported.Contains("color");
         SyncPreviewBar(plan);
         ShowNotes(plan);
 
