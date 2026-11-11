@@ -401,32 +401,12 @@ struct PrintScreen: View {
 
     /// Previous and next on the page's edges.
     private var arrows: some View {
-        HStack {
-            arrow("chevron.left", label: "Previous page", id: "print.previous", enabled: canTurn(by: -1)) { turn(by: -1) }
-            Spacer(minLength: 0)
-            arrow("chevron.right", label: "Next page", id: "print.next", enabled: canTurn(by: 1)) { turn(by: 1) }
-        }
-        .padding(.horizontal, 8)
+        PageArrows(canGoBack: canTurn(by: -1), canGoOn: canTurn(by: 1), turn: { (offset: Int) in
+            turn(by: offset)
+            showArrows()
+        })
         .opacity(arrowsShown ? 1 : 0.25)
         .animation(.easeInOut(duration: 0.4), value: arrowsShown)
-    }
-
-    private func arrow(_ symbol: String, label: String, id: String, enabled: Bool,
-                       action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-            showArrows()
-        } label: {
-            Image(systemName: symbol)
-                .font(.title3.weight(.semibold))
-                .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial, in: Circle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(id)
     }
 
     private func showArrows() {
