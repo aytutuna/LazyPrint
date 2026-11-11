@@ -324,10 +324,10 @@ public sealed partial class AppViewModel
         SettingsEdited();
     }
 
-    /// <summary>Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back.</summary>
+    /// <summary>Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back. The default that stands in for a chosen printer that is gone is left alone: its own were never applied.</summary>
     private void RememberForPrinter()
     {
-        if (SelectedPrinter is not { } printer) return;
+        if (SelectedPrinter is not { } printer || Settings.PrinterId is { } chosen && chosen != printer.Id) return;
         var prefs = PrefsOf(printer);
         var remembered = prefs.Remembering(Settings);
         if (remembered == prefs) return;

@@ -82,6 +82,26 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task TheDefaultStandingInForAGonePrinterDoesNotTakeItsPaper()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Queue.Add(Rig.Queue("Brother"));
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.SelectPrinterAsync("system:HP LaserJet");
+        rig.Model.Settings.PaperId = "a5";
+        rig.Model.SettingsEdited();
+        await rig.Model.SelectPrinterAsync("system:Brother");
+        rig.Spooler.Queue.RemoveAt(1);
+        await rig.Model.RefreshPrintersAsync();
+
+        rig.Model.Settings.PaperId = "legal";
+        rig.Model.SettingsEdited();
+        await rig.Model.SelectPrinterAsync("system:HP LaserJet");
+        Assert.Equal("a5", rig.Model.Settings.PaperId);
+    }
+
+    [Fact]
     public async Task ARowSaysWhatIsWrongWithItsPrinter()
     {
         using var rig = new Rig();

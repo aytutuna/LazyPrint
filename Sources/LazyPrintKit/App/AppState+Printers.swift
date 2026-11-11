@@ -187,9 +187,10 @@ extension AppState {
         replan()
     }
 
-    /// Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back.
+    /// Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back. The default
+    /// that stands in for a chosen printer that is gone is left alone: its own were never applied.
     func rememberForPrinter() {
-        guard let printer = selectedPrinter else { return }
+        guard let printer = selectedPrinter, settings.printerId == nil || settings.printerId == printer.id else { return }
         let before = prefs(of: printer)
         let after = before.remembering(settings)
         guard after != before else { return }
