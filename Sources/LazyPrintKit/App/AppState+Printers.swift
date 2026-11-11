@@ -108,7 +108,7 @@ extension AppState {
             read = await printerSystem.capabilities(ofQueue: Self.queueName(of: printer))
         }
         // On the iPhone a printer that gave no answer is asked again: it may have been asleep, or gone out of range during
-        // the read. The Mac asks once: cupsCopyDestInfo has no timeout, and runs one at a time.
+        // the read. The Mac asks once: its read gives up after a few seconds and is not repeated every five.
         if read != nil || platform != .ios { capabilitiesAsked.insert(printer.id) }
         if let read { capabilitiesById[printer.id] = read }
         syncCapabilities()

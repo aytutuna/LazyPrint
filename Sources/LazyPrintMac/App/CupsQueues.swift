@@ -4,8 +4,8 @@ import CUPS
 import Foundation
 import LazyPrintKit
 
-/// The Mac's `PrinterSystem`: the queues macOS has set up, read with libcups. Every libcups call runs on one serial queue
-/// and is awaited from the main actor; the error of a failed call is read in the same block, since libcups keeps it per
+/// The Mac's `PrinterSystem`: the queues macOS has set up, read with libcups. The calls run on one serial queue, except the
+/// slow description of a queue (`within`), and are awaited from the main actor; the error of a failed call is read in the same block, since libcups keeps it per
 /// thread. A call with no connection passes nil (`CUPS_HTTP_DEFAULT` is a macro with a cast, which Swift does not import).
 @MainActor
 public final class CupsQueues: PrinterSystem {
@@ -13,6 +13,12 @@ public final class CupsQueues: PrinterSystem {
     private static let refusals: Set<Int> = [0x0401, 0x0402, 0x0403, 0x1000]
 
     private static let work = DispatchQueue(label: "local.lazyprint.cups")
+
+    /// Where the slow reads of one queue run, so a queue that does not answer holds up neither the others nor `work`.
+    private static let details = DispatchQueue(label: "local.lazyprint.cups.details", attributes: .concurrent)
+
+    /// How long a queue gets to describe itself.
+    static let detailsTimeout: TimeInterval = 8
 
     /// The queues read last; a scheduler that does not answer leaves them as they were, as on Windows.
     private var lastRead: [SystemPrinter] = []
@@ -25,7 +31,7 @@ public final class CupsQueues: PrinterSystem {
     }
 
     public func capabilities(ofQueue name: String) async -> PrinterCapabilities? {
-        await Self.run { CupsQueues.readCapabilities(of: name) }
+        await Self.within(Self.detailsTimeout) { CupsQueues.readCapabilities(of: name) } ?? nil
     }
 
     public func clearJobs(ofQueue name: String) async throws {
@@ -63,6 +69,49 @@ public final class CupsQueues: PrinterSystem {
     private static func run<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
         await withCheckedContinuation { continuation in
             work.async { continuation.resume(returning: body()) }
+        }
+    }
+
+    /// Runs a libcups read of its own thread and gives up on it after `seconds` or when the task is cancelled; the read
+    /// keeps its thread until libcups lets go, but nothing waits for it. The result is nil when given up on.
+    nonisolated static func within<T: Sendable>(_ seconds: TimeInterval, _ body: @escaping @Sendable () -> T) async -> T? {
+        let answer = FirstAnswer<T>()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+                if !answer.set(continuation) { return }
+                details.async { answer.finish(body()) }
+                details.asyncAfter(deadline: .now() + seconds) { answer.finish(nil) }
+            }
+        } onCancel: {
+            answer.finish(nil)
+        }
+    }
+
+    /// The first of the result, the timeout and the cancellation wins; the others find it spent.
+    private final class FirstAnswer<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<T?, Never>?
+        private var spent = false
+
+        /// False when the task was cancelled before the continuation arrived; it is resumed here.
+        func set(_ next: CheckedContinuation<T?, Never>) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if spent {
+                next.resume(returning: nil)
+                return false
+            }
+            continuation = next
+            return true
+        }
+
+        func finish(_ value: T?) {
+            lock.lock()
+            let waiting = spent ? nil : continuation
+            spent = true
+            continuation = nil
+            lock.unlock()
+            waiting?.resume(returning: value)
         }
     }
 
@@ -190,6 +239,14 @@ public final class CupsQueues: PrinterSystem {
 
         var caps = PrinterCapabilities()
         caps.name = name
+
+        // The paper the queue is set to, which Automatic paper follows.
+        var loaded = cups_size_t()
+        if cupsGetDestMediaDefault(nil, dest, info, UInt32(CUPS_MEDIA_FLAGS_DEFAULT), &loaded) != 0 {
+            let margins = MediaMargins(top: Int(loaded.top), left: Int(loaded.left), bottom: Int(loaded.bottom), right: Int(loaded.right))
+            caps.mediaColReady = [MediaEntry(attributes: [], width: Int(loaded.width), height: Int(loaded.length),
+                                             isVariable: false, margins: margins, type: nil, source: nil)]
+        }
 
         // Each paper with the margins the printer says, then the borderless ones.
         let flags: [UInt32] = [UInt32(CUPS_MEDIA_FLAGS_DEFAULT), UInt32(CUPS_MEDIA_FLAGS_BORDERLESS)]

@@ -152,9 +152,10 @@ public final class CupsPrinter: SheetPrinter {
         }
     }
 
-    /// The queue's state, and the name of the paper in it that is closest to the sheet.
+    /// The queue's state, and the name of the paper in it that is closest to the sheet. The paper comes from
+    /// cupsCopyDestInfo, which waits on the queue's printer; one that does not answer in time leaves it to CUPS.
     private static func prepare(queue: String, paper: LayoutSize, borderless: Bool) async -> Prepared {
-        await run {
+        var prepared = await run { () -> Prepared in
             guard let dest = cupsGetNamedDest(nil, queue, nil) else { return Prepared(stopped: false, states: [], media: nil) }
             defer { cupsFreeDests(1, dest) }
             func option(_ name: String) -> String? {
@@ -164,25 +165,29 @@ public final class CupsPrinter: SheetPrinter {
             let accepting = option("printer-is-accepting-jobs") != "false"
             let reasons = (option("printer-state-reasons") ?? "").split(separator: ",").map { String($0) }
             let states = CupsStates.describe(state: state, reasons: reasons, accepting: accepting)
+            return Prepared(stopped: state == 5 || !accepting, states: states, media: nil)
+        }
+        prepared.media = await CupsQueues.within(CupsQueues.detailsTimeout) { mediaName(queue: queue, paper: paper, borderless: borderless) } ?? nil
+        return prepared
+    }
 
-            var media: String?
-            if let info = cupsCopyDestInfo(nil, dest) {
-                defer { cupsFreeDestInfo(info) }
-                let width = Int32((paper.width * 2540 / 72).rounded())
-                let length = Int32((paper.height * 2540 / 72).rounded())
-                let exact = UInt32(CUPS_MEDIA_FLAGS_EXACT) | (borderless ? UInt32(CUPS_MEDIA_FLAGS_BORDERLESS) : 0)
-                for flags in [exact, UInt32(CUPS_MEDIA_FLAGS_DEFAULT)] {
-                    var size = cups_size_t()
-                    if cupsGetDestMediaBySize(nil, dest, info, width, length, flags, &size) != 0 {
-                        media = withUnsafePointer(to: &size.media) { pointer in
-                            pointer.withMemoryRebound(to: CChar.self, capacity: 128) { String(cString: $0) }
-                        }
-                        break
-                    }
+    private static func mediaName(queue: String, paper: LayoutSize, borderless: Bool) -> String? {
+        guard let dest = cupsGetNamedDest(nil, queue, nil) else { return nil }
+        defer { cupsFreeDests(1, dest) }
+        guard let info = cupsCopyDestInfo(nil, dest) else { return nil }
+        defer { cupsFreeDestInfo(info) }
+        let width = Int32((paper.width * 2540 / 72).rounded())
+        let length = Int32((paper.height * 2540 / 72).rounded())
+        let exact = UInt32(CUPS_MEDIA_FLAGS_EXACT) | (borderless ? UInt32(CUPS_MEDIA_FLAGS_BORDERLESS) : 0)
+        for flags in [exact, UInt32(CUPS_MEDIA_FLAGS_DEFAULT)] {
+            var size = cups_size_t()
+            if cupsGetDestMediaBySize(nil, dest, info, width, length, flags, &size) != 0 {
+                return withUnsafePointer(to: &size.media) { pointer in
+                    pointer.withMemoryRebound(to: CChar.self, capacity: 128) { String(cString: $0) }
                 }
             }
-            return Prepared(stopped: state == 5 || !accepting, states: states, media: media)
         }
+        return nil
     }
 
     private static func submit(_ file: URL, queue: String, title: String, options: [String: String]) async -> Submitted {
