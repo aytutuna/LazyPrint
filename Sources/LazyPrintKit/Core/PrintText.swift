@@ -34,6 +34,8 @@ public enum PrintText {
 
     public static let loadBacks = "Load the backs"
 
+    public static let finishTwoSided = "Finish the two-sided job first"
+
     /// The iPhone stopped a job because the system took back the app's time in the background.
     public static let backgroundExpired = "Lazy Print ran out of time in the background. Print again to finish."
 
@@ -98,4 +100,9 @@ public enum PrintText {
     }
 
     public static let printedInGray = "Printed in gray: this printer has no color"
+
+    /// A note about a job, added after the status sentence: "Shrunk to 82 %".
+    public static func shrunk(_ percent: Int) -> String {
+        "Shrunk to \(percent) %"
+    }
 }

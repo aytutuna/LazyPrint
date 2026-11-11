@@ -24,6 +24,25 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public async Task CancelingTheLoadAddsNothingAndLetsPrintGo()
+    {
+        using var rig = new Rig();
+        rig.Loader.Holds["slow.pdf"] = new TaskCompletionSource().Task;
+
+        var adding = rig.Model.AddFilesAsync(["a.pdf", "slow.pdf"]);
+        var waiting = rig.Model.AddFilesAsync(["b.pdf"]);
+        Assert.True(rig.Model.IsAddingFiles);
+        rig.Model.CancelLoad();
+        await adding;
+        await waiting;
+
+        Assert.False(rig.Model.IsAddingFiles);
+        Assert.Empty(rig.Model.Documents);
+        await rig.Model.AddFilesAsync(["c.pdf"]);
+        Assert.Equal(["c.pdf"], Names(rig));
+    }
+
+    [Fact]
     public async Task FilesAddedTogetherEndInTheOrderTheyCameAndPrintWaitsForThem()
     {
         using var rig = new Rig(demo: true);
@@ -157,8 +176,8 @@ public sealed class DocumentListTests
         var plan = model.Plan()!;
         Assert.Equal(4, plan.Plan.Sheets.Count);
         Assert.Equal("Print 4 sheets", model.PrintLabel);
-        // The A4 page does not fit Letter's printable area at real size; shrinking it goes unsaid.
-        Assert.Empty(plan.Notes);
+        // The A4 page does not fit Letter's printable area at real size, so it is shrunk, and the note says so.
+        Assert.StartsWith("Shrunk to ", Assert.Single(plan.Notes));
     }
 
     [Fact]

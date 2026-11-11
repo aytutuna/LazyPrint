@@ -195,6 +195,12 @@ public partial class MainWindow
             BordersBox.Visibility = state.ShowBorders ? Visibility.Visible : Visibility.Collapsed;
             BordersBox.IsChecked = s.PageBorders;
             Select(ScalingBox, s.Scaling);
+            ScalingBox.IsEnabled = state.ScalingEnabled;
+            ScalingBox.ToolTip = state.ScalingReason;
+            Show(ScalingReasonRow, ScalingReasonText, state.ScalingReason);
+            ScaleRow.Visibility = state.ShowScale ? Visibility.Visible : Visibility.Collapsed;
+            ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
+            ScaleText.Text = $"{s.Scale} %";
 
             // Paper
             Select(PaperBox, PaperSizes.Parse(s.PaperId));
@@ -251,13 +257,21 @@ public partial class MainWindow
         s.Booklet = BookletBox.IsChecked == true;
         s.RightToLeft = RightToLeftBox.IsChecked == true;
         s.PageBorders = BordersBox.IsChecked == true;
-        if (TagOf<Scaling?>(ScalingBox) is { } scaling) s.Scaling = scaling;
+        if (state.ScalingEnabled && TagOf<Scaling?>(ScalingBox) is { } scaling) s.Scaling = scaling;
         if (TagOf<PaperSize?>(PaperBox) is { } paper) s.PaperId = paper.RawValue();
         if (state.QualityEnabled && TagOf<QualityChoice?>(QualityBox) is { } quality) s.Quality = quality;
         if (state.ColorEnabled) s.Color = ColorGray.IsChecked == true ? ColorChoice.Gray : ColorChoice.Color;
         if (state.PhotoSizeEnabled && TagOf<string>(PhotoSizeBox) is { } photo) s.PhotoSizeId = photo;
         s.PhotoFill = PhotoFillBox.IsChecked == true;
         s.CutMarks = CutMarksBox.IsChecked == true;
+        ViewModel.SettingsEdited();
+    }
+
+    private void ScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_updatingUi || !IsLoaded) return;
+        ViewModel.Settings.Scale = (int)e.NewValue;
+        ScaleText.Text = $"{(int)e.NewValue} %";
         ViewModel.SettingsEdited();
     }
 
@@ -291,7 +305,7 @@ public partial class MainWindow
     {
         string label = ViewModel.PrintLabel;
         string? reason = ViewModel.PrintDisabledReason;
-        PrintButton.Content = label;
+        PrintButton.Content = "_" + label;
         PrintButton.IsEnabled = reason is null;
         string? trouble = ViewModel.PrinterTrouble;
         PrintButton.ToolTip = reason ?? (trouble is null ? "Print (Ctrl+P)" : $"{trouble}. Print (Ctrl+P)");

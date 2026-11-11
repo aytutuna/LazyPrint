@@ -224,6 +224,20 @@ public sealed class CompanionInboxTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteTaken_RemovesTakenFilesAndKeepsWhatStillWaits()
+    {
+        await Send("package-0001", "batch-0001", 0, 1, "a.pdf", _start);
+        await Send("package-0002", "batch-0002", 0, 1, "b.pdf", _start);
+        string taken = Assert.Single(_inbox.Take("batch-0001", _start));
+
+        _inbox.DeleteTaken();
+
+        Assert.False(File.Exists(taken));
+        Assert.Single(_inbox.Batches(_start));
+        Assert.NotNull(_inbox.Find(Phone, "package-0002"));
+    }
+
+    [Fact]
     public async Task APhoneWithTooManyFilesWaiting_IsRefusedUntilSomeAreTaken()
     {
         for (int n = 0; n < CompanionInbox.MaxWaitingFiles; n++) await Send($"package-{n:D4}", "batch-0001", 0, 1, "a.pdf", _start);

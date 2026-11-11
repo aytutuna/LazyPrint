@@ -295,8 +295,8 @@ public partial class MainWindow : Window
         }
 
         SentJobsButton.Visibility = JobsTab.IsSelected ? Visibility.Collapsed : Visibility.Visible;
-        BusyBar.Visibility = ViewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
-        CancelButton.Visibility = ViewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+        var working = ViewModel.IsBusy || ViewModel.IsAddingFiles ? Visibility.Visible : Visibility.Collapsed;
+        BusyBar.Visibility = CancelButton.Visibility = working;
     }
 
     private string? _errorShown;
@@ -401,7 +401,11 @@ public partial class MainWindow : Window
 
     private async void Print_Click(object sender, RoutedEventArgs e) => await ViewModel.PrintAsync();
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => ViewModel.CancelJob();
+    private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.IsBusy) ViewModel.CancelJob();
+        else ViewModel.CancelLoad();
+    }
 
     // MARK: - Keyboard shortcuts
 
@@ -411,7 +415,18 @@ public partial class MainWindow : Window
         if (ViewModel.ManualStep != DuplexStep.None) return;
         bool typing = Keyboard.FocusedElement is TextBoxBase;
         bool ctrl = Keyboard.Modifiers == ModifierKeys.Control;
-        if (ctrl && e.Key == Key.O)
+        if (e.Key == Key.Escape)
+        {
+            // A menu, a flyout or an open list takes Esc to close itself; only otherwise does it stop the work.
+            bool closing = Keyboard.FocusedElement is System.Windows.Media.Visual focused && PresentationSource.FromVisual(focused) != PresentationSource.FromVisual(this)
+                || Keyboard.FocusedElement is ComboBox { IsDropDownOpen: true };
+            if (!closing && CancelButton.Visibility == Visibility.Visible && CancelButton.IsEnabled)
+            {
+                Cancel_Click(CancelButton, e);
+                e.Handled = true;
+            }
+        }
+        else if (ctrl && e.Key == Key.O)
         {
             AskForFiles();
             e.Handled = true;

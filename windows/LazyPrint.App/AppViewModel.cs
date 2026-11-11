@@ -40,7 +40,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     /// <summary>This session's jobs, newest first.</summary>
     public ObservableCollection<JobRecord> Jobs { get; } = [];
 
-    /// <summary>A job is being prepared or printed; the settings and the task menu wait.</summary>
+    /// <summary>A job is being prepared or printed; the task menu waits, the settings do not.</summary>
     public bool IsBusy { get; private set; }
 
     /// <summary>The page range as typed ("1-3, 5"); empty is every page.</summary>
@@ -132,6 +132,8 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     public void Shutdown()
     {
         FlushSettings();
+        foreach (var document in Documents) DeleteTaken(document);
+        foreach (var document in _heldTaken) DeleteTaken(document);
         ShutdownCompanion();
         (_networkPrinters as IDisposable)?.Dispose();
     }

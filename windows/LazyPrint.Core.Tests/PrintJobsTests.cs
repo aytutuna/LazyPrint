@@ -224,7 +224,8 @@ public class PrintJobsTests
     {
         var big = new LoadedDocument("Poster", new DocumentKind.Pdf(false), [new LayoutSize(1000, 1400)]);
         var shrunk = Plan([big], Settings(s => s.Color = ColorChoice.Gray), Hp);
-        Assert.Empty(shrunk.Notes);
+        Assert.Single(shrunk.Notes);
+        Assert.StartsWith("Shrunk to ", shrunk.Notes[0]);
 
         var clipped = Plan([big], Settings(s => { s.Scaling = Scaling.ActualSize; s.Color = ColorChoice.Gray; }), Hp);
         Assert.Single(clipped.Notes);
@@ -363,9 +364,9 @@ public class PrintJobsTests
     [Fact]
     public void Plan_ColorOnAMonochromePrinter_SaysItPrintsInGray()
     {
-        Assert.Equal(["Printed in gray: this printer has no color"], Plan([Doc(1)], Settings(), Hp).Notes);
-        Assert.Empty(Plan([Doc(1)], Settings(s => s.Color = ColorChoice.Gray), Hp).Notes);
-        Assert.Empty(Plan([Doc(1)], Settings(), Epson).Notes);
+        Assert.Contains("Printed in gray: this printer has no color", Plan([Doc(1)], Settings(), Hp).Notes);
+        Assert.DoesNotContain("Printed in gray: this printer has no color", Plan([Doc(1)], Settings(s => s.Color = ColorChoice.Gray), Hp).Notes);
+        Assert.DoesNotContain("Printed in gray: this printer has no color", Plan([Doc(1)], Settings(), Epson).Notes);
     }
 
     [Fact]

@@ -194,7 +194,8 @@ final class PrintJobsTests: XCTestCase {
     func test_plan_notes_sayWhatHappenedToThePages() {
         let big = LoadedDocument(name: "Poster", kind: .pdf(encrypted: false), pages: [LayoutSize(width: 1000, height: 1400)])
         let shrunk = makePlan([big], makeSettings { $0.color = .gray }, hp)
-        XCTAssertEqual(shrunk.notes, [])
+        XCTAssertEqual(shrunk.notes.count, 1)
+        XCTAssertTrue(shrunk.notes[0].hasPrefix("Shrunk to "))
 
         let clipped = makePlan([big], makeSettings { $0.scaling = .actualSize; $0.color = .gray }, hp)
         XCTAssertEqual(clipped.notes.count, 1)
@@ -331,9 +332,9 @@ final class PrintJobsTests: XCTestCase {
     }
 
     func test_plan_colorOnAMonochromePrinter_saysItPrintsInGray() {
-        XCTAssertEqual(makePlan([doc(1)], makeSettings(), hp).notes, ["Printed in gray: this printer has no color"])
-        XCTAssertEqual(makePlan([doc(1)], makeSettings { $0.color = .gray }, hp).notes, [])
-        XCTAssertEqual(makePlan([doc(1)], makeSettings(), epson).notes, [])
+        XCTAssertTrue(makePlan([doc(1)], makeSettings(), hp).notes.contains("Printed in gray: this printer has no color"))
+        XCTAssertFalse(makePlan([doc(1)], makeSettings { $0.color = .gray }, hp).notes.contains("Printed in gray: this printer has no color"))
+        XCTAssertFalse(makePlan([doc(1)], makeSettings(), epson).notes.contains("Printed in gray: this printer has no color"))
     }
 
     func test_ticket_askedOnlyWhatThePrinterLists() {

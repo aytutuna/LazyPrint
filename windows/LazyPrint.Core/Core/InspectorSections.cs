@@ -67,6 +67,10 @@ public static class InspectorSections
         else if (s.PagesPerSheet > 1) parts.Add($"{s.PagesPerSheet} per side");
         if (!s.Booklet && s.PagesPerSheet > 1 && s.PageBorders) parts.Add("Borders");
         if ((s.Booklet || s.PagesPerSheet > 1) && s.RightToLeft) parts.Add("Right to left");
+        if (!s.Booklet && s.PagesPerSheet == 1 && s.Scale != 100 && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize)
+        {
+            parts.Add($"{s.Scale} %");
+        }
         if (s.Scaling != Scaling.ShrinkToFit)
         {
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });

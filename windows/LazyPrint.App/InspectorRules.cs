@@ -17,6 +17,9 @@ public sealed record InspectorState(
     string? PagesPerSideReason,
     bool ShowRightToLeft,
     bool ShowBorders,
+    bool ScalingEnabled,
+    string? ScalingReason,
+    bool ShowScale,
     bool ShowPhotos,
     bool PhotoSizeEnabled,
     string? PhotoSizeReason,
@@ -35,6 +38,8 @@ public sealed record InspectorState(
         // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
         bool twoSided = s.Booklet || s.Sides != Sides.OneSided;
         string? byHand = twoSided && !photos && capabilities is not null && !canTurn ? ShortText.ByHand : null;
+
+        bool alone = !s.Booklet && s.PagesPerSheet == 1;
 
         bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
@@ -58,6 +63,9 @@ public sealed record InspectorState(
             PagesPerSideReason: s.Booklet ? ShortText.BookletPages : null,
             ShowRightToLeft: s.Booklet || s.PagesPerSheet > 1,
             ShowBorders: !s.Booklet && s.PagesPerSheet > 1,
+            ScalingEnabled: alone || s.Scaling == Scaling.Fill,
+            ScalingReason: alone || s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
+            ShowScale: alone && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize,
             ShowPhotos: photos,
             PhotoSizeEnabled: task == PrintTask.Photos,
             PhotoSizeReason: task == PrintTask.PhotoSheet ? ShortText.SheetLayout : null,

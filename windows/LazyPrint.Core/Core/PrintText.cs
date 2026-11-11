@@ -33,6 +33,8 @@ public static class PrintText
 
     public const string LoadBacks = "Load the backs";
 
+    public const string FinishTwoSided = "Finish the two-sided job first";
+
     /// <summary>The iPhone stopped a job because the system took back the app's time in the background.</summary>
     public const string BackgroundExpired = "Lazy Print ran out of time in the background. Print again to finish.";
 
@@ -81,4 +83,7 @@ public static class PrintText
         documents > 1 ? $"1-{pages} (all documents)" : "All, or 1-3, 5";
 
     public const string PrintedInGray = "Printed in gray: this printer has no color";
+
+    /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
+    public static string Shrunk(int percent) => $"Shrunk to {percent} %";
 }

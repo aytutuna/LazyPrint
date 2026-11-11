@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using LazyPrint.App.Printing;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
@@ -47,6 +48,7 @@ public sealed partial class AppViewModel
     private ManualRun? _manual;
     private readonly SemaphoreSlim _addingTurn = new(1, 1);
     private int _addingFiles;
+    private CancellationTokenSource? _loading;
 
     /// <summary>Files are being opened; Print waits for them.</summary>
     public bool IsAddingFiles => _addingFiles > 0;
@@ -56,11 +58,41 @@ public sealed partial class AppViewModel
     /// <summary>Jobs that can be printed again; each keeps its documents open, so the oldest are let go of.</summary>
     private const int KeptAgain = 10;
 
-    private void KeepAgain(string id, Func<Task> again)
+    private readonly Dictionary<string, IReadOnlyList<LoadedDocument>> _againDocuments = [];
+
+    /// <summary>Taken pictures that were removed while a job that can be printed again still draws them from their files.</summary>
+    private readonly List<LoadedDocument> _heldTaken = [];
+
+    private void KeepAgain(string id, Func<Task> again, IReadOnlyList<LoadedDocument>? documents = null)
     {
         _again[id] = again;
+        if (documents is not null) _againDocuments[id] = documents;
         _againOrder.Enqueue(id);
-        while (_againOrder.Count > KeptAgain) _again.Remove(_againOrder.Dequeue());
+        while (_againOrder.Count > KeptAgain)
+        {
+            string old = _againOrder.Dequeue();
+            _again.Remove(old);
+            _againDocuments.Remove(old);
+        }
+        ReleaseHeldTaken();
+    }
+
+    private void ReleaseHeldTaken()
+    {
+        foreach (var document in _heldTaken.ToArray())
+        {
+            if (_againDocuments.Values.Any(documents => documents.Any(kept => ReferenceEquals(kept, document)))) continue;
+            _heldTaken.Remove(document);
+            DeleteTaken(document);
+        }
+    }
+
+    /// <summary>A removed document's taken file goes now, or once the last job that can print it again is let go of.</summary>
+    private void DropTaken(LoadedDocument document)
+    {
+        if (!_takenFiles.TryGetValue(document, out _)) return;
+        _heldTaken.Add(document);
+        ReleaseHeldTaken();
     }
 
     /// <summary>The pages of all documents, which the page range counts along.</summary>
@@ -76,35 +108,112 @@ public sealed partial class AppViewModel
         NotifyAll();
     }
 
-    /// <summary>Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.</summary>
-    public Task AddFilesAsync(IEnumerable<string> paths) => InAddingTurnAsync(async () =>
+    /// <summary>
+    /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
+    /// While a job runs or waits for its backs the files wait, and are added when it ends.
+    /// </summary>
+    public Task AddFilesAsync(IEnumerable<string> paths)
     {
-        var (opened, failed) = await OpenFilesAsync(paths);
-        foreach (var document in opened) Documents.Add(document);
-        if (failed.Count > 0) ReportNotAdded(failed);
-    });
+        if (DocumentsLockedReason is not null)
+        {
+            QueueFiles(paths);
+            return Task.CompletedTask;
+        }
+        return InAddingTurnAsync(async token =>
+        {
+            // A job may have begun while this load waited for its turn.
+            if (DocumentsLockedReason is not null)
+            {
+                QueueFiles(paths);
+                return;
+            }
+            var (opened, failed) = await OpenFilesAsync(paths, token);
+            foreach (var document in opened) Documents.Add(document);
+            if (failed.Count > 0) ReportNotAdded(failed);
+        });
+    }
 
-    /// <summary>Runs one load of files in its turn; Print waits until none is going.</summary>
-    private async Task InAddingTurnAsync(Func<Task> load)
+    private readonly List<string> _queuedFiles = [];
+
+    /// <summary>Files moved out of the phone inbox that are not open yet, and the file each open document came from.</summary>
+    private readonly HashSet<string> _takenPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConditionalWeakTable<LoadedDocument, string> _takenFiles = new();
+
+    /// <summary>Deletes the file a document was taken from the phone inbox as; any other document has none.</summary>
+    private void DeleteTaken(LoadedDocument document)
+    {
+        if (!_takenFiles.TryGetValue(document, out string? path)) return;
+        _takenFiles.Remove(document);
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Trace.TraceWarning($"Could not delete a file from your phone: {e.Message}");
+        }
+    }
+
+    /// <summary>A PDF is read whole when it opens, so once printed its file can go; a picture is read from its file again for the preview.</summary>
+    private void DeleteTakenPdfs(IEnumerable<LoadedDocument> documents)
+    {
+        foreach (var document in documents.Where(document => document.Kind is DocumentKind.Pdf)) DeleteTaken(document);
+    }
+
+    private void QueueFiles(IEnumerable<string> paths)
+    {
+        _queuedFiles.AddRange(paths);
+        ShowNotice(ShortText.FilesQueuedTitle, ShortText.FilesQueued);
+    }
+
+    /// <summary>Adds the files that came while the job was going, once nothing holds the documents any more.</summary>
+    private async Task AddQueuedFilesAsync()
+    {
+        if (_queuedFiles.Count == 0 || DocumentsLockedReason is not null) return;
+        string[] paths = [.. _queuedFiles];
+        _queuedFiles.Clear();
+        if (ErrorTitle == ShortText.FilesQueuedTitle) DismissError();
+        await AddFilesAsync(paths);
+    }
+
+    /// <summary>Runs one load of files in its turn; Print waits until none is going. Cancel drops the load, and the ones waiting.</summary>
+    private async Task InAddingTurnAsync(Func<CancellationToken, Task> load)
     {
         // Calls are served in the order they came, so files from separate starts of the app do not swap places.
         _addingFiles++;
+        var token = (_loading ??= new CancellationTokenSource()).Token;
         NotifyAll();
-        await _addingTurn.WaitAsync();
         try
         {
-            await load();
+            await _addingTurn.WaitAsync(token);
+            try
+            {
+                await load(token);
+            }
+            finally
+            {
+                _addingTurn.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
         finally
         {
-            _addingTurn.Release();
-            _addingFiles--;
+            if (--_addingFiles == 0) _loading = null;
             NotifyAll();
         }
     }
 
+    /// <summary>Stops opening files; what was already opened for the load is not added.</summary>
+    public void CancelLoad()
+    {
+        _loading?.Cancel();
+        _loading = null;
+    }
+
     /// <summary>Opens the files without adding them; the ones that cannot be read come back with what was wrong.</summary>
-    private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths)
+    private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths, CancellationToken token)
     {
         List<LoadedDocument> opened = [];
         List<(string Name, string Reason)> failed = [];
@@ -112,9 +221,11 @@ public sealed partial class AppViewModel
         {
             try
             {
-                opened.Add(await _loader.LoadAsync(path, CancellationToken.None));
+                var document = await _loader.LoadAsync(path, token);
+                opened.Add(document);
+                if (_takenPaths.Remove(path)) _takenFiles.Add(document, path);
             }
-            catch (Exception e)
+            catch (Exception e) when (e is not OperationCanceledException)
             {
                 failed.Add((Path.GetFileName(path), e.Message));
             }
@@ -135,11 +246,18 @@ public sealed partial class AppViewModel
         ShowFailure("Not added", string.Join("\n", lines), null);
     }
 
+    /// <summary>Why the documents cannot be removed or moved; null when they can. The preview is of the job that waits for its backs.</summary>
+    public string? DocumentsLockedReason => IsBusy ? "Printing…" : _manual is not null ? PrintText.FinishTwoSided : null;
+
     public void RemoveDocument(LoadedDocument document)
     {
-        if (IsBusy) return;
+        if (DocumentsLockedReason is not null) return;
         int at = IndexOfDocument(document);
-        if (at >= 0) Documents.RemoveAt(at);
+        if (at >= 0)
+        {
+            Documents.RemoveAt(at);
+            DropTaken(document);
+        }
         if (Documents.Count == 0) PageRangeText = "";
         NotifyAll();
     }
@@ -156,7 +274,7 @@ public sealed partial class AppViewModel
     public void MoveDocument(LoadedDocument document, int offset)
     {
         int from = IndexOfDocument(document), to = from + offset;
-        if (IsBusy || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
+        if (DocumentsLockedReason is not null || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
         Documents.Move(from, to);
         NotifyAll();
     }
@@ -214,7 +332,7 @@ public sealed partial class AppViewModel
     public string? PrintDisabledReason =>
         IsBusy ? "Printing…"
         : IsAddingFiles ? "Opening files…"
-        : _manual is not null ? "Finish the two-sided job first"
+        : _manual is not null ? PrintText.FinishTwoSided
         : SelectedPrinter is null ? PrintText.NoPrinterReason
         : Documents.Count == 0 ? "Add files to print"
         : PageRangeError is { } error ? error
@@ -248,18 +366,26 @@ public sealed partial class AppViewModel
         var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Task, inputs.Settings),
                                 FrameMarksOf(inputs.Task, inputs.Settings));
         var record = Record(job);
-        KeepAgain(id, () => PrintDocumentsAsync(inputs));
+        KeepAgain(id, () => PrintDocumentsAsync(inputs), inputs.Documents);
 
-        if (!await RunPassAsync(job, 0, id)) return;
-        if (plan.ManualDuplex)
+        try
         {
-            _manual = new ManualRun(inputs, job, id);
-            SetJob(id, JobState.NeedsUser, PrintText.LoadBacks);
-            _statusOverride = PrintText.LoadBacks;
-            NotifyAll();
-            return;
+            if (!await RunPassAsync(job, 0, id)) return;
+            if (plan.ManualDuplex)
+            {
+                _manual = new ManualRun(inputs, job, id);
+                SetJob(id, JobState.NeedsUser, PrintText.LoadBacks);
+                _statusOverride = PrintText.LoadBacks;
+                NotifyAll();
+                return;
+            }
+            Sent(record, printer);
+            DeleteTakenPdfs(inputs.Documents);
         }
-        Sent(record, printer);
+        finally
+        {
+            await AddQueuedFilesAsync();
+        }
     }
 
     /// <summary>A line for the Jobs tab, at its top.</summary>
@@ -378,16 +504,23 @@ public sealed partial class AppViewModel
         var job = SheetJob.OfItems(Guid.NewGuid().ToString("N"), name, printer, capabilities, area, sides);
         var record = Record(job);
         KeepAgain(job.Id, () => PrintItemsAsync(name, printer, capabilities, area, sides, announce));
-        if (!await RunPassAsync(job, 0, job.Id)) return false;
-        if (announce) Sent(record, printer);
-        else SetJob(job.Id, JobState.Done, null);
-        return true;
+        try
+        {
+            if (!await RunPassAsync(job, 0, job.Id)) return false;
+            if (announce) Sent(record, printer);
+            else SetJob(job.Id, JobState.Done, null);
+            return true;
+        }
+        finally
+        {
+            await AddQueuedFilesAsync();
+        }
     }
 
     /// <summary>The test page goes straight to the printer in use.</summary>
     public async Task PrintTestPageAsync()
     {
-        if (SelectedPrinter is not { } printer || IsBusy || _manual is not null) return;
+        if (SelectedPrinter is not { } printer || IsBusy || IsAddingFiles || _manual is not null) return;
         var caps = SelectedCapabilities;
         var area = PrintJobs.Area(PaperSizes.Parse(Settings.PaperId), caps, false);
         var info = new TestPageInfo(printer.Name, printer.Model ?? caps?.MakeAndModel ?? "", printer.Address ?? "", DateTime.Now.ToString("g"));
@@ -427,7 +560,7 @@ public sealed partial class AppViewModel
     /// <summary>The Jobs tab's Print again: the job is planned once more from what it was made of, with what is known of the printer now.</summary>
     public async Task PrintAgainAsync(string id)
     {
-        if (IsBusy || _manual is not null) return;
+        if (IsBusy || IsAddingFiles || _manual is not null) return;
         if (!_again.TryGetValue(id, out var again))
         {
             ShowNotice("Print again", "This job is too old to print again. Add its files again.");
@@ -492,6 +625,8 @@ public sealed partial class AppViewModel
         if (!await RunPassAsync(run.Job, 1, run.RecordId)) return;
         _manual = null;
         Sent(CurrentJob(run.RecordId)!, run.Job.Printer);
+        DeleteTakenPdfs(run.Inputs.Documents);
+        await AddQueuedFilesAsync();
     }
 
     /// <summary>Prints the check sheet's front, a big 1 with an arrow to its top edge.</summary>
@@ -544,5 +679,6 @@ public sealed partial class AppViewModel
         SetJob(run.RecordId, JobState.Canceled, null);
         _statusOverride = null;
         NotifyAll();
+        _ = AddQueuedFilesAsync();
     }
 }

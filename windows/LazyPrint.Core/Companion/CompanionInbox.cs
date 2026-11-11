@@ -222,7 +222,7 @@ public sealed class CompanionInbox
     /// <summary>
     /// Moves the files of <paramref name="batch"/> to "&lt;batch&gt;/&lt;name&gt;" under the inbox
     /// folder and returns their paths in the order the phone sent them, stamped <paramref name="now"/>
-    /// so they are kept <see cref="KeepDays"/> days from now on. The name is the sender's word, so it
+    /// so they are kept <see cref="KeepDays"/> days from now on if the app never deletes them. The name is the sender's word, so it
     /// is made safe: characters Windows does not allow become "_", trailing dots and spaces go, a
     /// device name like NUL gets "_" in front, the extension is the one the content type says
     /// (appended when the name has another) and the stem is cut to fit. A name already taken in the
@@ -271,6 +271,32 @@ public sealed class CompanionInbox
         lock (_gate)
         {
             foreach (var package in Stored().Where(p => p.Info.Batch == batch)) TryDelete(package.Path);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the files that <see cref="Take"/> moved out: the folders with no phone's log and no package in them. Run at
+    /// launch, for files taken by a run of the app that quit before they were printed or removed.
+    /// </summary>
+    public void DeleteTaken()
+    {
+        lock (_gate)
+        {
+            if (!Directory.Exists(_directory)) return;
+            foreach (string folder in Directory.GetDirectories(_directory))
+            {
+                bool phone = File.Exists(System.IO.Path.Combine(folder, LogFileName))
+                    || Directory.EnumerateFiles(folder).Any(path => System.IO.Path.GetExtension(path) is ".part" or "." + PrintPackage.FileExtension);
+                if (phone) continue;
+                try
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    System.Diagnostics.Trace.TraceWarning($"Could not delete files taken from the inbox: {e.Message}");
+                }
+            }
         }
     }
 

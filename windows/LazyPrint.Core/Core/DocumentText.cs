@@ -10,5 +10,7 @@ public static class DocumentText
 
     public const string Unreadable = "Lazy Print can't read this file.";
 
+    public const string NeedsHeif = "To open HEIC pictures, install the HEIF Image Extensions from the Microsoft Store.";
+
     public const string NoPages = "This PDF has no pages.";
 }

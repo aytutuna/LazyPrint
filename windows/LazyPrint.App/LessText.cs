@@ -20,6 +20,11 @@ internal static class ShortText
     public const string BookletTwoSided = "Booklets are two-sided";
     /// <summary>A booklet sets how many pages go on a side.</summary>
     public const string BookletPages = "Set by Booklet";
+    /// <summary>The bar's title while files wait for a job to end.</summary>
+    public const string FilesQueuedTitle = "Files waiting";
+    public const string FilesQueued = "They are added when the job ends.";
+    /// <summary>Scaling while pages share a side or fold into a booklet: they are fitted to their space.</summary>
+    public const string PagesFit = "Pages fit their space";
     /// <summary>The photo size while the Photo sheet task lays out the sheet.</summary>
     public const string SheetLayout = "Set by Photo sheet";
     /// <summary>Color while the printer prints gray only.</summary>

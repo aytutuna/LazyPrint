@@ -292,6 +292,28 @@ public class DocumentLoaderTests
         }
     }
 
+    [Theory]
+    [InlineData(".heic", 0x88982F50, true)]
+    [InlineData(".heif", 0x88982F50, true)]
+    [InlineData(".heic", 0x88982F61, false)]
+    [InlineData(".png", 0x88982F50, false)]
+    public void OnlyAMissingDecoderForHeifAsksForTheExtension(string extension, uint code, bool asks)
+    {
+        var error = new NotSupportedException("", new System.Runtime.InteropServices.COMException("", unchecked((int)code)));
+
+        Assert.Equal(asks, DocumentLoader.LacksHeifCodec(extension, error));
+    }
+
+    [Fact]
+    public async Task ACanceledLoadStopsWithoutAnError()
+    {
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _loader.LoadAsync(DocumentFixtures.PathOf("red-letter.pdf"), canceled.Token));
+    }
+
     [Fact]
     public async Task AMissingFileIsRefusedAsUnreadable()
     {

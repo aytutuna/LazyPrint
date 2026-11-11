@@ -113,6 +113,14 @@ public sealed partial class AppViewModel
                 };
             }
             var companion = new CompanionService(options);
+            try
+            {
+                companion.Inbox.DeleteTaken();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Could not clear the files taken from the inbox: {e.Message}");
+            }
             companion.Router.ApprovePairing = ApprovePhonePairingAsync;
             companion.PackageReceived += (_, _) => _dispatcher.BeginInvoke(RefreshPhoneBatches);
             companion.Changed += (_, _) => _dispatcher.BeginInvoke(() =>
@@ -241,20 +249,36 @@ public sealed partial class AppViewModel
     /// <summary>
     /// Takes the batch the bar offers into the job, or into a new job when <paramref name="startNew"/> (the documents and
     /// the page range are cleared first, once at least one file has opened: when none does, the job stays as it was). A file
-    /// that cannot be read is reported and the others still go in. False when nothing was added.
+    /// that cannot be read is reported and the others still go in. While a job runs the files are queued, not added to a new job. False when nothing was added.
     /// </summary>
     public async Task<bool> UsePhoneBatchAsync(bool startNew)
     {
-        if (IsBusy || _usingPhoneBatch || PhoneBatch is not { } batch || _companion is null) return false;
+        if (_usingPhoneBatch || PhoneBatch is not { } batch || _companion is null) return false;
+        if (startNew && DocumentsLockedReason is not null) return false;
         _usingPhoneBatch = true;
         try
         {
             var files = await TakePhoneBatchAsync(batch);
             int missed = batch.Arrived - files.Count;
-            bool added = false;
-            await InAddingTurnAsync(async () =>
+            if (DocumentsLockedReason is not null)
             {
-                var (opened, failed) = await OpenFilesAsync(files);
+                // A job is running: the files are out of the inbox already, and go in when it ends.
+                if (files.Count > 0) QueueFiles(files);
+                if (missed > 0) ReportMissed(batch, missed);
+                return files.Count > 0;
+            }
+            bool added = false, settled = false;
+            await InAddingTurnAsync(async token =>
+            {
+                if (DocumentsLockedReason is not null)
+                {
+                    settled = true;
+                    if (files.Count > 0) QueueFiles(files);
+                    if (missed > 0) ReportMissed(batch, missed);
+                    return;
+                }
+                var (opened, failed) = await OpenFilesAsync(files, token);
+                settled = true;
                 if (opened.Count == 0)
                 {
                     if (failed.Count > 0) ReportNotAdded(failed);
@@ -263,6 +287,7 @@ public sealed partial class AppViewModel
                 }
                 if (startNew)
                 {
+                    foreach (var old in Documents) DropTaken(old);
                     Documents.Clear();
                     PageRangeText = "";
                 }
@@ -271,6 +296,11 @@ public sealed partial class AppViewModel
                 else if (missed > 0) ReportMissed(batch, missed);
                 added = true;
             });
+            if (!settled && files.Count > 0)
+            {
+                // Stopped while opening: the files are out of the inbox already, so say where they are.
+                ShowNotice("Not added", $"The files from your phone were not added. They are in {Path.GetDirectoryName(files[0])}, and are deleted when Lazy Print next starts.");
+            }
             if (!added) return false;
             NotifyAll();
             return true;
@@ -298,6 +328,7 @@ public sealed partial class AppViewModel
         var inbox = _companion!.Inbox;
         var now = DateTimeOffset.UtcNow;
         var files = await Task.Run(() => inbox.Take(batch.Id, now));
+        _takenPaths.UnionWith(files);
         RefreshPhoneBatches();
         return files;
     }
