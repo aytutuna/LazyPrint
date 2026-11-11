@@ -92,6 +92,7 @@ public struct IOSRootView: View {
         // The printers are read, and read again, only while the app is in front.
         .onChange(of: scenePhase, initial: true) { (_: ScenePhase, phase: ScenePhase) in
             state.setActive(phase == .active)
+            if phase == .active { receiveShared() }
         }
         // After time in the background the search may have failed or gone stale, so it starts again. The scene goes
         // background, inactive, active on its way back, so the change of phase cannot tell.
@@ -209,6 +210,27 @@ public struct IOSRootView: View {
             }
             if received.failed.isEmpty { IOSFileInbox.removeHandoff(id) }
             await open(received.copies, notAdded: received.failed)
+        }
+    }
+
+    /// Takes what the share extension left in the App Group, one folder per share. A folder is removed once it is read, so
+    /// a file that failed to copy is reported rather than tried again on every return.
+    private func receiveShared() {
+        let folders: [URL] = IOSFileInbox.sharedFolders()
+        if folders.isEmpty { return }
+        let before: Task<Void, Never>? = opening
+        opening = Task {
+            await before?.value
+            _ = await state.$isBusy.values.first { (busy: Bool) -> Bool in !busy }
+            for folder in folders {
+                let urls: [URL] = IOSFileActions.files(in: folder)
+                var received: (copies: [URL], failed: [String]) = (copies: [], failed: [])
+                await state.whileAddingFiles {
+                    received = await inbox.receive(urls)
+                }
+                try? FileManager.default.removeItem(at: folder)
+                await open(received.copies, notAdded: received.failed)
+            }
         }
     }
 
