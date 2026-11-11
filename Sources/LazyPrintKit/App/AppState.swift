@@ -608,7 +608,8 @@ public final class AppState: ObservableObject {
         drawnSides.removeAll { $0.key == key }
         drawnSides.append((key: key, image: image))
         // Two decks show two sides and draw the two either side of them ahead.
-        if drawnSides.count > 6 { drawnSides.removeFirst() }
+        // A zoomed page is big: keep the visible side and those beside it only.
+        if drawnSides.count > (previewScale > 2 ? 4 : 6) { drawnSides.removeFirst() }
     }
 
     private func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {
