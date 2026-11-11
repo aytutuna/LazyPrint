@@ -51,7 +51,8 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
 
     /// <summary>The sentence the status line shortens; the whole of it is the line's name for screen readers.</summary>
     public string StatusMessage =>
-        _statusOverride
+        (IsAddingFiles ? "Opening files…" : null)
+        ?? _statusOverride
         ?? (SelectedTask is { } task ? PrintText.Ready(TaskCatalog.Definition(task).Title)
             : SelectedPrinter is { } printer ? printer.Name
             : _printersRead ? PrintText.NoPrinterMessage

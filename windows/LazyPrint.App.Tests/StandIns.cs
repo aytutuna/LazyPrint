@@ -31,10 +31,16 @@ internal sealed class FakeLoader : IDocumentLoader
     /// <summary>The pages of every file it opens.</summary>
     public IReadOnlyList<LayoutSize> Pages { get; set; } = [new LayoutSize(612, 792)];
 
-    public Task<LoadedDocument> LoadAsync(string path, CancellationToken token) =>
-        path.Contains(".bad", StringComparison.Ordinal)
+    /// <summary>Holds a file's load until the task is done; a test uses it to make one file slower than another.</summary>
+    public Dictionary<string, Task> Holds { get; } = [];
+
+    public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token)
+    {
+        if (Holds.TryGetValue(path, out var hold)) await hold;
+        return path.Contains(".bad", StringComparison.Ordinal)
             ? throw new InvalidOperationException("Lazy Print prints PDFs and pictures. Save it as a PDF first.")
-            : Task.FromResult(new LoadedDocument(Path.GetFileName(path), new DocumentKind.Pdf(false), Pages));
+            : new LoadedDocument(Path.GetFileName(path), new DocumentKind.Pdf(false), Pages);
+    }
 }
 
 internal sealed class FakeSheetPrinter : ISheetPrinter

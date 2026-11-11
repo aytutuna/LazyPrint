@@ -24,6 +24,32 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public async Task FilesAddedTogetherEndInTheOrderTheyCameAndPrintWaitsForThem()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["first.pdf"]);
+        Assert.True(rig.Model.CanPrint);
+
+        var slow = new TaskCompletionSource();
+        rig.Loader.Holds["slow.pdf"] = slow.Task;
+        var one = rig.Model.AddFilesAsync(["slow.pdf"]);
+        var two = rig.Model.AddFilesAsync(["quick.pdf"]);
+
+        Assert.True(rig.Model.IsAddingFiles);
+        Assert.False(rig.Model.CanPrint);
+        Assert.Equal("Opening files…", rig.Model.PrintDisabledReason);
+        Assert.Equal("Opening files…", rig.Model.StatusMessage);
+        Assert.Equal(["first.pdf"], Names(rig));
+
+        slow.SetResult();
+        await Task.WhenAll(one, two);
+        Assert.Equal(["first.pdf", "slow.pdf", "quick.pdf"], Names(rig));
+        Assert.False(rig.Model.IsAddingFiles);
+        Assert.True(rig.Model.CanPrint);
+    }
+
+    [Fact]
     public async Task EqualDocumentsAreToldApartByReference()
     {
         using var rig = new Rig();

@@ -40,6 +40,11 @@ public sealed partial class AppViewModel
     }
 
     private ManualRun? _manual;
+    private readonly SemaphoreSlim _addingTurn = new(1, 1);
+    private int _addingFiles;
+
+    /// <summary>Files are being opened; Print waits for them.</summary>
+    public bool IsAddingFiles => _addingFiles > 0;
     private readonly Dictionary<string, Func<Task>> _again = [];
     private readonly Queue<string> _againOrder = [];
 
@@ -69,10 +74,22 @@ public sealed partial class AppViewModel
     /// <summary>Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.</summary>
     public async Task AddFilesAsync(IEnumerable<string> paths)
     {
-        var (opened, failed) = await OpenFilesAsync(paths);
-        foreach (var document in opened) Documents.Add(document);
-        if (failed.Count > 0) ReportNotAdded(failed);
+        // Calls are served in the order they came, so files from separate starts of the app do not swap places.
+        _addingFiles++;
         NotifyAll();
+        await _addingTurn.WaitAsync();
+        try
+        {
+            var (opened, failed) = await OpenFilesAsync(paths);
+            foreach (var document in opened) Documents.Add(document);
+            if (failed.Count > 0) ReportNotAdded(failed);
+        }
+        finally
+        {
+            _addingTurn.Release();
+            _addingFiles--;
+            NotifyAll();
+        }
     }
 
     /// <summary>Opens the files without adding them; the ones that cannot be read come back with what was wrong.</summary>
@@ -181,6 +198,7 @@ public sealed partial class AppViewModel
     /// <summary>Why Print is greyed out; null when it can run.</summary>
     public string? PrintDisabledReason =>
         IsBusy ? "Printing…"
+        : IsAddingFiles ? "Opening files…"
         : _manual is not null ? "Finish the two-sided job first"
         : SelectedPrinter is null ? PrintText.NoPrinterReason
         : Documents.Count == 0 ? "Add files to print"
