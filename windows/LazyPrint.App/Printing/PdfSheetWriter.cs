@@ -278,6 +278,23 @@ public sealed class PdfSheetWriter : IDisposable
                      close: true, fill: null, stroke: TestColor.Gray(128), BorderWidth);
             }
         }
+        if (side.CutMarks)
+        {
+            double length = Imposition.PosterMarkLength;
+            foreach (var placement in side.Placements)
+            {
+                var f = placement.Frame;
+                foreach (var (x, dx) in new[] { (f.X, -1), (f.X + f.Width, 1) })
+                {
+                    foreach (var (y, dy) in new[] { (f.Y, -1), (f.Y + f.Height, 1) })
+                    {
+                        Point Up(double px, double py) => new(px, paper.Height - py);
+                        Path(page, [Up(x, y), Up(x + dx * length, y)], close: false, fill: null, TestColor.Gray(128), 0.5);
+                        Path(page, [Up(x, y), Up(x, y + dy * length)], close: false, fill: null, TestColor.Gray(128), 0.5);
+                    }
+                }
+            }
+        }
         foreach (var item in items ?? [])
         {
             switch (item)
