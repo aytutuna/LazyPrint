@@ -40,6 +40,16 @@ final class JobSidesTests: XCTestCase {
         XCTAssertEqual(sides[1].side, sides[5].side)
     }
 
+    func test_of_notCollatedRepeatsEachSheetInARow() throws {
+        let document = try openLetterPDF(pages: 2)
+        let job = PrintFixtures.job(PrintFixtures.letter { $0.copies = 3; $0.collate = false }, document: document,
+                                    capabilities: duplexCapabilities(copies: 1))
+        let sent = job.plan.passes[0].sides
+        let sides = JobSides.of(job, pass: 0)
+
+        XCTAssertEqual(sides.map { $0.side }, [sent[0], sent[0], sent[0], sent[1], sent[1], sent[1]])
+    }
+
     func test_of_isThePassesSidesOnceForOneCopy() throws {
         let document = try openLetterPDF(pages: 3)
         let job = PrintFixtures.job(PrintFixtures.letter(), document: document)

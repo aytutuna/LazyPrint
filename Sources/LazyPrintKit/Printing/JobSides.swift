@@ -24,7 +24,13 @@ public enum JobSides {
                                      turned: job.items?[i].turned ?? false))
         }
         let times = repeats(job)
-        return times == 1 ? once : (0..<times).flatMap { _ in once }
+        if times == 1 { return once }
+        if job.settings.collate { return (0..<times).flatMap { _ in once } }
+        // Not collated: each sheet comes out its copies in a row, a two-sided sheet as its front and back.
+        let group = job.plan.plan.duplex && !job.plan.manualDuplex ? 2 : 1
+        return stride(from: 0, to: once.count, by: group).flatMap { start in
+            (0..<times).flatMap { _ in Array(once[start..<min(start + group, once.count)]) }
+        }
     }
 
     private static func cutMarks(_ job: SheetJob, _ side: SheetSide) -> [TestPageItem] {

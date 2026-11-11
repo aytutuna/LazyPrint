@@ -437,6 +437,15 @@ public sealed class PrintFlowTests
     }
 
     [Fact]
+    public void NotCollatedCopiesComeOutEachSheetInARow()
+    {
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => { s.Copies = 3; s.Collate = false; }), 2);
+        var sent = job.Plan.Passes[0].Sides;
+
+        Assert.Equal([sent[0], sent[0], sent[0], sent[1], sent[1], sent[1]], JobSides.Of(job, 0).Select(d => d.Side));
+    }
+
+    [Fact]
     public async Task APrinterRowIsUpdatedInPlace()
     {
         using var rig = new Rig(demo: true);
