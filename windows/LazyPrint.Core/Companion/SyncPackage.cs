@@ -81,13 +81,8 @@ public static class SyncPackage
     /// </summary>
     public static byte[] Open(ReadOnlySpan<byte> data, string packageId, string phoneId, ReadOnlySpan<byte> key)
     {
-        if (data.Length > MaxFileBytes) throw new SyncPackageException(SyncPackageErrorKind.TooLarge, CompanionError.TooLarge.Message);
+        CheckHeader(data, data.Length);
         int prefix = Magic.Length + HeaderByteCount;
-        if (data.Length < prefix + TagByteCount || !data[..Magic.Length].SequenceEqual(Magic) || data[Magic.Length] == 0)
-        {
-            throw new SyncPackageException(SyncPackageErrorKind.NotASyncPackage, NotASyncPackageMessage);
-        }
-        if (data[Magic.Length] > Version) throw new SyncPackageException(SyncPackageErrorKind.NewerVersion, NewerVersionMessage);
         if (key.Length != KeyByteCount) throw new SyncPackageException(SyncPackageErrorKind.WrongKeyOrTampered, WrongKeyMessage);
         var ciphertext = data[prefix..^TagByteCount];
         var plaintext = new byte[ciphertext.Length];
@@ -102,6 +97,22 @@ public static class SyncPackage
             throw new SyncPackageException(SyncPackageErrorKind.WrongKeyOrTampered, WrongKeyMessage);
         }
         return plaintext;
+    }
+
+    /// <summary>
+    /// Checks a file of <paramref name="length"/> bytes by its first bytes (<paramref name="start"/>, the magic and
+    /// header at least when there are that many), so a file that is no sync package is turned away without being
+    /// read whole. Throws <see cref="SyncPackageException"/>.
+    /// </summary>
+    public static void CheckHeader(ReadOnlySpan<byte> start, long length)
+    {
+        if (length > MaxFileBytes) throw new SyncPackageException(SyncPackageErrorKind.TooLarge, CompanionError.TooLarge.Message);
+        int prefix = Magic.Length + HeaderByteCount;
+        if (length < prefix + TagByteCount || start.Length < prefix || !start[..Magic.Length].SequenceEqual(Magic) || start[Magic.Length] == 0)
+        {
+            throw new SyncPackageException(SyncPackageErrorKind.NotASyncPackage, NotASyncPackageMessage);
+        }
+        if (start[Magic.Length] > Version) throw new SyncPackageException(SyncPackageErrorKind.NewerVersion, NewerVersionMessage);
     }
 
     /// <summary>The file name a package is put in the folder under.</summary>

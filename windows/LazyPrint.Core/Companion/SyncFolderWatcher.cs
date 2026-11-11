@@ -12,11 +12,12 @@ namespace LazyPrint.Core;
 /// phone that sealed it is found by trying each paired phone's sync key, its package is received into
 /// the inbox under that phone, raised through <see cref="PackageReceived"/> and the file deleted. A
 /// package the inbox has received before (over the network or from the folder) is only deleted. A
-/// file no paired phone's key opens is left where it is and reported once (<see cref="Problem"/>),
-/// then tried again only once its size or modification date changes or <see cref="RetryTime"/> has
-/// passed. A phone whose key cannot be unprotected is reported once and skipped for the rest of the
-/// poll; a file no key opened while that was so is not reported (it may be that phone's) but waits the
-/// same way. One that cannot be read now (a placeholder still downloading, a file in use) is tried
+/// file that is no package, or that no paired phone's key opens, is left where it is and reported once
+/// (<see cref="Problem"/>), then not looked at again until its size or modification date changes; a
+/// file's first bytes are checked before it is read whole. A phone whose key cannot be unprotected is
+/// reported once and skipped for the rest of the poll; a file no key opened while that was so is not
+/// reported (it may be that phone's) but waits <see cref="RetryTime"/>. One that cannot be read now (a
+/// placeholder still downloading, a file in use) is tried
 /// again on the next poll. The folder is looked at every <see cref="PollInterval"/>, at once when it
 /// changes, and again after <see cref="SettleTime"/> while a file is still settling.
 /// </summary>
@@ -136,7 +137,7 @@ public sealed class SyncFolderWatcher : IDisposable
                 {
                     settling = true;
                 }
-                else if (!_failed.TryGetValue(name, out var tried) || now - tried >= RetryTime)
+                else if (!_reported.Contains(name) && (!_failed.TryGetValue(name, out var tried) || now - tried >= RetryTime))
                 {
                     await TakeAsync(path, name, size).ConfigureAwait(false);
                 }
@@ -175,15 +176,22 @@ public sealed class SyncFolderWatcher : IDisposable
             Report(name, SyncPackage.NotASyncPackageMessage);
             return;
         }
-        if (size > SyncPackage.MaxFileBytes)
-        {
-            Report(name, CompanionError.TooLarge.Message);
-            return;
-        }
         byte[] data;
         try
         {
+            // The first bytes tell a file that is no package, so a junk file is never read whole.
+            using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var start = new byte[SyncPackage.Magic.Length + SyncPackage.HeaderByteCount];
+                int read = file.ReadAtLeast(start, start.Length, throwOnEndOfStream: false);
+                SyncPackage.CheckHeader(start.AsSpan(0, read), size);
+            }
             data = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
+        }
+        catch (SyncPackageException e)
+        {
+            Report(name, e.Message);
+            return;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

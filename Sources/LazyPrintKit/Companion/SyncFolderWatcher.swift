@@ -10,11 +10,11 @@ import Foundation
 /// `settleTime` (the sync client may still be writing it): the phone that sealed it is found by trying
 /// each paired phone's sync key, its package is received into the inbox under that phone, passed to
 /// `onPackageReceived` and the file deleted. A package the inbox has received before (over the network
-/// or from the folder) is only deleted. A file no paired phone's key opens is left where it is and
-/// reported once (`onProblem`), then tried again only once its size or modification date changes or
-/// `retryTime` has passed. A phone whose key cannot be read (a locked keychain) is reported once and
-/// skipped for the rest of the poll; a file no key opened while that was so is not reported (it may be
-/// that phone's) but waits the same way. One that cannot be read now (an evicted iCloud file still
+/// or from the folder) is only deleted. A file that is no package, or that no paired phone's key opens,
+/// is left where it is and reported once (`onProblem`), then not looked at again until its size or
+/// modification date changes; a file's first bytes are checked before it is read whole. A phone whose
+/// key cannot be read (a locked keychain) is reported once and skipped for the rest of the poll; a
+/// file no key opened while that was so is not reported (it may be that phone's) but waits `retryTime`. One that cannot be read now (an evicted iCloud file still
 /// downloading) is tried again on the next poll. The folder is looked at every `pollInterval`, at once
 /// when it changes, and again after `settleTime` while a file is still settling. Safe to use from any
 /// thread.
@@ -131,7 +131,8 @@ public final class SyncFolderWatcher: @unchecked Sendable {
             if let known = seen[name], known.size == size, known.modified == modified {
                 if now.timeIntervalSince(known.since) < SyncFolderWatcher.settleTime {
                     settling = true
-                } else if failed[name].map({ now.timeIntervalSince($0) >= SyncFolderWatcher.retryTime }) ?? true {
+                } else if !reported.contains(name),
+                          failed[name].map({ now.timeIntervalSince($0) >= SyncFolderWatcher.retryTime }) ?? true {
                     await take(url, name: name, size: size)
                 }
             } else {
@@ -183,11 +184,18 @@ public final class SyncFolderWatcher: @unchecked Sendable {
             report(name, SyncPackageError.notASyncPackage.localizedDescription)
             return
         }
-        guard size <= SyncPackage.maxFileBytes else {
-            report(name, SyncPackageError.tooLarge.localizedDescription)
+        // The first bytes tell a file that is no package, so a junk file is never read whole. Reading an
+        // evicted file downloads it; until it is here, the next poll tries again.
+        guard let handle = try? FileHandle(forReadingFrom: url),
+              let start = try? handle.read(upToCount: SyncPackage.magic.count + SyncPackage.headerByteCount)
+        else { return }
+        try? handle.close()
+        do {
+            try SyncPackage.checkHeader(start, length: size)
+        } catch {
+            report(name, error.localizedDescription)
             return
         }
-        // Reading an evicted file downloads it; until it is here, the next poll tries again.
         guard let data = try? Data(contentsOf: url) else { return }
         var found: (device: PairedDevice, plaintext: Data)?
         var keyUnread = false
