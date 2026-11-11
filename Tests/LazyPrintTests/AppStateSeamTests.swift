@@ -100,6 +100,8 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
     private var failure: Error?
     /// Runs while a pass is being printed; a test holds the job here.
     var hold: (@Sendable (SheetJob, Int) async throws -> Void)?
+    /// What a pass reports before it is held.
+    var reports: [JobStatus] = []
 
     var passes: [(job: SheetJob, pass: Int)] {
         lock.lock()
@@ -127,6 +129,7 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
         lock.lock()
         sent.append((job: job, pass: pass))
         lock.unlock()
+        for status in reports { progress(status) }
         if let hold { try await hold(job, pass) }
     }
 }
@@ -1293,6 +1296,34 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
         XCTAssertNil(rig.state.error)
         XCTAssertFalse(rig.state.isBusy)
+    }
+
+    @MainActor
+    func test_canCancelJob_isFalseOnceThePrinterHasTheJobAndTrueAgainAfterwards() async throws {
+        let rig = try await printingRig()
+        rig.sheets.reports = [JobStatus(state: .sending, sidesDone: 1, cancelable: false)]
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { !rig.state.canCancelJob }
+        rig.state.cancelJob(rig.state.jobs[0].id)
+        await printing.value
+
+        XCTAssertTrue(rig.state.canCancelJob)
+    }
+
+    @MainActor
+    func test_aPageRangeThatDoesNotParse_keepsThePlanOfTheLastOneThatDid() async throws {
+        let rig = try await printingRig(pages: 3)
+        rig.state.setPageRange("1-2")
+        let before = rig.state.jobPlan
+        rig.state.setPageRange("1-")
+
+        XCTAssertNotNil(before)
+        XCTAssertEqual(rig.state.jobPlan, before)
+        XCTAssertNotNil(rig.state.pageRangeError)
+        rig.state.setPageRange("")
+        XCTAssertNotEqual(rig.state.jobPlan, before)
     }
 
     @MainActor
