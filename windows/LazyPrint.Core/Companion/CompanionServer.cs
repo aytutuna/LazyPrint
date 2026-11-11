@@ -241,7 +241,8 @@ public sealed class CompanionServer : IAsyncDisposable
                 if (accept.IsCancellationRequested) return;
                 // A connection reset while it was being accepted is no reason to stop accepting.
                 if (e is SocketException { SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted
-                                                            or SocketError.Interrupted or SocketError.TimedOut })
+                                                            or SocketError.Interrupted or SocketError.TimedOut
+                                                            or SocketError.TooManyOpenSockets or SocketError.NoBufferSpaceAvailable })
                 {
                     try
                     {
@@ -324,7 +325,7 @@ public sealed class CompanionServer : IAsyncDisposable
                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 }, handshake.Token).ConfigureAwait(false);
             }
-            await ServeRequestAsync(tls, remote, stop).ConfigureAwait(false);
+            await ServeRequestAsync(tls, tcp.Client, remote, stop).ConfigureAwait(false);
         }
         catch (Exception e) when (e is IOException or AuthenticationException or OperationCanceledException
                                       or ObjectDisposedException or SocketException or InvalidOperationException)
@@ -333,7 +334,7 @@ public sealed class CompanionServer : IAsyncDisposable
         }
     }
 
-    private async Task ServeRequestAsync(SslStream tls, IPAddress remote, CancellationToken stop)
+    private async Task ServeRequestAsync(SslStream tls, Socket socket, IPAddress remote, CancellationToken stop)
     {
         var buffer = new byte[CompanionHttp.MaxHeadBytes + 4096];
         int filled = 0;
@@ -380,8 +381,12 @@ public sealed class CompanionServer : IAsyncDisposable
         bool written = false;
         try
         {
-            await WriteAsync(idle, response, stop).ConfigureAwait(false);
-            written = true;
+            // A write into a closed socket still succeeds once; a phone that already hung up never gets the secret.
+            if (response.Written is null || !(socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0))
+            {
+                await WriteAsync(idle, response, stop).ConfigureAwait(false);
+                written = true;
+            }
         }
         finally
         {
