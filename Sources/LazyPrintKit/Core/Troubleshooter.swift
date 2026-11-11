@@ -151,7 +151,7 @@ public struct PrinterFailure: Equatable, Sendable {
         case .needsDriver: return PrinterFailure(printerName: printerName, message: message, problem: needsDriver)
         case .needsSignIn: return PrinterFailure(printerName: printerName, message: message, problem: needsSignIn)
         case .certificateChanged: return PrinterFailure(printerName: printerName, message: message, problem: certificateChanged)
-        case .badResponse, .unreachable, .refused, .noPrinter: return PrinterFailure(printerName: printerName, message: message)
+        case .badResponse, .unreachable, .lostContact, .refused, .noPrinter: return PrinterFailure(printerName: printerName, message: message)
         }
     }
 }

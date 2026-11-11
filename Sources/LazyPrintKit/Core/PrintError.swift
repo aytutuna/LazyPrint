@@ -7,6 +7,8 @@ public enum PrintError: LocalizedError, Equatable, Sendable {
     /// An answer that is not IPP, or is cut short.
     case badResponse
     case unreachable(name: String, reason: String)
+    /// The printer stopped answering after it had the job, which it may still print; `PrintText.lostContactTitle` names it.
+    case lostContact(name: String)
     /// The printer answered with an IPP status that is an error.
     case refused(status: UInt16, detail: String)
     case needsDriver
@@ -23,6 +25,7 @@ public enum PrintError: LocalizedError, Equatable, Sendable {
         switch self {
         case .badResponse: return "The printer's answer could not be read"
         case .unreachable(let name, let reason): return "Can't reach \(name): \(reason)"
+        case .lostContact: return PrintText.lostContactMessage
         case .refused(let status, let detail):
             return detail.isEmpty ? String(format: "The printer refused the job (0x%04X)", Int(status)) : detail
         case .needsDriver: return "This printer needs its driver"

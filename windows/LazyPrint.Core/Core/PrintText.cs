@@ -11,6 +11,11 @@ public static class PrintText
 
     public const string NoPrinterMessage = "No printer is set up. Add a printer, then try again.";
 
+    /// <summary>The error bar's words when the printer stopped answering after it was sent the job.</summary>
+    public const string LostContactMessage = "The job was sent before the printer stopped answering. Check the printer before printing it again.";
+
+    public static string LostContactTitle(string printerName) => $"Lost contact with {printerName}";
+
     public const string Printed = "Printed";
 
     public const string LoadBacks = "Load the backs";

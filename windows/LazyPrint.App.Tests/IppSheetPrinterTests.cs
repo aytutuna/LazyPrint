@@ -247,6 +247,21 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
+    public async Task APrinterThatStopsAnsweringAfterTheJobWasSentIsReportedAsLostContact()
+    {
+        _loopback.Script(
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Http(404), LoopbackAnswer.Http(404), LoopbackAnswer.Http(404));
+        var error = await Assert.ThrowsAsync<PrintException>(
+            () => Printer().PrintAsync(Job(_ => { }, pages: 1), 0, new Reports<JobStatus>(), CancellationToken.None));
+
+        Assert.Equal(new PrintError.LostContact("Test Printer"), error.Error);
+        Assert.Equal("The job was sent before the printer stopped answering. Check the printer before printing it again.", error.Message);
+        Assert.Equal("Lost contact with Test Printer", PrintText.LostContactTitle("Test Printer"));
+        Assert.Equal(4, _loopback.Requests.Count);
+    }
+
+    [Fact]
     public async Task CancellingAsksThePrinterToCancelTheJob()
     {
         _loopback.Script(LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)));

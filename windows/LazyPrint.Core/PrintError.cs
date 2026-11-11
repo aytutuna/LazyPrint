@@ -18,6 +18,12 @@ public abstract record PrintError
         public override string Message => $"Can't reach {Name}: {Reason}";
     }
 
+    /// <summary>The printer stopped answering after it had the job, which it may still print; <see cref="PrintText.LostContactTitle"/> names it.</summary>
+    public sealed record LostContact(string Name) : PrintError
+    {
+        public override string Message => PrintText.LostContactMessage;
+    }
+
     /// <summary>The printer answered with an IPP status that is an error.</summary>
     public sealed record Refused(ushort Status, string Detail) : PrintError
     {

@@ -153,7 +153,9 @@ extension AppState {
         } else {
             failure = PrinterFailure.from(printerName: job.printer.name, error: error)
         }
-        showFailure("Couldn't print", message, failure: failure,
+        var title = "Couldn't print"
+        if case .lostContact(let name)? = error as? PrintError { title = PrintText.lostContactTitle(name) }
+        showFailure(title, message, failure: failure,
                     offerTroubleshooter: error is PrintError || error is PrinterProblemError)
     }
 

@@ -1199,6 +1199,19 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_aLostContactAfterTheJobWasSent_saysSoAndOffersTheTroubleshooter() async throws {
+        let rig = try await printingRig()
+        rig.sheets.fails = PrintError.lostContact(name: "Test Printer")
+        await rig.state.print()
+
+        XCTAssertEqual(rig.state.error?.title, "Lost contact with Test Printer")
+        XCTAssertEqual(rig.state.error?.detail,
+                       "The job was sent before the printer stopped answering. Check the printer before printing it again.")
+        XCTAssertEqual(rig.state.error?.suggestsTroubleshooter, true)
+        XCTAssertEqual(rig.state.jobs.first?.state, .failed)
+    }
+
+    @MainActor
     func test_aJobThatIsNotAboutReachingThePrinter_doesNotOfferTheTroubleshooter() async throws {
         let rig = try await printingRig()
         rig.sheets.fails = CocoaError(.fileWriteOutOfSpace)

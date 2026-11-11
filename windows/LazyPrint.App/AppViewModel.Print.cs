@@ -280,7 +280,8 @@ public sealed partial class AppViewModel
             var failure = e is PrinterProblemException stopped
                 ? new PrinterFailure(printer.Name, e.Message, stopped.Problem)
                 : PrinterFailure.From(printer.Name, e);
-            ShowFailure("Couldn't print", e.Message, failure, e is PrintException or PrinterProblemException);
+            string title = e is PrintException { Error: PrintError.LostContact lost } ? PrintText.LostContactTitle(lost.Name) : "Couldn't print";
+            ShowFailure(title, e.Message, failure, e is PrintException or PrinterProblemException);
             return false;
         }
         finally

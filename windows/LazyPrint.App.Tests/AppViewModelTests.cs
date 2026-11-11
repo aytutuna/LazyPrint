@@ -529,6 +529,20 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task ALostContactAfterTheJobWasSentSaysSoAndOffersTheTroubleshooter()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Sheets.Fails = new PrintException(new PrintError.LostContact("Demo Printer"));
+        await rig.Model.PrintAsync();
+
+        Assert.Equal("Lost contact with Demo Printer", rig.Model.ErrorTitle);
+        Assert.Equal("The job was sent before the printer stopped answering. Check the printer before printing it again.", rig.Model.ErrorMessage);
+        Assert.True(rig.Model.ErrorSuggestsTroubleshooter);
+    }
+
+    [Fact]
     public async Task AJobThatIsNotAboutReachingThePrinterDoesNotOfferTheTroubleshooter()
     {
         using var rig = new Rig(demo: true);

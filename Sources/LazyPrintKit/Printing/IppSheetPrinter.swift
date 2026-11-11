@@ -74,7 +74,7 @@ public final class IppSheetPrinter: SheetPrinter {
             let raster = DocumentFormats.choose(supported: caps.documentFormatsSupported, kind: .imposed, canWritePDF: false)
             sent = try await submit(client, job, pass, caps, raster ?? DocumentFormats.pwgRaster, nil, progress)
         }
-        try await follow(client, sent, sides: JobSides.of(job, pass: pass).count, progress)
+        try await follow(client, printer: job.printer.name, sent, sides: JobSides.of(job, pass: pass).count, progress)
     }
 
     /// The document of a job that is printed as it is, with the file to send: one PDF whose pages go one to a side, every
@@ -188,8 +188,9 @@ public final class IppSheetPrinter: SheetPrinter {
     }
 
     /// Asks the printer about the job until it is done with it. A printer that misses an answer or two (busy, waking up)
-    /// is asked again; cancelling asks the printer to cancel the job.
-    private func follow(_ client: IppClient, _ sent: IppJob, sides: Int, _ progress: @Sendable (JobStatus) -> Void) async throws {
+    /// is asked again; one that misses three in a row has the job all the same, which is `PrintError.lostContact`, not a
+    /// plain failure. Cancelling asks the printer to cancel the job.
+    private func follow(_ client: IppClient, printer: String, _ sent: IppJob, sides: Int, _ progress: @Sendable (JobStatus) -> Void) async throws {
         progress(JobStatus(state: .waiting, sidesDone: 0))
         var missed = 0
         do {
@@ -199,10 +200,10 @@ public final class IppSheetPrinter: SheetPrinter {
                 do {
                     job = try await client.job(sent.id)
                     missed = 0
-                } catch let error as PrintError {
+                } catch is PrintError {
                     missed += 1
                     if missed < Self.missedAnswers { continue }
-                    throw error
+                    throw PrintError.lostContact(name: printer)
                 }
                 switch job.state {
                 case .completed:

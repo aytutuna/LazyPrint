@@ -46,7 +46,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         {
             sent = await Submit(client, job, pass, caps, raster, null, progress, token);
         }
-        await Follow(client, sent, JobSides.Of(job, pass).Count, progress, token);
+        await Follow(client, job.Printer.Name, sent,JobSides.Of(job, pass).Count, progress, token);
     }
 
     private static Func<PrinterInfo, IppClient> DefaultClient(IppTrustStore store) => printer =>
@@ -201,9 +201,10 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
 
     /// <summary>
     /// Asks the printer about the job until it is done with it. A printer that misses an answer or two (busy, waking up) is
-    /// asked again; cancelling asks the printer to cancel the job.
+    /// asked again; one that misses three in a row has the job all the same, which is <see cref="PrintError.LostContact"/>, not a
+    /// plain failure. Cancelling asks the printer to cancel the job.
     /// </summary>
-    private async Task Follow(IppClient client, IppJob sent, int sides, IProgress<JobStatus> progress, CancellationToken token)
+    private async Task Follow(IppClient client, string printer, IppJob sent, int sides, IProgress<JobStatus> progress, CancellationToken token)
     {
         progress.Report(new JobStatus(JobState.Waiting, 0));
         int missed = 0;
@@ -218,9 +219,10 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                     job = await client.JobAsync(sent.Id, token);
                     missed = 0;
                 }
-                catch (PrintException) when (++missed < MissedAnswers)
+                catch (PrintException)
                 {
-                    continue;
+                    if (++missed < MissedAnswers) continue;
+                    throw new PrintException(new PrintError.LostContact(printer));
                 }
                 switch (job.State)
                 {

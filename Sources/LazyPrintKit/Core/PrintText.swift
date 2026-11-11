@@ -10,6 +10,13 @@ public enum PrintText {
 
     public static let noPrinterMessage = "No printer is set up. Add a printer, then try again."
 
+    /// The error bar's words when the printer stopped answering after it was sent the job.
+    public static let lostContactMessage = "The job was sent before the printer stopped answering. Check the printer before printing it again."
+
+    public static func lostContactTitle(_ printerName: String) -> String {
+        "Lost contact with \(printerName)"
+    }
+
     public static let printed = "Printed"
 
     public static let loadBacks = "Load the backs"

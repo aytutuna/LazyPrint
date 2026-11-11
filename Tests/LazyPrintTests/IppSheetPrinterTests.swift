@@ -317,6 +317,21 @@ final class IppSheetPrinterTests: XCTestCase {
         }
     }
 
+    func test_aPrinterThatStopsAnsweringAfterTheJobWasSent_isReportedAsLostContact() async throws {
+        loopback.script(
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)),
+            LoopbackAnswer.http(404), LoopbackAnswer.http(404), LoopbackAnswer.http(404))
+        do {
+            try await printer().print(try job(pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+            XCTFail("The job should have been given up on")
+        } catch {
+            XCTAssertEqual(error as? PrintError, .lostContact(name: "Test Printer"))
+            XCTAssertEqual(error.localizedDescription,
+                           "The job was sent before the printer stopped answering. Check the printer before printing it again.")
+        }
+        XCTAssertEqual(loopback.requests.count, 4)
+    }
+
     func test_cancelling_asksThePrinterToCancelTheJob() async throws {
         loopback.script(LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)))
         loopback.scriptEach(Array(repeating: LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)), count: 200))
