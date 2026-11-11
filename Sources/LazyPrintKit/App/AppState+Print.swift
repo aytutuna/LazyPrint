@@ -132,6 +132,7 @@ extension AppState {
         jobTasks[recordId] = nil
         runningRecord = nil
         isBusy = false
+        canCancelJob = true
         if job.printer.route == .demo { rebuildPrinters() }
         return done
     }
@@ -178,6 +179,7 @@ extension AppState {
     /// What the printer says of the pass while it runs. A report that comes after the pass has ended is dropped.
     private func progress(_ status: JobStatus, recordId: String, sides: Int) {
         guard runningRecord == recordId else { return }
+        canCancelJob = status.cancelable
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
             statusOverride = detail

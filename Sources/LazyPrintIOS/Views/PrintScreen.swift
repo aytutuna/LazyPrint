@@ -525,8 +525,10 @@ struct PrintScreen: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("print.status")
-                    Button("Cancel") { state.cancelJob() }
-                        .accessibilityIdentifier("print.cancel")
+                    if state.canCancelJob {
+                        Button("Cancel") { state.cancelJob() }
+                            .accessibilityIdentifier("print.cancel")
+                    }
                 }
             } else if state.isAddingFiles {
                 HStack(spacing: 12) {

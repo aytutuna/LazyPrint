@@ -27,7 +27,7 @@ public final class IOSAirPrintPrinter: SheetPrinter {
         try SheetRenderer(documents: job.documents).writePDF(sides, area: job.plan.plan.area, to: file)
         try Task.checkCancellation()
 
-        progress(JobStatus(state: .sending, sidesDone: 0))
+        progress(JobStatus(state: .sending, sidesDone: 0, cancelable: false))
         try await send(file, job: job)
         progress(JobStatus(state: .done, sidesDone: sides.count))
     }
