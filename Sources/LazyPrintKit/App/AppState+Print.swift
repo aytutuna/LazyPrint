@@ -184,6 +184,8 @@ extension AppState {
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
             statusOverride = detail
+        } else if status.state == .preparing {
+            statusOverride = PrintText.preparing(min(status.sidesDone + 1, sides), of: sides)
         } else {
             statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)
         }

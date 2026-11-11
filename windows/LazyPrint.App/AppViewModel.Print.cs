@@ -292,7 +292,9 @@ public sealed partial class AppViewModel
                 SetJob(recordId, status.State, status.Detail);
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
-                    : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
+                    : status.State == JobState.Preparing
+                        ? PrintText.Preparing(Math.Min(status.SidesDone + 1, sides), sides)
+                        : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
                 NotifyAll();
             });
             await SendAsync(job, pass, progress, cancellation.Token);

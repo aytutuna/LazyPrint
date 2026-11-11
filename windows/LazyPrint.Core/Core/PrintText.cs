@@ -43,6 +43,9 @@ public static class PrintText
     /// <summary>"Printing 2 of 5": sheet 2 of 5.</summary>
     public static string Printing(int sheet, int sheets) => $"Printing {sheet} of {sheets}";
 
+    /// <summary>"Preparing 2 of 5": sheet 2 of 5 is being drawn.</summary>
+    public static string Preparing(int sheet, int sheets) => $"Preparing {sheet} of {sheets}";
+
     /// <summary>A note about a job, added after the status sentence: "2 blank pages added".</summary>
     public static string BlanksAdded(int count) => $"{count} blank page{(count == 1 ? "" : "s")} added";
 

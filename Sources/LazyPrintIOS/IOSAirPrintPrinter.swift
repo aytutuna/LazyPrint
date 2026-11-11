@@ -39,7 +39,7 @@ public final class IOSAirPrintPrinter: SheetPrinter {
         }
         try Task.checkCancellation()
 
-        progress(JobStatus(state: .sending, sidesDone: 0, cancelable: false))
+        progress(JobStatus(state: .sending, sidesDone: sides.count, cancelable: false))
         try await send(renderer, job: job)
         progress(JobStatus(state: .done, sidesDone: sides.count))
     }

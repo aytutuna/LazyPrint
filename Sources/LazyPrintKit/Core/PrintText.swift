@@ -59,6 +59,11 @@ public enum PrintText {
         "Printing \(sheet) of \(sheets)"
     }
 
+    /// "Preparing 2 of 5": sheet 2 of 5 is being drawn.
+    public static func preparing(_ sheet: Int, of sheets: Int) -> String {
+        "Preparing \(sheet) of \(sheets)"
+    }
+
     /// A note about a job, added after the status sentence: "2 blank pages added".
     public static func blanksAdded(_ count: Int) -> String {
         "\(count) blank page\(count == 1 ? "" : "s") added"
