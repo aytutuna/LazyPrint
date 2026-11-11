@@ -29,6 +29,7 @@ public static class IppRequests
             : new IppAttribute("media", new IppValue.Keyword(ticket.Media.Name)));
         if (ticket.Quality is { } quality) job.Add(new IppAttribute("print-quality", new IppValue.EnumValue(quality)));
         if (ticket.Scaling is { } scaling) job.Add(new IppAttribute("print-scaling", new IppValue.Keyword(scaling)));
+        if (ticket.PageRange is var (first, last)) job.Add(new IppAttribute("page-ranges", new IppValue.Range(first, last)));
         if (ticket.CollatedCopies)
             job.Add(new IppAttribute("multiple-document-handling", new IppValue.Keyword("separate-documents-collated-copies")));
 

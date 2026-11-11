@@ -222,6 +222,38 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertEqual(try attribute(request, "sides"), "one-sided")
     }
 
+    private func rangeJob(_ range: [Int], caps: PrinterCapabilities) throws -> SheetJob {
+        let settings = PrintFixtures.letter { $0.scaling = .actualSize }
+        let document = try openLetterPDF(pages: 5)
+        let plan = PrintJobs.plan([document.loaded], pageRange: range, settings: settings, task: nil, printer: caps,
+                                  prefs: PrinterPrefs())
+        return SheetJob(name: document.loaded.name, printer: PrintFixtures.printer(.ipp), capabilities: caps, settings: settings,
+                        plan: plan, documents: [document], id: "job")
+    }
+
+    func test_aPageRangeOfAPdf_goesAsPageRangesWhenThePrinterTakesThem() async throws {
+        var caps = plain(pdfAndRaster)
+        caps.pageRangesSupported = true
+        caps.printScalingSupported = ["fit", "none"]
+        let (url, bytes) = try original()
+        try await printer(original: url).print(try rangeJob([1, 2, 3], caps: caps), pass: 0) { _ in }
+
+        let request = try XCTUnwrap(sent(.printJob).first)
+        XCTAssertEqual(try attribute(request, "document-format"), "application/pdf")
+        XCTAssertEqual(try request.document(), bytes)
+        XCTAssertEqual(try attribute(request, "print-scaling"), "none")
+        let ranges = try request.ipp().groups.flatMap { $0.attributes }.first { $0.name == "page-ranges" }
+        XCTAssertEqual(ranges?.values, [.range(2, 4)])
+    }
+
+    func test_aPageRangeOfAPdf_isDrawnHereWhenThePrinterCannotTakeThem() async throws {
+        let (url, bytes) = try original()
+        try await printer(original: url).print(try rangeJob([1, 2], caps: plain(pdfAndRaster)), pass: 0) { _ in }
+
+        let request = try XCTUnwrap(sent(.printJob).first)
+        XCTAssertNotEqual(try request.document(), bytes)
+    }
+
     /// One 4 x 6 photo on 4 x 6 paper, its file as the loader hands it out.
     private func photoJob(_ formats: [String]) throws -> (job: SheetJob, file: URL) {
         let file = tempURL("jpg")
@@ -322,16 +354,32 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertEqual(PrintText.waiting(for: "Test Printer", reason: "Paper jam"), "Waiting for Test Printer: Paper jam")
     }
 
+    private func accepting(_ accepting: Bool) -> LoopbackAnswer {
+        LoopbackAnswer.ipp(.successfulOk, IppGroup(tag: IppTag.printerAttributes, attributes: [
+            IppAttribute("printer-is-accepting-jobs", .boolean(accepting)),
+        ]))
+    }
+
     func test_aPrinterNotAcceptingJobs_isNotSentTheJob() async throws {
         var caps = plain(pdfAndRaster)
         caps.isAcceptingJobs = false
+        loopback.script(accepting(false))
         do {
             try await printer().print(try job(pages: 1, caps: caps), pass: 0) { _ in }
             XCTFail("Nothing should have been sent")
         } catch {
             XCTAssertEqual(error.localizedDescription, "Test Printer is not accepting jobs. Check that it is on and not paused.")
         }
-        XCTAssertTrue(loopback.requests.isEmpty)
+        XCTAssertTrue(sent(.printJob).isEmpty)
+    }
+
+    func test_aPrinterResumedSinceItWasLastRead_isSentTheJob() async throws {
+        var caps = plain(pdfAndRaster)
+        caps.isAcceptingJobs = false
+        loopback.script(accepting(true))
+        try await printer().print(try job(pages: 1, caps: caps), pass: 0) { _ in }
+
+        XCTAssertEqual(sent(.printJob).count, 1)
     }
 
     func test_aJobThePrinterAborts_isReportedByItsProblem() async throws {

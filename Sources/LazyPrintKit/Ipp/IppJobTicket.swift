@@ -29,9 +29,11 @@ public struct IppJobTicket: Equatable, Sendable {
     public var quality: Int?
     public var scaling: String?
     public var collatedCopies: Bool
+    public var pageRange: ClosedRange<Int>?
 
     public init(jobName: String, documentFormat: String, copies: Int, sides: String, colorMode: String,
-                media: IppMediaChoice, quality: Int? = nil, scaling: String? = nil, collatedCopies: Bool = false) {
+                media: IppMediaChoice, quality: Int? = nil, scaling: String? = nil, collatedCopies: Bool = false,
+                pageRange: ClosedRange<Int>? = nil) {
         self.jobName = jobName
         self.documentFormat = documentFormat
         self.copies = copies
@@ -41,5 +43,6 @@ public struct IppJobTicket: Equatable, Sendable {
         self.quality = quality
         self.scaling = scaling
         self.collatedCopies = collatedCopies
+        self.pageRange = pageRange
     }
 }

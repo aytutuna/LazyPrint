@@ -26,6 +26,9 @@ public enum IppRequests {
         }
         if let quality = ticket.quality { job.append(IppAttribute("print-quality", .enumValue(Int32(quality)))) }
         if let scaling = ticket.scaling { job.append(IppAttribute("print-scaling", .keyword(scaling))) }
+        if let pages = ticket.pageRange {
+            job.append(IppAttribute("page-ranges", .range(Int32(pages.lowerBound), Int32(pages.upperBound))))
+        }
         if ticket.collatedCopies {
             job.append(IppAttribute("multiple-document-handling", .keyword("separate-documents-collated-copies")))
         }
