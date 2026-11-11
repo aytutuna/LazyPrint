@@ -361,12 +361,13 @@ public sealed partial class AppViewModel
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>
     public void CancelJob() => _job?.Cancel();
 
-    /// <summary>Stops the job being printed and returns once its pass has ended, so closing the app does not leave it in the queue.</summary>
-    public async Task CancelJobAndWaitAsync()
+    /// <summary>Stops the job being printed and returns once its pass has ended, so closing the app does not leave it in the queue. False when there was no job to stop.</summary>
+    public async Task<bool> CancelJobAndWaitAsync()
     {
-        if (_job is null || _passEnded is not { } ended) return;
+        if (_job is null || _passEnded is not { } ended) return false;
         _job.Cancel();
         await ended.Task;
+        return true;
     }
 
     /// <summary>The Jobs tab's Cancel for a job still going.</summary>

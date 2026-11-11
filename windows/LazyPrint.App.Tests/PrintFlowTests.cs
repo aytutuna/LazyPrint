@@ -245,11 +245,12 @@ public sealed class PrintFlowTests
         };
         var printing = rig.Model.PrintAsync();
         await started.Task;
-        await rig.Model.CancelJobAndWaitAsync();
+        Assert.True(await rig.Model.CancelJobAndWaitAsync());
 
         Assert.False(rig.Model.IsBusy);
         Assert.Equal(JobState.Canceled, Assert.Single(rig.Model.Jobs).State);
         await printing;
+        Assert.False(await rig.Model.CancelJobAndWaitAsync());
     }
 
     [Fact]

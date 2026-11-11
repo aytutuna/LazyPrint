@@ -82,11 +82,17 @@ public partial class MainWindow : Window
     }
 
     private bool _closeConfirmed;
+    private bool _stopping;
 
     /// <summary>Closing asks first while a job is going out, or while a two-sided job waits for its backs.</summary>
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (_closeConfirmed) return;
+        if (_stopping)
+        {
+            e.Cancel = true;
+            return;
+        }
         if (ViewModel.IsBusy)
         {
             e.Cancel = true;
@@ -104,8 +110,11 @@ public partial class MainWindow : Window
 
     private async Task StopJobAndClose()
     {
-        await ViewModel.CancelJobAndWaitAsync();
-        _closeConfirmed = true;
+        _stopping = true;
+        bool stopped = await ViewModel.CancelJobAndWaitAsync();
+        _stopping = false;
+        // The pass may have ended while the box was open; then the normal checks run again.
+        _closeConfirmed = stopped;
         Close();
     }
 
