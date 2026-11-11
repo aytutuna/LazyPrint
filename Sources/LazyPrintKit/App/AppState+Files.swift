@@ -11,6 +11,16 @@ extension AppState {
         let opened = Set(documents.map { $0.url.lastPathComponent })
         let store = recentStore
         for url in picked where opened.contains(url.lastPathComponent) { store.add(url) }
+        for url in picked {
+            if let locked = lockedFiles.first(where: { $0.lastPathComponent == url.lastPathComponent }) { lockedPicked[locked] = url }
+        }
+        refreshRecent()
+    }
+
+    /// A locked PDF that opened with its password joins the list.
+    func rememberUnlocked(_ url: URL) {
+        guard let picked = lockedPicked.removeValue(forKey: url) else { return }
+        recentStore.add(picked)
         refreshRecent()
     }
 
@@ -19,7 +29,11 @@ extension AppState {
         let store = recentStore
         var found: [RecentFile] = []
         for file in store.load() {
-            if FileManager.default.fileExists(atPath: store.locate(file).path) {
+            let url = store.locate(file)
+            // Outside the container a file cannot be looked at without the scope its bookmark gives.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if FileManager.default.fileExists(atPath: url.path) {
                 found.append(file)
             } else {
                 store.remove(URL(fileURLWithPath: file.path))
