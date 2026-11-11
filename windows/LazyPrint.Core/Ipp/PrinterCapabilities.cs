@@ -187,7 +187,7 @@ public sealed class PrinterCapabilities
             MediaColDatabase = Entries("media-col-database"),
             MediaReady = Strings("media-ready"),
             MediaSupported = Strings("media-supported"),
-            CustomPaper = CustomRange(message["media-size-supported"]),
+            CustomPaper = CustomRange(message["media-size-supported"]) ?? PaperSizes.CustomRange(Strings("media-supported")),
             MediaTypeSupported = Strings("media-type-supported"),
             MediaSourceSupported = Strings("media-source-supported"),
             PrintQualitySupported = Ints("print-quality-supported"),

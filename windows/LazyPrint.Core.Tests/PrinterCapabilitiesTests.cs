@@ -258,4 +258,19 @@ public class PrinterCapabilitiesTests
     {
         Assert.Null(PrinterCapabilities.From(new IppMessage(IppVersion.V20, 0, 1, [new IppGroup(IppTag.PrinterAttributes, [])])).CustomPaper);
     }
+
+    [Fact]
+    public void TheCustomRange_FallsBackToTheMinAndMaxNames()
+    {
+        var caps = PrinterCapabilities.From(new IppMessage(IppVersion.V20, 0, 1,
+        [
+            new IppGroup(IppTag.PrinterAttributes,
+            [
+                new IppAttribute("media-supported", new IppValue.Keyword("iso_a4_210x297mm"), new IppValue.Keyword("custom_min_3x5in"),
+                    new IppValue.Keyword("custom_max_8.5x14in")),
+            ]),
+        ]));
+        Assert.Equal(new PaperRange(7620, 21590, 12700, 35560), caps.CustomPaper);
+        Assert.Null(PaperSizes.CustomRange(["custom_min_3x5in"]));
+    }
 }

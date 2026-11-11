@@ -54,7 +54,12 @@ public enum PrintJobs {
     /// or not, the other kind when only that exists), else 0.25 in on every side. Automatic is the paper the
     /// printer has loaded, else the usual one where the user lives.
     public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea {
-        let size = sheet(paper, printer)
+        area(paperId: paper.rawValue, printer: printer, borderless: borderless)
+    }
+
+    /// `paperId` is a `PrintSettings.paperId`: a named size or any PWG name.
+    public static func area(paperId: String, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea {
+        let size = sheet(paperId, printer)
         if let area = printer?.match(size, borderless: borderless)?.printableArea { return area }
         let margin = 0.25 * 72
         return PrintableArea(paper: size, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
@@ -80,8 +85,8 @@ public enum PrintJobs {
         }
 
         let photos = task == .photos
-        let paper = PaperSizes.parse(settings.paperId)
-        let printable = area(paper: paper, printer: printer,
+        let paper = settings.paperId
+        let printable = area(paperId: paper, printer: printer,
                              borderless: photos && borderless(settings.photoSizeId, sheet: sheet(paper, printer)))
         let layout: SheetPlan
         if photos {
@@ -199,8 +204,8 @@ public enum PrintJobs {
     }
 
     /// The paper a job goes on, portrait, in points.
-    private static func sheet(_ paper: PaperSize, _ printer: PrinterCapabilities?) -> LayoutSize {
-        let known = paper == .auto ? loaded(printer) ?? PaperSizes.points(usualPaper()) : PaperSizes.points(paper)
+    private static func sheet(_ paperId: String, _ printer: PrinterCapabilities?) -> LayoutSize {
+        let known = PaperSizes.pointsOf(paperId) ?? loaded(printer) ?? PaperSizes.points(usualPaper())
         guard let size = known else { preconditionFailure("A paper size has points.") }
         return size
     }
@@ -221,24 +226,7 @@ public enum PrintJobs {
             let height = MediaEntry.points(entry.height)
             return LayoutSize(width: min(width, height), height: max(width, height))
         }
-        return printer.mediaReady.lazy.compactMap { pwgSize($0) }.first
-    }
-
-    /// The size in a PWG self-describing name ("iso_a4_210x297mm", "na_letter_8.5x11in"), portrait, in points; nil for any other.
-    private static func pwgSize(_ name: String) -> LayoutSize? {
-        let parts = name.components(separatedBy: "_")
-        guard parts.count >= 3, parts[1] != "min", parts[1] != "max", let last = parts.last else { return nil }
-        let unit: Double
-        if last.hasSuffix("mm") {
-            unit = 72 / 25.4
-        } else if last.hasSuffix("in") {
-            unit = 72
-        } else {
-            return nil
-        }
-        let sides = last.dropLast(2).components(separatedBy: "x")
-        guard sides.count == 2, let a = Double(sides[0]), let b = Double(sides[1]), a > 0, b > 0 else { return nil }
-        return LayoutSize(width: min(a, b) * unit, height: max(a, b) * unit)
+        return printer.mediaReady.lazy.compactMap { PaperSizes.pwgSize($0) }.first
     }
 
     private static func usualPaper() -> PaperSize {

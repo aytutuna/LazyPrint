@@ -381,4 +381,13 @@ final class PrintJobsTests: XCTestCase {
         done.state = .done
         XCTAssertNotEqual(record, done)
     }
+
+    func test_anySizeAPrinterLists_canBeChosen() {
+        let area = PrintJobs.area(paperId: "custom_sheet_297x420mm", printer: nil, borderless: false)
+        XCTAssertEqual(area.paper.width, 297 * 72 / 25.4, accuracy: 0.1)
+        XCTAssertEqual(area.paper.height, 420 * 72 / 25.4, accuracy: 0.1)
+
+        let job = makePlan([doc(1)], makeSettings { $0.paperId = "iso_a3_297x420mm" }, nil)
+        XCTAssertEqual(job.plan.area.paper.width, 297 * 72 / 25.4, accuracy: 0.1)
+    }
 }

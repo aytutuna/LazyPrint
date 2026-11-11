@@ -273,6 +273,14 @@ public final class CupsQueues: PrinterSystem {
             }
         }
 
+        // The names the queue lists, which say what a custom size may be ("custom_min_...", "custom_max_...").
+        if let names = cupsFindDestSupported(nil, dest, info, "media") {
+            for i in 0..<Int(ippGetCount(names)) {
+                if let name = ippGetString(names, Int32(i), nil) { caps.mediaSupported.append(String(cString: name)) }
+            }
+            caps.customPaper = PaperSizes.customRange(caps.mediaSupported)
+        }
+
         caps.sidesSupported = ["one-sided"]
         if cupsCheckDestSupported(nil, dest, info, "sides", "two-sided-long-edge") != 0 {
             caps.sidesSupported += ["two-sided-long-edge", "two-sided-short-edge"]

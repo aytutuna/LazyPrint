@@ -199,6 +199,34 @@ public static class PaperSizes
         return new LayoutSize(Math.Min(a, b) * unit, Math.Max(a, b) * unit);
     }
 
+    /// <summary>
+    /// The range a printer takes from the "custom_min_" and "custom_max_" names in its media list (width first, as written);
+    /// null unless both are there.
+    /// </summary>
+    public static PaperRange? CustomRange(IEnumerable<string> names)
+    {
+        (int Width, int Height)? Bound(string kind)
+        {
+            foreach (string name in names)
+            {
+                string[] parts = name.Trim().Split('_');
+                if (parts.Length < 3 || parts[0] != "custom" || parts[1] != kind) continue;
+                string last = parts[^1];
+                double unit = last.EndsWith("mm", StringComparison.Ordinal) ? 100 : last.EndsWith("in", StringComparison.Ordinal) ? 2540 : 0;
+                string[] sides = last.Length > 2 ? last[..^2].Split('x') : [];
+                if (unit == 0 || sides.Length != 2
+                    || !double.TryParse(sides[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double w)
+                    || !double.TryParse(sides[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double h)
+                    || w <= 0 || h <= 0) continue;
+                return ((int)Math.Round(w * unit), (int)Math.Round(h * unit));
+            }
+            return null;
+        }
+        return Bound("min") is { } min && Bound("max") is { } max && (min.Width != max.Width || min.Height != max.Height)
+            ? new PaperRange(min.Width, max.Width, min.Height, max.Height)
+            : null;
+    }
+
     private static readonly Regex CustomName = new(@"^(?:Custom\.|w)(?<a>[\d.]+)[xh](?<b>[\d.]+)(?<unit>in|mm|cm|pt)?$", RegexOptions.IgnoreCase);
 
     /// <summary>

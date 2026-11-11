@@ -134,11 +134,16 @@ extension AppState {
         replan()
     }
 
-    /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists.
+    /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists, whatever
+    /// they are (the paper picker takes any size), and the range it takes for a custom one.
     @discardableResult
     static func useListedPapers(_ own: inout PrinterCapabilities, from ipp: PrinterCapabilities, platform: AppPlatform) -> Bool {
-        guard platform == .ios, !ipp.mediaColDatabase.isEmpty, own.mediaColDatabase != ipp.mediaColDatabase else { return false }
+        guard platform == .ios, !PaperSizes.listed(ipp).isEmpty else { return false }
+        guard own.mediaColDatabase != ipp.mediaColDatabase || own.mediaSupported != ipp.mediaSupported
+                || own.customPaper != ipp.customPaper else { return false }
         own.mediaColDatabase = ipp.mediaColDatabase
+        own.mediaSupported = ipp.mediaSupported
+        own.customPaper = ipp.customPaper
         return true
     }
 
