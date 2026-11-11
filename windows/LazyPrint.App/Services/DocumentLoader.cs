@@ -30,13 +30,14 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     {
         string name = Path.GetFileName(path);
         string extension = Path.GetExtension(path).ToLowerInvariant();
-        if (extension != ".pdf" && !PictureExtensions.Contains(extension)) throw new InvalidOperationException(DocumentText.NotSupported);
+        bool named = extension == ".pdf" || PictureExtensions.Contains(extension);
 
         Source source;
         LoadedDocument document;
         try
         {
-            if (extension == ".pdf")
+            // A name that says nothing is no reason to refuse a file: its content tells a PDF from a picture.
+            if (extension == ".pdf" || !named && await Task.Run(() => StartsWithPdf(path), token))
             {
                 byte[] bytes = await Task.Run(() => File.ReadAllBytes(path), token);
                 var pdf = await PdfSource.OpenAsync(bytes);
@@ -46,7 +47,15 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             }
             else
             {
-                var picture = await Task.Run(() => PictureSource.Open(path), token);
+                PictureSource picture;
+                try
+                {
+                    picture = await Task.Run(() => PictureSource.Open(path), token);
+                }
+                catch (Exception e) when (!named && e is not OperationCanceledException)
+                {
+                    throw new InvalidOperationException(DocumentText.NotSupported, e);
+                }
                 source = picture;
                 document = new LoadedDocument(name, new DocumentKind.Photo(), [picture.Size]);
                 if (extension is ".jpg" or ".jpeg" && picture.Upright) _jpegs.Add(document, path);
@@ -262,6 +271,14 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             image.Freeze();
             return image;
         }
+    }
+
+    private static bool StartsWithPdf(string path)
+    {
+        using var stream = OpenShared(path);
+        var start = new byte[1024];
+        int read = stream.ReadAtLeast(start, start.Length, throwOnEndOfStream: false);
+        return start.AsSpan(0, read).IndexOf("%PDF-"u8) >= 0;
     }
 
     private static FileStream OpenShared(string path) =>

@@ -182,6 +182,21 @@ final class DocumentLoaderTests: XCTestCase {
         assertRefused(url, DocumentText.notSupported)
     }
 
+    func test_aFileWhoseNameSaysNothing_isToldByItsContent() throws {
+        for (fixture, ext) in [("red-letter.pdf", ""), ("red-letter.pdf", "download"), ("halves-300dpi.png", ""), ("turned.jpg", "tmp")] {
+            let bare = FileManager.default.temporaryDirectory.appendingPathComponent("lazyprint-\(UUID().uuidString)")
+            let url = ext.isEmpty ? bare : bare.appendingPathExtension(ext)
+            try FileManager.default.copyItem(at: DocumentFixtures.url(fixture), to: url)
+            addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+
+            let document = try loader.load(url)
+            let expected = try DocumentFixtures.open(fixture)
+
+            XCTAssertEqual(document.loaded.kind, expected.loaded.kind, fixture)
+            XCTAssertEqual(document.loaded.pages, expected.loaded.pages, fixture)
+        }
+    }
+
     func test_file_thatIsMissing_isUnreadable() {
         assertRefused(DocumentFixtures.url("missing.png"), DocumentText.unreadable)
     }

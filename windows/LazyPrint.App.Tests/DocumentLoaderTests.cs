@@ -201,6 +201,46 @@ public class DocumentLoaderTests
         }
     }
 
+    [Theory]
+    [InlineData("red-letter.pdf", "")]
+    [InlineData("red-letter.pdf", ".download")]
+    [InlineData("halves-300dpi.png", "")]
+    [InlineData("turned.jpg", ".tmp")]
+    public async Task AFileWhoseNameSaysNothingIsToldByItsContent(string fixture, string extension)
+    {
+        string path = Path.Combine(Path.GetTempPath(), "lazyprint-" + Guid.NewGuid().ToString("N") + extension);
+        File.Copy(DocumentFixtures.PathOf(fixture), path);
+        try
+        {
+            var document = await _loader.LoadAsync(path, CancellationToken.None);
+            var expected = await Open(fixture);
+
+            Assert.Equal(expected.Kind, document.Kind);
+            Assert.Equal(expected.Pages, document.Pages);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AFileWithNoNameAndNoContentWeKnowIsRefused()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "lazyprint-" + Guid.NewGuid().ToString("N"));
+        File.Copy(DocumentFixtures.PathOf("notes.txt"), path);
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(path, CancellationToken.None));
+
+            Assert.Equal(DocumentText.NotSupported, error.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task AMissingFileIsRefusedAsUnreadable()
     {

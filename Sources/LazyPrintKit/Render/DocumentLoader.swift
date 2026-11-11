@@ -20,7 +20,17 @@ public final class DocumentLoader: DocumentLoading {
         let type = UTType(filenameExtension: url.pathExtension)
         if type?.conforms(to: .pdf) == true { return try loadPDF(url) }
         if type?.conforms(to: .image) == true { return try loadPicture(url) }
-        throw PrintError.unreadable(DocumentText.notSupported)
+        // A name that says nothing (Open In and downloads often have none) is no reason to refuse: the content tells.
+        if Self.startsWithPDF(url) { return try loadPDF(url) }
+        return try loadPicture(url)
+    }
+
+    /// "%PDF-" in the first 1024 bytes, where the spec lets the header sit.
+    private static func startsWithPDF(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        guard let start = try? handle.read(upToCount: 1024) else { return false }
+        return start.range(of: Data("%PDF-".utf8)) != nil
     }
 
     public func originalFile(_ document: OpenedDocument) -> URL? {
