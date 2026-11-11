@@ -89,12 +89,12 @@ public struct IOSFileInbox: Sendable {
     /// copy failed is kept until then.
     public static func removeOldDelivered() {
         guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        let keys: [URLResourceKey] = [.creationDateKey]
+        let keys: [URLResourceKey] = [.addedToDirectoryDateKey]
         let inbox: URL = documents.appendingPathComponent("Inbox", isDirectory: true)
         let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: inbox, includingPropertiesForKeys: keys)) ?? []
         let cutoff: Date = Date(timeIntervalSinceNow: -24 * 60 * 60)
         for file in listed {
-            if let made = (try? file.resourceValues(forKeys: Set(keys)))?.creationDate, made < cutoff {
+            if let made = (try? file.resourceValues(forKeys: Set(keys)))?.addedToDirectoryDate, made < cutoff {
                 try? FileManager.default.removeItem(at: file)
             }
         }
@@ -117,11 +117,11 @@ public struct IOSFileInbox: Sendable {
     /// reached the app would stay.
     public static func removeOldHandoffs() {
         guard let root = handoffRoot() else { return }
-        let keys: [URLResourceKey] = [.creationDateKey]
+        let keys: [URLResourceKey] = [.addedToDirectoryDateKey]
         let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: keys)) ?? []
         let cutoff: Date = Date(timeIntervalSinceNow: -24 * 60 * 60)
         for folder in listed {
-            if let made = (try? folder.resourceValues(forKeys: Set(keys)))?.creationDate, made < cutoff {
+            if let made = (try? folder.resourceValues(forKeys: Set(keys)))?.addedToDirectoryDate, made < cutoff {
                 try? FileManager.default.removeItem(at: folder)
             }
         }
