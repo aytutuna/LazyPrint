@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 
 namespace LazyPrint.Core;
@@ -14,7 +15,7 @@ public enum PairingSessionState
     Used,
     /// <summary>Its five minutes are over.</summary>
     Expired,
-    /// <summary>Closed by the desktop, or after too many wrong tokens.</summary>
+    /// <summary>Closed by the desktop, or after too many wrong tokens from all peers together.</summary>
     Closed,
 }
 
@@ -30,18 +31,21 @@ public enum PairingRedeemResult
 
 /// <summary>
 /// One pairing window on the desktop: a random 128-bit token shown in the QR code, good for one
-/// pairing within <see cref="Lifetime"/>. Tokens are compared in constant time; after
-/// <see cref="MaxFailedAttempts"/> wrong ones the session closes, so a token cannot be guessed. The
+/// pairing within <see cref="Lifetime"/>. Tokens are compared in constant time; a peer that sends
+/// <see cref="MaxFailedAttempts"/> wrong ones is refused for the rest of the session, and
+/// <see cref="MaxTotalFailedAttempts"/> wrong ones from anyone close it, so a token cannot be guessed. The
 /// clock is passed in, so tests control it. Safe to use from any thread.
 /// </summary>
 public sealed class PairingSession
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
     public const int MaxFailedAttempts = 5;
+    public const int MaxTotalFailedAttempts = 25;
 
     private readonly object _gate = new();
     private readonly byte[] _token;
     private PairingSessionState _state = PairingSessionState.Open;
+    private readonly Dictionary<IPAddress, int> _failedByPeer = [];
     private int _failedAttempts;
 
     /// <param name="opened">When the session opens; it expires <see cref="Lifetime"/> later.</param>
@@ -87,11 +91,13 @@ public sealed class PairingSession
         StateAt(now) == PairingSessionState.Open ? Expires - now : TimeSpan.Zero;
 
     /// <summary>
-    /// Presents <paramref name="token"/> at <paramref name="now"/>. The right token while the
-    /// session is open is accepted once; a wrong one counts towards <see cref="MaxFailedAttempts"/>,
-    /// after which the session is closed.
+    /// Presents <paramref name="token"/> from <paramref name="peer"/> at <paramref name="now"/>. The
+    /// right token while the session is open is accepted once; a wrong one counts against its peer
+    /// (<see cref="MaxFailedAttempts"/>, after which that peer gets <see cref="PairingRedeemResult.Closed"/>
+    /// for the session) and against the total (<see cref="MaxTotalFailedAttempts"/>, after which the
+    /// session is closed). Callers that do not know the peer pass none, and count as one.
     /// </summary>
-    public PairingRedeemResult Redeem(string? token, DateTimeOffset now)
+    public PairingRedeemResult Redeem(string? token, DateTimeOffset now, IPAddress? peer = null)
     {
         lock (_gate)
         {
@@ -108,13 +114,17 @@ public sealed class PairingSession
                 return PairingRedeemResult.Expired;
             }
             if (_state == PairingSessionState.Expired) return PairingRedeemResult.Expired;
+            var key = peer is null ? IPAddress.None : LocalSubnet.Normalize(peer);
+            int byPeer = _failedByPeer.GetValueOrDefault(key);
+            if (byPeer >= MaxFailedAttempts) return PairingRedeemResult.Closed;
             byte[]? presented = CompanionProtocol.DecodeBase64Url(token);
             bool matches = presented is { Length: PairingUri.TokenByteCount }
                            && CryptographicOperations.FixedTimeEquals(presented, _token);
             if (!matches)
             {
                 _failedAttempts++;
-                if (_failedAttempts >= MaxFailedAttempts) _state = PairingSessionState.Closed;
+                _failedByPeer[key] = byPeer + 1;
+                if (_failedAttempts >= MaxTotalFailedAttempts) _state = PairingSessionState.Closed;
                 return PairingRedeemResult.WrongToken;
             }
             _state = PairingSessionState.Used;

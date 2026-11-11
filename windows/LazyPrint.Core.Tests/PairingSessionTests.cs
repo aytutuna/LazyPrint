@@ -1,3 +1,4 @@
+using System.Net;
 using LazyPrint.Core;
 using Xunit;
 
@@ -48,19 +49,32 @@ public class PairingSessionTests
     }
 
     [Fact]
-    public void WrongTokens_CloseTheSessionAfterFive()
+    public void WrongTokens_RefuseOnlyThatPeerAfterFive()
     {
         var session = Session();
         string almost = CompanionVectors.TokenText[..^1] + "x";
-        for (int i = 1; i < PairingSession.MaxFailedAttempts; i++)
+        var attacker = IPAddress.Parse("192.168.1.66");
+        for (int i = 1; i <= PairingSession.MaxFailedAttempts; i++)
         {
-            Assert.Equal(PairingRedeemResult.WrongToken, session.Redeem(almost, Opened));
+            Assert.Equal(PairingRedeemResult.WrongToken, session.Redeem(almost, Opened, attacker));
             Assert.Equal(i, session.FailedAttempts);
-            Assert.Equal(PairingSessionState.Open, session.StateAt(Opened));
         }
-        Assert.Equal(PairingRedeemResult.WrongToken, session.Redeem(null, Opened));
+        Assert.Equal(PairingSessionState.Open, session.StateAt(Opened));
+        Assert.Equal(PairingRedeemResult.Closed, session.Redeem(CompanionVectors.TokenText, Opened, attacker));
+        Assert.Equal(PairingRedeemResult.Closed, session.Redeem(CompanionVectors.TokenText, Opened, attacker.MapToIPv6()));
+        Assert.Equal(PairingRedeemResult.Accepted, session.Redeem(CompanionVectors.TokenText, Opened, IPAddress.Parse("192.168.1.20")));
+    }
+
+    [Fact]
+    public void WrongTokens_CloseTheSessionAtTheTotalCap()
+    {
+        var session = Session();
+        for (int i = 0; i < PairingSession.MaxTotalFailedAttempts; i++)
+        {
+            Assert.Equal(PairingRedeemResult.WrongToken, session.Redeem(null, Opened, IPAddress.Parse($"10.0.0.{i + 1}")));
+        }
         Assert.Equal(PairingSessionState.Closed, session.StateAt(Opened));
-        Assert.Equal(PairingRedeemResult.Closed, session.Redeem(CompanionVectors.TokenText, Opened));
+        Assert.Equal(PairingRedeemResult.Closed, session.Redeem(CompanionVectors.TokenText, Opened, IPAddress.Parse("10.0.1.1")));
     }
 
     [Fact]

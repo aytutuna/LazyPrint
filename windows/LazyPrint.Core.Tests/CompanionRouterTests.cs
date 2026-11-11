@@ -391,8 +391,9 @@ public sealed class CompanionRouterTests : IDisposable
         {
             await Send("POST", CompanionProtocol.PairPath, Json(new PairRequest(CompanionVectors.TokenText, "phone-0001", "P", "ios", "1")), from: attacker);
         }
-        // The session is closed now, even for the right token.
-        var closed = await Send("POST", CompanionProtocol.PairPath, Json(new PairRequest(_pairing.Token, "phone-0001", "P", "ios", "1")));
+        // The attacker is refused now, even with the right token; the session stays open for others.
+        var closed = await Send("POST", CompanionProtocol.PairPath, Json(new PairRequest(_pairing.Token, "phone-0001", "P", "ios", "1")), from: attacker);
         Assert.Equal(CompanionErrorCode.PairingClosed, CompanionError.FromJson(closed.Body)!.Code);
+        Assert.Equal(PairingSessionState.Open, _pairing.StateAt(_now));
     }
 }

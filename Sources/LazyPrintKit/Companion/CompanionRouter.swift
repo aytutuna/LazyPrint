@@ -238,7 +238,7 @@ public final class CompanionRouter: @unchecked Sendable {
             changeAwaiting(by: -1)
             onApprovalSettled?()
         }
-        switch session.redeem(pair.token, now: now) {
+        switch session.redeem(pair.token, now: now, peer: LocalSubnet.bytes(request.remote) ?? []) {
         case .wrongToken:
             limiter.recordFailure(request.remote, now: now)
             return .error(403, .tokenInvalid)

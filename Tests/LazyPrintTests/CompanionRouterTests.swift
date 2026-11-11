@@ -432,8 +432,9 @@ final class CompanionRouterTests: XCTestCase {
         for _ in 0..<PairingSession.maxFailedAttempts {
             _ = await send("POST", CompanionProtocol.pairPath, body: pairRequest(CompanionVectors.tokenText), from: attacker)
         }
-        // The session is closed now, even for the right token.
-        let closed = await send("POST", CompanionProtocol.pairPath, body: pairRequest(session.token))
+        // The attacker is refused now, even with the right token; the session stays open for others.
+        let closed = await send("POST", CompanionProtocol.pairPath, body: pairRequest(session.token), from: attacker)
         XCTAssertEqual(code(closed), CompanionErrorCode.pairingClosed)
+        XCTAssertEqual(session.state(at: now), .open)
     }
 }

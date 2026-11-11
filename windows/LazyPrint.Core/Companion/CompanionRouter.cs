@@ -276,7 +276,7 @@ public sealed class CompanionRouter
         Interlocked.Increment(ref _awaitingApproval);
         try
         {
-            switch (session.Redeem(pair.Token, now))
+            switch (session.Redeem(pair.Token, now, request.Remote))
             {
                 case PairingRedeemResult.WrongToken:
                     _limiter.RecordFailure(request.Remote, now);
