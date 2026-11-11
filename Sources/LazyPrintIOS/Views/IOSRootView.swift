@@ -105,6 +105,9 @@ public struct IOSRootView: View {
             }
         }
         .task {
+            await state.restoreBacks()
+        }
+        .task {
             guard let fixture, let url = try? inbox.receive(fixture.data, named: fixture.name) else { return }
             // The UI tests expect the plain document task, which files with no task no longer start.
             await state.startTask(.document)

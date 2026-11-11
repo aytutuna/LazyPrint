@@ -19,7 +19,9 @@ public struct LazyPrintIOSApp: App {
         let process: ProcessInfo = ProcessInfo.processInfo
         let options: IOSLaunchOptions = IOSLaunchOptions(arguments: process.arguments, environment: process.environment)
         let files: IOSFileInbox = IOSFileInbox()
-        files.empty()
+        // A two-sided job that waited for its backs when the app ended still needs its files.
+        let waiting: [String] = PendingBacks.load(in: AppStateFiles.standard.settingsDirectory)?.paths ?? []
+        files.empty(keeping: waiting.map { URL(fileURLWithPath: $0) })
         IOSFileInbox.removeOldHandoffs()
         IOSFileInbox.removeOldDelivered()
         let actions: IOSFileActions = IOSFileActions()

@@ -1595,6 +1595,52 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_backsWaiting_comeBackOnTheIPhoneAfterTheAppIsEnded() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]
+        rig.spooler.capable["Test Printer"] = Rig.capabilities(duplex: false)
+        await rig.state.refreshPrinters()
+        rig.state.settings.paperId = "letter"
+        rig.state.settings.sides = .longEdge
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 3, in: rig.folder)])
+        await rig.state.print()
+        XCTAssertEqual(rig.state.duplexCard?.step, .reload)
+        XCTAssertEqual(PendingBacks.load(in: rig.folder)?.paths.count, 1)
+
+        let next = rig.open()
+        await next.refreshPrinters()
+        await next.restoreBacks()
+
+        XCTAssertEqual(next.duplexCard?.step, .reload)
+        XCTAssertEqual(next.jobs.first?.state, .needsUser)
+        await next.printBacks()
+        XCTAssertNil(next.duplexCard)
+        XCTAssertEqual(rig.sheets.passes.map { $0.pass }, [0, 1])
+        XCTAssertNil(PendingBacks.load(in: rig.folder))
+    }
+
+    @MainActor
+    func test_backsWaiting_areNotRestoredWhenAFileIsGone() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]
+        rig.spooler.capable["Test Printer"] = Rig.capabilities(duplex: false)
+        await rig.state.refreshPrinters()
+        rig.state.settings.paperId = "letter"
+        rig.state.settings.sides = .longEdge
+        let file = try writePDF(named: "a.pdf", pages: 3, in: rig.folder)
+        await rig.state.addFiles([file])
+        await rig.state.print()
+        try FileManager.default.removeItem(at: file)
+
+        let next = rig.open()
+        await next.refreshPrinters()
+        await next.restoreBacks()
+
+        XCTAssertNil(next.duplexCard)
+        XCTAssertNil(PendingBacks.load(in: rig.folder))
+    }
+
+    @MainActor
     func test_aFrontsPassThatFails_showsNoCard() async throws {
         let rig = try await manualRig()
         rig.sheets.fails = PrintError.unreachable(name: "Test Printer", reason: "no answer")

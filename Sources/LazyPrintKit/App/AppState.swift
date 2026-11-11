@@ -215,7 +215,10 @@ public final class AppState: ObservableObject {
     /// The records whose pass was stopped because the system's background time ran out.
     var timedOut: Set<String> = []
     var manual: ManualRun? {
-        didSet { updateCard() }
+        didSet {
+            updateCard()
+            if manual?.recordId != oldValue?.recordId { keepBacks() }
+        }
     }
     var againActions: [String: @MainActor () async -> Void] = [:]
     var againOrder: [String] = []
