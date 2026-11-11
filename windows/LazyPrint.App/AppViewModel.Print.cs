@@ -290,7 +290,7 @@ public sealed partial class AppViewModel
             {
                 if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
                 SetJob(recordId, status.State, status.Detail);
-                _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
+                _statusOverride = status.State is JobState.NeedsUser or JobState.Waiting && status.Detail is { } detail
                     ? detail
                     : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
                 NotifyAll();
