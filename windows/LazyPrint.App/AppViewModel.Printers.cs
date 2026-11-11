@@ -139,14 +139,14 @@ public sealed partial class AppViewModel
     public IReadOnlyList<PrinterInfo> PrinterInfos => _printerInfos;
 
     /// <summary>
-    /// The printer in use: the one chosen, else the system's default printer, else the first printer found, else the demo
-    /// printer. A chosen printer that has gone away is not used.
+    /// The printer in use: the one chosen, else the system's default printer, else the first printer found. The demo
+    /// printer is used only when it is the one chosen, so a machine with no printer has none in use. A chosen printer
+    /// that has gone away is not used.
     /// </summary>
     public PrinterInfo? SelectedPrinter =>
         _printerInfos.FirstOrDefault(p => p.Id == Settings.PrinterId)
         ?? _printerInfos.FirstOrDefault(p => p.IsDefault)
-        ?? _printerInfos.FirstOrDefault(p => p.Route != PrinterRoute.Demo)
-        ?? _printerInfos.FirstOrDefault();
+        ?? _printerInfos.FirstOrDefault(p => p.Route != PrinterRoute.Demo);
 
     /// <summary>What the printer in use can do, once read; null until then and for a printer that would not say.</summary>
     public PrinterCapabilities? SelectedCapabilities =>

@@ -133,15 +133,22 @@ internal sealed class Rig : IDisposable
     public string Directory { get; } = Path.Combine(Path.GetTempPath(), "lazyprint-tests-" + Guid.NewGuid().ToString("N"));
     public string LogDirectory => Path.Combine(Directory, "logs");
     public AppViewModel Model { get; private set; }
+    private readonly bool _demo;
 
-    public Rig()
+    /// <param name="demo">The demo printer is in use only when it is chosen, so a rig that wants it chooses it, on every start.</param>
+    public Rig(bool demo = false)
     {
+        _demo = demo;
         Model = Open();
     }
 
     /// <summary>A second view model on the same folder, as the next start of the app.</summary>
-    public AppViewModel Open() =>
+    public AppViewModel Open()
+    {
         Model = new AppViewModel(Spooler, Loader, Sheets, Diagnostics, Directory, network: Network, logDirectory: LogDirectory);
+        if (_demo) Model.Settings.PrinterId = PrinterMerge.DemoId;
+        return Model;
+    }
 
     public static SystemPrinter Queue(string name, bool isDefault = false, params SystemQueueState[] states) =>
         new(name, "Driver", "IP_192.168.1.20", isDefault, false, states, SystemQueueJobs.None);

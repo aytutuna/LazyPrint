@@ -8,13 +8,13 @@ extension AppState {
 
     // MARK: The list
 
-    /// The printer in use: the one chosen, else the system's default printer, else the first printer found, else the demo
-    /// printer. A chosen printer that has gone away is not used.
+    /// The printer in use: the one chosen, else the system's default printer, else the first printer found. The demo
+    /// printer is used only when it is the one chosen, so a machine with no printer has none in use. A chosen printer
+    /// that has gone away is not used.
     public var selectedPrinter: PrinterInfo? {
         printers.first(where: { $0.id == settings.printerId })
             ?? printers.first(where: { $0.isDefault })
             ?? printers.first(where: { $0.route != .demo })
-            ?? printers.first
     }
 
     /// A printer other than the demo printer is listed; without one the sidebar offers the troubleshooter.

@@ -9,7 +9,7 @@ import XCTest
 // (`AppStateFiles.all(in:)`) and is given stand-ins for the system, so nothing of the user's is read, opened or written.
 // The demo printer is the real one, writing into that folder. No test starts the polling (`setActive`) and none waits on
 // a timer. Where the Windows view model differs, the Windows file is the reference: the saved printer is chosen when it
-// exists, else the default queue, else the first printer that is not the demo printer, else the demo printer.
+// exists, else the default queue, else the first printer that is not the demo printer; the demo printer only when it is chosen.
 
 /// Sends the app's lifecycle events by hand.
 @MainActor
@@ -208,11 +208,14 @@ private final class Rig {
     let background = SeamBackground()
     let folder: URL
     let platform: AppPlatform
+    /// The demo printer is in use only when it is chosen, so a rig that wants it chooses it, on every start.
+    let demo: Bool
     private(set) var state: AppState!
 
-    init(folder: URL, platform: AppPlatform = .mac) {
+    init(folder: URL, platform: AppPlatform = .mac, demo: Bool = false) {
         self.folder = folder
         self.platform = platform
+        self.demo = demo
         _ = open()
     }
 
@@ -221,6 +224,7 @@ private final class Rig {
         state = AppState(printerSystem: spooler, network: network, systemPrinter: sheets, fileActions: actions,
                          troubleshooter: troubleshooter, lifecycle: lifecycle, background: background,
                          platform: platform, files: AppStateFiles.all(in: folder))
+        if demo { state.settings.printerId = PrinterMerge.demoId }
         return state
     }
 
@@ -252,8 +256,8 @@ final class AppStateSeamTests: XCTestCase {
     private let hpUuid = "4509a320-00a0-008f-00b6-00e0b36a5c50"
 
     @MainActor
-    private func makeRig(platform: AppPlatform = .mac) throws -> Rig {
-        Rig(folder: try tempFolder(), platform: platform)
+    private func makeRig(platform: AppPlatform = .mac, demo: Bool = false) throws -> Rig {
+        Rig(folder: try tempFolder(), platform: platform, demo: demo)
     }
 
     /// A rig whose one queue prints one side only, with three letter pages added and two-sided asked for: two sheets by hand.
@@ -328,7 +332,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_demoPrinter_isUsedWhenNothingElseIsListed() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
 
         XCTAssertEqual(rig.state.selectedPrinter?.id, "demo")
@@ -753,18 +757,18 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aDocumentPickedBeforeThePrinterIsRead_followsTheDemoPrinterToTheRealOne() async throws {
+    func test_aDocumentPickedBeforeAnyPrinterIsListed_followsThePrinterThatAppears() async throws {
         let rig = try makeRig()
         await rig.state.startTask(.document)
         await rig.state.refreshPrinters()
-        XCTAssertEqual(rig.state.settings.sides, .longEdge)
+        XCTAssertEqual(rig.state.settings.sides, .oneSided)
 
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
-        rig.spooler.capable["HP LaserJet"] = Rig.capabilities(duplex: false)
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
         await rig.state.refreshPrinters()
 
         XCTAssertEqual(rig.state.selectedPrinter?.name, "HP LaserJet")
-        XCTAssertEqual(rig.state.settings.sides, .oneSided)
+        XCTAssertEqual(rig.state.settings.sides, .longEdge)
     }
 
     @MainActor
@@ -781,7 +785,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_everyTask_isThereInCatalogOrderAndOnlyScanAndPrintNeedsLazyScan() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
 
         XCTAssertEqual(rig.state.taskDefinitions.map { $0.task }, TaskCatalog.tasks(for: .mac).map { $0.task })
@@ -839,7 +843,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_theTestPage_printsOnTheDemoPrinterAsASheetPicture() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
         await rig.state.startTask(.testPage)
 
@@ -929,7 +933,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_print_needsADocument() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
 
         XCTAssertFalse(rig.state.canPrint)
@@ -939,7 +943,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_printLabel_saysHowManySheetsItWillUse() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
         await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 3, in: rig.folder)])
         rig.state.settings.paperId = "letter"
@@ -1320,7 +1324,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_printAgain_plansAgainWithThePrintersCapabilitiesAsTheyAreNow() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
         rig.state.settings.paperId = "letter"
         rig.state.settings.sides = .longEdge
@@ -1364,7 +1368,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_aDemoJob_hasAFolderTheJobsTabCanShow() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
         await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 1, in: rig.folder)])
         let inkBefore = try XCTUnwrap(rig.state.printers[0].supplies[0].level)
@@ -1382,7 +1386,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_outOfPaperOnTheDemoPrinter_showsInItsRowAndStopsTheJob() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
         await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 1, in: rig.folder)])
         rig.state.setDemoOutOfPaper(true)
@@ -1403,7 +1407,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_theDemoPrintersSwitch_changesWhetherATaskGetsTwoSides() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         await rig.state.refreshPrinters()
         XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
 
@@ -1626,7 +1630,7 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     func test_theStatus_namesThePrinterThenTheTask() async throws {
-        let rig = try makeRig()
+        let rig = try makeRig(demo: true)
         XCTAssertEqual(rig.state.statusAccessible, "Looking for printers\u{2026}")
 
         await rig.state.refreshPrinters()

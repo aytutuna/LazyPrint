@@ -276,6 +276,7 @@ public sealed class PhoneLinkTests : IDisposable
         await Send("batch-0001", 0, 1, "a.pdf");
         var printing = new TaskCompletionSource();
         _rig.Sheets.While = (_, _, _) => printing.Task;
+        _rig.Model.Settings.PrinterId = PrinterMerge.DemoId;
         await _rig.Model.RefreshPrintersAsync();
         await _rig.Model.AddFilesAsync([@"C:\Docs\first.pdf"]);
         var job = _rig.Model.PrintAsync();

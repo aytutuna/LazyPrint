@@ -161,6 +161,9 @@ extension AppState {
         let state: AppState = AppState(printerSystem: system, network: network, systemPrinter: sheets, fileActions: fileActions,
                                        troubleshooter: IOSTroubleshooterService(), lifecycle: lifecycle,
                                        background: UIKitBackgroundActivity(), platform: .ios, files: files)
+        if options.demoPrinterOnly {
+            state.settings.printerId = PrinterMerge.demoId
+        }
         state.resolveSyncFolderBookmark = { (bookmark: Data) -> (folder: URL, bookmark: Data)? in
             IOSSyncFolder.resolve(bookmark)
         }

@@ -70,6 +70,7 @@ final class ScreenshotTests: XCTestCase {
     /// The demo printer alone (or, with `system`, a queue beside it), the printers read once.
     private func makeState(in work: URL, system: (any PrinterSystem)? = nil, companion: (any CompanionHosting)? = nil) async -> AppState {
         let state = AppState(printerSystem: system, companion: companion, files: AppStateFiles.all(in: work.appendingPathComponent("files")))
+        if system == nil { state.settings.printerId = PrinterMerge.demoId }
         await state.refreshPrinters()
         return state
     }

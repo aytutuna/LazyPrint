@@ -13,7 +13,7 @@ public sealed class PrintFlowTests
     /// <summary>A rig whose printer prints one side only, with three letter pages added and two-sided asked for: two sheets by hand.</summary>
     private static async Task<Rig> ManualRig()
     {
-        var rig = new Rig();
+        var rig = new Rig(demo: true);
         rig.Loader.Pages = [new LayoutSize(612, 792), new LayoutSize(612, 792), new LayoutSize(612, 792)];
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.SetDemoDuplexAsync(false);
@@ -192,7 +192,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task JobsAreListedNewestFirstAndPrintAgainMakesAnotherOfTheSame()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         await rig.Model.PrintAsync();
@@ -211,7 +211,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task CancellingARunningJobMarksItCanceledWithoutAnError()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         var started = new TaskCompletionSource();
@@ -234,7 +234,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task APrinterThatStopsOnAProblemTitlesTheErrorBarWithIt()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         rig.Sheets.Fails = new PrinterProblemException(new PrinterProblem("Paper jam", "Clear the jammed paper, then press Resume.", true));
@@ -259,6 +259,7 @@ public sealed class PrintFlowTests
         {
             Demo = new DemoPrinterState { Root = Root };
             Model = new AppViewModel(_rig.Spooler, _rig.Loader, new DemoPrinter(new SolidPages(), Demo), _rig.Diagnostics, _rig.Directory, Demo);
+            Model.Settings.PrinterId = PrinterMerge.DemoId;
         }
 
         public void Dispose()
@@ -335,7 +336,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task TheCutMarksOfAPhotoPrintAreInTheSidesTheJobSends()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.StartTaskAsync(PrintTask.Photos);
         rig.Model.Settings.PaperId = "letter";
@@ -351,7 +352,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task TheCutMarksOfAPhotoSheetAreInTheSidesTheJobSends()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.StartTaskAsync(PrintTask.PhotoSheet);
         rig.Model.Settings.PaperId = "letter";
@@ -388,7 +389,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task EditingTheSettingsClearsTheWordsAboutTheLastJob()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.StartTaskAsync(PrintTask.Document);
         await rig.Model.AddFilesAsync(["a.pdf"]);
@@ -405,7 +406,7 @@ public sealed class PrintFlowTests
     [Fact]
     public async Task APrinterRowIsUpdatedInPlace()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         var row = rig.Model.Printers.Single();
 

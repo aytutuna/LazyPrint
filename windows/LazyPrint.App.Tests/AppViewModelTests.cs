@@ -34,13 +34,22 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task DemoPrinterIsUsedWhenNothingElseIsListed()
+    public async Task DemoPrinterIsUsedOnlyWhenItIsChosen()
     {
         using var rig = new Rig();
         await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+
+        Assert.Null(rig.Model.SelectedPrinter);
+        Assert.Null(rig.Model.SelectedCapabilities);
+        Assert.False(rig.Model.CanPrint);
+        Assert.Equal(PrintText.NoPrinterReason, rig.Model.PrintDisabledReason);
+
+        await rig.Model.SelectPrinterAsync("demo");
 
         Assert.Equal("demo", rig.Model.SelectedPrinter?.Id);
         Assert.NotNull(rig.Model.SelectedCapabilities);
+        Assert.True(rig.Model.CanPrint);
     }
 
     [Fact]
@@ -229,19 +238,19 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
-    public async Task ADocumentPickedBeforeThePrinterIsReadFollowsTheDemoPrinterToTheRealOne()
+    public async Task ADocumentPickedBeforeAnyPrinterIsListedFollowsThePrinterThatAppears()
     {
         using var rig = new Rig();
         await rig.Model.StartTaskAsync(PrintTask.Document);
         await rig.Model.RefreshPrintersAsync();
-        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
+        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
 
         rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
-        rig.Spooler.Capable["HP LaserJet"] = new PrinterCapabilities { SidesSupported = ["one-sided"] };
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
         await rig.Model.RefreshPrintersAsync();
 
         Assert.Equal("HP LaserJet", rig.Model.SelectedPrinter?.Name);
-        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
+        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
     }
 
     [Fact]
@@ -260,7 +269,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task OnlyScanAndPrintNeedsLazyScan()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         var unavailable = TaskCatalog.Tasks(AppPlatform.Windows).Where(d => !rig.Model.AvailabilityOf(d.Task).IsAvailable).ToList();
 
@@ -307,7 +316,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task TheTestPagePrintsAtOnceOnThePrinterInUse()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.StartTaskAsync(PrintTask.TestPage);
 
@@ -388,7 +397,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task PrintNeedsADocument()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
 
         Assert.False(rig.Model.CanPrint);
@@ -399,7 +408,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task PrintSaysHowManySheetsItWillUse()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         rig.Loader.Pages = [new LayoutSize(612, 792), new LayoutSize(612, 792), new LayoutSize(612, 792)];
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
@@ -413,7 +422,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task APageRangePastTheEndIsReportedAndStopsPrint()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         rig.Model.SetPageRange("9");
@@ -450,7 +459,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task APrintedJobIsRecordedAndSaysWhatWasSent()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         await rig.Model.PrintAsync();
@@ -466,7 +475,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task AFailedJobPutsItsProblemInTheErrorBar()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         rig.Sheets.Fails = new PrintException(new PrintError.Unreachable("Demo Printer", "no answer"));
@@ -483,7 +492,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task AJobThatIsNotAboutReachingThePrinterDoesNotOfferTheTroubleshooter()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.pdf"]);
         rig.Sheets.Fails = new IOException("The disk is full.");
@@ -495,7 +504,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task DismissingTheErrorAndTheSentBarClearsThem()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.AddFilesAsync(["a.bad"]);
         Assert.NotNull(rig.Model.ErrorMessage);
@@ -564,7 +573,7 @@ public sealed class AppViewModelTests
     [Fact]
     public async Task TheStatusNamesThePrinterThenTheTask()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(demo: true);
         Assert.Equal("Looking for printers…", rig.Model.StatusMessage);
 
         await rig.Model.RefreshPrintersAsync();
