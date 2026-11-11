@@ -1,6 +1,6 @@
 #if os(iOS)
+import ImageIO
 import LazyPrintKit
-import Photos
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -23,6 +23,18 @@ enum PhotoNames {
         format.locale = Locale(identifier: "en_US_POSIX")
         format.dateFormat = "yyyy-MM-dd HH.mm.ss"
         return "Photo \(format.string(from: date))." + (type?.preferredFilenameExtension ?? "jpg")
+    }
+
+    /// The date in the picture's Exif, nil when it has none.
+    static func dateTaken(in data: Data) -> Date? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
+              let text = exif[kCGImagePropertyExifDateTimeOriginal] as? String else { return nil }
+        let format: DateFormatter = DateFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return format.date(from: text)
     }
 
     /// The highest n of the "Photo n.ext" names, 0 when there are none. A name made from a date is not one.
@@ -97,8 +109,7 @@ struct FileSources: ViewModifier {
                     if (error as? CocoaError)?.code != .userCancelled { state.reportImportFailure(error) }
                 }
             }
-            // With the shared library the items carry an identifier, which is how the date a photo was taken is found.
-            .photosPicker(isPresented: shown(.photos), selection: $photos, matching: .images, photoLibrary: .shared())
+            .photosPicker(isPresented: shown(.photos), selection: $photos, matching: .images)
             .onChange(of: photos) { (_: [PhotosPickerItem], items: [PhotosPickerItem]) in
                 guard !items.isEmpty else { return }
                 photos = []
@@ -114,7 +125,7 @@ struct FileSources: ViewModifier {
         })
     }
 
-    /// The photos as files in the inbox, named by the date taken when the library says it, else numbered on from the
+    /// The photos as files in the inbox, named by the date taken when the picture says it, else numbered on from the
     /// highest "Photo n" in the list, in the order picked.
     private func receive(_ items: [PhotosPickerItem]) async {
         var urls: [URL] = []
@@ -123,17 +134,18 @@ struct FileSources: ViewModifier {
         await state.whileAddingFiles {
             for item in items {
                 let type: UTType? = item.supportedContentTypes.first
+                // An original kept in iCloud may not come down without a network.
+                guard let data = try? await item.loadTransferable(type: Data.self) else {
+                    number += 1
+                    failed.append(PhotoNames.make(number: number, type: type))
+                    continue
+                }
                 let name: String
-                if let taken = item.itemIdentifier.flatMap({ PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: nil).firstObject?.creationDate }) {
+                if let taken = PhotoNames.dateTaken(in: data) {
                     name = PhotoNames.make(date: taken, type: type)
                 } else {
                     number += 1
                     name = PhotoNames.make(number: number, type: type)
-                }
-                // An original kept in iCloud may not come down without a network.
-                guard let data = try? await item.loadTransferable(type: Data.self) else {
-                    failed.append(name)
-                    continue
                 }
                 if let url = try? inbox.receive(data, named: name) {
                     urls.append(url)
