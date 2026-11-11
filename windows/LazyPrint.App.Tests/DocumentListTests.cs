@@ -24,6 +24,25 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public async Task CancelingTheLoadAddsNothingAndLetsPrintGo()
+    {
+        using var rig = new Rig();
+        rig.Loader.Holds["slow.pdf"] = new TaskCompletionSource().Task;
+
+        var adding = rig.Model.AddFilesAsync(["a.pdf", "slow.pdf"]);
+        var waiting = rig.Model.AddFilesAsync(["b.pdf"]);
+        Assert.True(rig.Model.IsAddingFiles);
+        rig.Model.CancelLoad();
+        await adding;
+        await waiting;
+
+        Assert.False(rig.Model.IsAddingFiles);
+        Assert.Empty(rig.Model.Documents);
+        await rig.Model.AddFilesAsync(["c.pdf"]);
+        Assert.Equal(["c.pdf"], Names(rig));
+    }
+
+    [Fact]
     public async Task FilesAddedTogetherEndInTheOrderTheyCameAndPrintWaitsForThem()
     {
         using var rig = new Rig(demo: true);

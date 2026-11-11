@@ -42,6 +42,7 @@ public sealed partial class AppViewModel
     private ManualRun? _manual;
     private readonly SemaphoreSlim _addingTurn = new(1, 1);
     private int _addingFiles;
+    private CancellationTokenSource? _loading;
 
     /// <summary>Files are being opened; Print waits for them.</summary>
     public bool IsAddingFiles => _addingFiles > 0;
@@ -72,34 +73,51 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.</summary>
-    public Task AddFilesAsync(IEnumerable<string> paths) => InAddingTurnAsync(async () =>
+    public Task AddFilesAsync(IEnumerable<string> paths) => InAddingTurnAsync(async token =>
     {
-        var (opened, failed) = await OpenFilesAsync(paths);
+        var (opened, failed) = await OpenFilesAsync(paths, token);
         foreach (var document in opened) Documents.Add(document);
         if (failed.Count > 0) ReportNotAdded(failed);
     });
 
-    /// <summary>Runs one load of files in its turn; Print waits until none is going.</summary>
-    private async Task InAddingTurnAsync(Func<Task> load)
+    /// <summary>Runs one load of files in its turn; Print waits until none is going. Cancel drops the load, and the ones waiting.</summary>
+    private async Task InAddingTurnAsync(Func<CancellationToken, Task> load)
     {
         // Calls are served in the order they came, so files from separate starts of the app do not swap places.
         _addingFiles++;
+        var token = (_loading ??= new CancellationTokenSource()).Token;
         NotifyAll();
-        await _addingTurn.WaitAsync();
         try
         {
-            await load();
+            await _addingTurn.WaitAsync(token);
+            try
+            {
+                await load(token);
+            }
+            finally
+            {
+                _addingTurn.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
         finally
         {
-            _addingTurn.Release();
-            _addingFiles--;
+            if (--_addingFiles == 0) _loading = null;
             NotifyAll();
         }
     }
 
+    /// <summary>Stops opening files; what was already opened for the load is not added.</summary>
+    public void CancelLoad()
+    {
+        _loading?.Cancel();
+        _loading = null;
+    }
+
     /// <summary>Opens the files without adding them; the ones that cannot be read come back with what was wrong.</summary>
-    private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths)
+    private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths, CancellationToken token)
     {
         List<LoadedDocument> opened = [];
         List<(string Name, string Reason)> failed = [];
@@ -107,9 +125,9 @@ public sealed partial class AppViewModel
         {
             try
             {
-                opened.Add(await _loader.LoadAsync(path, CancellationToken.None));
+                opened.Add(await _loader.LoadAsync(path, token));
             }
-            catch (Exception e)
+            catch (Exception e) when (e is not OperationCanceledException)
             {
                 failed.Add((Path.GetFileName(path), e.Message));
             }

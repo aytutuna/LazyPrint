@@ -290,7 +290,7 @@ public partial class MainWindow
     {
         string label = ViewModel.PrintLabel;
         string? reason = ViewModel.PrintDisabledReason;
-        PrintButton.Content = label;
+        PrintButton.Content = "_" + label;
         PrintButton.IsEnabled = reason is null;
         PrintButton.ToolTip = reason ?? "Print (Ctrl+P)";
         AutomationProperties.SetName(PrintButton, reason is null ? label : $"{label}, not available: {reason}");

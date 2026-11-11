@@ -36,7 +36,7 @@ internal sealed class FakeLoader : IDocumentLoader
 
     public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token)
     {
-        if (Holds.TryGetValue(path, out var hold)) await hold;
+        if (Holds.TryGetValue(path, out var hold)) await hold.WaitAsync(token);
         return path.Contains(".bad", StringComparison.Ordinal)
             ? throw new InvalidOperationException("Lazy Print prints PDFs and pictures. Save it as a PDF first.")
             : new LoadedDocument(Path.GetFileName(path), new DocumentKind.Pdf(false), Pages);

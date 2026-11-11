@@ -293,6 +293,16 @@ public class DocumentLoaderTests
     }
 
     [Fact]
+    public async Task ACanceledLoadStopsWithoutAnError()
+    {
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _loader.LoadAsync(DocumentFixtures.PathOf("red-letter.pdf"), canceled.Token));
+    }
+
+    [Fact]
     public async Task AMissingFileIsRefusedAsUnreadable()
     {
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(DocumentFixtures.PathOf("missing.png"), CancellationToken.None));

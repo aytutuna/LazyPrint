@@ -70,8 +70,8 @@
         <DockPanel>
             <TextBlock x:Name="Glyph" DockPanel.Dock="Left" Style="{StaticResource GlyphText}" Margin="0,0,8,0"
                        Text="{Binding Path={x:Static ui:Icon.GlyphPath}, RelativeSource={RelativeSource AncestorType=ButtonBase}}" />
-            <TextBlock Text="{Binding}" VerticalAlignment="Center"
-                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+            <AccessText Text="{Binding}" VerticalAlignment="Center"
+                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
         </DockPanel>
         <DataTemplate.Triggers>
             <DataTrigger Binding="{Binding Path={x:Static ui:Icon.GlyphPath}, RelativeSource={RelativeSource AncestorType=ButtonBase}}" Value="{x:Null}">
@@ -441,6 +441,11 @@
     <!-- Field label above a control in a settings section. -->
     <Style x:Key="FieldLabelText" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
         <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="Margin" Value="{StaticResource LabelSpacing}" />
+    </Style>
+    <!-- The same, for a field that has an access key: a Label hands the key to its Target. -->
+    <Style x:Key="FieldLabel" TargetType="Label" BasedOn="{StaticResource {x:Type Label}}">
+        <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="{StaticResource LabelSpacing}" />
     </Style>
     <!-- Right-aligned numeric readout (slider values, sizes): secondary color, tabular digits. -->

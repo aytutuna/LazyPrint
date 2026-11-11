@@ -252,9 +252,9 @@ public sealed partial class AppViewModel
             var files = await TakePhoneBatchAsync(batch);
             int missed = batch.Arrived - files.Count;
             bool added = false;
-            await InAddingTurnAsync(async () =>
+            await InAddingTurnAsync(async token =>
             {
-                var (opened, failed) = await OpenFilesAsync(files);
+                var (opened, failed) = await OpenFilesAsync(files, token);
                 if (opened.Count == 0)
                 {
                     if (failed.Count > 0) ReportNotAdded(failed);

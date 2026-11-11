@@ -39,7 +39,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             // A name that says nothing is no reason to refuse a file: its content tells a PDF from a picture.
             if (extension == ".pdf" || !named && await Task.Run(() => StartsWithPdf(path), token))
             {
-                byte[] bytes = await Task.Run(() => File.ReadAllBytes(path), token);
+                byte[] bytes = await File.ReadAllBytesAsync(path, token);
                 var pdf = await PdfSource.OpenAsync(bytes);
                 source = pdf;
                 document = new LoadedDocument(name, new DocumentKind.Pdf(pdf.Protected), pdf.PageSizes);
