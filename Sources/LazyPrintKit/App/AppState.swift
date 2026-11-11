@@ -514,10 +514,17 @@ public final class AppState: ObservableObject {
         startPreview()
     }
 
+    private var lastValidRange: [Int]?
+
     private func computePlan() -> JobPlan? {
         guard !documents.isEmpty else { return nil }
-        let range = pageRangeIndexes()
-        if range == nil && !pageRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
+        var range = pageRangeIndexes()
+        if range == nil && !pageRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Half-typed ("1-"): the preview stays on the last range that parsed, and only the field shows the problem.
+            range = lastValidRange
+        } else {
+            lastValidRange = range
+        }
         return PrintJobs.plan(documents.map { $0.loaded }, pageRange: range, settings: settings, task: task,
                               printer: capabilities, prefs: selectedPrefs)
     }
