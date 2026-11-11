@@ -292,7 +292,9 @@ public sealed partial class AppViewModel
             var progress = new Progress<JobStatus>(status =>
             {
                 if (_canceling) return;
-                if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
+                if (CurrentJob(recordId) is not { } record) return;
+                bool open = record.State is JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser;
+                if (status.State == JobState.Done ? _jobRunning != recordId && record.State != JobState.Done : !open) return;
                 SetJob(recordId, status.State, status.Detail);
                 if (status.State == JobState.Done) return;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail

@@ -181,8 +181,7 @@ extension AppState {
     private func progress(_ status: JobStatus, recordId: String, sides: Int, printer: String) {
         // A last report can land after the pass has returned: it still carries the printer's warning.
         if status.state == .done {
-            let open: [JobState] = [.sending, .waiting, .printing, .needsUser, .done]
-            if let record = jobs.first(where: { $0.id == recordId }), open.contains(record.state) {
+            if let record = jobs.first(where: { $0.id == recordId }), runningRecord == recordId || record.state == .done {
                 setJob(recordId, .done, status.detail)
             }
             return
