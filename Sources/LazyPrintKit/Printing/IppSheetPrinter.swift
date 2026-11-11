@@ -105,6 +105,7 @@ public final class IppSheetPrinter: SheetPrinter {
             let ownSize = placed.count == 1
                 && abs(min(photo.width, photo.height) - paper.width) <= PaperSizes.fitTolerance
                 && abs(max(photo.width, photo.height) - paper.height) <= PaperSizes.fitTolerance
+                && (job.settings.scale == 100 || (job.settings.scaling != .shrinkToFit && job.settings.scaling != .actualSize))
             return ownSize ? (kind: document.kind, url: url) : nil
         case .imposed:
             return nil

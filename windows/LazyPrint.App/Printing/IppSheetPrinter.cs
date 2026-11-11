@@ -86,7 +86,8 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 var photo = document.Pages[0];
                 bool ownSize = placed.Count == 1
                                && Math.Abs(Math.Min(photo.Width, photo.Height) - paper.Width) <= PaperSizes.FitTolerance
-                               && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance;
+                               && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance
+                               && (job.Settings.Scale == 100 || job.Settings.Scaling is not (Scaling.ShrinkToFit or Scaling.ActualSize));
                 return ownSize ? (document.Kind, bytes) : null;
             default:
                 return null;
