@@ -189,6 +189,7 @@ struct PrintView: View {
             }
             .onChange(of: fitted, initial: true) { _, value in
                 fit = value
+                if let zoom, zoom <= value * 1.001 { self.zoom = nil }
             }
         }
     }
@@ -383,7 +384,11 @@ private final class SheetView: NSView {
         NSColor.white.setFill()
         rect.fill()
         NSGraphicsContext.restoreGraphicsState()
-        NSImage(cgImage: image, size: rect.size).draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
+        // The bitmap keeps its own shape until the redraw for a new paper lands.
+        let scale = min(rect.width / CGFloat(image.width), rect.height / CGFloat(image.height))
+        let drawn = NSSize(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale)
+        let target = NSRect(x: rect.midX - drawn.width / 2, y: rect.midY - drawn.height / 2, width: drawn.width, height: drawn.height)
+        NSImage(cgImage: image, size: target.size).draw(in: target, from: .zero, operation: .sourceOver, fraction: 1,
                                                        respectFlipped: true,
                                                        hints: [.interpolation: NSImageInterpolation.high.rawValue])
     }
@@ -406,7 +411,9 @@ private final class SheetView: NSView {
 
     override func scrollWheel(with event: NSEvent) {
         if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.control) {
-            zoomBy(exp(event.scrollingDeltaY * 0.02))
+            // A wheel with notches reports lines, a trackpad points.
+            let dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 5
+            zoomBy(exp(dy * 0.02))
         } else {
             super.scrollWheel(with: event)
         }

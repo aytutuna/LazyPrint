@@ -76,6 +76,8 @@ public final class CupsQueues: PrinterSystem {
             let status = Int(cupsCancelJob2(nil, name, Int32(id), 0).rawValue)
             return CupsResult(done: status < 0x0400, status: status, message: String(cString: cupsLastErrorString()))
         }
+        // Not found or not possible: the job finished before the cancel arrived.
+        if result.status == 0x0404 || result.status == 0x0406 { return }
         try finish(result)
     }
 
