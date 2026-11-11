@@ -212,7 +212,7 @@ public final class IppSheetPrinter: SheetPrinter {
                 }
                 switch job.state {
                 case .completed:
-                    progress(JobStatus(state: .done, sidesDone: sides))
+                    progress(JobStatus(state: .done, sidesDone: sides, detail: Self.problem(job)?.title))
                     return
                 case .canceled:
                     throw CancellationError()

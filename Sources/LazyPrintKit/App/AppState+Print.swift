@@ -81,8 +81,9 @@ extension AppState {
     }
 
     private func sent(_ record: JobRecord, _ printer: PrinterInfo) {
-        setJob(record.id, .done, nil)
-        statusOverride = PrintText.printed
+        let warning = jobs.first(where: { $0.id == record.id })?.detail
+        setJob(record.id, .done, warning)
+        statusOverride = warning ?? PrintText.printed
         sentMessage = PrintText.sent(record.sheets, copies: record.copies, printerName: printer.name)
         lastFailure = nil
     }
@@ -177,6 +178,14 @@ extension AppState {
 
     /// What the printer says of the pass while it runs. A report that comes after the pass has ended is dropped.
     private func progress(_ status: JobStatus, recordId: String, sides: Int, printer: String) {
+        // A last report can land after the pass has returned: it still carries the printer's warning.
+        if status.state == .done {
+            let open: [JobState] = [.sending, .waiting, .printing, .done]
+            if let detail = status.detail, let record = jobs.first(where: { $0.id == recordId }), open.contains(record.state) {
+                setJob(recordId, .done, detail)
+            }
+            return
+        }
         guard runningRecord == recordId else { return }
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {

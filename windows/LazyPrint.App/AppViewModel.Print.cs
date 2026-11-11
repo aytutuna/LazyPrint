@@ -262,8 +262,9 @@ public sealed partial class AppViewModel
 
     private void Sent(JobRecord record, PrinterInfo printer)
     {
-        SetJob(record.Id, JobState.Done, null);
-        _statusOverride = PrintText.Printed;
+        string? warning = CurrentJob(record.Id)?.Detail;
+        SetJob(record.Id, JobState.Done, warning);
+        _statusOverride = warning ?? PrintText.Printed;
         SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
         _lastFailure = null;
         NotifyAll();
@@ -290,6 +291,7 @@ public sealed partial class AppViewModel
             {
                 if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
                 SetJob(recordId, status.State, status.Detail);
+                if (status.State == JobState.Done) return;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
                     : status.State == JobState.Waiting && status.Detail is not null

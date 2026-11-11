@@ -231,7 +231,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 switch (job.State)
                 {
                     case IppJobState.Completed:
-                        progress.Report(new JobStatus(JobState.Done, sides));
+                        progress.Report(new JobStatus(JobState.Done, sides, Problem(job)?.Title));
                         return;
                     case IppJobState.Canceled:
                         throw new OperationCanceledException();
