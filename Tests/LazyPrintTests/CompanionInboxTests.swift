@@ -245,12 +245,12 @@ final class CompanionInboxTests: XCTestCase {
 
     func testUploadsUnderWay_CountAgainstTheByteLimitTogether() async throws {
         let reading = Guarded<Bool>(false)
-        let slow = CompanionRequestBody(length: 0, prefix: Data()) { _ in
+        let half = CompanionInbox.maxWaitingBytes / 2 + 1
+        let slow = CompanionRequestBody(length: half, prefix: Data()) { _ in
             reading.value = true
             try await Task.sleep(nanoseconds: 300_000_000)
             return Data()
         }
-        let half = CompanionInbox.maxWaitingBytes / 2 + 1
         let first = Task { [inbox, phone, start] in
             try await inbox!.receive(deviceId: phone, packageId: "package-0001", body: slow, length: half, now: start)
         }
