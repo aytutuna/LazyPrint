@@ -443,6 +443,10 @@ public partial class MainWindow : Window
         {
             e.Handled = PasteFiles();
         }
+        else if (TryZoomKey(e))
+        {
+            e.Handled = true;
+        }
         else if (e.Key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None && !typing && CardOf(Keyboard.FocusedElement) is { } card)
         {
             ViewModel.RemoveDocument(card.Document);

@@ -279,10 +279,19 @@
                             <!-- Stage: the sheet sits on a neutral surface with a soft shadow. -->
                             <Border Grid.Row="1" x:Name="Stage" Style="{StaticResource StageStyle}" Margin="12">
                                 <Grid x:Name="StageHost" SizeChanged="StageHost_SizeChanged">
-                                    <!-- The margin must stay uniform: StageHost_SizeChanged reads it for every side. -->
-                                    <Image x:Name="PreviewImage" Stretch="Uniform" Margin="24" Visibility="Collapsed"
-                                           Effect="{DynamicResource PageShadow}"
-                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <!-- The sheet is sized in code (ApplyZoom): to fit the stage, or by the zoom, which then scrolls or drags. -->
+                                    <ScrollViewer x:Name="PreviewScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                                  PanningMode="Both" Focusable="False" Background="Transparent"
+                                                  PreviewMouseWheel="PreviewScroller_PreviewMouseWheel"
+                                                  PreviewMouseLeftButtonDown="PreviewScroller_MouseDown"
+                                                  PreviewMouseMove="PreviewScroller_MouseMove"
+                                                  PreviewMouseLeftButtonUp="PreviewScroller_MouseUp"
+                                                  LostMouseCapture="PreviewScroller_LostCapture">
+                                        <Image x:Name="PreviewImage" Stretch="Fill" Margin="24" Visibility="Collapsed"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Effect="{DynamicResource PageShadow}"
+                                               RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </ScrollViewer>
                                     <StackPanel x:Name="EmptyStage" Style="{StaticResource EmptyStatePanelStyle}">
                                         <Border Style="{StaticResource EmptyStateCircleStyle}">
                                             <TextBlock Text="&#xE8A5;" Style="{StaticResource EmptyStateGlyphStyle}" />
@@ -300,6 +309,14 @@
 
                             <!-- Which sheet, and which side of it. -->
                             <DockPanel Grid.Row="2" x:Name="PreviewBar" Margin="12,0,12,0" Visibility="Collapsed">
+                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" x:Name="ZoomBar" AutomationProperties.Name="Zoom">
+                                    <Button x:Name="ZoomOutButton" Style="{StaticResource IconButtonStyle}" Content="&#xE71F;"
+                                            ToolTip="Zoom out (Ctrl+minus)" AutomationProperties.Name="Zoom out" Click="ZoomOut_Click" />
+                                    <Button x:Name="ZoomFitButton" Style="{StaticResource SubtleButtonStyle}" MinWidth="52"
+                                            ToolTip="Fit to window (Ctrl+0)" AutomationProperties.Name="Fit to window" Click="ZoomFit_Click" />
+                                    <Button x:Name="ZoomInButton" Style="{StaticResource IconButtonStyle}" Content="&#xE8A3;"
+                                            ToolTip="Zoom in (Ctrl+plus)" AutomationProperties.Name="Zoom in" Click="ZoomIn_Click" />
+                                </StackPanel>
                                 <Border DockPanel.Dock="Right" x:Name="FaceTrack" Style="{StaticResource SegmentedTrackStyle}"
                                         AutomationProperties.Name="Side shown">
                                     <UniformGrid Columns="2">
