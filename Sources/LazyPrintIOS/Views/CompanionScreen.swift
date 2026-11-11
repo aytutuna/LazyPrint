@@ -15,6 +15,7 @@ struct CompanionScreen: View {
     @EnvironmentObject private var state: AppState
     @StateObject private var model: IOSCompanionModel
     @State private var choosingFolder: Bool = false
+    @State private var confirmingForget: Bool = false
 
     init(state: AppState, browser: IOSCompanionBrowser?) {
         _model = StateObject(wrappedValue: IOSCompanionModel(state: state, browser: browser))
@@ -44,12 +45,15 @@ struct CompanionScreen: View {
                         .accessibilityIdentifier("companion.refresh")
                     }
                     Button(role: .destructive) {
-                        Task { await model.forget() }
+                        confirmingForget = true
                     } label: {
                         Label(IOSCompanionText.forgetButton, systemImage: "xmark.circle")
                     }
                     .disabled(model.isPairing)
                     .accessibilityIdentifier("companion.forget")
+                    .confirmForget(of: desktop.name, isPresented: $confirmingForget, identifier: "companion.forget.confirm") {
+                        Task { await model.forget() }
+                    }
                 }
             }
             if model.needsPairing {
@@ -229,6 +233,18 @@ private struct CompanionNetworkLine: View {
                 }
                 .accessibilityIdentifier("companion.settings")
             }
+        }
+    }
+}
+
+extension View {
+    /// Asks before the computer is unpaired: the dialog is titled with its name.
+    func confirmForget(of name: String, isPresented: Binding<Bool>, identifier: String,
+                       forget: @escaping () -> Void) -> some View {
+        confirmationDialog(name, isPresented: isPresented, titleVisibility: .visible) {
+            Button(IOSCompanionText.forgetButton, role: .destructive, action: forget)
+                .accessibilityIdentifier(identifier)
+            Button("Cancel", role: .cancel) {}
         }
     }
 }

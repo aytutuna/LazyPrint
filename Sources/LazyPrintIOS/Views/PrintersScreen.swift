@@ -160,6 +160,7 @@ struct PrintersScreen: View {
     @State private var showTroubleshooter = false
     @State private var showAdd = false
     @State private var showComputer = false
+    @State private var confirmingForget = false
     @State private var infoId: String?
     /// A printer was picked whose certificate is being asked about: the sheet closes with the answer.
     @State private var closeWhenAnswered = false
@@ -282,9 +283,12 @@ struct PrintersScreen: View {
             }
             .accessibilityIdentifier("printers.computer")
             Button(IOSCompanionText.forgetButton, role: .destructive) {
-                Task { await state.unpairDesktop() }
+                confirmingForget = true
             }
             .accessibilityIdentifier("printers.computer.forget")
+            .confirmForget(of: desktop.name, isPresented: $confirmingForget, identifier: "printers.computer.forget.confirm") {
+                Task { await state.unpairDesktop() }
+            }
         } else {
             Button(IOSCompanionText.pairTitle) { showComputer = true }
                 .accessibilityIdentifier("printers.computer.pair")
