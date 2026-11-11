@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
 
@@ -38,8 +39,20 @@ public partial class App : Application
         // Apply the saved appearance before the first window is created.
         ThemeService.Initialize();
         DispatcherUnhandledException += OnUnhandled;
+        // An access key is for Alt; without it WPF also takes plain typing on a focused button as one.
+        EventManager.RegisterClassHandler(typeof(UIElement), AccessKeyManager.AccessKeyPressedEvent,
+                                          new AccessKeyPressedEventHandler(OnAccessKey));
         base.OnStartup(e);
     }
+
+    private static void OnAccessKey(object sender, AccessKeyPressedEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) return;
+        e.Target = null;
+        e.Handled = true;
+    }
+
+    private static bool _showing;
 
     /// <summary>
     /// Writes an exception nobody caught to Logs\errors.txt. The app carries on after a mistake of its own; one the process
@@ -59,8 +72,18 @@ public partial class App : Application
         }
         if (e.Exception is OutOfMemoryException or AccessViolationException or InsufficientExecutionStackException) return;
         e.Handled = true;
-        MessageBox.Show("Something went wrong. The details are saved in errors.txt, in the Logs folder of Lazy Print under %LOCALAPPDATA%.",
-                        "Lazy Print", MessageBoxButton.OK, MessageBoxImage.Error);
+        // The box pumps messages, so an error that keeps coming back would stack one per turn.
+        if (_showing) return;
+        _showing = true;
+        try
+        {
+            MessageBox.Show("Something went wrong. The details are saved in errors.txt, in the Logs folder of Lazy Print under %LOCALAPPDATA%.",
+                            "Lazy Print", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _showing = false;
+        }
     }
 
     /// <summary>
