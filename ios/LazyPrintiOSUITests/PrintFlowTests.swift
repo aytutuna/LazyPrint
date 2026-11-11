@@ -69,10 +69,18 @@ final class PrintFlowTests: XCTestCase {
         let position: XCUIElement = app.staticTexts["preview.position"]
         let first: String = position.label
 
-        app.item("print.next").tap()
-
+        // The arrows sit 30 points in from the paper's edges; VoiceOver has the preview's adjustable action instead.
+        let stage: XCUIElement = app.item("preview.stage")
+        func arrow(onRight: Bool) {
+            stage.coordinate(withNormalizedOffset: CGVector(dx: onRight ? 1 : 0, dy: 0.5))
+                .withOffset(CGVector(dx: onRight ? -30 : 30, dy: 0))
+                .tap()
+        }
+        arrow(onRight: true)
         app.waitUntil(position, "label != '\(first)'", "The next page")
-        XCTAssertTrue(app.item("print.previous").isEnabled, "Previous after the first page")
+
+        arrow(onRight: false)
+        app.waitUntil(position, "label == '\(first)'", "Back to the first page")
     }
 
     @MainActor

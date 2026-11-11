@@ -21,6 +21,10 @@ struct PageDecksView: UIViewControllerRepresentable {
     let zoomIn: (Int) -> Void
     /// A tap on the paper.
     let touched: () -> Void
+    let canGoBack: Bool
+    let canGoOn: Bool
+    let arrowsFaint: Bool
+    let turnBy: (Int) -> Void
 
     static func spread(of side: Int) -> Int {
         (side + 1) / 2
@@ -35,7 +39,7 @@ struct PageDecksView: UIViewControllerRepresentable {
         Coordinator(self)
     }
 
-    func makeUIViewController(context: Context) -> UIPageViewController {
+    func makeUIViewController(context: Context) -> DecksController {
         let controller = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal,
                                               options: [.spineLocation: NSNumber(value: UIPageViewController.SpineLocation.mid.rawValue)])
         controller.dataSource = context.coordinator
@@ -51,12 +55,13 @@ struct PageDecksView: UIViewControllerRepresentable {
         tap.cancelsTouchesInView = false
         tap.delegate = TapAlongside.shared
         controller.view.addGestureRecognizer(tap)
-        return controller
+        return DecksController(pages: controller)
     }
 
-    func updateUIViewController(_ controller: UIPageViewController, context: Context) {
+    func updateUIViewController(_ controller: DecksController, context: Context) {
         context.coordinator.view = self
-        context.coordinator.sync(controller)
+        context.coordinator.sync(controller.pages)
+        controller.arrows.update(canGoBack: canGoBack, canGoOn: canGoOn, faint: arrowsFaint, turn: turnBy)
     }
 
     @MainActor
@@ -194,6 +199,35 @@ struct PageDecksView: UIViewControllerRepresentable {
                 break
             }
         }
+    }
+}
+
+/// The curl with the arrows over it.
+final class DecksController: UIViewController {
+    let pages: UIPageViewController
+    let arrows = ArrowsView()
+
+    init(pages: UIPageViewController) {
+        self.pages = pages
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        addChild(pages)
+        pages.view.frame = view.bounds
+        pages.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(pages.view)
+        pages.didMove(toParent: self)
+        arrows.frame = view.bounds
+        arrows.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(arrows)
     }
 }
 

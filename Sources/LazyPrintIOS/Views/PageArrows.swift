@@ -2,24 +2,9 @@
 import SwiftUI
 import UIKit
 
-/// Previous and next on the edges of the page. UIKit buttons rather than SwiftUI ones: drawn by SwiftUI over the paper's
-/// UIKit views they show but never get the tap. Between the buttons touches go through to the paper.
-struct PageArrows: UIViewRepresentable {
-    let canGoBack: Bool
-    let canGoOn: Bool
-    let turn: (Int) -> Void
-
-    func makeUIView(context: Context) -> ArrowsView {
-        ArrowsView()
-    }
-
-    func updateUIView(_ arrows: ArrowsView, context: Context) {
-        arrows.turn = turn
-        arrows.back.isHidden = !canGoBack
-        arrows.forward.isHidden = !canGoOn
-    }
-}
-
+/// Previous and next on the edges of the page, laid over the paper inside its own UIKit view: SwiftUI buttons, or a UIKit
+/// view of their own, laid over the paper show but never get the tap. Between the buttons touches go through to the paper.
+/// VoiceOver turns the pages with the preview's adjustable action instead.
 final class ArrowsView: UIView {
     let back = ArrowsView.button("chevron.left", label: "Previous page", id: "print.previous")
     let forward = ArrowsView.button("chevron.right", label: "Next page", id: "print.next")
@@ -36,6 +21,16 @@ final class ArrowsView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not used")
+    }
+
+    func update(canGoBack: Bool, canGoOn: Bool, faint: Bool, turn: @escaping (Int) -> Void) {
+        self.turn = turn
+        back.isHidden = !canGoBack
+        forward.isHidden = !canGoOn
+        let alpha: CGFloat = faint ? 0.25 : 1
+        if self.alpha != alpha {
+            UIView.animate(withDuration: 0.4) { self.alpha = alpha }
+        }
     }
 
     override func layoutSubviews() {

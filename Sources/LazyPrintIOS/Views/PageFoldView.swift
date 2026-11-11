@@ -24,12 +24,18 @@ struct PageFoldView: UIViewRepresentable {
     let zoomed: (CGFloat) -> Void
     /// A tap on the paper.
     let touched: () -> Void
+    let canGoBack: Bool
+    let canGoOn: Bool
+    let arrowsFaint: Bool
+    let turnBy: (Int) -> Void
 
-    func makeUIView(context: Context) -> PaperScroll {
-        PaperScroll()
+    func makeUIView(context: Context) -> FoldStage {
+        FoldStage()
     }
 
-    func updateUIView(_ scroll: PaperScroll, context: Context) {
+    func updateUIView(_ stage: FoldStage, context: Context) {
+        stage.arrows.update(canGoBack: canGoBack, canGoOn: canGoOn, faint: arrowsFaint, turn: turnBy)
+        let scroll: PaperScroll = stage.scroll
         scroll.zoomOut = zoomOut
         scroll.zoomed = zoomed
         scroll.touched = touched
@@ -40,6 +46,25 @@ struct PageFoldView: UIViewRepresentable {
         paper.drawn = drawn
         paper.draw = draw
         paper.update(side: side.wrappedValue, count: count, sheets: sheets, image: image)
+    }
+}
+
+/// The page with the arrows over it.
+final class FoldStage: UIView {
+    let scroll = PaperScroll()
+    let arrows = ArrowsView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        for part in [scroll, arrows] as [UIView] {
+            part.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            addSubview(part)
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
     }
 }
 

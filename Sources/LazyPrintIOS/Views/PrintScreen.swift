@@ -361,7 +361,6 @@ struct PrintScreen: View {
                     }
                 }
                 .accessibilityIdentifier("preview.stage")
-            arrows
         }
         .onAppear { showArrows() }
         .onChange(of: state.previewSide) { showArrows() }
@@ -381,7 +380,8 @@ struct PrintScreen: View {
                               state.previewSide = side
                               singlePage = true
                           },
-                          touched: showArrows)
+                          touched: showArrows,
+                          canGoBack: canTurn(by: -1), canGoOn: canTurn(by: 1), arrowsFaint: !arrowsShown, turnBy: arrowTurn)
                 .frame(width: 2 * paper.width, height: paper.height)
         } else {
             PageFoldView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
@@ -393,20 +393,17 @@ struct PrintScreen: View {
                              singlePage = false
                          } : nil,
                          zoomed: { (scale: CGFloat) in zoom = scale },
-                         touched: showArrows)
+                         touched: showArrows,
+                         canGoBack: canTurn(by: -1), canGoOn: canTurn(by: 1), arrowsFaint: !arrowsShown, turnBy: arrowTurn)
                 // A new page view starts at full size, whatever an old one was zoomed to.
                 .onAppear { zoom = 1 }
         }
     }
 
     /// Previous and next on the page's edges.
-    private var arrows: some View {
-        PageArrows(canGoBack: canTurn(by: -1), canGoOn: canTurn(by: 1), turn: { (offset: Int) in
-            turn(by: offset)
-            showArrows()
-        })
-        .opacity(arrowsShown ? 1 : 0.25)
-        .animation(.easeInOut(duration: 0.4), value: arrowsShown)
+    private func arrowTurn(_ offset: Int) {
+        turn(by: offset)
+        showArrows()
     }
 
     private func showArrows() {
