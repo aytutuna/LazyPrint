@@ -212,7 +212,7 @@ final class IOSPrinterSystemTests: XCTestCase {
 
         let caps = try XCTUnwrap(read)
         XCTAssertEqual(caps.name, "Office HP")
-        XCTAssertEqual(caps.mediaColDatabase.map { $0.width }, [21000, 21590])
+        XCTAssertEqual(caps.mediaColDatabase.map { $0.width }, [21000, 21590, 10160, 12700, 21590])
     }
 
     @MainActor
