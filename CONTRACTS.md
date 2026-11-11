@@ -137,7 +137,7 @@ public enum PhotoLayout {
 
 ### Layout/PageRange
 
-`PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
+`PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept; separators are commas, semicolons or spaces, a range takes a hyphen, en dash or em dash, "3-" runs to the last page and "5-2" gives 5, 4, 3, 2); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
 
 ### Layout/ManualDuplex (two-sided on a printer that prints one side)
 
@@ -330,7 +330,7 @@ public enum QualityChoice: String, Codable, CaseIterable, Sendable { case normal
 public struct PrintSettings: Codable, Equatable, Sendable {
     public var taskId: String? = nil            // the PrintTask raw value, kept as a string so a newer task survives
     public var printerId: String? = nil         // PrinterInfo.id; nil = the system's default printer
-    public var copies: Int = 1                  // 1...99 (PrintCopies.clamp)
+    public var copies: Int = 1                  // 1...99 (PrintCopies.clamp); not saved, each launch starts at 1
     public var collate: Bool = true
     public var color: ColorChoice = .color
     public var quality: QualityChoice = .normal
@@ -348,7 +348,6 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 }
 public struct PrinterPrefs: Codable, Equatable, Sendable {
     public var paperPath: PaperPath = PaperPath()
-    public var lastPaperId: String? = nil
 }
 ```
 
@@ -395,7 +394,7 @@ public struct JobPlan: Equatable, Sendable {
     public var manualDuplex: Bool           // two-sided asked for and the printer can't: two passes
     public var passes: [DuplexPass]         // one pass, or fronts then backs
     public var copiesInJob: Int             // copies the printer makes; the rest are repeated in the stream (PrintCopies)
-    public var notes: [String]              // "2 blank pages added", "Edges cut off (3 mm)"; a page made smaller to fit goes unsaid
+    public var notes: [String]              // "2 blank pages added", "Edges cut off (3 mm)", "Printed in gray: this printer has no color" (color asked for, printer lists monochrome only); a page made smaller to fit goes unsaid
 }
 public enum PrintJobs {
     public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions
@@ -436,7 +435,7 @@ public enum TroubleshootAction: String, CaseIterable, Sendable {
 }
 ```
 
-Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won't find network printers on a Public network."); `spooler` (Windows: not running, disabled, missing); `discovery` and `localNetwork` (the iPhone's Local Network access off, with Open Settings); `printer:<id>` for each printer with a problem ("Out of paper: HP LaserJet", its advice); `stuckJobs:<id>` ("3 jobs stuck on HP LaserJet", Clear stuck jobs); `paused:<id>` (Resume; on the iPhone, which cannot resume a printer, and for a printer with no queue of the system's (found on the network only), "Press Resume on the printer to let its jobs print." and no button); `manualHost:<address>`; tips `usb` ("Connected by USB?": the maker's driver, or the one Windows offers), `asleep` ("Printer asleep? Press any button on it, then Refresh."), `wifiDirect` (a printer's own Wi-Fi is another network), `otherApps`. The headline is "No printer found", "1 printer found", "3 printers found" (the demo printer not counted). `clearStuckJobs` and `resumePrinter` change something, so they ask first and say what they did; every other action only reads.
+Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won't find network printers on a Public network."); `spooler` (Windows: not running, disabled, missing); `discovery` and `localNetwork` (the iPhone's Local Network access off, with Open Settings); `printer:<id>` for each printer with a problem ("Out of paper: HP LaserJet", its advice); `stuckJobs:<id>` ("3 jobs stuck on HP LaserJet", Clear stuck jobs); `paused:<id>` (Resume; on the iPhone, which cannot resume a printer, and for a printer with no queue of the system's (found on the network only), "Press Resume on the printer to let its jobs print." and no button); `manualHost:<address>`; tips `usb` ("Connected by USB?": the maker's driver, or the one Windows offers), `asleep` ("Printer asleep? Press any button on it, then Refresh."), `wifiDirect` (a printer's own Wi-Fi is another network), `otherApps`, and last, when a printer other than the demo printer is listed, `testPage` ("Prints, but not right?", with Print test page). The headline is "No printer found", "1 printer found", "3 printers found" (the demo printer not counted). `clearStuckJobs` and `resumePrinter` change something, so they ask first and say what they did; `printTestPage` prints the test page at once, as the Test page task does; every other action only reads.
 
 ### Core/StatusLine, InspectorSections, PrintText
 
@@ -526,7 +525,7 @@ public struct SheetBitmap: Sendable {
 }
 ```
 
-- The preview is `bitmap(side, area:, dpi: scale * 72, gray: false).image()`, `scale` being pixels per paper point (zoom times the screen's backing scale), so it is white behind the page in Dark Mode too and there is one path to the pixels.
+- The preview is `bitmap(side, area:, dpi: scale * 72, gray:).image()`, `gray` true when the color is Gray or the printer lists monochrome and not color, `scale` being pixels per paper point (zoom times the screen's backing scale), so it is white behind the page in Dark Mode too and there is one path to the pixels.
 - A bitmap is made by a `CGContext` of 8-bit gray (`CGColorSpaceCreateDeviceGray`) or RGB (`noneSkipLast`, sRGB) for the whole side, filled white first; `row` copies one line out and drops the pad byte. Letter at 300 dpi is 34 MB in RGB (2550 × 3300 × 4), which is one sheet, as on Windows. The context is released when the `SheetBitmap` is.
 - Memory rule, as on Windows: one sheet at a time. `writePDF` and raster printing draw a side, hand it on and let it go before the next, and check for cancellation before each. A picture is decoded for its placement alone with `CGImageSourceCreateThumbnailAtIndex` (`kCGImageSourceCreateThumbnailFromImageAlways`, `kCGImageSourceCreateThumbnailWithTransform` so the EXIF orientation is applied, `kCGImageSourceThumbnailMaxPixelSize` the larger side in pixels at `imageDpi`, capped at the picture's own size). With `crop` set that size is the whole page's size on the sheet (the frame scaled up by the crop), not the frame's, or the shown part would come out soft. PDF pages are drawn as vectors with `CGContext.drawPDFPage`, so a PDF of sheets keeps its text.
 - Coordinates: the renderer flips the context once (translate to the paper's height, scale y by -1) and everything is laid out top-left. In that space `CGContext.draw(image)` and `drawPDFPage` come out upside down, so each placement flips back locally (translate to the frame's centre, rotate `turns * 90` degrees clockwise, which is positive in the flipped space, then scale y by -1) before it draws. Text sets the `textMatrix` to a flip as well, and `TestPageItem.text`'s `at` is the top-left of the line box, as in WPF, while `CTLineDraw` draws at the baseline: the baseline is `at.y` plus the font's ascent (`CTFontGetAscent`).
@@ -804,7 +803,7 @@ Printers come from two places.
 Info.plist keys:
 - `NSBonjourServices`: `_ipp._tcp`, `_ipps._tcp`, `_lazyprint._tcp`. `NSLocalNetworkUsageDescription`: "Lazy Print looks for printers and for your computer on your local network, so you can print to them and send files." (the Mac's sentence names printers only, and the phone also connects to the computer). `NSCameraUsageDescription`: "Lazy Print reads the pairing code on your computer's screen."
 - `NSAppTransportSecurity`: `NSAllowsLocalNetworking` only. Addresses and `.local` names are covered; unlike the Mac there is no `NSAllowsArbitraryLoads`, which App Review asks to have justified. A printer added by a dotted name over plain `ipp://` is refused by the system, so `AddPrinterScreen` says "Use the printer's IP address or its .local name." and a -1022 from the session reads the same.
-- `CFBundleDocumentTypes`: `com.adobe.pdf` and `public.image`, role Viewer, `LSHandlerRank` Alternate, which is what puts Lazy Print in the share sheet. No share extension and no App Group: both need a provisioned team for little gain, and a file from Lazy Scan on the phone arrives the same way (see "Hand-off").
+- `CFBundleDocumentTypes`: `com.adobe.pdf` and `public.image`, role Viewer, `LSHandlerRank` Alternate, which is what puts Lazy Print in the share sheet. No share extension: it needs a provisioned team for little gain. The App Group `group.com.alazy.handoff` is only for a file from Lazy Scan on the phone (see "Hand-off").
 - `LSSupportsOpeningDocumentsInPlace` false: Open In copies, so the inbox rule above covers it.
 - `CFBundleURLTypes`: `lazyprint`. `LSApplicationQueriesSchemes`: `lazyscan`, for `lazyScanInstalled()`.
 - `ITSAppUsesNonExemptEncryption` false. `PrivacyInfo.xcprivacy` is Lazy Scan's, with only the reasons this app uses.

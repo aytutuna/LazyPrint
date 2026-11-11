@@ -39,6 +39,21 @@ public class PageRangeTests
         Assert.Equal([0, 1, 2], PageRange.Parse("1-3", 3).Pages);
     }
 
+    [Fact]
+    public void Parse_OtherSeparatorsAndDashes_Work()
+    {
+        Assert.Equal([0, 1, 2, 4, 6], PageRange.Parse("1–3; 5 7", 8).Pages);
+        Assert.Equal([0, 1, 5], PageRange.Parse("1—2 6", 8).Pages);
+    }
+
+    [Fact]
+    public void Parse_DescendingRange_GoesBackwards()
+    {
+        Assert.Equal([4, 3, 2, 1], PageRange.Parse("5-2", 8).Pages);
+        Assert.Equal([2, 1, 0, 6], PageRange.Parse("3-1, 7", 8).Pages);
+        Assert.Equal("Page 9 is past the end (8 pages)", PageRange.Parse("9-3", 8).Error!.Message);
+    }
+
     [Theory]
     [InlineData("9", 8, "Page 9 is past the end (8 pages)")]
     [InlineData("1-12", 8, "Page 12 is past the end (8 pages)")]
@@ -59,13 +74,12 @@ public class PageRangeTests
     [InlineData("abc")]
     [InlineData("1,,2")]
     [InlineData("1,")]
-    [InlineData("3-1")]
     [InlineData("0")]
     [InlineData("0-2")]
     [InlineData("-3")]
     [InlineData("1-2-3")]
     [InlineData("1.5")]
-    [InlineData("1 2")]
+    [InlineData("1;;2")]
     [InlineData("99999999999")]
     public void Parse_NotPages_ExplainsTheFormat(string text)
     {

@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Layout/PageRange.swift: the pages a user types ("1-3, 5, 8-").
@@ -21,15 +23,16 @@ public static class PageRange
     private const string Usage = "Type pages like 1-3, 5";
 
     /// <summary>
-    /// Parses "1-3, 5, 8-": single pages, ranges and an open range to the last page, separated by commas,
-    /// counted from 1. A page past <paramref name="pageCount"/> is an error ("Page 9 is past the end (8 pages)").
+    /// Parses "1-3, 5, 8-": single pages, ranges, an open range to the last page and a descending range ("5-2" is
+    /// 5, 4, 3, 2), separated by commas, semicolons or spaces, with a hyphen, en dash or em dash in a range, counted
+    /// from 1. A page past <paramref name="pageCount"/> is an error ("Page 9 is past the end (8 pages)").
     /// </summary>
     public static PageRangeResult Parse(string text, int pageCount)
     {
         var pages = new List<int>();
-        foreach (string item in text.Split(','))
+        string normal = Regex.Replace(text.Replace('–', '-').Replace('—', '-'), @"\s*-\s*", "-");
+        foreach (string part in normal.Split(',', ';').SelectMany(item => Regex.Split(item.Trim(), @"\s+")))
         {
-            string part = item.Trim();
             int dash = part.IndexOf('-');
             int first, last;
             if (dash < 0)
@@ -39,17 +42,19 @@ public static class PageRange
             }
             else
             {
-                string end = part[(dash + 1)..].Trim();
-                if (!TryNumber(part[..dash].Trim(), out first)) return Fail(Usage);
+                string end = part[(dash + 1)..];
+                if (!TryNumber(part[..dash], out first)) return Fail(Usage);
                 if (end.Length == 0) last = Math.Max(first, pageCount);
-                else if (!TryNumber(end, out last) || last < first) return Fail(Usage);
+                else if (!TryNumber(end, out last)) return Fail(Usage);
             }
-            if (last > pageCount)
+            int low = Math.Min(first, last), high = Math.Max(first, last);
+            if (high > pageCount)
             {
-                int past = first > pageCount ? first : last;
+                int past = low > pageCount ? low : high;
                 return Fail($"Page {past} is past the end ({pageCount} page{(pageCount == 1 ? "" : "s")})");
             }
-            for (int page = first; page <= last; page++) pages.Add(page - 1);
+            int step = last >= first ? 1 : -1;
+            for (int page = first; page != last + step; page += step) pages.Add(page - 1);
         }
         return new PageRangeResult(pages, null);
     }

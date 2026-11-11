@@ -34,7 +34,7 @@ extension AppState {
     public func print() async {
         guard canPrint, let printer = selectedPrinter, jobPlan != nil else { return }
         await printDocuments(JobInputs(printer: printer, capabilities: capabilities, settings: settings, task: task,
-                                       documents: documents, range: pageRangeIndexes(), name: documents[0].loaded.name))
+                                       documents: documents, range: pageRangeIndexes(), name: PrintText.jobName(documents.map { $0.loaded.name })))
     }
 
     /// Plans and prints the documents. A job done by hand prints its fronts and then waits on the two-sided card for the
@@ -216,6 +216,13 @@ extension AppState {
             setJob(job.id, .done, nil)
         }
         return true
+    }
+
+    /// Why the troubleshooter's test page cannot be printed now, nil when it can.
+    public var testPageBlock: String? {
+        if isBusy || hasBacksWaiting { return "Wait for the job to finish." }
+        if selectedPrinter == nil || selectedPrinter?.route == .demo { return "Choose a printer first." }
+        return nil
     }
 
     /// The test page goes straight to the printer in use.

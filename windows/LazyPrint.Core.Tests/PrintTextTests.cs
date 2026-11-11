@@ -32,4 +32,18 @@ public class PrintTextTests
         Assert.Equal("2 sheets × 3", PrintText.SheetCount(2, 3));
         Assert.Equal("Sent 2 sheets × 3 to HP LaserJet", PrintText.Sent(2, "HP LaserJet", 3));
     }
+
+    [Fact]
+    public void JobName_IsTheFirstFileAndHowManyMore()
+    {
+        Assert.Equal("Report.pdf", PrintText.JobName(["Report.pdf"]));
+        Assert.Equal("Report.pdf and 2 more", PrintText.JobName(["Report.pdf", "a.png", "b.png"]));
+    }
+
+    [Fact]
+    public void PageRangeHint_SaysTheRangeCountsAcrossDocuments()
+    {
+        Assert.Equal("All, or 1-3, 5", PrintText.PageRangeHint(3, 1));
+        Assert.Equal("1-12 (all documents)", PrintText.PageRangeHint(12, 2));
+    }
 }

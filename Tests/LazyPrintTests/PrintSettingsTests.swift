@@ -66,6 +66,7 @@ final class PrintSettingsTests: XCTestCase {
         s.photoFill = false
         s.cutMarks = false
         SettingsStore.save(s, in: directory)
+        s.copies = 1
         XCTAssertEqual(SettingsStore.load(in: directory), s)
     }
 
@@ -91,10 +92,9 @@ final class PrintSettingsTests: XCTestCase {
     func test_settings_fromAnOlderVersion_keepTheirValuesAndDefaultTheRest() throws {
         try write(#"{"copies": 7, "sides": "longEdge", "unknownKey": [1, 2]}"#, to: settingsURL)
         let s = try XCTUnwrap(SettingsStore.load(in: directory))
-        XCTAssertEqual(s.copies, 7)
+        XCTAssertEqual(s.copies, 1)
         XCTAssertEqual(s.sides, .longEdge)
         var expected = PrintSettings()
-        expected.copies = 7
         expected.sides = .longEdge
         XCTAssertEqual(s, expected)
     }
@@ -123,7 +123,7 @@ final class PrintSettingsTests: XCTestCase {
 
     func test_printers_roundTrip_byId() throws {
         let printers = [
-            "ipp:4509a320": PrinterPrefs(paperPath: PaperPath(turnStackOver: false, turnBacks: true, checked: true), lastPaperId: "letter"),
+            "ipp:4509a320": PrinterPrefs(paperPath: PaperPath(turnStackOver: false, turnBacks: true, checked: true)),
             "system:Office": PrinterPrefs(),
         ]
         SettingsStore.savePrinters(printers, in: directory)
@@ -141,7 +141,6 @@ final class PrintSettingsTests: XCTestCase {
         let x = try XCTUnwrap(loaded["ipp:x"])
         XCTAssertTrue(x.paperPath.turnBacks)
         XCTAssertTrue(x.paperPath.turnStackOver)
-        XCTAssertNil(x.lastPaperId)
     }
 
     func test_printers_unreadable_areMovedAside_andEmpty() throws {

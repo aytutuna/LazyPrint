@@ -252,7 +252,7 @@ public enum Troubleshooter {
                                     + "tries the address again every minute."),
                 actions: [.refresh]))
         }
-        checks.append(contentsOf: tips(platform))
+        checks.append(contentsOf: tips(platform, canPrint: snapshot.printers.contains { $0.route != .demo }))
 
         // A stable sort: problems, warnings, what is fine, tips.
         return checks.enumerated()
@@ -585,7 +585,7 @@ public enum Troubleshooter {
         }
     }
 
-    private static func tips(_ platform: AppPlatform) -> [TroubleshootCheck] {
+    private static func tips(_ platform: AppPlatform, canPrint: Bool) -> [TroubleshootCheck] {
         var tips = [TroubleshootCheck]()
         switch platform {
         case .ios:
@@ -639,6 +639,14 @@ public enum Troubleshooter {
             detail: "Restart the printer and close other printing apps.",
             more: "Turn the printer off and on. Close \(otherApps(platform)). Some printers print only through their maker's app.",
             actions: [.refresh]))
+        if canPrint {
+            tips.append(TroubleshootCheck(
+                id: "testPage", status: .tip, title: "Prints, but not right?",
+                detail: "Print a test page to check colors, lines and size.",
+                more: "It has color bars, a gray ramp, a fine-line grid, a 1 inch square and a ruler. A ruler that measures "
+                    + "less than its label means the page was shrunk to fit.",
+                actions: [.printTestPage]))
+        }
         return tips
     }
 

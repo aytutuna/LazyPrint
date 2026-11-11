@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Core/PrintSettings.swift: settings.json and printers.json.
@@ -23,7 +25,8 @@ public sealed record PrintSettings
     public string? TaskId { get; set; }
     /// <summary>The printer's id; null is the system's default printer.</summary>
     public string? PrinterId { get; set; }
-    /// <summary>1 to 99 (<see cref="PrintCopies.Clamp"/>).</summary>
+    /// <summary>1 to 99 (<see cref="PrintCopies.Clamp"/>). Not saved: each launch starts at 1.</summary>
+    [JsonIgnore]
     public int Copies { get; set; } = 1;
     public bool Collate { get; set; } = true;
     public ColorChoice Color { get; set; } = ColorChoice.Color;
@@ -45,7 +48,6 @@ public sealed record PrintSettings
 public sealed record PrinterPrefs
 {
     public PaperPath PaperPath { get; set; } = new();
-    public string? LastPaperId { get; set; }
 }
 
 public static class SettingsStore

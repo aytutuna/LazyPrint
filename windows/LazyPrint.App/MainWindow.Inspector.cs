@@ -173,6 +173,7 @@ public partial class MainWindow
             CollateBox.IsChecked = s.Collate;
             string range = ViewModel.PageRangeText;
             if (PageRangeBox.Text != range) PageRangeBox.Text = range;
+            PageRangePlaceholder.Text = PrintText.PageRangeHint(ViewModel.PageCount, ViewModel.Documents.Count);
             Show(PageRangeProblemRow, PageRangeProblemText, ViewModel.PageRangeError);
             SidesGroup.Visibility = state.ShowSides ? Visibility.Visible : Visibility.Collapsed;
             var shownSides = s.Booklet ? Sides.LongEdge : s.Sides;

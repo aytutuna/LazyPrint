@@ -384,12 +384,14 @@ public sealed class AppViewModelTests
         Assert.True(rig.Model.IsFirstRun);
         await rig.Model.StartTaskAsync(PrintTask.Handouts);
         rig.Model.Settings.Copies = 4;
+        rig.Model.Settings.Collate = false;
         rig.Model.SettingsEdited();
         rig.Model.FlushSettings();
 
         var next = rig.Open();
         Assert.False(next.IsFirstRun);
-        Assert.Equal(4, next.Settings.Copies);
+        Assert.Equal(1, next.Settings.Copies);
+        Assert.False(next.Settings.Collate);
         Assert.Equal(2, next.Settings.PagesPerSheet);
         Assert.Equal(PrintTask.Handouts, next.SelectedTask);
     }

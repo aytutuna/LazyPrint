@@ -223,10 +223,10 @@ public class PrintJobsTests
     public void Plan_Notes_SayWhatHappenedToThePages()
     {
         var big = new LoadedDocument("Poster", new DocumentKind.Pdf(false), [new LayoutSize(1000, 1400)]);
-        var shrunk = Plan([big], Settings(), Hp);
+        var shrunk = Plan([big], Settings(s => s.Color = ColorChoice.Gray), Hp);
         Assert.Empty(shrunk.Notes);
 
-        var clipped = Plan([big], Settings(s => s.Scaling = Scaling.ActualSize), Hp);
+        var clipped = Plan([big], Settings(s => { s.Scaling = Scaling.ActualSize; s.Color = ColorChoice.Gray; }), Hp);
         Assert.Single(clipped.Notes);
         Assert.StartsWith("Edges cut off (", clipped.Notes[0]);
     }
@@ -358,6 +358,14 @@ public class PrintJobsTests
     {
         var job = Plan([Doc(1)], Settings(), Hp);
         Assert.Equal("monochrome", PrintJobs.Ticket(job, Settings(), "application/pdf", Hp, "x").ColorMode);
+    }
+
+    [Fact]
+    public void Plan_ColorOnAMonochromePrinter_SaysItPrintsInGray()
+    {
+        Assert.Equal(["Printed in gray: this printer has no color"], Plan([Doc(1)], Settings(), Hp).Notes);
+        Assert.Empty(Plan([Doc(1)], Settings(s => s.Color = ColorChoice.Gray), Hp).Notes);
+        Assert.Empty(Plan([Doc(1)], Settings(), Epson).Notes);
     }
 
     [Fact]

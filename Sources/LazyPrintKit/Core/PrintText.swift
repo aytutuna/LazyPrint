@@ -74,4 +74,16 @@ public enum PrintText {
     public static func edgesCut(_ millimetres: Int) -> String {
         "Edges cut off (\(millimetres) mm)"
     }
+
+    /// The job's name: the first file's, and "and N more" when there are several.
+    public static func jobName(_ names: [String]) -> String {
+        names.count > 1 ? "\(names[0]) and \(names.count - 1) more" : names[0]
+    }
+
+    /// The page range field's hint; with several documents it says the range counts across all of them.
+    public static func pageRangeHint(pages: Int, documents: Int) -> String {
+        documents > 1 ? "1-\(pages) (all documents)" : "All, or 1-3, 5"
+    }
+
+    public static let printedInGray = "Printed in gray: this printer has no color"
 }

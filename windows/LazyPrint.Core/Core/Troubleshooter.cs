@@ -218,7 +218,7 @@ public static class Troubleshooter
                               "Its network settings page or control panel shows the current address. The app "
                               + "tries the address again every minute.")));
         }
-        checks.AddRange(Tips(platform));
+        checks.AddRange(Tips(platform, snapshot.Printers.Any(p => p.Route != PrinterRoute.Demo)));
 
         // A stable sort: problems, warnings, what is fine, tips.
         return [.. checks.Select((check, index) => (check, index))
@@ -543,7 +543,7 @@ public static class Troubleshooter
         _ => $"{minutes / 1440} days",
     };
 
-    private static IEnumerable<TroubleshootCheck> Tips(AppPlatform platform)
+    private static IEnumerable<TroubleshootCheck> Tips(AppPlatform platform, bool canPrint)
     {
         if (platform == AppPlatform.Ios)
         {
@@ -601,6 +601,15 @@ public static class Troubleshooter
             "Restart the printer and close other printing apps.",
             [TroubleshootAction.Refresh],
             $"Turn the printer off and on. Close {OtherApps(platform)}. Some printers print only through their maker's app.");
+        if (canPrint)
+        {
+            yield return new TroubleshootCheck(
+                "testPage", CheckStatus.Tip, "Prints, but not right?",
+                "Print a test page to check colors, lines and size.",
+                [TroubleshootAction.PrintTestPage],
+                "It has color bars, a gray ramp, a fine-line grid, a 1 inch square and a ruler. A ruler that measures "
+                + "less than its label means the page was shrunk to fit.");
+        }
     }
 
     /// <summary>The first text as a sentence, then the second; the first may be missing.</summary>

@@ -84,8 +84,8 @@ final class TroubleshooterTests: XCTestCase {
     func test_healthyWindows_showsWhatIsFineThenTheTips() {
         let snapshot = healthyWindows()
         let checks = Troubleshooter.diagnose(snapshot)
-        XCTAssertEqual(ids(checks), ["network", "spooler", "discovery", "usb", "asleep", "wifiDirect", "otherApps"])
-        XCTAssertEqual(checks.map(\.status), [.ok, .ok, .ok, .tip, .tip, .tip, .tip])
+        XCTAssertEqual(ids(checks), ["network", "spooler", "discovery", "usb", "asleep", "wifiDirect", "otherApps", "testPage"])
+        XCTAssertEqual(checks.map(\.status), [.ok, .ok, .ok, .tip, .tip, .tip, .tip, .tip])
         XCTAssertEqual(Troubleshooter.headline(snapshot), "1 printer found")
         XCTAssertEqual(Troubleshooter.summary(checks), "Nothing here stops printers from appearing. The tips below cover the usual causes.")
     }
@@ -94,9 +94,9 @@ final class TroubleshooterTests: XCTestCase {
         let snapshot = troubledWindows()
         let checks = Troubleshooter.diagnose(snapshot)
         XCTAssertEqual(ids(checks), ["lastFailure", "spooler", "printer:system:Brother", "paused:system:Epson", "network", "discovery",
-                                     "stuckJobs:system:Brother", "manualHost:192.168.1.50", "usb", "asleep", "wifiDirect", "otherApps"])
+                                     "stuckJobs:system:Brother", "manualHost:192.168.1.50", "usb", "asleep", "wifiDirect", "otherApps", "testPage"])
         XCTAssertEqual(checks.map(\.status), [.problem, .problem, .problem, .problem, .warning, .warning, .warning, .warning,
-                                              .tip, .tip, .tip, .tip])
+                                              .tip, .tip, .tip, .tip, .tip])
         XCTAssertEqual(Troubleshooter.headline(snapshot), "2 printers found")
         XCTAssertEqual(Troubleshooter.summary(checks), "4 problems and 4 warnings found.")
         XCTAssertEqual(Troubleshooter.overview(snapshot, checks: checks), "2 printers found \u{00B7} 4 problems, 4 warnings")
@@ -174,6 +174,12 @@ final class TroubleshooterTests: XCTestCase {
         }
     }
 
+    func test_testPageTip_offersThePageOnlyWhenAPrinterIsListed() {
+        XCTAssertEqual(check(Troubleshooter.diagnose(healthyWindows()), "testPage").actions, [.printTestPage])
+        XCTAssertFalse(ids(Troubleshooter.diagnose(PrinterSnapshot(platform: .windows))).contains("testPage"))
+        XCTAssertFalse(ids(Troubleshooter.diagnose(PrinterSnapshot(platform: .windows, printers: [demo]))).contains("testPage"))
+    }
+
     func test_nothingKnown_onlyTheTips() {
         XCTAssertEqual(ids(Troubleshooter.diagnose(PrinterSnapshot(platform: .windows))), ["usb", "asleep", "wifiDirect", "otherApps"])
         XCTAssertEqual(ids(Troubleshooter.diagnose(PrinterSnapshot(platform: .mac))), ["usb", "asleep", "wifiDirect", "otherApps"])
@@ -219,7 +225,7 @@ final class TroubleshooterTests: XCTestCase {
         let snapshot = healthyPhone()
         let checks = Troubleshooter.diagnose(snapshot)
         XCTAssertEqual(ids(checks), ["network", "discovery", "networkPrinter", "localNetworkAccess", "airPrint", "asleep",
-                                     "wifiDirect", "otherApps"])
+                                     "wifiDirect", "otherApps", "testPage"])
         XCTAssertEqual(Troubleshooter.overview(snapshot, checks: checks), "1 printer found")
         let network = check(checks, "network")
         XCTAssertEqual(network.title, "Connected to a local network")
@@ -629,9 +635,9 @@ final class TroubleshooterTests: XCTestCase {
         XCTAssertEqual(lines[1], "1 printer found. Nothing here stops printers from appearing. The tips below cover the usual causes.")
         XCTAssertEqual(lines[2], "OK: Connected to a private network")
         XCTAssertEqual(lines[3], "  Network printers on this network can be found.")
-        XCTAssertEqual(lines[lines.count - 4], "Tip: Still not listed?")
-        XCTAssertEqual(lines[lines.count - 3], "  Restart the printer and close other printing apps.")
-        XCTAssertEqual(lines[lines.count - 2], "  Turn the printer off and on. Close other printing apps. Some printers print only through their "
+        XCTAssertEqual(lines[lines.count - 7], "Tip: Still not listed?")
+        XCTAssertEqual(lines[lines.count - 6], "  Restart the printer and close other printing apps.")
+        XCTAssertEqual(lines[lines.count - 5], "  Turn the printer off and on. Close other printing apps. Some printers print only through their "
                        + "maker's app.")
         XCTAssertEqual(lines[lines.count - 1], "")
         XCTAssertEqual(lines.count, 2 + 2 * checks.count + checks.filter { !$0.more.isEmpty }.count + 1)

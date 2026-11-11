@@ -50,7 +50,7 @@ struct OptionsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Pages")
                     .font(.callout)
-                TextField("All, or 1-3, 5", text: Binding(get: { state.pageRange }, set: { (text: String) in
+                TextField(PrintText.pageRangeHint(pages: state.pageCount, documents: state.documents.count), text: Binding(get: { state.pageRange }, set: { (text: String) in
                     state.setPageRange(text)
                 }))
                 .keyboardType(.numbersAndPunctuation)

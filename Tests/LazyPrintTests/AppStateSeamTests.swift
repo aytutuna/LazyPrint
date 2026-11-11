@@ -950,12 +950,14 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertTrue(rig.state.isFirstRun)
         await rig.state.startTask(.handouts)
         rig.state.settings.copies = 4
+        rig.state.settings.collate = false
         // The save waits for the edits to pause: the app ending writes it at once.
         rig.lifecycle.sendWillTerminate()
 
         let next = rig.open()
         XCTAssertFalse(next.isFirstRun)
-        XCTAssertEqual(next.settings.copies, 4)
+        XCTAssertEqual(next.settings.copies, 1)
+        XCTAssertFalse(next.settings.collate)
         XCTAssertEqual(next.settings.pagesPerSheet, 2)
         XCTAssertEqual(next.task, .handouts)
     }

@@ -222,7 +222,7 @@ public sealed partial class AppViewModel
     {
         if (!CanPrint || SelectedPrinter is not { } printer || Plan() is null) return;
         await PrintDocumentsAsync(new JobInputs(printer, SelectedCapabilities, Settings with { }, SelectedTask, [.. Documents],
-                                                PageRangeIndexes(), Documents[0].Name));
+                                                PageRangeIndexes(), PrintText.JobName([.. Documents.Select(d => d.Name)])));
     }
 
     /// <summary>

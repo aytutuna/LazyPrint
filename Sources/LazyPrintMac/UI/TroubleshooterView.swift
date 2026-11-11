@@ -110,9 +110,13 @@ struct TroubleshooterView: View {
     }
 
     private func run(_ action: TroubleshootAction, _ check: TroubleshootCheck) async {
+        if action == .printTestPage, let block = state.testPageBlock {
+            footerMessage = block
+            return
+        }
         let before = state.errorsShown
         await state.perform(action, for: check)
-        footerMessage = state.errorDetail(since: before)
+        footerMessage = state.errorDetail(since: before) ?? (action == .printTestPage ? state.sentMessage : nil)
     }
 
     private func refresh() async {

@@ -109,7 +109,7 @@ public enum PrintJobs {
         let copies = PrintCopies.plan(requested: settings.copies, maxCopyCount: printer?.copiesSupported.upper,
                                       pageCount: layout.sideCount, canCollate: canCollate(settings, printer))
         return JobPlan(plan: layout, manualDuplex: manual, passes: passes, copiesInJob: copies.ticketCopies,
-                       notes: notes(layout.warnings))
+                       notes: notes(layout.warnings, settings, printer))
     }
 
     /// The ticket for a printer's Print-Job. The paper is the printer's database entry for the sheet size (borderless
@@ -245,8 +245,8 @@ public enum PrintJobs {
         PaperSizes.defaultForRegion(Locale.current.region?.identifier)
     }
 
-    private static func notes(_ warnings: [PlanWarning]) -> [String] {
-        warnings.compactMap { warning in
+    private static func notes(_ warnings: [PlanWarning], _ settings: PrintSettings, _ printer: PrinterCapabilities?) -> [String] {
+        var notes: [String] = warnings.compactMap { warning in
             switch warning {
             case .paddedWithBlanks(let count):
                 return PrintText.blanksAdded(count)
@@ -256,6 +256,11 @@ public enum PrintJobs {
                 return PrintText.edgesCut(max(1, Int((points * 25.4 / 72).rounded(.toNearestOrEven))))
             }
         }
+        if settings.color == .color, let modes = printer?.printColorModesSupported, !modes.isEmpty,
+           !modes.contains("color"), modes.contains("monochrome") {
+            notes.append(PrintText.printedInGray)
+        }
+        return notes
     }
 
     /// A PWG self-describing media name: the named sizes as printers list them, else a custom one in millimetres.
