@@ -24,14 +24,17 @@ extension AppState {
             document.access = lockedAccess.removeValue(forKey: url)
             lockedFiles.removeAll { $0 == url }
             documents.append(document)
+            rememberUnlocked(url)
             replan()
         } catch {
             if error as? PrintError == PrintError.unreadable(DocumentText.lockedPdf) {
+                await alertDismissed()
                 passwordRequest = PasswordRequest(name: url.lastPathComponent, wrong: true)
                 return
             }
             lockedFiles.removeAll { $0 == url }
             lockedAccess[url] = nil
+            lockedPicked[url] = nil
             reportNotAdded([(name: url.lastPathComponent, reason: error.localizedDescription)])
         }
         askNextPassword()
@@ -43,7 +46,16 @@ extension AppState {
         passwordRequest = nil
         lockedFiles.removeFirst()
         lockedAccess[url] = nil
+        lockedPicked[url] = nil
         showNotice("Left out", DocumentText.lockedLeftOut(url.lastPathComponent))
-        askNextPassword()
+        Task {
+            await alertDismissed()
+            askNextPassword()
+        }
+    }
+
+    /// A presentation made while the last alert is still going away is dropped, so the next one waits.
+    private func alertDismissed() async {
+        try? await Task.sleep(nanoseconds: 400_000_000)
     }
 }

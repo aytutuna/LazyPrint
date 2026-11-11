@@ -197,6 +197,8 @@ public final class AppState: ObservableObject {
     /// Locked PDFs waiting for their password, in the order they came, and the access taken for each until it is opened.
     var lockedFiles: [URL] = []
     var lockedAccess: [URL: ScopedAccess] = [:]
+    /// The file the user picked for each locked one, for the recent list once it unlocks.
+    var lockedPicked: [URL: URL] = [:]
 
     var settingsSaveTask: Task<Void, Never>?
     var previewTask: Task<Void, Never>?
@@ -364,6 +366,7 @@ public final class AppState: ObservableObject {
         lifecycle?.observeDidBecomeActive { [weak self] in
             guard let self, self.isActive else { return }
             self.lazyPDFInstalled = self.fileActions.lazyPDFInstalled()
+            self.refreshRecent()
             Task { await self.refreshPrinters() }
         }
     }
