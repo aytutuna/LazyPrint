@@ -107,9 +107,9 @@ extension AppState {
         case .system:
             read = await printerSystem.capabilities(ofQueue: Self.queueName(of: printer))
         }
-        // On the iPhone a printer that gave no answer is asked again: it may have been asleep, or gone out of range during
-        // the read. The Mac asks once: its read gives up after a few seconds and is not repeated every five.
-        if read != nil || platform != .ios { capabilitiesAsked.insert(printer.id) }
+        // A printer that gave no answer is asked again: it may have been asleep, or gone out of range during the read.
+        // The Mac's system holds off a while after a miss, so a slow queue is not read every five seconds.
+        if read != nil { capabilitiesAsked.insert(printer.id) }
         if let read { capabilitiesById[printer.id] = read }
         syncCapabilities()
         replan()

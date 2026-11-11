@@ -437,17 +437,17 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aQueueThatGaveNoCapabilities_isAskedOnceOnTheMac() async throws {
+    func test_aQueueThatGaveNoCapabilities_isAskedAgainOnTheMac() async throws {
         let rig = try makeRig()
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true, .offline)]
         await rig.state.refreshPrinters()
-        await rig.state.refreshPrinters()
+        XCTAssertNil(rig.state.capabilities)
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
         rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
         await rig.state.refreshPrinters()
 
-        XCTAssertEqual(rig.spooler.capabilityReads, 1)
-        XCTAssertNil(rig.state.capabilities)
+        XCTAssertEqual(rig.spooler.capabilityReads, 2)
+        XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
     }
 
     @MainActor

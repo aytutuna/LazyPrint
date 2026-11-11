@@ -15,13 +15,17 @@ public final class CupsQueues: PrinterSystem {
     private static let work = DispatchQueue(label: "local.lazyprint.cups")
 
     /// Where the slow reads of one queue run, so a queue that does not answer holds up neither the others nor `work`.
-    private static let details = DispatchQueue(label: "local.lazyprint.cups.details", attributes: .concurrent)
+    nonisolated private static let details = DispatchQueue(label: "local.lazyprint.cups.details", attributes: .concurrent)
 
     /// How long a queue gets to describe itself.
-    static let detailsTimeout: TimeInterval = 8
+    nonisolated static let detailsTimeout: TimeInterval = 8
 
     /// The queues read last; a scheduler that does not answer leaves them as they were, as on Windows.
     private var lastRead: [SystemPrinter] = []
+
+    private static let retryDelay: TimeInterval = 30
+
+    private var retryAfter: [String: Date] = [:]
 
     public init() {}
 
@@ -30,8 +34,13 @@ public final class CupsQueues: PrinterSystem {
         return lastRead
     }
 
+    /// A queue that gave no answer, or timed out, is not asked again for a while, so a printer that sleeps is read when
+    /// it wakes but a dead one does not pile up reads.
     public func capabilities(ofQueue name: String) async -> PrinterCapabilities? {
-        await Self.within(Self.detailsTimeout) { CupsQueues.readCapabilities(of: name) } ?? nil
+        if let until = retryAfter[name], until > Date() { return nil }
+        let read = await Self.within(Self.detailsTimeout) { CupsQueues.readCapabilities(of: name) } ?? nil
+        retryAfter[name] = read == nil ? Date().addingTimeInterval(Self.retryDelay) : nil
+        return read
     }
 
     public func clearJobs(ofQueue name: String) async throws {
