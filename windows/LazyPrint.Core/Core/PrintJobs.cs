@@ -55,9 +55,13 @@ public static class PrintJobs
     /// or not, the other kind when only that exists), else 0.25 in on every side. Automatic is the paper the
     /// printer has loaded, else the usual one where the user lives.
     /// </summary>
-    public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless)
+    public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless) =>
+        Area(paper.RawValue(), printer, borderless);
+
+    /// <summary><paramref name="paperId"/> is a <see cref="PrintSettings.PaperId"/>: a named size or any PWG name.</summary>
+    public static PrintableArea Area(string paperId, PrinterCapabilities? printer, bool borderless)
     {
-        var size = Sheet(paper, printer);
+        var size = Sheet(paperId, printer);
         if (printer?.Match(size, borderless)?.PrintableArea is { } area) return area;
         const double Margin = 0.25 * 72;
         return new PrintableArea(size, new LayoutInsets(Margin, Margin, Margin, Margin));
@@ -79,7 +83,7 @@ public static class PrintJobs
         var pages = pageRange is null ? all : pageRange.Where(i => i >= 0 && i < all.Count).Select(i => all[i]).ToList();
 
         bool photos = task == PrintTask.Photos;
-        var paper = PaperSizes.Parse(settings.PaperId);
+        var paper = settings.PaperId;
         var area = Area(paper, printer, photos && Borderless(settings.PhotoSizeId, Sheet(paper, printer)));
         var plan = photos
             ? PhotoLayout.Plan(pages, new PhotoOptions(PhotoSizeOf(settings.PhotoSizeId), 1, settings.PhotoFill, settings.CutMarks), area)
@@ -185,8 +189,8 @@ public static class PrintJobs
         || (Math.Abs(photo.Width - sheet.Width) <= PaperSizes.FitTolerance && Math.Abs(photo.Height - sheet.Height) <= PaperSizes.FitTolerance);
 
     /// <summary>The paper a job goes on, portrait, in points.</summary>
-    private static LayoutSize Sheet(PaperSize paper, PrinterCapabilities? printer) =>
-        (paper == PaperSize.Auto ? Loaded(printer) ?? PaperSizes.Points(UsualPaper()) : PaperSizes.Points(paper))
+    private static LayoutSize Sheet(string paperId, PrinterCapabilities? printer) =>
+        (PaperSizes.PointsOf(paperId) ?? Loaded(printer) ?? PaperSizes.Points(UsualPaper()))
         ?? throw new InvalidOperationException("A paper size has points.");
 
     private static bool CanCollate(PrintSettings settings, PrinterCapabilities? printer) =>
@@ -203,22 +207,7 @@ public static class PrintJobs
             double width = MediaEntry.Points(entry.Width), height = MediaEntry.Points(entry.Height);
             return new LayoutSize(Math.Min(width, height), Math.Max(width, height));
         }
-        return printer.MediaReady.Select(PwgSize).OfType<LayoutSize>().FirstOrDefault() is { Width: > 0 } size ? size : null;
-    }
-
-    /// <summary>The size in a PWG self-describing name ("iso_a4_210x297mm", "na_letter_8.5x11in"), portrait, in points; null for any other.</summary>
-    private static LayoutSize? PwgSize(string name)
-    {
-        string[] parts = name.Split('_');
-        if (parts.Length < 3 || parts[1] is "min" or "max") return null;
-        string last = parts[^1];
-        double unit = last.EndsWith("mm", StringComparison.Ordinal) ? 72 / 25.4 : last.EndsWith("in", StringComparison.Ordinal) ? 72 : 0;
-        string[] sides = last.Length > 2 ? last[..^2].Split('x') : [];
-        if (unit == 0 || sides.Length != 2
-            || !double.TryParse(sides[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double a)
-            || !double.TryParse(sides[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double b)
-            || a <= 0 || b <= 0) return null;
-        return new LayoutSize(Math.Min(a, b) * unit, Math.Max(a, b) * unit);
+        return printer.MediaReady.Select(PaperSizes.PwgSize).OfType<LayoutSize>().FirstOrDefault() is { Width: > 0 } size ? size : null;
     }
 
     private static PaperSize UsualPaper() => PaperSizes.DefaultForRegion(RegionInfo.CurrentRegion.TwoLetterISORegionName);

@@ -170,6 +170,7 @@ public sealed class PrinterMappingTests
     [InlineData(793.7, 1122.5, true)] // A4
     [InlineData(384, 576, true)]      // 4 x 6 in
     [InlineData(1056, 816, false)]    // landscape
+    [InlineData(1122.5, 1587.4, true)] // A3
     [InlineData(500, 700, false)]     // no name
     [InlineData(0, 0, false)]
     public void OnlyNamedAndPhotoPapersAreAskedForTheirArea(double width, double height, bool useful)

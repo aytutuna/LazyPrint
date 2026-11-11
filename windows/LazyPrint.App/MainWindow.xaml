@@ -533,6 +533,14 @@
                                             <ComboBox x:Name="PaperBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Paper"
                                                       SelectionChanged="Setting_Changed" />
+                                            <StackPanel x:Name="CustomPaperRow" Orientation="Horizontal" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBox x:Name="CustomWidthBox" Width="64" AutomationProperties.Name="Paper width"
+                                                         LostFocus="CustomPaper_Committed" KeyDown="CustomPaper_KeyDown" />
+                                                <TextBlock Text="&#xD7;" Margin="8,0" VerticalAlignment="Center" />
+                                                <TextBox x:Name="CustomHeightBox" Width="64" AutomationProperties.Name="Paper height"
+                                                         LostFocus="CustomPaper_Committed" KeyDown="CustomPaper_KeyDown" />
+                                                <TextBlock x:Name="CustomUnitText" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
                                             <DockPanel x:Name="PaperNoteRow" Margin="0,6,0,0" Visibility="Collapsed">
                                                 <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE7BA;"
                                                            Foreground="{DynamicResource SystemFillColorCautionBrush}" />

@@ -414,4 +414,15 @@ public class PrintJobsTests
         Assert.Equal(record, record with { State = JobState.Waiting });
         Assert.NotEqual(record, record with { State = JobState.Done });
     }
+
+    [Fact]
+    public void AnySizeAPrinterListsCanBeChosen()
+    {
+        var area = PrintJobs.Area("custom_sheet_297x420mm", null, false);
+        Assert.Equal(297 * 72 / 25.4, area.Paper.Width, 0.1);
+        Assert.Equal(420 * 72 / 25.4, area.Paper.Height, 0.1);
+
+        var plan = Plan([Doc(1)], Settings(s => s.PaperId = "iso_a3_297x420mm"), null);
+        Assert.Equal(297 * 72 / 25.4, plan.Plan.Area.Paper.Width, 0.1);
+    }
 }

@@ -50,6 +50,28 @@ public sealed record MediaEntry(
     internal static double Points(int hundredthsMm) => hundredthsMm * 72.0 / 2540.0;
 }
 
+/// <summary>
+/// The sizes a printer takes in a range (custom sizes), in hundredths of a millimetre: the x-dimension is the width and the
+/// y-dimension the height, as media-size-supported lists them.
+/// </summary>
+public readonly record struct PaperRange(int MinWidth, int MaxWidth, int MinHeight, int MaxHeight)
+{
+    /// <summary>A sheet (portrait, in points) the range takes, held either way round.</summary>
+    public bool Accepts(LayoutSize paper)
+    {
+        double w = paper.Width * 2540 / 72, h = paper.Height * 2540 / 72;
+        return (w >= MinWidth && w <= MaxWidth && h >= MinHeight && h <= MaxHeight)
+            || (h >= MinWidth && h <= MaxWidth && w >= MinHeight && w <= MaxHeight);
+    }
+
+    /// <summary>The sheet (portrait, in points) moved into the range.</summary>
+    public LayoutSize Clamp(LayoutSize paper)
+    {
+        double w = Math.Clamp(paper.Width * 2540 / 72, MinWidth, MaxWidth), h = Math.Clamp(paper.Height * 2540 / 72, MinHeight, MaxHeight);
+        return new LayoutSize(Math.Min(w, h) * 72 / 2540, Math.Max(w, h) * 72 / 2540);
+    }
+}
+
 /// <summary>One ink or toner supply. The level is a percent; -1 is unknown, -2 unavailable, -3 some left.</summary>
 public sealed record MarkerSupply(string Name, string Color, string Type, int Level, int? LowLevel, int? HighLevel);
 
@@ -75,6 +97,10 @@ public sealed class PrinterCapabilities
     public IReadOnlyList<MediaEntry> MediaColReady { get; init; } = [];
     public IReadOnlyList<MediaEntry> MediaColDatabase { get; init; } = [];
     public IReadOnlyList<string> MediaReady { get; init; } = [];
+    /// <summary>media-supported: the sizes by name ("iso_a3_297x420mm"), as a printer without a media-col-database lists them.</summary>
+    public IReadOnlyList<string> MediaSupported { get; init; } = [];
+    /// <summary>What a custom size may be; null when the printer takes only the sizes it lists.</summary>
+    public PaperRange? CustomPaper { get; init; }
     public IReadOnlyList<string> MediaTypeSupported { get; init; } = [];
     public IReadOnlyList<string> MediaSourceSupported { get; init; } = [];
     public IReadOnlyList<int> PrintQualitySupported { get; init; } = [];
@@ -160,6 +186,8 @@ public sealed class PrinterCapabilities
             MediaColReady = Entries("media-col-ready"),
             MediaColDatabase = Entries("media-col-database"),
             MediaReady = Strings("media-ready"),
+            MediaSupported = Strings("media-supported"),
+            CustomPaper = CustomRange(message["media-size-supported"]),
             MediaTypeSupported = Strings("media-type-supported"),
             MediaSourceSupported = Strings("media-source-supported"),
             PrintQualitySupported = Ints("print-quality-supported"),
@@ -190,6 +218,23 @@ public sealed class PrinterCapabilities
             At(levels, i) ?? -1,
             At(lows, i),
             At(highs, i)))];
+    }
+
+    /// <summary>The first media-size-supported entry that takes a range; its fixed side counts as a range of one value.</summary>
+    private static PaperRange? CustomRange(IppAttribute? sizes)
+    {
+        static (int Lower, int Upper)? Bounds(IppValue? value) => value switch
+        {
+            IppValue.Integer v => (v.Value, v.Value),
+            IppValue.Range v => (v.Lower, v.Upper),
+            _ => null,
+        };
+        foreach (var size in sizes?.Values.OfType<IppValue.Collection>() ?? [])
+        {
+            if (Bounds(FirstValue(size.Members, "x-dimension")) is not { } x || Bounds(FirstValue(size.Members, "y-dimension")) is not { } y) continue;
+            if (x.Lower != x.Upper || y.Lower != y.Upper) return new PaperRange(x.Lower, x.Upper, y.Lower, y.Upper);
+        }
+        return null;
     }
 
     private static string? Text(IppValue value) => value switch

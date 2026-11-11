@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Shapes;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
@@ -131,14 +132,53 @@ public partial class MainWindow
         ScalingBox.Items.Add(Item("Fit to page", Scaling.Fit, "Each page is made as large as fits"));
         ScalingBox.Items.Add(Item("Actual size", Scaling.ActualSize, "100 %; the edges the printer cannot reach are cut off"));
         ScalingBox.Items.Add(Item("Fill", Scaling.Fill, "Each page fills its space, cropped in the middle"));
-        foreach (var paper in PaperSizes.DisplayOrder(RegionInfo.CurrentRegion.TwoLetterISORegionName))
-        {
-            PaperBox.Items.Add(Item(paper.Label(), paper, paper.Detail()));
-        }
         QualityBox.Items.Add(Item("Normal", QualityChoice.Normal));
         QualityBox.Items.Add(Item("Draft", QualityChoice.Draft, "Faster, uses less ink"));
         QualityBox.Items.Add(Item("Best", QualityChoice.Best, "Slower, the finest print"));
         foreach (var photo in PhotoSize.All) PhotoSizeBox.Items.Add(Item(photo.Title, photo.Id));
+    }
+
+    private static string Region => RegionInfo.CurrentRegion.TwoLetterISORegionName;
+
+    /// <summary>The sizes the printer lists (the usual ones when it lists none), the chosen one selected, and the boxes of a custom size.</summary>
+    private void ShowPaper(PrintSettings s)
+    {
+        var choices = PaperSizes.Choices(ViewModel.SelectedCapabilities, s.PaperId, Region);
+        if (!PaperBox.Items.OfType<ComboBoxItem>().Select(i => i.Tag).SequenceEqual(choices.Options.Select(o => (object)o.Id)))
+        {
+            PaperBox.Items.Clear();
+            foreach (var option in choices.Options) PaperBox.Items.Add(Item(option.Label, option.Id, option.Detail));
+        }
+        Select(PaperBox, choices.Selected);
+
+        bool custom = choices.Selected == PaperSizes.CustomId;
+        CustomPaperRow.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+        if (!custom || PaperSizes.PointsOf(s.PaperId) is not { } size) return;
+        var (width, height) = PaperSizes.Dimensions(size, Region);
+        if (!CustomWidthBox.IsKeyboardFocused) CustomWidthBox.Text = width.ToString(CultureInfo.CurrentCulture);
+        if (!CustomHeightBox.IsKeyboardFocused) CustomHeightBox.Text = height.ToString(CultureInfo.CurrentCulture);
+        CustomUnitText.Text = PaperSizes.UsesInches(Region) ? "in" : "mm";
+    }
+
+    private void CustomPaper_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) CustomPaper_Committed(sender, e);
+    }
+
+    /// <summary>A size typed in is taken as far as the printer takes it, and shown as it was taken.</summary>
+    private void CustomPaper_Committed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingUi || !IsLoaded) return;
+        if (!double.TryParse(CustomWidthBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double width)
+            || !double.TryParse(CustomHeightBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double height)
+            || width <= 0 || height <= 0)
+        {
+            PushSettingsToUi();
+            return;
+        }
+        ViewModel.Settings.PaperId = PaperSizes.CustomSizeId(width, height, Region, ViewModel.SelectedCapabilities);
+        ViewModel.SettingsEdited();
+        PushSettingsToUi();
     }
 
     private static void Select(ComboBox box, object tag)
@@ -203,7 +243,7 @@ public partial class MainWindow
             ScaleText.Text = $"{s.Scale} %";
 
             // Paper
-            Select(PaperBox, PaperSizes.Parse(s.PaperId));
+            ShowPaper(s);
             Show(PaperNoteRow, PaperNoteText, state.PaperNote);
             Select(QualityBox, state.QualityEnabled ? s.Quality : QualityChoice.Normal);
             QualityBox.IsEnabled = state.QualityEnabled;
@@ -258,7 +298,10 @@ public partial class MainWindow
         s.RightToLeft = RightToLeftBox.IsChecked == true;
         s.PageBorders = BordersBox.IsChecked == true;
         if (state.ScalingEnabled && TagOf<Scaling?>(ScalingBox) is { } scaling) s.Scaling = scaling;
-        if (TagOf<PaperSize?>(PaperBox) is { } paper) s.PaperId = paper.RawValue();
+        if (TagOf<string>(PaperBox) is { } paper)
+        {
+            s.PaperId = paper == PaperSizes.CustomId ? PaperSizes.StartCustom(ViewModel.SelectedCapabilities, s.PaperId, Region) : paper;
+        }
         if (state.QualityEnabled && TagOf<QualityChoice?>(QualityBox) is { } quality) s.Quality = quality;
         if (state.ColorEnabled) s.Color = ColorGray.IsChecked == true ? ColorChoice.Gray : ColorChoice.Color;
         if (state.PhotoSizeEnabled && TagOf<string>(PhotoSizeBox) is { } photo) s.PhotoSizeId = photo;

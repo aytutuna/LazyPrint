@@ -524,7 +524,7 @@ public sealed partial class AppViewModel
     {
         if (SelectedPrinter is not { } printer || IsBusy || IsAddingFiles || _manual is not null) return;
         var caps = SelectedCapabilities;
-        var area = PrintJobs.Area(PaperSizes.Parse(Settings.PaperId), caps, false);
+        var area = PrintJobs.Area(Settings.PaperId, caps, false);
         var info = new TestPageInfo(printer.Name, printer.Model ?? caps?.MakeAndModel ?? "", printer.Address ?? "", DateTime.Now.ToString("g"));
         await PrintItemsAsync("Test page", printer, caps, area, [new DrawnItems(TestPage.Make(area, info))], announce: true);
     }

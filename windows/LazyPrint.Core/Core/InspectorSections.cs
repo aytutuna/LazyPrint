@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Core/InspectorSections.swift (Lazy Scan's InspectorSections): the settings
@@ -82,8 +84,7 @@ public static class InspectorSections
     public static string PaperSummary(PrintSettings s)
     {
         var parts = new List<string>();
-        var paper = PaperSizes.Parse(s.PaperId);
-        if (paper != PaperSize.Auto) parts.Add(paper.Label());
+        if (PaperSizes.LabelOf(s.PaperId, RegionInfo.CurrentRegion.TwoLetterISORegionName) is { } paper) parts.Add(paper);
         if (s.Quality != QualityChoice.Normal) parts.Add(s.Quality == QualityChoice.Best ? "Best" : "Draft");
         if (s.Color == ColorChoice.Gray) parts.Add("Gray");
         return Join(parts);

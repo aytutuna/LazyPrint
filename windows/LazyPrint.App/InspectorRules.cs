@@ -45,9 +45,7 @@ public sealed record InspectorState(
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
 
         string? paperNote = null;
-        var paper = PaperSizes.Parse(s.PaperId);
-        if (paper != PaperSize.Auto && capabilities is { MediaColDatabase.Count: > 0 }
-            && PaperSizes.Points(paper) is { } size && capabilities.Match(size) is null)
+        if (PaperSizes.PointsOf(s.PaperId) is { } size && !PaperSizes.Supports(capabilities, size))
         {
             paperNote = ShortText.PaperNotListed;
         }

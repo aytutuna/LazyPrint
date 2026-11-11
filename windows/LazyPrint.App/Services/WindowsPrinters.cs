@@ -78,23 +78,30 @@ internal static class PrinterMapping
     }
 
     /// <summary>
-    /// The papers worth asking the driver an imageable area for: the named sizes and the photo sizes, portrait. A driver can
-    /// list a hundred papers, and each area is a call into it.
+    /// The papers worth asking the driver an imageable area for: the sizes people know by name (A3, Tabloid, envelopes...)
+    /// and the photo sizes, portrait. A driver can list a hundred papers, and each area is a call into it.
     /// </summary>
     public static bool IsUsefulPaper(double width, double height)
     {
         if (width <= 0 || height <= 0 || width > height) return false;
         var points = new LayoutSize(Points(width), Points(height));
-        return PaperSizes.Match(points) is not null
+        return PaperSizes.NameOf(points) is not null
                || PhotoSize.All.Any(photo => photo.Size is { } size
                    && Math.Abs(size.Width - points.Width) <= PaperSizes.FitTolerance
                    && Math.Abs(size.Height - points.Height) <= PaperSizes.FitTolerance);
     }
 
+    /// <summary>
+    /// What a driver that takes custom sizes is taken to accept: the spooler says it does, not how large (2 to 19 in on both
+    /// sides, in hundredths of a millimetre).
+    /// </summary>
+    private static readonly PaperRange CustomRange = new(5080, 48260, 5080, 48260);
+
     /// <summary>What a driver lists, as the capabilities the layout and the job read.</summary>
     public static PrinterCapabilities Capabilities(
         string name, string? model, IEnumerable<Duplexing> duplex, IEnumerable<OutputColor> colors, int? maxCopies,
-        IEnumerable<Collation> collation, IEnumerable<OutputQuality> quality, IReadOnlyList<MediaEntry> papers)
+        IEnumerable<Collation> collation, IEnumerable<OutputQuality> quality, IReadOnlyList<MediaEntry> papers,
+        bool customPaper = false)
     {
         var sides = new List<string> { "one-sided" };
         var duplexList = duplex.ToList();
@@ -123,6 +130,7 @@ internal static class PrinterMapping
             MultipleDocumentHandlingSupported = collation.Contains(Collation.Collated) ? ["separate-documents-collated-copies"] : [],
             PrintQualitySupported = qualities,
             MediaColDatabase = papers,
+            CustomPaper = customPaper ? CustomRange : null,
         };
     }
 }
@@ -203,8 +211,11 @@ public sealed class WindowsPrinters : IPrinterSystem
             using var queue = server.GetPrintQueue(queueName);
             var capabilities = queue.GetPrintCapabilities();
             var papers = new List<MediaEntry>();
+            bool custom = false;
             foreach (var size in capabilities.PageMediaSizeCapability)
             {
+                // An entry without a size is how a driver lists the sizes it takes on request.
+                if (size.Width is null || size.Height is null) custom = true;
                 if (size.Width is not { } width || size.Height is not { } height || !PrinterMapping.IsUsefulPaper(width, height)) continue;
                 try
                 {
@@ -220,7 +231,7 @@ public sealed class WindowsPrinters : IPrinterSystem
             }
             return PrinterMapping.Capabilities(
                 queueName, queue.QueueDriver?.Name, capabilities.DuplexingCapability, capabilities.OutputColorCapability,
-                capabilities.MaxCopyCount, capabilities.CollationCapability, capabilities.OutputQualityCapability, papers);
+                capabilities.MaxCopyCount, capabilities.CollationCapability, capabilities.OutputQualityCapability, papers, custom);
         }
         catch (Exception e) when (e is PrintQueueException or PrintSystemException or InvalidOperationException)
         {
