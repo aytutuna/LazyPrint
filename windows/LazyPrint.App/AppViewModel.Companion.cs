@@ -251,21 +251,27 @@ public sealed partial class AppViewModel
         {
             var files = await TakePhoneBatchAsync(batch);
             int missed = batch.Arrived - files.Count;
-            var (opened, failed) = await OpenFilesAsync(files);
-            if (opened.Count == 0)
+            bool added = false;
+            await InAddingTurnAsync(async () =>
             {
+                var (opened, failed) = await OpenFilesAsync(files);
+                if (opened.Count == 0)
+                {
+                    if (failed.Count > 0) ReportNotAdded(failed);
+                    else ReportMissed(batch, missed);
+                    return;
+                }
+                if (startNew)
+                {
+                    Documents.Clear();
+                    PageRangeText = "";
+                }
+                foreach (var document in opened) Documents.Add(document);
                 if (failed.Count > 0) ReportNotAdded(failed);
-                else ReportMissed(batch, missed);
-                return false;
-            }
-            if (startNew)
-            {
-                Documents.Clear();
-                PageRangeText = "";
-            }
-            foreach (var document in opened) Documents.Add(document);
-            if (failed.Count > 0) ReportNotAdded(failed);
-            else if (missed > 0) ReportMissed(batch, missed);
+                else if (missed > 0) ReportMissed(batch, missed);
+                added = true;
+            });
+            if (!added) return false;
             NotifyAll();
             return true;
         }

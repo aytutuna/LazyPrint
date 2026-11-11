@@ -72,7 +72,15 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.</summary>
-    public async Task AddFilesAsync(IEnumerable<string> paths)
+    public Task AddFilesAsync(IEnumerable<string> paths) => InAddingTurnAsync(async () =>
+    {
+        var (opened, failed) = await OpenFilesAsync(paths);
+        foreach (var document in opened) Documents.Add(document);
+        if (failed.Count > 0) ReportNotAdded(failed);
+    });
+
+    /// <summary>Runs one load of files in its turn; Print waits until none is going.</summary>
+    private async Task InAddingTurnAsync(Func<Task> load)
     {
         // Calls are served in the order they came, so files from separate starts of the app do not swap places.
         _addingFiles++;
@@ -80,9 +88,7 @@ public sealed partial class AppViewModel
         await _addingTurn.WaitAsync();
         try
         {
-            var (opened, failed) = await OpenFilesAsync(paths);
-            foreach (var document in opened) Documents.Add(document);
-            if (failed.Count > 0) ReportNotAdded(failed);
+            await load();
         }
         finally
         {

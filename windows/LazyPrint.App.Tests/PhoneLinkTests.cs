@@ -288,6 +288,31 @@ public sealed class PhoneLinkTests : IDisposable
     }
 
     [Fact]
+    public async Task ABatchWaitsForFilesBeingAddedAndHoldsPrintMeanwhile()
+    {
+        _rig.Model.Settings.PrinterId = PrinterMerge.DemoId;
+        await _rig.Model.RefreshPrintersAsync();
+        await _rig.Model.AddFilesAsync(["first.pdf"]);
+        await Send("batch-0001", 0, 1, "a.pdf");
+        var slow = new TaskCompletionSource();
+        _rig.Loader.Holds["slow.pdf"] = slow.Task;
+        var adding = _rig.Model.AddFilesAsync(["slow.pdf"]);
+
+        var batch = _rig.Model.UsePhoneBatchAsync(startNew: true);
+
+        Assert.False(batch.IsCompleted);
+        Assert.False(_rig.Model.CanPrint);
+        Assert.Equal("Opening files…", _rig.Model.PrintDisabledReason);
+        Assert.Equal(["first.pdf"], _rig.Model.Documents.Select(d => d.Name));
+
+        slow.SetResult();
+        await adding;
+        Assert.True(await batch);
+        Assert.Equal(["a.pdf"], _rig.Model.Documents.Select(d => d.Name));
+        Assert.True(_rig.Model.CanPrint);
+    }
+
+    [Fact]
     public async Task ABatchWaitsWhileAJobRuns()
     {
         await Send("batch-0001", 0, 1, "a.pdf");
