@@ -40,6 +40,7 @@ final class DocumentLoaderTests: XCTestCase {
         XCTAssertEqual(document.loaded.pages.count, 3)
         assertSize(LayoutSize(width: 612, height: 792), document.loaded.pages[0])
         assertSize(LayoutSize(width: 595, height: 842), document.loaded.pages[2])
+        XCTAssertEqual(document.annotated?.pageCount, 3)
     }
 
     func test_pdf_pageIsSizedWithItsRotationApplied() throws {
