@@ -9,6 +9,7 @@ import SwiftUI
 struct DuplexCardView: View {
     @EnvironmentObject var state: AppState
     @FocusState private var cancelFocused: Bool
+    @FocusState private var stepFocused: Bool?
 
     var body: some View {
         if let card = state.duplexCard {
@@ -54,6 +55,14 @@ struct DuplexCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.bar)
         .onExitCommand { cancelFocused = true }
+        .onAppear { arrived(card) }
+        .onChange(of: card.step) { _, _ in arrived(card) }
+    }
+
+    /// The card is not a sheet, so it is said aloud and the step's main button takes the keyboard.
+    private func arrived(_ card: DuplexCard) {
+        AccessibilityNotification.Announcement(state.duplexTitle + ". " + card.text).post()
+        Task { @MainActor in stepFocused = true }
     }
 
     @ViewBuilder
@@ -64,12 +73,15 @@ struct DuplexCardView: View {
                 .help("Prints a numbered sheet to learn how this printer takes the stack back")
             Button(ManualDuplexText.backsTitle) { Task { await state.printBacks() } }
                 .buttonStyle(.borderedProminent)
+                .focused($stepFocused, equals: true)
         case .checkBack:
             Button("Print the back") { Task { await state.printCheckBack() } }
                 .buttonStyle(.borderedProminent)
+                .focused($stepFocused, equals: true)
         case .checkAnswer:
             ForEach([DuplexCheckAnswer.bothOnOneSide, .oppositeEdges, .sameEdge], id: \.self) { answer in
                 Button(ManualDuplexText.answer(answer)) { state.answerDuplexCheck(answer) }
+                    .focused($stepFocused, equals: answer == .bothOnOneSide ? true : nil)
             }
         }
     }
