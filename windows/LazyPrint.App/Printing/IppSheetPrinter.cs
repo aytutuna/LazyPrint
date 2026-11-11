@@ -38,10 +38,13 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         string format = DocumentFormats.Choose(caps.DocumentFormatsSupported, original?.Kind ?? new DocumentKind.Imposed(), canWritePdf: files is not null && SheetPdf.Available)
                         ?? throw new PrintException(new PrintError.NeedsDriver());
 
+        // A PDF goes as itself in PDF and a photo as itself in JPEG; a photo in a printer that only lists PDF is drawn.
+        var file = original is { } o && GoesAsItIs(o.Kind, format) ? original : null;
+
         IppJob sent;
         try
         {
-            sent = await Submit(client, job, pass, caps, format, original?.Bytes, original?.Pages, progress, token);
+            sent = await Submit(client, job, pass, caps, format, file?.Bytes, file?.Pages, progress, token);
         }
         catch (PrintException e) when (e.Error is PrintError.Refused refused && format is DocumentFormats.Pdf or DocumentFormats.Jpeg
                                        && DocumentFormats.RetriesAsRaster(refused.Status)
@@ -107,12 +110,15 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         }
     }
 
+    private static bool GoesAsItIs(DocumentKind kind, string format) =>
+        kind is DocumentKind.Pdf && format == DocumentFormats.Pdf || kind is DocumentKind.Photo && format == DocumentFormats.Jpeg;
+
     /// <summary>Sends the job in <paramref name="format"/>: the file as it is, or the sides drawn and spooled.</summary>
     private async Task<IppJob> Submit(IppClient client, SheetJob job, int pass, PrinterCapabilities caps, string format, byte[]? original,
                                       (int First, int Last)? pages,
                                       IProgress<JobStatus> progress, CancellationToken token)
     {
-        bool asIs = original is not null && format is DocumentFormats.Pdf or DocumentFormats.Jpeg;
+        bool asIs = original is not null;
         var ticket = PrintJobs.Ticket(job.Plan, job.Settings, format, caps, job.Name, asIs);
         if (asIs) ticket = ticket with { PageRange = pages };
         using var spool = new IppSpool();

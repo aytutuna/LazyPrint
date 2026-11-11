@@ -159,6 +159,14 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
+    public async Task APhotoOnAPrinterThatTakesPdfButNotJpegIsDrawnAsPdfNotSentAsIs()
+    {
+        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain(), new DocumentKind.Photo());
+        Assert.Equal("application/pdf", await SentFormat(job, "jpeg bytes"));
+        Assert.NotEqual("jpeg bytes"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
+    }
+
+    [Fact]
     public async Task APhotoWithAMarginOrAForcedOrientationIsDrawnHere()
     {
         var margin = PrintFixtures.Job(PrintFixtures.Letter(s => s.Margin = MarginChoice.Normal), 1, PrintFixtures.Printer(PrinterRoute.Ipp),
