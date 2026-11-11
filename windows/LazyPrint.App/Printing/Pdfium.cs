@@ -31,7 +31,7 @@ internal static class Pdfium
     public const int BitmapBgrx = 2, BitmapBgra = 4;
 
     [DllImport(Dll)] public static extern void FPDF_InitLibrary();
-    [DllImport(Dll)] public static extern IntPtr FPDF_LoadMemDocument(IntPtr data, int size, [MarshalAs(UnmanagedType.LPStr)] string? password);
+    [DllImport(Dll)] public static extern IntPtr FPDF_LoadMemDocument(IntPtr data, int size, [MarshalAs(UnmanagedType.LPUTF8Str)] string? password);
     [DllImport(Dll)] public static extern void FPDF_CloseDocument(IntPtr document);
     [DllImport(Dll)] public static extern int FPDF_GetPageCount(IntPtr document);
     [DllImport(Dll)] public static extern IntPtr FPDF_LoadPage(IntPtr document, int index);

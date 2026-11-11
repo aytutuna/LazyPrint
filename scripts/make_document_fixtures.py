@@ -1,6 +1,6 @@
 """Writes the small documents the app's tests open (Tests/Fixtures/Documents): PDFs written by hand, so no PDF library
 decides what they contain, pictures with Pillow, and PDFs encrypted by pypdf (cryptography does the AES) from one of them: one that wants a
-password to open, and two that have only an owner password and open for anyone.
+password to open (one with a non-ASCII password), and two that have only an owner password and open for anyone.
 
 Usage: python scripts/make_document_fixtures.py [directory]
 """
@@ -30,6 +30,22 @@ def pdf(pages):
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] /Rotate {rotate} /Contents {4 + 2 * i} 0 R >>"
         )
         objects.append(f"<< /Length {len(content)} >>\nstream\n{content}endstream")
+    return assemble(objects)
+
+
+def annotated():
+    """A page with a red square that is an annotation (its own appearance stream), not page content."""
+    appearance = "1 0 0 rg 0 0 200 200 re f\n"
+    return assemble([
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R] >>",
+        "<< /Type /Annot /Subtype /Square /Rect [100 400 300 600] /F 4 /AP << /N 5 0 R >> >>",
+        f"<< /Type /XObject /Subtype /Form /BBox [0 0 200 200] /Length {len(appearance)} >>\nstream\n{appearance}endstream",
+    ])
+
+
+def assemble(objects):
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n")
     offsets = []
@@ -61,10 +77,11 @@ def main():
         (612, 792, 90, banded),
         (595, 842, 0, fill(BLUE, 0, 0, 595, 842)),
     ]))
+    write("annotated.pdf", annotated())
     red = pdf([(612, 792, 0, fill(RED, 0, 0, 612, 792))])
     # Encryption is random, so these are written only when missing: a rerun leaves the checked-in files as they are.
     for name, user, algorithm in [("locked.pdf", "secret", "RC4-128"), ("owner-only-rc4.pdf", "", "RC4-128"),
-                                  ("owner-only-aes.pdf", "", "AES-128")]:
+                                  ("owner-only-aes.pdf", "", "AES-128"), ("locked-turkish.pdf", "şifre", "AES-256")]:
         if not os.path.exists(os.path.join(target, name)):
             write(name, encrypted(red, user, algorithm))
 

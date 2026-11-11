@@ -42,6 +42,17 @@ public sealed class LockedPdfTests
     }
 
     [Fact]
+    public void APasswordWithLettersOutsideTheCodePageOpensItInPdfium()
+    {
+        var bytes = File.ReadAllBytes(DocumentFixtures.PathOf("locked-turkish.pdf"));
+
+        using var document = PdfiumDocument.Open(bytes, "şifre");
+
+        Assert.NotNull(document);
+        Assert.Null(PdfiumDocument.Open(bytes, "sifre"));
+    }
+
+    [Fact]
     public async Task TheViewModelAsksUntilThePasswordIsRightOrTheUserCancels()
     {
         using var rig = new Rig();
