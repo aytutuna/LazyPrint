@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -40,6 +41,8 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
 {
     private readonly IppClientOptions _options = options ?? new IppClientOptions();
     private readonly HttpClient _http = new(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
+    // host:port of printers that never completed a TLS handshake and were never trusted, for the session.
+    private static readonly ConcurrentDictionary<string, bool> NoTls = new();
     private int _requestId;
     private bool _speaks11;
 
@@ -131,6 +134,11 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     private async Task<IppMessage> RoundTrip(Func<string, int, IppMessage> build, string? document, CancellationToken token)
     {
         bool switched = false;
+        if (Address.Secure && validator is not null && NoTls.ContainsKey(Address.Authority) && !validator.Knows(Address.Authority))
+        {
+            Address = Address.WithSecure(false);
+            NotEncrypted = true;
+        }
         while (true)
         {
             validator?.TakeRejection(); // a refusal left by an earlier request is not this one's
@@ -152,6 +160,7 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
                 if (IsHandshakeFailure(e) && Address.Secure && !switched
                     && validator is not null && !certificateSeen.Value && !validator.Knows(Address.Authority))
                 {
+                    NoTls[Address.Authority] = true;
                     Address = Address.WithSecure(false);
                     NotEncrypted = true;
                     switched = true;

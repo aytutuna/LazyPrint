@@ -292,6 +292,20 @@ public sealed class IppClientTests : IDisposable
     }
 
     [Fact]
+    public async Task APrinterWithoutTlsIsNotTriedOverTlsAgain()
+    {
+        using var printer = new LoopbackIppPrinter();
+        var store = new IppTrustStore(_directory);
+        using (var first = Client(printer, secure: true, validator: new IppCertificateValidator(store, null, "Fake MFP")))
+            await first.CapabilitiesAsync();
+        using var second = Client(printer, secure: true, validator: new IppCertificateValidator(store, null, "Fake MFP"));
+
+        await second.CapabilitiesAsync();
+        Assert.Equal(1, printer.TlsConnections);
+        Assert.True(second.NotEncrypted);
+    }
+
+    [Fact]
     public async Task ARefusedCertificateIsNeverFollowedByPlainIpp()
     {
         using var certificate = LoopbackIppPrinter.SelfSigned("FakePrinter");
