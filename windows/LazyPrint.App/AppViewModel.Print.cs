@@ -263,7 +263,7 @@ public sealed partial class AppViewModel
 
     private void Sent(JobRecord record, PrinterInfo printer)
     {
-        string? warning = CurrentJob(record.Id)?.Detail;
+        string? warning = CurrentJob(record.Id) is { State: JobState.Done } now ? now.Detail : null;
         SetJob(record.Id, JobState.Done, warning);
         _statusOverride = warning ?? PrintText.Printed;
         SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
@@ -297,7 +297,7 @@ public sealed partial class AppViewModel
                 if (status.State == JobState.Done) return;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
-                    : status.State == JobState.Waiting && status.Detail is not null
+                    : status.State == JobState.Waiting
                         ? PrintText.WaitingFor(job.Printer.Name, status.Detail)
                         : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
                 NotifyAll();
@@ -378,7 +378,7 @@ public sealed partial class AppViewModel
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>
     public void CancelJob() => StopJob();
 
-    /// <summary>The printer is asked to cancel in the background; until it answers the job says so instead of printing.</summary>
+    /// <summary>Until the printer has answered the cancel, the job says so instead of printing.</summary>
     private void StopJob()
     {
         if (_job is null || _canceling) return;

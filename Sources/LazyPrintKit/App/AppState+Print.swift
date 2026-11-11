@@ -81,7 +81,8 @@ extension AppState {
     }
 
     private func sent(_ record: JobRecord, _ printer: PrinterInfo) {
-        let warning = jobs.first(where: { $0.id == record.id })?.detail
+        let now = jobs.first(where: { $0.id == record.id })
+        let warning = now?.state == .done ? now?.detail : nil
         setJob(record.id, .done, warning)
         statusOverride = warning ?? PrintText.printed
         sentMessage = PrintText.sent(record.sheets, copies: record.copies, printerName: printer.name)
@@ -180,9 +181,9 @@ extension AppState {
     private func progress(_ status: JobStatus, recordId: String, sides: Int, printer: String) {
         // A last report can land after the pass has returned: it still carries the printer's warning.
         if status.state == .done {
-            let open: [JobState] = [.sending, .waiting, .printing, .done]
-            if let detail = status.detail, let record = jobs.first(where: { $0.id == recordId }), open.contains(record.state) {
-                setJob(recordId, .done, detail)
+            let open: [JobState] = [.sending, .waiting, .printing, .needsUser, .done]
+            if let record = jobs.first(where: { $0.id == recordId }), open.contains(record.state) {
+                setJob(recordId, .done, status.detail)
             }
             return
         }
@@ -190,8 +191,8 @@ extension AppState {
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
             statusOverride = detail
-        } else if status.state == .waiting, let detail = status.detail {
-            statusOverride = PrintText.waiting(for: printer, reason: detail)
+        } else if status.state == .waiting {
+            statusOverride = PrintText.waiting(for: printer, reason: status.detail)
         } else {
             statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)
         }
