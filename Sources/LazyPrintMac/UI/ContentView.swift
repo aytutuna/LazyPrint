@@ -118,6 +118,9 @@ struct ContentView: View {
                 _ = take(readable, refused: refused.map { (name: $0.lastPathComponent, reason: ContentView.addressNotOpened) })
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .addFilesRequested)) { _ in
+            if !state.isBusy { showImporter = true }
+        }
         .onAppear { state.phoneWindowRequested = { showPhone = true } }
         // A problem with the cloud folder is also said here, where it is seen without the phone sheet open.
         .onChange(of: host.syncFolderProblem) { _, problem in

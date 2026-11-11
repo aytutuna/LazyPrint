@@ -32,8 +32,36 @@ public struct LazyPrintApp: App {
                 .onDisappear { state.setActive(false) }
         }
         .commands {
-            // No File > New Window: a second window on the same state would show each sheet and alert twice.
-            CommandGroup(replacing: .newItem) {}
+            PrintCommands(state: state)
+        }
+    }
+}
+
+extension Notification.Name {
+    /// File > Add Files: the window opens its panel.
+    static let addFilesRequested = Notification.Name("LazyPrintAddFilesRequested")
+}
+
+/// File > Add Files, Print and Cancel Printing, which do what the buttons in the window do.
+private struct PrintCommands: Commands {
+    @ObservedObject var state: AppState
+
+    var body: some Commands {
+        // No File > New Window: a second window on the same state would show each sheet and alert twice.
+        CommandGroup(replacing: .newItem) {
+            Button("Add Files\u{2026}") {
+                NotificationCenter.default.post(name: .addFilesRequested, object: nil)
+            }
+            .keyboardShortcut("o")
+            .disabled(state.isBusy)
+        }
+        CommandGroup(replacing: .printItem) {
+            Button("Print\u{2026}") { Task { await state.print() } }
+                .keyboardShortcut("p")
+                .disabled(!state.canPrint)
+            Button("Cancel Printing") { state.cancelJob() }
+                .keyboardShortcut(".")
+                .disabled(!state.isBusy)
         }
     }
 }
