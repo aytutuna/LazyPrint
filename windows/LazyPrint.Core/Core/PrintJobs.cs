@@ -103,7 +103,7 @@ public static class PrintJobs
         }
 
         var copies = PrintCopies.Plan(settings.Copies, printer?.CopiesSupported.Upper, plan.SideCount, CanCollate(settings, printer));
-        return new JobPlan(plan, manual, passes, copies.TicketCopies, Notes(plan.Warnings));
+        return new JobPlan(plan, manual, passes, copies.TicketCopies, Notes(plan.Warnings, settings, printer));
     }
 
     /// <summary>
@@ -222,12 +222,19 @@ public static class PrintJobs
 
     private static PaperSize UsualPaper() => PaperSizes.DefaultForRegion(RegionInfo.CurrentRegion.TwoLetterISORegionName);
 
-    private static List<string> Notes(IReadOnlyList<PlanWarning> warnings) => [.. warnings.Select(w => w switch
+    private static List<string> Notes(IReadOnlyList<PlanWarning> warnings, PrintSettings settings, PrinterCapabilities? printer)
     {
-        PlanWarning.PaddedWithBlanks padded => PrintText.BlanksAdded(padded.Count),
-        PlanWarning.Clipped clipped => PrintText.EdgesCut(Math.Max(1, (int)Math.Round(clipped.Points * 25.4 / 72))),
-        _ => "",
-    }).Where(text => text.Length > 0)];
+        List<string> notes = [.. warnings.Select(w => w switch
+        {
+            PlanWarning.PaddedWithBlanks padded => PrintText.BlanksAdded(padded.Count),
+            PlanWarning.Clipped clipped => PrintText.EdgesCut(Math.Max(1, (int)Math.Round(clipped.Points * 25.4 / 72))),
+            _ => "",
+        }).Where(text => text.Length > 0)];
+        if (settings.Color == ColorChoice.Color && printer is { PrintColorModesSupported: { Count: > 0 } modes }
+            && !modes.Contains("color") && modes.Contains("monochrome"))
+            notes.Add(PrintText.PrintedInGray);
+        return notes;
+    }
 
     /// <summary>A PWG self-describing media name: the named sizes as printers list them, else a custom one in millimetres.</summary>
     private static string MediaName(LayoutSize paper) => PaperSizes.Match(paper) switch

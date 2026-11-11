@@ -48,4 +48,6 @@ public static class PrintText
 
     /// <summary>A note about a job, added after the status sentence: "Edges cut off (3 mm)".</summary>
     public static string EdgesCut(int millimetres) => $"Edges cut off ({millimetres} mm)";
+
+    public const string PrintedInGray = "Printed in gray: this printer has no color";
 }

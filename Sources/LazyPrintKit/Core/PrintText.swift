@@ -59,4 +59,6 @@ public enum PrintText {
     public static func edgesCut(_ millimetres: Int) -> String {
         "Edges cut off (\(millimetres) mm)"
     }
+
+    public static let printedInGray = "Printed in gray: this printer has no color"
 }

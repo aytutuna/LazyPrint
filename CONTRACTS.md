@@ -393,7 +393,7 @@ public struct JobPlan: Equatable, Sendable {
     public var manualDuplex: Bool           // two-sided asked for and the printer can't: two passes
     public var passes: [DuplexPass]         // one pass, or fronts then backs
     public var copiesInJob: Int             // copies the printer makes; the rest are repeated in the stream (PrintCopies)
-    public var notes: [String]              // "2 blank pages added", "Edges cut off (3 mm)"; a page made smaller to fit goes unsaid
+    public var notes: [String]              // "2 blank pages added", "Edges cut off (3 mm)", "Printed in gray: this printer has no color" (color asked for, printer lists monochrome only); a page made smaller to fit goes unsaid
 }
 public enum PrintJobs {
     public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions
