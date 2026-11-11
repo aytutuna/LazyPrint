@@ -460,4 +460,18 @@ final class PrintJobsTests: XCTestCase {
         let ticket = PrintJobs.ticket(makePlan([photo], settings, caps, task: .photos), settings: settings, format: "image/jpeg", printer: caps, name: "x")
         XCTAssertEqual(try keyword(ticket, "media-type"), "photographic-glossy")
     }
+
+    func test_ticket_anEntrysOwnPhotoTypeStaysWhenTheTypeIsOnAutomatic() throws {
+        var caps = withMedia(epson, types: ["stationery", "photographic", "photographic-glossy"])
+        caps.mediaColDatabase = caps.mediaColDatabase.map { entry in
+            var entry = entry
+            entry.attributes.removeAll { (attribute: IppAttribute) -> Bool in attribute.name == "media-type" }
+            entry.attributes.append(IppAttribute("media-type", .keyword("photographic-glossy")))
+            return entry
+        }
+        let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
+        let settings = makeSettings { $0.taskId = "photos" }
+        let ticket = PrintJobs.ticket(makePlan([photo], settings, caps, task: .photos), settings: settings, format: "image/jpeg", printer: caps, name: "x")
+        XCTAssertEqual(try keyword(ticket, "media-type"), "photographic-glossy")
+    }
 }

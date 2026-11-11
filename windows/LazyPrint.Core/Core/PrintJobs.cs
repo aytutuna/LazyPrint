@@ -141,7 +141,7 @@ public static class PrintJobs
             job.CopiesInJob,
             sides,
             mode,
-            Media(area, printer, MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer)),
+            Media(area, printer, MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer), settings.MediaType == MediaChoices.Auto),
             printer?.PrintQualitySupported.Contains(quality) == true ? quality : null,
             PrintScaling(settings.Scaling, printer, asIs),
             hasCopies && settings.Collate && printer?.MultipleDocumentHandlingSupported.Contains(CollatedCopies) == true);
@@ -159,16 +159,19 @@ public static class PrintJobs
 
     /// <summary>
     /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name. The type
-    /// and tray, when asked for, go in the media-col in place of the entry's own.
+    /// and tray, when asked for, go in the media-col in place of the entry's own, except that an entry's own photo type stays
+    /// when the type was left on automatic.
     /// </summary>
-    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? type, string? source)
+    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? type, string? source,
+                                         bool autoType)
     {
         string name = MediaName(area.Paper, printer);
         var supported = printer?.MediaColSupported ?? [];
         bool Takes(string member) => supported.Count == 0 || supported.Contains(member);
+        static bool IsPhotoType(IppAttribute m) => m.Name == "media-type" && m.Values[0] is IppValue.Keyword { Value: var v } && v.StartsWith("photographic", StringComparison.Ordinal);
         List<IppAttribute> Chosen(List<IppAttribute> members)
         {
-            if (type is not null && Takes("media-type"))
+            if (type is not null && Takes("media-type") && !(autoType && members.Any(IsPhotoType)))
             {
                 members.RemoveAll(m => m.Name == "media-type");
                 members.Add(new IppAttribute("media-type", new IppValue.Keyword(type)));

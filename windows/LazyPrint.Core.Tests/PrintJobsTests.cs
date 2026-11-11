@@ -501,4 +501,26 @@ public class PrintJobsTests
         var ticket = PrintJobs.Ticket(Plan([photo], settings, printer, task: PrintTask.Photos), settings, "image/jpeg", printer, "x");
         Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
     }
+
+    [Fact]
+    public void Ticket_AnEntrysOwnPhotoTypeStaysWhenTheTypeIsOnAutomatic()
+    {
+        var basis = WithMedia(Epson, ["stationery", "photographic", "photographic-glossy"]);
+        var printer = new PrinterCapabilities
+        {
+            SidesSupported = basis.SidesSupported,
+            CopiesSupported = basis.CopiesSupported,
+            MediaColReady = basis.MediaColReady,
+            MediaColSupported = basis.MediaColSupported,
+            MediaTypeSupported = basis.MediaTypeSupported,
+            MediaColDatabase = [.. basis.MediaColDatabase.Select(e => e with
+            {
+                Attributes = [.. e.Attributes.Where(a => a.Name != "media-type"), new IppAttribute("media-type", new IppValue.Keyword("photographic-glossy"))],
+            })],
+        };
+        var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
+        var settings = Settings(s => s.TaskId = "photos");
+        var ticket = PrintJobs.Ticket(Plan([photo], settings, printer, task: PrintTask.Photos), settings, "image/jpeg", printer, "x");
+        Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
+    }
 }
