@@ -172,9 +172,9 @@ struct PrintView: View {
     private var stage: some View {
         GeometryReader { geometry in
             let paper = state.jobPlan?.plan.area.paper ?? LayoutSize(width: 612, height: 792)
-            let fitted = max(min((geometry.size.width - 2 * Self.stagePadding) / paper.width,
-                                 (geometry.size.height - 2 * Self.stagePadding) / paper.height), 0.1)
-            let scale = zoom ?? fitted
+            let fitted = CGFloat(max(min((geometry.size.width - 2 * Self.stagePadding) / paper.width,
+                                         (geometry.size.height - 2 * Self.stagePadding) / paper.height), 0.1))
+            let scale: CGFloat = zoom ?? fitted
             // Whole steps of a quarter, so a small change draws nothing.
             let wanted = min(3, max(0.5, (scale * displayScale * 4).rounded(.up) / 4))
             ZStack {
@@ -182,7 +182,7 @@ struct PrintView: View {
                 scheme == .dark ? Color(white: 0.08) : Color(nsColor: .underPageBackgroundColor)
                 if let image = state.preview {
                     SheetScroller(image: image,
-                                  size: CGSize(width: (paper.width * scale).rounded(.down), height: (paper.height * scale).rounded(.down)),
+                                  size: CGSize(width: (CGFloat(paper.width) * scale).rounded(.down), height: (CGFloat(paper.height) * scale).rounded(.down)),
                                   padding: Self.stagePadding, zoomBy: zoomBy)
                         .accessibilityLabel("Sheet \(current.sheet + 1), \(current.back ? "back" : "front")")
                 }
