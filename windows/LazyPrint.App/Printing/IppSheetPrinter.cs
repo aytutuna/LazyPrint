@@ -31,20 +31,23 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         using var client = _connect(job.Printer);
         progress.Report(new JobStatus(JobState.Preparing, 0));
         var caps = job.Capabilities ?? await client.CapabilitiesAsync(token);
-        var original = pass == 0 ? await Task.Run(() => AsIs(job), token) : null;
+        if (!caps.IsAcceptingJobs && job.Capabilities is not null) caps = await client.CapabilitiesAsync(token);
+        if (!caps.IsAcceptingJobs)
+            throw new PrintException(new PrintError.Refused((ushort)IppStatus.ServerErrorNotAcceptingJobs, PrintText.NotAcceptingJobs(job.Printer.Name)));
+        var original = pass == 0 ? await Task.Run(() => AsIs(job, caps), token) : null;
         string format = DocumentFormats.Choose(caps.DocumentFormatsSupported, original?.Kind ?? new DocumentKind.Imposed(), canWritePdf: false)
                         ?? throw new PrintException(new PrintError.NeedsDriver());
 
         IppJob sent;
         try
         {
-            sent = await Submit(client, job, pass, caps, format, original?.Bytes, progress, token);
+            sent = await Submit(client, job, pass, caps, format, original?.Bytes, original?.Pages, progress, token);
         }
         catch (PrintException e) when (e.Error is PrintError.Refused refused && format is DocumentFormats.Pdf or DocumentFormats.Jpeg
                                        && DocumentFormats.RetriesAsRaster(refused.Status)
                                        && DocumentFormats.Choose(caps.DocumentFormatsSupported, new DocumentKind.Imposed(), false) is { } raster)
         {
-            sent = await Submit(client, job, pass, caps, raster, null, progress, token);
+            sent = await Submit(client, job, pass, caps, raster, null, null, progress, token);
         }
         await Follow(client, job.Printer.Name, sent,JobSides.Of(job, pass).Count, progress, token);
     }
@@ -58,11 +61,11 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
     };
 
     /// <summary>
-    /// The document of a job that is printed as it is, with the bytes of the file to send: one PDF whose pages go one to a side, every
-    /// page once in order, fit or shrink to fit; or one upright JPEG printed whole on paper of its own size. Copies the
+    /// The document of a job that is printed as it is, with the bytes of the file to send: one PDF whose pages go one to a side, in order
+    /// (a run of them goes as page-ranges when the printer takes those), fit, shrink to fit or actual size; or one upright JPEG printed whole on paper of its own size. Copies the
     /// printer does not make itself, a booklet and manual two-sided are sheets drawn by Lazy Print.
     /// </summary>
-    private (DocumentKind Kind, byte[] Bytes)? AsIs(SheetJob job)
+    private (DocumentKind Kind, byte[] Bytes, (int First, int Last)? Pages)? AsIs(SheetJob job, PrinterCapabilities caps)
     {
         if (job.Items is not null || job.Plan.ManualDuplex || JobSides.Repeats(job) != 1 || job.Documents.Count != 1) return null;
         var document = job.Documents[0];
@@ -78,16 +81,20 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         {
             case DocumentKind.Pdf { Encrypted: false }:
                 var settings = job.Settings;
-                bool inOrder = placed.Count == document.Pages.Count && placed.Select((page, i) => page.Document == 0 && page.Index == i).All(ok => ok);
-                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet && settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit;
-                return inOrder && plain ? (document.Kind, bytes) : null;
+                bool ascending = placed.Count > 0 && placed.Select((page, i) => page.Document == 0 && page.Index == placed[0].Index + i).All(ok => ok);
+                bool whole = placed.Count == document.Pages.Count;
+                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet
+                    && (settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit
+                    || settings.Scaling == Scaling.ActualSize && caps.PrintScalingSupported.Contains("none"));
+                if (!ascending || !plain || !whole && !caps.PageRangesSupported) return null;
+                return (document.Kind, bytes, whole ? null : (placed[0].Index + 1, placed[0].Index + placed.Count));
             case DocumentKind.Photo:
                 var paper = job.Plan.Plan.Area.Paper;
                 var photo = document.Pages[0];
                 bool ownSize = placed.Count == 1
                                && Math.Abs(Math.Min(photo.Width, photo.Height) - paper.Width) <= PaperSizes.FitTolerance
                                && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance;
-                return ownSize ? (document.Kind, bytes) : null;
+                return ownSize ? (document.Kind, bytes, null) : null;
             default:
                 return null;
         }
@@ -95,10 +102,12 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
 
     /// <summary>Sends the job in <paramref name="format"/>: the file as it is, or the sides drawn and spooled.</summary>
     private async Task<IppJob> Submit(IppClient client, SheetJob job, int pass, PrinterCapabilities caps, string format, byte[]? original,
+                                      (int First, int Last)? pages,
                                       IProgress<JobStatus> progress, CancellationToken token)
     {
         bool asIs = original is not null && format is DocumentFormats.Pdf or DocumentFormats.Jpeg;
         var ticket = PrintJobs.Ticket(job.Plan, job.Settings, format, caps, job.Name, asIs);
+        if (asIs) ticket = ticket with { PageRange = pages };
         using var spool = new IppSpool();
         string path;
         if (asIs)
@@ -221,6 +230,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 }
                 catch (PrintException e)
                 {
+                    if (e.Error is PrintError.LostContact) throw;
                     if (++missed < MissedAnswers) continue;
                     if (e.Error is PrintError.Unreachable) throw new PrintException(new PrintError.LostContact(printer));
                     throw;
@@ -228,7 +238,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 switch (job.State)
                 {
                     case IppJobState.Completed:
-                        progress.Report(new JobStatus(JobState.Done, sides));
+                        progress.Report(new JobStatus(JobState.Done, sides, Problem(job)?.Title));
                         return;
                     case IppJobState.Canceled:
                         throw new OperationCanceledException();
@@ -241,7 +251,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                         progress.Report(new JobStatus(JobState.NeedsUser, job.Impressions, Problem(job)?.Title));
                         break;
                     default:
-                        progress.Report(new JobStatus(JobState.Waiting, 0));
+                        progress.Report(new JobStatus(JobState.Waiting, 0, await WaitReason(client, job, token)));
                         break;
                 }
             }
@@ -252,6 +262,19 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             catch (PrintException) { }
             throw;
         }
+    }
+
+    /// <summary>Why a job the printer has not started is waiting, from the job's and the printer's state reasons.</summary>
+    private static async Task<string?> WaitReason(IppClient client, IppJob job, CancellationToken token)
+    {
+        IReadOnlyList<string> printer;
+        try { printer = await client.PrinterReasonsAsync(token); }
+        catch (PrintException) { printer = []; }
+        IReadOnlyList<string> reasons = [.. job.Reasons, .. printer];
+        if (reasons.Any(r => r.StartsWith("offline", StringComparison.Ordinal) || r.StartsWith("shutdown", StringComparison.Ordinal)))
+            return IppProblemText.Offline;
+        return IppProblems.Describe(reasons, null, true).FirstOrDefault(p => p.IsError)?.Title
+               ?? (job.State == IppJobState.PendingHeld ? PrintText.JobHeld : null);
     }
 
     private static PrinterProblem? Problem(IppJob job) => IppProblems.Describe(job.Reasons, null, true).FirstOrDefault();

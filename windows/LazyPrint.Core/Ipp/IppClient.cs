@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -12,7 +13,7 @@ namespace LazyPrint.Core;
 /// <summary>Timeouts and retry timing of an <see cref="IppClient"/>.</summary>
 public sealed class IppClientOptions
 {
-    /// <summary>Every request but Print-Job: a printer that does not answer this soon is treated as gone.</summary>
+    /// <summary>Every request but Print-Job: a printer that is silent this long, before or while it answers, is treated as gone.</summary>
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>Print-Job: counted from the last byte sent, since printers answer only once they have taken the whole document.</summary>
     public TimeSpan PrintTimeout { get; init; } = TimeSpan.FromSeconds(120);
@@ -40,6 +41,8 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
 {
     private readonly IppClientOptions _options = options ?? new IppClientOptions();
     private readonly HttpClient _http = new(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
+    // host:port of printers that never completed a TLS handshake and were never trusted, for the session.
+    private static readonly ConcurrentDictionary<string, bool> NoTls = new();
     private int _requestId;
     private bool _speaks11;
 
@@ -74,6 +77,12 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
         // A first-use certificate is pinned (or refused) before the document goes out over it.
         if (validator is { HasPendingFirstUse: true } && Address.Secure) await CapabilitiesAsync(token).ConfigureAwait(false);
         var response = await RoundTrip((uri, id) => IppRequests.PrintJob(uri, userName, ticket, id), document, token).ConfigureAwait(false);
+        // A printer that refuses media-col is asked once more for the paper by its name.
+        if (response.Code == (ushort)IppStatus.ClientErrorAttributesOrValuesNotSupported && ticket.Media.Entry is not null)
+        {
+            var plain = ticket with { Media = ticket.Media with { Entry = null } };
+            response = await RoundTrip((uri, id) => IppRequests.PrintJob(uri, userName, plain, id), document, token).ConfigureAwait(false);
+        }
         Succeeded(response);
         var job = IppJob.From(response) ?? throw new PrintException(new PrintError.BadResponse());
         if (job.Reasons.Contains("job-password-wait"))
@@ -85,15 +94,23 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     }
 
     /// <summary>
-    /// Get-Job-Attributes. A printer that no longer knows an accepted job has finished it and forgotten it:
-    /// that is <see cref="IppJobState.Completed"/>.
+    /// Get-Job-Attributes. A printer that no longer knows an accepted job may have finished it or lost it: that is
+    /// <see cref="PrintError.LostContact"/>, since nothing says it was printed.
     /// </summary>
     public async Task<IppJob> JobAsync(int id, CancellationToken token = default)
     {
         var response = await RoundTrip((uri, requestId) => IppRequests.GetJobAttributes(uri, userName, id, requestId), null, token).ConfigureAwait(false);
-        if (response.Code == (ushort)IppStatus.ClientErrorNotFound) return new IppJob(id, IppJobState.Completed, [], 0);
+        if (response.Code == (ushort)IppStatus.ClientErrorNotFound) throw Failure(new PrintError.LostContact(PrinterName));
         Succeeded(response);
         return IppJob.From(response, id)!;
+    }
+
+    /// <summary>The printer's printer-state-reasons, for saying why a job waits.</summary>
+    public async Task<IReadOnlyList<string>> PrinterReasonsAsync(CancellationToken token = default)
+    {
+        var response = await RoundTrip((uri, id) => IppRequests.GetPrinterReasons(uri, userName, id), null, token).ConfigureAwait(false);
+        Succeeded(response);
+        return response["printer-state-reasons"] is { } reasons ? [.. reasons.Values.OfType<IppValue.Keyword>().Select(k => k.Value)] : [];
     }
 
     /// <summary>Cancel-Job. A job the printer does not know, or can no longer cancel, is already over.</summary>
@@ -117,6 +134,11 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     private async Task<IppMessage> RoundTrip(Func<string, int, IppMessage> build, string? document, CancellationToken token)
     {
         bool switched = false;
+        if (Address.Secure && validator is not null && NoTls.ContainsKey(Address.Authority) && !validator.Knows(Address.Authority))
+        {
+            Address = Address.WithSecure(false);
+            NotEncrypted = true;
+        }
         while (true)
         {
             validator?.TakeRejection(); // a refusal left by an earlier request is not this one's
@@ -138,6 +160,7 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
                 if (IsHandshakeFailure(e) && Address.Secure && !switched
                     && validator is not null && !certificateSeen.Value && !validator.Knows(Address.Authority))
                 {
+                    NoTls[Address.Authority] = true;
                     Address = Address.WithSecure(false);
                     NotEncrypted = true;
                     switched = true;
@@ -180,8 +203,8 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     }
 
     /// <summary>
-    /// POSTs a request. The timeout runs from the start for a short request; for a document it is re-armed
-    /// with every chunk written and again after the last byte, so it counts what the printer takes to answer.
+    /// POSTs a request. The timeout is an idle one: re-armed with every chunk written (a document), after the last byte, and
+    /// with every chunk of the answer read, so a printer that keeps sending a long answer slowly is not cut off.
     /// </summary>
     private async Task<HttpResponseMessage> Post(byte[] head, string? document, StrongBox<bool> certificateSeen, CancellationToken token)
     {
@@ -197,7 +220,7 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
             var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             try
             {
-                await LimitBody(response, timeout.Token).ConfigureAwait(false);
+                await LimitBody(response, () => timeout.CancelAfter(limit), timeout.Token).ConfigureAwait(false);
             }
             catch
             {
@@ -216,7 +239,7 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     // A printer's answer is a few hundred KB at most; a bigger one is refused before it is all read.
     private const int MaxResponse = 8 * 1024 * 1024;
 
-    private static async Task LimitBody(HttpResponseMessage response, CancellationToken token)
+    private static async Task LimitBody(HttpResponseMessage response, Action armTimeout, CancellationToken token)
     {
         if (response.Content.Headers.ContentLength > MaxResponse) throw Failure(new PrintError.BadResponse());
         var body = new MemoryStream();
@@ -227,6 +250,7 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
             int read;
             while ((read = await stream.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
             {
+                armTimeout();
                 if (body.Length + read > MaxResponse) throw Failure(new PrintError.BadResponse());
                 body.Write(chunk, 0, read);
             }

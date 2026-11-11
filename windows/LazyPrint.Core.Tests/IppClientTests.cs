@@ -114,6 +114,33 @@ public sealed class IppClientTests : IDisposable
     }
 
     [Fact]
+    public async Task APrinterThatRefusesMediaCol_IsAskedOnceMoreWithTheMediaName()
+    {
+        using var printer = new LoopbackIppPrinter();
+        printer.Script(LoopbackAnswer.Ipp(IppStatus.ClientErrorAttributesOrValuesNotSupported));
+        using var client = Client(printer);
+        var rich = Ticket with { Media = new IppMediaChoice([new IppAttribute("media-type", new IppValue.Keyword("stationery"))], "na_letter_8.5x11in") };
+        var job = await client.PrintAsync(Document(), rich);
+
+        Assert.Equal(42, job.Id);
+        Assert.Equal(2, printer.Requests.Count);
+        byte[] first = IppRequests.PrintJob(printer.Address().PrinterUri, User, rich, 1).Encoded();
+        byte[] second = IppRequests.PrintJob(printer.Address().PrinterUri, User, Ticket, 2).Encoded();
+        Assert.Equal(first, printer.Requests[0].Body[..first.Length]);
+        Assert.Equal(second, printer.Requests[1].Body[..second.Length]);
+    }
+
+    [Fact]
+    public async Task ARefusedPrintJobWithoutMediaCol_IsNotAskedAgain()
+    {
+        using var printer = new LoopbackIppPrinter();
+        printer.Script(LoopbackAnswer.Ipp(IppStatus.ClientErrorAttributesOrValuesNotSupported));
+        using var client = Client(printer);
+        await Assert.ThrowsAsync<PrintException>(() => client.PrintAsync(Document(), Ticket));
+        Assert.Single(printer.Requests);
+    }
+
+    [Fact]
     public async Task ReadsAJobsStateReasonsAndImpressions()
     {
         using var printer = new LoopbackIppPrinter();
@@ -129,15 +156,13 @@ public sealed class IppClientTests : IDisposable
     }
 
     [Fact]
-    public async Task AJobThePrinterForgotAfterAcceptingItIsCompleted()
+    public async Task AJobThePrinterForgotAfterAcceptingItIsLostContact()
     {
         using var printer = new LoopbackIppPrinter();
         printer.Script(LoopbackAnswer.Ipp(IppStatus.ClientErrorNotFound));
         using var client = Client(printer);
-        var job = await client.JobAsync(42);
-        Assert.Equal(IppJobState.Completed, job.State);
-        Assert.True(job.IsFinished);
-        Assert.Equal(42, job.Id);
+        var error = await Assert.ThrowsAsync<PrintException>(() => client.JobAsync(42));
+        Assert.Equal(new PrintError.LostContact(client.PrinterName), error.Error);
     }
 
     [Fact]
@@ -264,6 +289,20 @@ public sealed class IppClientTests : IDisposable
         Assert.True(client.NotEncrypted);
         Assert.False(client.Address.Secure);
         Assert.False(Assert.Single(printer.Requests).Tls);
+    }
+
+    [Fact]
+    public async Task APrinterWithoutTlsIsNotTriedOverTlsAgain()
+    {
+        using var printer = new LoopbackIppPrinter();
+        var store = new IppTrustStore(_directory);
+        using (var first = Client(printer, secure: true, validator: new IppCertificateValidator(store, null, "Fake MFP")))
+            await first.CapabilitiesAsync();
+        using var second = Client(printer, secure: true, validator: new IppCertificateValidator(store, null, "Fake MFP"));
+
+        await second.CapabilitiesAsync();
+        Assert.Equal(1, printer.TlsConnections);
+        Assert.True(second.NotEncrypted);
     }
 
     [Fact]

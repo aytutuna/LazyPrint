@@ -26,6 +26,9 @@ public enum IppRequests {
         }
         if let quality = ticket.quality { job.append(IppAttribute("print-quality", .enumValue(Int32(quality)))) }
         if let scaling = ticket.scaling { job.append(IppAttribute("print-scaling", .keyword(scaling))) }
+        if let pages = ticket.pageRange {
+            job.append(IppAttribute("page-ranges", .range(Int32(pages.lowerBound), Int32(pages.upperBound))))
+        }
         if ticket.collatedCopies {
             job.append(IppAttribute("multiple-document-handling", .keyword("separate-documents-collated-copies")))
         }
@@ -43,6 +46,10 @@ public enum IppRequests {
             IppAttribute("job-id", .integer(Int32(jobId))),
             keywords("requested-attributes", "job-state", "job-state-reasons", "job-impressions-completed"),
         ])
+    }
+
+    public static func getPrinterReasons(printerUri: String, userName: String, requestId: Int32 = 1) -> IppMessage {
+        request(.getPrinterAttributes, printerUri, userName, requestId, [keywords("requested-attributes", "printer-state-reasons")])
     }
 
     public static func cancelJob(printerUri: String, userName: String, jobId: Int, requestId: Int32 = 1) -> IppMessage {

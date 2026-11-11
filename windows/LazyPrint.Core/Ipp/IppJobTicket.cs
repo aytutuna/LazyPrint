@@ -20,7 +20,8 @@ public sealed record IppMediaChoice(IReadOnlyList<IppAttribute>? Entry, string N
 /// What a job asks of the printer. <see cref="Sides"/> is "one-sided" or "two-sided-long-edge" ("two-sided-short-edge" only
 /// for a document sent as is), <see cref="ColorMode"/> "color" or "monochrome", <see cref="Quality"/> 3, 4 or 5 when chosen,
 /// <see cref="Scaling"/> "none" for imposed sheets and "fit" or "auto" for a document sent as is, and
-/// <see cref="CollatedCopies"/> asks the printer to make the copies (separate-documents-collated-copies).
+/// <see cref="CollatedCopies"/> asks the printer to make the copies (separate-documents-collated-copies), and
+/// <see cref="PageRange"/> (1-based, both ends included) is the part of a document sent as is that is printed.
 /// </summary>
 public sealed record IppJobTicket(
     string JobName,
@@ -31,4 +32,5 @@ public sealed record IppJobTicket(
     IppMediaChoice Media,
     int? Quality = null,
     string? Scaling = null,
-    bool CollatedCopies = false);
+    bool CollatedCopies = false,
+    (int First, int Last)? PageRange = null);

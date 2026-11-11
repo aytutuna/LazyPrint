@@ -31,6 +31,13 @@ final class IppProblemsTests: XCTestCase {
             ("paused", "Printer paused", true),
             ("output-area-full-error", "Output tray full", true),
             ("marker-waste-full-error", "Waste tank full", true),
+            ("document-format-error", "Printer can't print this file", true),
+            ("document-unprintable-error", "Printer can't print this file", true),
+            ("document-access-error", "Printer couldn't read the file", true),
+            ("job-canceled-at-device", "Canceled at the printer", true),
+            ("job-canceled-by-user", "Canceled at the printer", true),
+            ("aborted-by-system", "Printer stopped the job", true),
+            ("job-completed-with-errors", "Printed with errors", false),
         ]
         for (reason, title, isError) in cases {
             let problems = describe(reason)

@@ -60,6 +60,13 @@ internal sealed record LoopbackAnswer(int Status, byte[] Body, TimeSpan Delay = 
             new IppAttribute("job-state-reasons", [.. (reasons.Length == 0 ? ["none"] : reasons).Select(r => (IppValue)new IppValue.Keyword(r))]),
         ]);
 
+    /// <summary>A printer group with its printer-state-reasons.</summary>
+    public static IppGroup PrinterState(params string[] reasons) =>
+        new(IppTag.PrinterAttributes,
+        [
+            new IppAttribute("printer-state-reasons", [.. (reasons.Length == 0 ? ["none"] : reasons).Select(r => (IppValue)new IppValue.Keyword(r))]),
+        ]);
+
     public LoopbackAnswer After(TimeSpan delay) => this with { Delay = delay };
 }
 

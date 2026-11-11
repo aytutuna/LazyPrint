@@ -30,6 +30,16 @@ public static class IppProblemText
     public const string OutputTrayFullAdvice = "Empty the output tray.";
     public const string Offline = "Printer offline";
     public const string OfflineAdvice = "Check that the printer is on and on the same network.";
+    public const string BadDocument = "Printer can't print this file";
+    public const string BadDocumentAdvice = "Try another printer, or print it from another app.";
+    public const string NoDocument = "Printer couldn't read the file";
+    public const string NoDocumentAdvice = "Try printing again.";
+    public const string CanceledAtPrinter = "Canceled at the printer";
+    public const string CanceledAtPrinterAdvice = "The job was canceled from the printer's screen. Print again if you still need it.";
+    public const string PrinterStopped = "Printer stopped the job";
+    public const string PrinterStoppedAdvice = "Check the printer's display, then print again.";
+    public const string PrintedWithErrors = "Printed with errors";
+    public const string PrintedWithErrorsAdvice = "Check the pages that came out.";
     public const string PrinterError = "Printer error";
     public const string PrinterErrorAdvice = "Check the printer's display.";
 }
@@ -83,6 +93,11 @@ public static class IppProblems
         "marker-waste-full" => new(IppProblemText.WasteFull, IppProblemText.WasteFullAdvice, isError),
         "paused" => new(IppProblemText.Paused, IppProblemText.PausedAdvice, isError),
         "output-area-full" => new(IppProblemText.OutputTrayFull, IppProblemText.OutputTrayFullAdvice, isError),
+        "document-format" or "document-unprintable" => new(IppProblemText.BadDocument, IppProblemText.BadDocumentAdvice, isError),
+        "document-access" => new(IppProblemText.NoDocument, IppProblemText.NoDocumentAdvice, isError),
+        "job-canceled-at-device" or "job-canceled-by-user" => new(IppProblemText.CanceledAtPrinter, IppProblemText.CanceledAtPrinterAdvice, isError),
+        "aborted-by-system" => new(IppProblemText.PrinterStopped, IppProblemText.PrinterStoppedAdvice, isError),
+        "job-completed-with-errors" => new(IppProblemText.PrintedWithErrors, IppProblemText.PrintedWithErrorsAdvice, false),
         _ => null,
     };
 }

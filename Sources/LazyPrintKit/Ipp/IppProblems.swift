@@ -39,6 +39,16 @@ public enum IppProblemText {
     public static let outputTrayFullAdvice = "Empty the output tray."
     public static let offline = "Printer offline"
     public static let offlineAdvice = "Check that the printer is on and on the same network."
+    public static let badDocument = "Printer can't print this file"
+    public static let badDocumentAdvice = "Try another printer, or print it from another app."
+    public static let noDocument = "Printer couldn't read the file"
+    public static let noDocumentAdvice = "Try printing again."
+    public static let canceledAtPrinter = "Canceled at the printer"
+    public static let canceledAtPrinterAdvice = "The job was canceled from the printer's screen. Print again if you still need it."
+    public static let printerStopped = "Printer stopped the job"
+    public static let printerStoppedAdvice = "Check the printer's display, then print again."
+    public static let printedWithErrors = "Printed with errors"
+    public static let printedWithErrorsAdvice = "Check the pages that came out."
     public static let printerError = "Printer error"
     public static let printerErrorAdvice = "Check the printer's display."
 }
@@ -92,6 +102,13 @@ public enum IppProblems {
         case "marker-waste-full": return problem(IppProblemText.wasteFull, IppProblemText.wasteFullAdvice)
         case "paused": return problem(IppProblemText.paused, IppProblemText.pausedAdvice)
         case "output-area-full": return problem(IppProblemText.outputTrayFull, IppProblemText.outputTrayFullAdvice)
+        case "document-format", "document-unprintable": return problem(IppProblemText.badDocument, IppProblemText.badDocumentAdvice)
+        case "document-access": return problem(IppProblemText.noDocument, IppProblemText.noDocumentAdvice)
+        case "job-canceled-at-device", "job-canceled-by-user":
+            return problem(IppProblemText.canceledAtPrinter, IppProblemText.canceledAtPrinterAdvice)
+        case "aborted-by-system": return problem(IppProblemText.printerStopped, IppProblemText.printerStoppedAdvice)
+        case "job-completed-with-errors":
+            return PrinterProblem(title: IppProblemText.printedWithErrors, advice: IppProblemText.printedWithErrorsAdvice, isError: false)
         default: return nil
         }
     }

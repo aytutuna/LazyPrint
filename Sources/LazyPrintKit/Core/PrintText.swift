@@ -18,6 +18,7 @@ public enum PrintText {
     }
 
     public static let printed = "Printed"
+    public static let canceling = "Canceling…"
 
     public static let loadBacks = "Load the backs"
 
@@ -48,6 +49,20 @@ public enum PrintText {
     /// "Printing 2 of 5": sheet 2 of 5.
     public static func printing(_ sheet: Int, of sheets: Int) -> String {
         "Printing \(sheet) of \(sheets)"
+    }
+
+    /// A job the printer or its queue is holding and has not started, with the reason when it says one: "Waiting for Office printer: Paper jam".
+    public static func waiting(for printerName: String, reason: String? = nil) -> String {
+        guard let reason else { return "Waiting for \(printerName)" }
+        return "Waiting for \(printerName): \(reason)"
+    }
+
+    /// Why a job waits when the printer says only that it holds the job.
+    public static let jobHeld = "Job held"
+
+    /// The printer says it takes no jobs, so nothing is sent.
+    public static func notAcceptingJobs(_ printerName: String) -> String {
+        "\(printerName) is not accepting jobs. Check that it is on and not paused."
     }
 
     /// A note about a job, added after the status sentence: "2 blank pages added".

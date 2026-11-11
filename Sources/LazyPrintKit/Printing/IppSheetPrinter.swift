@@ -50,12 +50,15 @@ public final class IppSheetPrinter: SheetPrinter {
         let client = try connect(job.printer)
         progress(JobStatus(state: .preparing, sidesDone: 0))
         let caps: PrinterCapabilities
-        if let known = job.capabilities {
+        if let known = job.capabilities, known.isAcceptingJobs {
             caps = known
         } else {
             caps = try await client.capabilities()
         }
-        let original = pass == 0 ? asIs(job) : nil
+        if !caps.isAcceptingJobs {
+            throw PrintError.refused(status: IppStatus.serverErrorNotAcceptingJobs.rawValue, detail: PrintText.notAcceptingJobs(job.printer.name))
+        }
+        let original = pass == 0 ? asIs(job, caps) : nil
         guard let format = DocumentFormats.choose(supported: caps.documentFormatsSupported, kind: original?.kind ?? .imposed,
                                                   canWritePDF: true) else {
             throw PrintError.needsDriver
@@ -63,24 +66,25 @@ public final class IppSheetPrinter: SheetPrinter {
 
         // A PDF goes as itself in PDF and a photo as itself in JPEG; a photo in a printer that only lists PDF is drawn.
         let file = original.flatMap { Self.goesAsItIs($0.kind, in: format) ? $0.url : nil }
+        let pages = file == nil ? nil : original?.pages
 
         let sent: IppJob
         do {
-            sent = try await submit(client, job, pass, caps, format, file, progress)
+            sent = try await submit(client, job, pass, caps, format, file, pages, progress)
         } catch PrintError.refused(let status, _)
                     where (format == DocumentFormats.pdf || format == DocumentFormats.jpeg)
                     && DocumentFormats.retriesAsRaster(status)
                     && DocumentFormats.choose(supported: caps.documentFormatsSupported, kind: .imposed, canWritePDF: false) != nil {
             let raster = DocumentFormats.choose(supported: caps.documentFormatsSupported, kind: .imposed, canWritePDF: false)
-            sent = try await submit(client, job, pass, caps, raster ?? DocumentFormats.pwgRaster, nil, progress)
+            sent = try await submit(client, job, pass, caps, raster ?? DocumentFormats.pwgRaster, nil, nil, progress)
         }
         try await follow(client, printer: job.printer.name, sent, sides: JobSides.of(job, pass: pass).count, progress)
     }
 
-    /// The document of a job that is printed as it is, with the file to send: one PDF whose pages go one to a side, every
-    /// page once in order, fit or shrink to fit; or one upright JPEG printed whole on paper of its own size. Copies the
+    /// The document of a job that is printed as it is, with the file to send: one PDF whose pages go one to a side, in order
+    /// (a run of them goes as page-ranges when the printer takes those), fit, shrink to fit or actual size; or one upright JPEG printed whole on paper of its own size. Copies the
     /// printer does not make itself, a booklet and manual two-sided are sheets drawn by Lazy Print.
-    private func asIs(_ job: SheetJob) -> (kind: DocumentKind, url: URL)? {
+    private func asIs(_ job: SheetJob, _ caps: PrinterCapabilities) -> (kind: DocumentKind, url: URL, pages: ClosedRange<Int>?)? {
         guard job.items == nil, !job.plan.manualDuplex, JobSides.repeats(job) == 1, job.documents.count == 1,
               let url = documents?.originalFile(job.documents[0]) else { return nil }
         let document = job.documents[0].loaded
@@ -93,19 +97,22 @@ public final class IppSheetPrinter: SheetPrinter {
         switch document.kind {
         case .pdf(let encrypted):
             guard !encrypted else { return nil }
-            let inOrder = placed.count == document.pages.count
-                && placed.enumerated().allSatisfy { $0.element.document == 0 && $0.element.index == $0.offset }
+            guard let first = placed.first?.index,
+                  placed.enumerated().allSatisfy({ $0.element.document == 0 && $0.element.index == first + $0.offset }) else { return nil }
+            let whole = placed.count == document.pages.count
             let settings = job.settings
             let plain = settings.pagesPerSheet == 1 && !settings.booklet
-                && (settings.scaling == .fit || settings.scaling == .shrinkToFit)
-            return inOrder && plain ? (kind: document.kind, url: url) : nil
+                && (settings.scaling == .fit || settings.scaling == .shrinkToFit
+                    || settings.scaling == .actualSize && caps.printScalingSupported.contains("none"))
+            guard plain, whole || caps.pageRangesSupported else { return nil }
+            return (kind: document.kind, url: url, pages: whole ? nil : first + 1...first + placed.count)
         case .photo:
             let paper = job.plan.plan.area.paper
             let photo = document.pages[0]
             let ownSize = placed.count == 1
                 && abs(min(photo.width, photo.height) - paper.width) <= PaperSizes.fitTolerance
                 && abs(max(photo.width, photo.height) - paper.height) <= PaperSizes.fitTolerance
-            return ownSize ? (kind: document.kind, url: url) : nil
+            return ownSize ? (kind: document.kind, url: url, pages: nil) : nil
         case .imposed:
             return nil
         }
@@ -121,9 +128,10 @@ public final class IppSheetPrinter: SheetPrinter {
 
     /// Sends the job in `format`: the file as it is, or the sides drawn and spooled.
     private func submit(_ client: IppClient, _ job: SheetJob, _ pass: Int, _ caps: PrinterCapabilities, _ format: String,
-                        _ original: URL?, _ progress: @Sendable (JobStatus) -> Void) async throws -> IppJob {
-        let ticket = PrintJobs.ticket(job.plan, settings: job.settings, format: format, printer: caps, name: job.name,
+                        _ original: URL?, _ pages: ClosedRange<Int>?, _ progress: @Sendable (JobStatus) -> Void) async throws -> IppJob {
+        var ticket = PrintJobs.ticket(job.plan, settings: job.settings, format: format, printer: caps, name: job.name,
                                       asIs: original != nil)
+        ticket.pageRange = pages
         if let original {
             progress(JobStatus(state: .sending, sidesDone: 0))
             return try await client.print(original, ticket: ticket)
@@ -201,6 +209,7 @@ public final class IppSheetPrinter: SheetPrinter {
                     job = try await client.job(sent.id)
                     missed = 0
                 } catch let error as PrintError {
+                    if case .lostContact = error { throw error }
                     missed += 1
                     if missed < Self.missedAnswers { continue }
                     if case .unreachable = error { throw PrintError.lostContact(name: printer) }
@@ -208,7 +217,7 @@ public final class IppSheetPrinter: SheetPrinter {
                 }
                 switch job.state {
                 case .completed:
-                    progress(JobStatus(state: .done, sidesDone: sides))
+                    progress(JobStatus(state: .done, sidesDone: sides, detail: Self.problem(job)?.title))
                     return
                 case .canceled:
                     throw CancellationError()
@@ -219,7 +228,8 @@ public final class IppSheetPrinter: SheetPrinter {
                 case .processingStopped:
                     progress(JobStatus(state: .needsUser, sidesDone: job.impressions, detail: Self.problem(job)?.title))
                 default:
-                    progress(JobStatus(state: .waiting, sidesDone: 0))
+                    let reason = await Self.waitReason(client, job)
+                    progress(JobStatus(state: .waiting, sidesDone: 0, detail: reason))
                 }
             }
         } catch {
@@ -231,6 +241,19 @@ public final class IppSheetPrinter: SheetPrinter {
             }
             throw error
         }
+    }
+
+    /// Why a job the printer has not started is waiting, from the job's and the printer's state reasons.
+    private static func waitReason(_ client: IppClient, _ job: IppJob) async -> String? {
+        let printer = (try? await client.printerReasons()) ?? []
+        let reasons = job.reasons + printer
+        if reasons.contains(where: { $0.hasPrefix("offline") || $0.hasPrefix("shutdown") }) {
+            return IppProblemText.offline
+        }
+        if let problem = IppProblems.describe(reasons: reasons, message: nil, reachable: true).first(where: { $0.isError }) {
+            return problem.title
+        }
+        return job.state == .pendingHeld ? PrintText.jobHeld : nil
     }
 
     private static func problem(_ job: IppJob) -> PrinterProblem? {

@@ -223,15 +223,104 @@ public sealed class IppSheetPrinterTests : IDisposable
         _loopback.Script(
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.PrinterState()),
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 5, "job-printing")),
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 9, "job-completed-successfully")));
         var reports = new Reports<JobStatus>();
         await Printer().PrintAsync(Job(s => s.PagesPerSheet = 2, pages: 2), 0, reports, CancellationToken.None);
 
         var operations = _loopback.Requests.Select(request => (IppOperation)request.Ipp.Code).ToList();
-        Assert.Equal([IppOperation.PrintJob, IppOperation.GetJobAttributes, IppOperation.GetJobAttributes, IppOperation.GetJobAttributes], operations);
+        Assert.Equal([IppOperation.PrintJob, IppOperation.GetJobAttributes, IppOperation.GetPrinterAttributes, IppOperation.GetJobAttributes, IppOperation.GetJobAttributes], operations);
         var states = reports.All.Select(report => report.State).Distinct().ToList();
         Assert.Equal([JobState.Preparing, JobState.Sending, JobState.Waiting, JobState.Printing, JobState.Done], states);
+    }
+
+    [Fact]
+    public async Task AJobThePrinterHoldsSaysWhyItWaits()
+    {
+        _loopback.Script(
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.PrinterState("media-jam-error")),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 4, "job-hold-until-specified")),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.PrinterState()),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 9)));
+        var reports = new Reports<JobStatus>();
+        await Printer().PrintAsync(Job(_ => { }, pages: 1), 0, reports, CancellationToken.None);
+
+        var waiting = reports.All.Where(report => report.State == JobState.Waiting).Select(report => report.Detail).ToList();
+        Assert.Equal([null, "Paper jam", "Job held"], waiting);
+        Assert.Equal("Waiting for Test Printer: Paper jam", PrintText.WaitingFor("Test Printer", "Paper jam"));
+    }
+
+    private static LoopbackAnswer Accepting(bool accepting) =>
+        LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, new IppGroup(IppTag.PrinterAttributes,
+        [
+            new IppAttribute("printer-is-accepting-jobs", new IppValue.Bool(accepting)),
+            new IppAttribute("document-format-supported", new IppValue.MimeType("application/pdf")),
+        ]));
+
+    [Fact]
+    public async Task APrinterNotAcceptingJobsIsNotSentTheJob()
+    {
+        var caps = new PrinterCapabilities { DocumentFormatsSupported = ["application/pdf"], IsAcceptingJobs = false };
+        _loopback.Script(Accepting(false));
+        var error = await Assert.ThrowsAsync<PrintException>(
+            () => Printer().PrintAsync(Job(_ => { }, pages: 1, caps), 0, new Reports<JobStatus>(), CancellationToken.None));
+
+        Assert.Equal("Test Printer is not accepting jobs. Check that it is on and not paused.", error.Message);
+        Assert.Empty(Sent(IppOperation.PrintJob));
+    }
+
+    [Fact]
+    public async Task APrinterResumedSinceItWasLastReadIsSentTheJob()
+    {
+        var caps = new PrinterCapabilities { DocumentFormatsSupported = ["application/pdf"], IsAcceptingJobs = false };
+        _loopback.Script(new LoopbackAnswer(200, IppFixtures.Printer("hp-laserjet")), LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 9)),
+                         LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 9)));
+        await Printer().PrintAsync(Job(_ => { }, pages: 1, caps), 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        Assert.Single(Sent(IppOperation.PrintJob));
+    }
+
+    [Fact]
+    public async Task APageRangeOfAPdfGoesAsPageRangesWhenThePrinterTakesThem()
+    {
+        string file = Path.Combine(_folder, "Letter.pdf");
+        File.WriteAllBytes(file, "%PDF-1.4"u8.ToArray());
+        var caps = new PrinterCapabilities
+        {
+            DocumentFormatsSupported = ["application/pdf"],
+            PageRangesSupported = true,
+            PrintScalingSupported = ["fit", "none"],
+            SidesSupported = ["one-sided"],
+        };
+        var settings = PrintFixtures.Letter(s => s.Scaling = Scaling.ActualSize);
+        var document = new LoadedDocument("Letter.pdf", new DocumentKind.Pdf(false), [.. Enumerable.Repeat(new LayoutSize(612, 792), 5)]);
+        var plan = PrintJobs.Plan([document], [1, 2, 3], settings, null, caps, new PrinterPrefs());
+        var job = new SheetJob(document.Name, PrintFixtures.Printer(PrinterRoute.Ipp), caps, settings, plan, [document], "job");
+        await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        var request = Assert.Single(Sent(IppOperation.PrintJob));
+        Assert.Equal("application/pdf", Attribute(request, "document-format"));
+        Assert.Equal("none", Attribute(request, "print-scaling"));
+        var range = request.Ipp.Groups.SelectMany(g => g.Attributes).Single(a => a.Name == "page-ranges").Values.Single();
+        Assert.Equal(new IppValue.Range(2, 4), range);
+    }
+
+    [Fact]
+    public async Task APageRangeOfAPdfIsDrawnHereWhenThePrinterCannotTakeThem()
+    {
+        string file = Path.Combine(_folder, "Letter.pdf");
+        File.WriteAllBytes(file, "%PDF-1.4"u8.ToArray());
+        var caps = Plain();
+        var settings = PrintFixtures.Letter(_ => { });
+        var document = new LoadedDocument("Letter.pdf", new DocumentKind.Pdf(false), [.. Enumerable.Repeat(new LayoutSize(612, 792), 5)]);
+        var plan = PrintJobs.Plan([document], [1, 2], settings, null, caps, new PrinterPrefs());
+        var job = new SheetJob(document.Name, PrintFixtures.Printer(PrinterRoute.Ipp), caps, settings, plan, [document], "job");
+        await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        Assert.Equal("image/pwg-raster", Attribute(Assert.Single(Sent(IppOperation.PrintJob)), "document-format"));
     }
 
     [Fact]

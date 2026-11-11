@@ -113,6 +113,7 @@ public struct PrinterCapabilities: Equatable, Sendable {
     public var stateReasons = [String]()
     public var stateMessage = ""
     public var isAcceptingJobs = true
+    public var pageRangesSupported = false
     public var documentFormatsSupported = [String]()
     public var sidesSupported = [String]()
     public var printColorModesSupported = [String]()
@@ -191,6 +192,7 @@ public struct PrinterCapabilities: Equatable, Sendable {
         caps.stateReasons = strings("printer-state-reasons")
         caps.stateMessage = first("printer-state-message") ?? ""
         if case .boolean(false)? = message["printer-is-accepting-jobs"]?.values.first { caps.isAcceptingJobs = false }
+        if case .boolean(true)? = message["page-ranges-supported"]?.values.first { caps.pageRangesSupported = true }
         caps.documentFormatsSupported = strings("document-format-supported")
         caps.sidesSupported = strings("sides-supported")
         caps.printColorModesSupported = strings("print-color-mode-supported")

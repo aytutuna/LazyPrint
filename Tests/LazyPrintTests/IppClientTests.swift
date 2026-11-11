@@ -132,6 +132,32 @@ final class IppClientTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path)) // the spool is the caller's to delete
     }
 
+    func test_aPrinterThatRefusesMediaCol_isAskedOnceMoreWithTheMediaName() async throws {
+        let printer = try await startPrinter()
+        printer.script(.ipp(.clientErrorAttributesOrValuesNotSupported))
+        let client = try makeClient(printer)
+        var rich = ticket
+        rich.media = IppMediaChoice(entry: [IppAttribute("media-type", .keyword("stationery"))], name: "na_letter_8.5x11in")
+        let job = try await client.print(try document(), ticket: rich)
+
+        XCTAssertEqual(job.id, 42)
+        XCTAssertEqual(printer.requests.count, 2)
+        let uri = try printer.address().printerUri
+        let first = IppRequests.printJob(printerUri: uri, userName: user, ticket: rich, requestId: 1).encoded()
+        let second = IppRequests.printJob(printerUri: uri, userName: user, ticket: ticket, requestId: 2).encoded()
+        XCTAssertEqual(Data(printer.requests[0].body.prefix(first.count)), first)
+        XCTAssertEqual(Data(printer.requests[1].body.prefix(second.count)), second)
+    }
+
+    func test_aRefusedPrintJobWithoutMediaCol_isNotAskedAgain() async throws {
+        let printer = try await startPrinter()
+        printer.script(.ipp(.clientErrorAttributesOrValuesNotSupported))
+        let client = try makeClient(printer)
+        let error = await thrown { try await client.print(try document(), ticket: ticket) }
+        XCTAssertNotNil(error)
+        XCTAssertEqual(printer.requests.count, 1)
+    }
+
     func test_printJob_leavesNoBodyFileBehind() async throws {
         let printer = try await startPrinter()
         let client = try makeClient(printer)
@@ -153,14 +179,12 @@ final class IppClientTests: XCTestCase {
                        IppRequests.getJobAttributes(printerUri: try printer.address().printerUri, userName: user, jobId: 42).encoded())
     }
 
-    func test_aJobThePrinterForgotAfterAcceptingIt_isCompleted() async throws {
+    func test_aJobThePrinterForgotAfterAcceptingIt_isLostContact() async throws {
         let printer = try await startPrinter()
         printer.script(.ipp(.clientErrorNotFound))
         let client = try makeClient(printer)
-        let job = try await client.job(42)
-        XCTAssertEqual(job.state, .completed)
-        XCTAssertTrue(job.isFinished)
-        XCTAssertEqual(job.id, 42)
+        let error = await thrown { try await client.job(42) }
+        XCTAssertEqual(error as? PrintError, .lostContact(name: client.printerName))
     }
 
     func test_cancel_sendsCancelJob_andAnOverJobIsFine() async throws {
@@ -283,6 +307,19 @@ final class IppClientTests: XCTestCase {
         XCTAssertTrue(client.notEncrypted)
         XCTAssertFalse(client.address.secure)
         XCTAssertEqual(printer.requests.map { $0.tls }, [false])
+    }
+
+    func test_aPrinterWithoutTls_isNotTriedOverTlsAgain() async throws {
+        let printer = try await startPrinter()
+        let trust = store()
+        let first = try makeClient(printer, secure: true, validator: IppCertificateValidator(store: trust, deviceUuid: nil, deviceName: "Fake MFP"))
+        _ = try await first.capabilities()
+        let before = printer.tlsConnections
+        let second = try makeClient(printer, secure: true, validator: IppCertificateValidator(store: trust, deviceUuid: nil, deviceName: "Fake MFP"))
+
+        _ = try await second.capabilities()
+        XCTAssertEqual(printer.tlsConnections, before)
+        XCTAssertTrue(second.notEncrypted)
     }
 
     func test_aRefusedCertificate_isNeverFollowedByPlainIpp() async throws {

@@ -97,6 +97,9 @@ public final class IppClient: @unchecked Sendable {
     private var lastRequestId: Int32 = 0
     private var speaks11 = false
     private var plainFallback = false
+    // host:port of printers that never completed a TLS handshake and were never trusted, for the session.
+    private static let noTlsLock = NSLock()
+    private static var noTls = Set<String>()
 
     /// `address` is where the printer answers; `address` follows it to ipps or back to ipp. `userName` is
     /// requesting-user-name: the account name, "iPhone" on the iPhone, the same for every request or Cancel-Job is
@@ -153,8 +156,16 @@ public final class IppClient: @unchecked Sendable {
         if let validator, validator.hasPendingFirstUse, address.secure {
             _ = try await capabilities()
         }
-        let response = try await roundTrip(document: document) { uri, id in
+        var ticket = ticket
+        var response = try await roundTrip(document: document) { uri, id in
             IppRequests.printJob(printerUri: uri, userName: self.userName, ticket: ticket, requestId: id)
+        }
+        // A printer that refuses media-col is asked once more for the paper by its name.
+        if response.code == IppStatus.clientErrorAttributesOrValuesNotSupported.rawValue, ticket.media.entry != nil {
+            ticket.media.entry = nil
+            response = try await roundTrip(document: document) { uri, id in
+                IppRequests.printJob(printerUri: uri, userName: self.userName, ticket: ticket, requestId: id)
+            }
         }
         try IppClient.succeeded(response)
         guard let job = IppJob.from(response) else { throw PrintError.badResponse }
@@ -165,18 +176,31 @@ public final class IppClient: @unchecked Sendable {
         return job
     }
 
-    /// Get-Job-Attributes. A printer that no longer knows an accepted job has finished it and forgotten it: that is
-    /// `IppJobState.completed`.
+    /// Get-Job-Attributes. A printer that no longer knows an accepted job may have finished it or lost it: that is
+    /// `PrintError.lostContact`, since nothing says it was printed.
     public func job(_ id: Int) async throws -> IppJob {
         let response = try await roundTrip(document: nil) { uri, requestId in
             IppRequests.getJobAttributes(printerUri: uri, userName: self.userName, jobId: id, requestId: requestId)
         }
         if response.code == IppStatus.clientErrorNotFound.rawValue {
-            return IppJob(id: id, state: .completed, reasons: [], impressions: 0)
+            throw PrintError.lostContact(name: printerName)
         }
         try IppClient.succeeded(response)
         guard let job = IppJob.from(response, id: id) else { throw PrintError.badResponse }
         return job
+    }
+
+    /// The printer's printer-state-reasons, for saying why a job waits.
+    public func printerReasons() async throws -> [String] {
+        let response = try await roundTrip(document: nil) { uri, id in
+            IppRequests.getPrinterReasons(printerUri: uri, userName: self.userName, requestId: id)
+        }
+        try IppClient.succeeded(response)
+        var reasons = [String]()
+        for case .keyword(let reason) in response["printer-state-reasons"]?.values ?? [] {
+            reasons.append(reason)
+        }
+        return reasons
     }
 
     /// Cancel-Job. A job the printer does not know, or can no longer cancel, is already over.
@@ -196,6 +220,9 @@ public final class IppClient: @unchecked Sendable {
     /// 426 moves to ipps, a failed handshake to ipp, and IPP 0x0503 to version 1.1, each once.
     private func roundTrip(document: URL?, build: (String, Int32) -> IppMessage) async throws -> IppMessage {
         var switched = false
+        if let validator, address.secure, IppClient.hasNoTls(address.authority), !validator.knows(authority: address.authority) {
+            move(to: address.withSecure(false), notEncrypted: true)
+        }
         while true {
             let target = address
             validator?.takeRejection() // a refusal left by an earlier request is not this one's
@@ -222,6 +249,7 @@ public final class IppClient: @unchecked Sendable {
                 // means the printer has no usable TLS; anything else could be someone cutting the connection.
                 if handshake && target.secure && !switched, let validator, validator.checkCount == checksBefore,
                    !validator.knows(authority: target.authority) {
+                    IppClient.setNoTls(target.authority)
                     move(to: target.withSecure(false), notEncrypted: true)
                     switched = true
                     continue
@@ -400,6 +428,18 @@ public final class IppClient: @unchecked Sendable {
         lock.lock()
         speaks11 = true
         lock.unlock()
+    }
+
+    private static func hasNoTls(_ authority: String) -> Bool {
+        noTlsLock.lock()
+        defer { noTlsLock.unlock() }
+        return noTls.contains(authority)
+    }
+
+    private static func setNoTls(_ authority: String) {
+        noTlsLock.lock()
+        noTls.insert(authority)
+        noTlsLock.unlock()
     }
 
     private func move(to address: PrinterAddress, notEncrypted: Bool) {

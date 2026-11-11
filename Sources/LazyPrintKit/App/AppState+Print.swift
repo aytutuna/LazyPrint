@@ -81,8 +81,10 @@ extension AppState {
     }
 
     private func sent(_ record: JobRecord, _ printer: PrinterInfo) {
-        setJob(record.id, .done, nil)
-        statusOverride = PrintText.printed
+        let now = jobs.first(where: { $0.id == record.id })
+        let warning = now?.state == .done ? now?.detail : nil
+        setJob(record.id, .done, warning)
+        statusOverride = warning ?? PrintText.printed
         sentMessage = PrintText.sent(record.sheets, copies: record.copies, printerName: printer.name)
         lastFailure = nil
     }
@@ -164,7 +166,7 @@ extension AppState {
     private func send(_ job: SheetJob, pass: Int, sides: Int, recordId: String) async throws {
         let report: @Sendable (JobStatus) -> Void = { [weak self] status in
             Task { @MainActor in
-                self?.progress(status, recordId: recordId, sides: sides)
+                self?.progress(status, recordId: recordId, sides: sides, printer: job.printer.name)
             }
         }
         do {
@@ -176,11 +178,20 @@ extension AppState {
     }
 
     /// What the printer says of the pass while it runs. A report that comes after the pass has ended is dropped.
-    private func progress(_ status: JobStatus, recordId: String, sides: Int) {
+    private func progress(_ status: JobStatus, recordId: String, sides: Int, printer: String) {
+        // A last report can land after the pass has returned: it still carries the printer's warning.
+        if status.state == .done {
+            if let record = jobs.first(where: { $0.id == recordId }), runningRecord == recordId || record.state == .done {
+                setJob(recordId, .done, status.detail)
+            }
+            return
+        }
         guard runningRecord == recordId else { return }
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
             statusOverride = detail
+        } else if status.state == .waiting {
+            statusOverride = PrintText.waiting(for: printer, reason: status.detail)
         } else {
             statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)
         }

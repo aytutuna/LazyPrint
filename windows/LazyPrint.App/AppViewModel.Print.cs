@@ -23,6 +23,7 @@ public enum DuplexStep
 public sealed partial class AppViewModel
 {
     private CancellationTokenSource? _job;
+    private bool _canceling;
     private TaskCompletionSource? _passEnded;
     private string? _jobRunning;
 
@@ -262,8 +263,9 @@ public sealed partial class AppViewModel
 
     private void Sent(JobRecord record, PrinterInfo printer)
     {
-        SetJob(record.Id, JobState.Done, null);
-        _statusOverride = PrintText.Printed;
+        string? warning = CurrentJob(record.Id) is { State: JobState.Done } now ? now.Detail : null;
+        SetJob(record.Id, JobState.Done, warning);
+        _statusOverride = warning ?? PrintText.Printed;
         SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
         _lastFailure = null;
         NotifyAll();
@@ -280,6 +282,7 @@ public sealed partial class AppViewModel
         using var cancellation = _job = new CancellationTokenSource();
         _passEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _jobRunning = recordId;
+        _canceling = false;
         IsBusy = true;
         SetJob(recordId, JobState.Sending, null);
         _statusOverride = PrintText.Printing(1, sides);
@@ -288,11 +291,17 @@ public sealed partial class AppViewModel
         {
             var progress = new Progress<JobStatus>(status =>
             {
-                if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
+                if (_canceling) return;
+                if (CurrentJob(recordId) is not { } record) return;
+                bool open = record.State is JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser;
+                if (status.State == JobState.Done ? _jobRunning != recordId && record.State != JobState.Done : !open) return;
                 SetJob(recordId, status.State, status.Detail);
+                if (status.State == JobState.Done) return;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
-                    : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
+                    : status.State == JobState.Waiting
+                        ? PrintText.WaitingFor(job.Printer.Name, status.Detail)
+                        : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
                 NotifyAll();
             });
             await SendAsync(job, pass, progress, cancellation.Token);
@@ -369,13 +378,24 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>
-    public void CancelJob() => _job?.Cancel();
+    public void CancelJob() => StopJob();
+
+    /// <summary>Until the printer has answered the cancel, the job says so instead of printing.</summary>
+    private void StopJob()
+    {
+        if (_job is null || _canceling) return;
+        _canceling = true;
+        _job.Cancel();
+        if (_jobRunning is { } id && CurrentJob(id) is { } record) SetJob(id, record.State, PrintText.Canceling);
+        _statusOverride = PrintText.Canceling;
+        NotifyAll();
+    }
 
     /// <summary>Stops the job being printed and returns once its pass has ended, so closing the app does not leave it in the queue. False when there was no job to stop.</summary>
     public async Task<bool> CancelJobAndWaitAsync()
     {
         if (_job is null || _passEnded is not { } ended) return false;
-        _job.Cancel();
+        StopJob();
         await ended.Task;
         return true;
     }
@@ -383,7 +403,7 @@ public sealed partial class AppViewModel
     /// <summary>The Jobs tab's Cancel for a job still going.</summary>
     public void CancelJob(string id)
     {
-        if (_jobRunning == id) _job?.Cancel();
+        if (_jobRunning == id) StopJob();
         else if (_manual?.RecordId == id) CancelManualDuplex();
     }
 

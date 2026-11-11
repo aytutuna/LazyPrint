@@ -64,6 +64,7 @@ public sealed class PrinterCapabilities
     public IReadOnlyList<string> StateReasons { get; init; } = [];
     public string StateMessage { get; init; } = "";
     public bool IsAcceptingJobs { get; init; } = true;
+    public bool PageRangesSupported { get; init; }
     public IReadOnlyList<string> DocumentFormatsSupported { get; init; } = [];
     public IReadOnlyList<string> SidesSupported { get; init; } = [];
     public IReadOnlyList<string> PrintColorModesSupported { get; init; } = [];
@@ -144,6 +145,7 @@ public sealed class PrinterCapabilities
             StateReasons = Strings("printer-state-reasons"),
             StateMessage = First("printer-state-message") ?? "",
             IsAcceptingJobs = message["printer-is-accepting-jobs"]?.Values.FirstOrDefault() is not IppValue.Bool { Value: false },
+            PageRangesSupported = message["page-ranges-supported"]?.Values.FirstOrDefault() is IppValue.Bool { Value: true },
             DocumentFormatsSupported = Strings("document-format-supported"),
             SidesSupported = Strings("sides-supported"),
             PrintColorModesSupported = Strings("print-color-mode-supported"),

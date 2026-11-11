@@ -30,6 +30,13 @@ public class IppProblemsTests
     [InlineData("paused", "Printer paused", true)]
     [InlineData("output-area-full-error", "Output tray full", true)]
     [InlineData("marker-waste-full-error", "Waste tank full", true)]
+    [InlineData("document-format-error", "Printer can't print this file", true)]
+    [InlineData("document-unprintable-error", "Printer can't print this file", true)]
+    [InlineData("document-access-error", "Printer couldn't read the file", true)]
+    [InlineData("job-canceled-at-device", "Canceled at the printer", true)]
+    [InlineData("job-canceled-by-user", "Canceled at the printer", true)]
+    [InlineData("aborted-by-system", "Printer stopped the job", true)]
+    [InlineData("job-completed-with-errors", "Printed with errors", false)]
     public void Describe_KnownReason_GivesTitleAndSeverity(string reason, string title, bool isError)
     {
         var problem = Assert.Single(Describe(reason));

@@ -63,6 +63,20 @@ public class IppRequestsTests
     }
 
     [Fact]
+    public void PrintJob_WithAPageRange_IsTheGoldenRequest()
+    {
+        IppFixtures.Golden("print-job-page-ranges", IppRequests.PrintJob(Uri, "anna", Ticket() with { PageRange = (2, 4) }).Encoded());
+    }
+
+    [Fact]
+    public void GetPrinterReasons_IsTheGoldenRequest()
+    {
+        var request = IppRequests.GetPrinterReasons(Uri, "anna");
+        Assert.Equal([new IppValue.Keyword("printer-state-reasons")], request["requested-attributes"]!.Values);
+        IppFixtures.Golden("get-printer-reasons", request.Encoded());
+    }
+
+    [Fact]
     public void PrintJob_WithEveryChoice_IsTheGoldenRequest()
     {
         var ticket = new IppJobTicket("Sheets", "image/pwg-raster", 3, "two-sided-long-edge", "monochrome",

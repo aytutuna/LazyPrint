@@ -59,6 +59,18 @@ final class IppRequestsTests: XCTestCase {
         try IppFixtures.golden("print-job-media-col", IppRequests.printJob(printerUri: uri, userName: "iPhone", ticket: sheets).encoded())
     }
 
+    func test_printJob_withAPageRange_isTheGoldenRequest() throws {
+        var pages = ticket()
+        pages.pageRange = 2...4
+        try IppFixtures.golden("print-job-page-ranges", IppRequests.printJob(printerUri: uri, userName: "anna", ticket: pages).encoded())
+    }
+
+    func test_getPrinterReasons_isTheGoldenRequest() throws {
+        let request = IppRequests.getPrinterReasons(printerUri: uri, userName: "anna")
+        XCTAssertEqual(request["requested-attributes"]?.values, [.keyword("printer-state-reasons")])
+        try IppFixtures.golden("get-printer-reasons", request.encoded())
+    }
+
     func test_printJob_longNonAsciiName_isTheGoldenRequest() throws {
         let long = ticket(String(repeating: "日", count: 100))
         try IppFixtures.golden("print-job-long-name", IppRequests.printJob(printerUri: uri, userName: "anna", ticket: long).encoded())

@@ -70,6 +70,13 @@ struct LoopbackAnswer {
         ])
     }
 
+    /// A printer group with its printer-state-reasons.
+    static func printerState(_ reasons: String...) -> IppGroup {
+        IppGroup(tag: IppTag.printerAttributes, attributes: [
+            IppAttribute(name: "printer-state-reasons", values: (reasons.isEmpty ? ["none"] : reasons).map { IppValue.keyword($0) }),
+        ])
+    }
+
     func after(_ seconds: TimeInterval) -> LoopbackAnswer {
         var copy = self
         copy.delay = seconds
