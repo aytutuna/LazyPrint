@@ -219,6 +219,47 @@ final class NWBrowserPrintersTests: XCTestCase {
     }
 
     @MainActor
+    func test_aChangedReport_resolvesAgainAndKeepsTheOldAddressUntilTheAnswer() throws {
+        let browsers = FakeBrowsers()
+        let resolver = FakeResolver()
+        let printers = try makePrinters(browsers, resolver)
+        printers.start()
+        defer { printers.stop() }
+        let browser = try XCTUnwrap(browsers.latest("_ipp._tcp"))
+
+        browser.report([result()])
+        try XCTUnwrap(resolver.latest(hp)).answer(resolved("192.168.1.20"))
+        browser.report([result(txt: ["rp": "ipp/print", "ty": "HP Renamed", "UUID": uuid])])
+
+        XCTAssertEqual(resolver.requests.count, 2)
+        XCTAssertEqual(printers.services.first?.addresses, ["192.168.1.20"])
+        try XCTUnwrap(resolver.latest(hp)).answer(resolved("192.168.1.99"))
+        XCTAssertEqual(printers.services.first?.addresses, ["192.168.1.99"])
+    }
+
+    @MainActor
+    func test_aPrinterThatDoesNotAnswer_isResolvedAgain() async throws {
+        let loopback = try LoopbackIppPrinter()
+        try await loopback.start()
+        let port = Int(loopback.port)
+        loopback.stop()
+        let browsers = FakeBrowsers()
+        let resolver = FakeResolver()
+        resolver.answers[hp] = resolved("127.0.0.1", host: nil, port: port)
+        let printers = try makePrinters(browsers, resolver)
+        printers.start()
+        defer { printers.stop() }
+        browsers.latest("_ipp._tcp")?.report([result()])
+        let endpoint = try XCTUnwrap(IppEndpoint.choose(printers.services).first)
+        XCTAssertEqual(resolver.requests.count, 1)
+
+        let check = await printers.read(endpoint)
+
+        XCTAssertNil(check.capabilities)
+        XCTAssertEqual(resolver.requests.count, 2)
+    }
+
+    @MainActor
     func test_aChangedTxtRecord_isTakenAsItIs() throws {
         let browsers = FakeBrowsers()
         let resolver = FakeResolver()

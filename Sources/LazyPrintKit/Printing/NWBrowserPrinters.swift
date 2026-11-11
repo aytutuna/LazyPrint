@@ -344,8 +344,10 @@ public final class NWBrowserPrinters: NetworkPrinters {
         for result in results where result.secure == browse.secure {
             reported.insert(result.key)
             if let entry = found.first(where: { $0.result.key == result.key }) {
+                // A changed report may mean a new address: the old one stays in use until the answer.
+                let changed = entry.result != result
                 entry.result = result
-                if entry.resolved == nil && !entry.isResolving { startResolve(entry) }
+                if (entry.resolved == nil || changed) && !entry.isResolving { startResolve(entry) }
             } else {
                 let entry = Found(result: result)
                 found.append(entry)
@@ -491,7 +493,18 @@ public final class NWBrowserPrinters: NetworkPrinters {
             if result.capabilities != nil || result.certificate != nil { return result }
             last = result
         }
+        resolveAgain(endpoint)
         return last ?? AddressCheck(address: endpoint.addresses[0], capabilities: nil, certificate: nil, error: "it has no address")
+    }
+
+    /// A printer that did not answer may have a new address: its services are resolved again, and the old addresses stay
+    /// until the answer.
+    private func resolveAgain(_ endpoint: IppEndpoint) {
+        for entry in found where !entry.isResolving {
+            if endpoint.instanceNames.contains(where: { $0.lowercased() == entry.result.name.lowercased() }) {
+                startResolve(entry)
+            }
+        }
     }
 
     public func check(_ address: PrinterAddress, firstUse: String?) async -> AddressCheck {
