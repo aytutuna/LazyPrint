@@ -63,11 +63,12 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
     /// <summary>
     /// The document of a job that is printed as it is, with the bytes of the file to send: one PDF whose pages go one to a side, in order
     /// (a run of them goes as page-ranges when the printer takes those), fit, shrink to fit or actual size; or one upright JPEG printed whole on paper of its own size. Copies the
-    /// printer does not make itself, a booklet and manual two-sided are sheets drawn by Lazy Print.
+    /// printer does not make itself, a poster, extra margins, a booklet and manual two-sided are sheets drawn by Lazy Print.
     /// </summary>
     private (DocumentKind Kind, byte[] Bytes, (int First, int Last)? Pages)? AsIs(SheetJob job, PrinterCapabilities caps)
     {
         if (job.Items is not null || job.Plan.ManualDuplex || JobSides.Repeats(job) != 1 || job.Documents.Count != 1) return null;
+        if (job.Settings.Poster != 0 || MarginChoices.Millimetres(job.Settings.Margin, job.Settings.MarginMm) != 0) return null;
         var document = job.Documents[0];
         if (files?.OriginalFile(document) is not { } bytes) return null;
 

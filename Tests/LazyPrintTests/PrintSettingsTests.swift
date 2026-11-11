@@ -41,6 +41,8 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertFalse(s.rightToLeft)
         XCTAssertFalse(s.pageBorders)
         XCTAssertEqual(s.scaling, .shrinkToFit)
+        XCTAssertEqual(s.margin, MarginChoice.none)
+        XCTAssertEqual(s.poster, 0)
         XCTAssertEqual(s.paperId, "auto")
         XCTAssertEqual(s.photoSizeId, "4x6")
         XCTAssertTrue(s.photoFill)
@@ -63,6 +65,9 @@ final class PrintSettingsTests: XCTestCase {
         s.pageBorders = true
         s.scaling = .fill
         s.orientation = .landscape
+        s.margin = .custom
+        s.marginMm = 20
+        s.poster = 3
         s.paperId = "a4"
         s.photoSizeId = "10x15cm"
         s.photoFill = false

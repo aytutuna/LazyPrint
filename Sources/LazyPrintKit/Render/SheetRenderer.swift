@@ -228,6 +228,23 @@ public struct SheetRenderer {
                 context.stroke(CGRect(placement.frame))
             }
         }
+        if side.side.cutMarks {
+            context.setStrokeColor(Self.color(.gray(128)))
+            context.setLineWidth(Self.borderWidth)
+            let length = Imposition.posterMarkLength
+            for placement in side.side.placements {
+                let f = placement.frame
+                for (x, dx) in [(f.x, -1.0), (f.x + f.width, 1.0)] {
+                    for (y, dy) in [(f.y, -1.0), (f.y + f.height, 1.0)] {
+                        context.move(to: CGPoint(x: x, y: y))
+                        context.addLine(to: CGPoint(x: x + dx * length, y: y))
+                        context.move(to: CGPoint(x: x, y: y))
+                        context.addLine(to: CGPoint(x: x, y: y + dy * length))
+                    }
+                }
+            }
+            context.strokePath()
+        }
         // A turned side (the back of the two-sided check) is drawn half a turn about the middle of the paper.
         context.saveGState()
         if side.turned {

@@ -12,15 +12,26 @@ public enum Imposition {
     /// Less than this much cut off (0.05 in, Lazy Scan's clip warning) is not worth a warning.
     private static let clipTolerance: Double = 0.05 * 72
 
+    private static let posterOverlap: Double = 10 * 72 / 25.4
+    /// The cut marks of a poster tile are this long, in the strip kept clear around it.
+    static let posterMarkLength: Double = 6
+
     /// The sheets for `pages` (several documents run on as one) on paper with the printable `area`.
     /// When any back may turn (two-sided, booklet) both sides use `PrintableArea.symmetric`.
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan {
-        let duplex = options.booklet || options.sides != .oneSided
+        let poster = (2...4).contains(options.poster)
+        let duplex = !poster && (options.booklet || options.sides != .oneSided)
         let used = duplex ? area.symmetric : area
+        let laid = keepsMargin(options) ? withMargin(used, options.margin) : used
         let notes = Notes()
-        let sheets = options.booklet
-            ? bookletSheets(pages, options: options, area: used, notes: notes)
-            : flatSheets(pages, options: options, duplex: duplex, area: used, notes: notes)
+        let sheets: [Sheet]
+        if poster {
+            sheets = posterSheets(pages, options: options, area: laid, notes: notes)
+        } else if options.booklet {
+            sheets = bookletSheets(pages, options: options, area: laid, notes: notes)
+        } else {
+            sheets = flatSheets(pages, options: options, duplex: duplex, area: laid, notes: notes)
+        }
 
         var warnings: [PlanWarning] = []
         if notes.clipped > clipTolerance { warnings.append(.clipped(points: notes.clipped)) }
@@ -28,6 +39,56 @@ public enum Imposition {
         let percent = Int((notes.smallestScale * 100).rounded(.toNearestOrEven))
         if percent < 100 { warnings.append(.shrunk(percent: percent)) }
         return SheetPlan(area: used, sheets: sheets, duplex: duplex, warnings: warnings)
+    }
+
+    /// Whether the sizing in use lets the margin apply: not a lone page at actual size, nor fill.
+    public static func keepsMargin(_ options: LayoutOptions) -> Bool {
+        if (2...4).contains(options.poster) { return true }
+        let cells = grid(options.pagesPerSheet, landscape: false)
+        let alone = !options.booklet && cells.rows == 1 && cells.columns == 1
+        return options.scaling != .fill && !(alone && options.scaling == .actualSize)
+    }
+
+    private static func withMargin(_ area: PrintableArea, _ margin: Double) -> PrintableArea {
+        let m = area.margins
+        return PrintableArea(paper: area.paper, margins: LayoutInsets(top: max(m.top, margin), left: max(m.left, margin),
+                                                                      bottom: max(m.bottom, margin), right: max(m.right, margin)))
+    }
+
+    /// Each page enlarged to fit n × n printable areas that overlap by 1 cm, anchored top left, one tile per sheet in reading
+    /// order; a tile with nothing of the page on it is left out. Each tile keeps a strip clear around it for its cut marks.
+    private static func posterSheets(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea, notes: Notes) -> [Sheet] {
+        let n = options.poster
+        var sheets: [Sheet] = []
+        for page in pages {
+            let landscape = options.orientation == .automatic ? page.size.width > page.size.height : options.orientation == .landscape
+            let full = viewPrintable(area, landscape: landscape)
+            let view = LayoutRect(x: full.x + posterMarkLength, y: full.y + posterMarkLength,
+                                  width: max(0, full.width - 2 * posterMarkLength), height: max(0, full.height - 2 * posterMarkLength))
+            let totalWidth = Double(n) * view.width - Double(n - 1) * posterOverlap
+            let totalHeight = Double(n) * view.height - Double(n - 1) * posterOverlap
+            if page.size.width <= 0 || page.size.height <= 0 || totalWidth <= 0 || totalHeight <= 0 { continue }
+
+            let scale = fitScale(page.size.width, page.size.height, LayoutRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
+            let posterWidth = page.size.width * scale
+            let posterHeight = page.size.height * scale
+            notes.smallestScale = min(notes.smallestScale, scale)
+            for row in 0..<n {
+                for column in 0..<n {
+                    let left = Double(column) * (view.width - posterOverlap)
+                    let top = Double(row) * (view.height - posterOverlap)
+                    let width = min(view.width, posterWidth - left)
+                    let height = min(view.height, posterHeight - top)
+                    if width < 1 || height < 1 { continue }
+                    let crop = LayoutRect(x: left / scale, y: top / scale, width: width / scale, height: height / scale)
+                    let shown = Fitted(frame: LayoutRect(x: view.x, y: view.y, width: width, height: height), crop: crop, scale: scale)
+                    let side = SheetSide(placements: [place(page, shown: shown, landscape: landscape, turned: false, paper: area.paper)],
+                                         borders: false, cutMarks: true)
+                    sheets.append(Sheet(front: side, back: nil))
+                }
+            }
+        }
+        return sheets
     }
 
     private static func flatSheets(_ pages: [SourcePage], options: LayoutOptions, duplex: Bool,

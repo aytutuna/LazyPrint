@@ -74,6 +74,8 @@ public struct LayoutOptions: Equatable, Sendable {
     public var pageBorders: Bool = false           // a thin line around each page when there are several on a side
     public var scale: Int = 100                    // percent, 10...400, for a page alone on its side under shrinkToFit or actualSize
     public var orientation: SheetOrientation = .automatic   // a booklet ignores it
+    public var margin: Double = 0                  // points kept clear on every sheet edge, on top of the printer's own; see "Margins"
+    public var poster: Int = 0                     // 2, 3 or 4: one page across n x n sheets; any other number is no poster
 }
 
 public enum SheetOrientation: String, Codable, CaseIterable, Sendable { case automatic, portrait, landscape }
@@ -110,6 +112,8 @@ Rules `Imposition.plan` keeps (each has a test):
 - Several per side with `orientation` forced: the reading view is the one asked for instead of the one chosen from the first page. A booklet is always a landscape spread and ignores `orientation`; the inspector hides it then. A job printed as it is by the printer (`IppSheetPrinter` as-is) is only sent so when `orientation` is automatic.
 - Several per side: the grid (2, 4, 6, 9, 16 pages: 1×2, 2×2, 2×3, 3×3, 4×4, its longer count along the reading view's longer side, so 2 per side are two rows in the portrait view and two columns in the landscape one) is chosen once per job, from the first page: portrait or landscape reading view, whichever makes that page larger; on a tie the view where pages need no turn wins. Pages are read left to right, top to bottom in the reading view (right to left with `rightToLeft`). Each page is fitted to its cell (`fit`; `fill` crops it to the cell; `actualSize` and `shrinkToFit` mean `fit` here) and turned a quarter counterclockwise only when that makes it strictly larger.
 - Booklet: always two-sided (`sides` is ignored). The pages are padded with blanks after the last page to a multiple of 4 (`paddedWithBlanks`); sheet k of n/4 has front (left, right) = (n−1−2k, 2k) and back = (2k+1, n−2−2k), swapped for `rightToLeft`; folded sheets nest in order. The spread's two halves are split at the paper's centre line (the fold), each half met with the printable area. `pagesPerSheet` is ignored.
+- Margins: `margin` (points) raises each edge of the area the layout uses to at least that distance, so it never goes below what the printer cannot reach. It is applied in `Imposition.plan` to the area the pages are laid out in; `SheetPlan.area` stays the printer's. It applies wherever pages are sized to fit: `shrinkToFit` and `fit` on a page alone, every grid and booklet (they fit their cells whatever `scaling` says), and a poster; it does not apply to a lone page at `actualSize` or to `fill`. `Imposition.keepsMargin(options)` (C#: `KeepsMargin`) says so, and the inspector greys the choice out with "Not used at actual size or fill" when it is false. Photo tasks print through `PhotoLayout` or `fill` and get `margin` 0 from `PrintJobs.layoutOptions`, so borderless photo printing ignores it. A job is not printed as it is by the printer when a margin or a poster is set.
+- Poster: `poster` 2, 3 or 4 enlarges each page, one after the other, across n x n sheets, one-sided (`sides`, booklet and `pagesPerSheet` are ignored; `scaling` too, the page is always fitted). Each sheet's printable area, less a 6 pt strip all round that holds the cut marks, is a tile; tiles overlap their neighbours by 10 mm. The page is scaled to fit the n tiles together, kept at its shape, anchored at the top left, and a tile is cut from it in reading order (row by row); a tile with less than 1 pt of the page on it is left out. A tile is a sheet with one placement whose `crop` is the part of the page it shows (so `Placement.frame` is the tile's visible part, at the strip's inner corner), and `SheetSide.cutMarks` is true: the renderer draws a short 0.5 pt gray mark outside each corner of the frame. A landscape page (automatic orientation) uses the landscape reading view like a page alone does. `shrunk` is reported when the page had to be made smaller than itself.
 - Several documents run on as one; a document does not start a new sheet.
 - A blank page has no placement; with `duplex` every sheet has a back, so copies of a two-sided job never start on a back.
 
@@ -352,6 +356,9 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var scaling: Scaling = .shrinkToFit
     public var scale: Int = 100
     public var orientation: SheetOrientation = .automatic   // saved as "orientation"
+    public var margin: MarginChoice = .none     // saved as "margin": none, small (6 mm), normal (12 mm) or custom
+    public var marginMm: Int = 10               // saved as "marginMm": 0...50, what custom means (MarginChoices.millimetres)
+    public var poster: Int = 0                  // saved as "poster": 0 for no poster, else 2, 3 or 4
     public var pageSelection: PageSelection = .all          // not saved: asked for one job at a time
     public var reverseOrder: Bool = false                   // not saved
     public var paperId: String = "auto"         // PaperSize raw value; auto = what the printer has loaded, else the regional default
@@ -452,7 +459,7 @@ Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won
 
 ### Core/StatusLine, InspectorSections, PrintText
 
-`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, scaling, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Waiting for HP LaserJet: Paper jam", "Canceling…", "Printed", "Load the backs", errors titled by their problem.
+`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, poster, scaling, margins, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Waiting for HP LaserJet: Paper jam", "Canceling…", "Printed", "Load the backs", errors titled by their problem.
 
 ## Render/ (both platforms)
 

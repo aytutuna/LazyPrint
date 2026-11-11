@@ -83,9 +83,10 @@ public final class IppSheetPrinter: SheetPrinter {
 
     /// The document of a job that is printed as it is, with the file to send: one PDF whose pages go one to a side, in order
     /// (a run of them goes as page-ranges when the printer takes those), fit, shrink to fit or actual size; or one upright JPEG printed whole on paper of its own size. Copies the
-    /// printer does not make itself, a booklet and manual two-sided are sheets drawn by Lazy Print.
+    /// printer does not make itself, a poster, extra margins, a booklet and manual two-sided are sheets drawn by Lazy Print.
     private func asIs(_ job: SheetJob, _ caps: PrinterCapabilities) -> (kind: DocumentKind, url: URL, pages: ClosedRange<Int>?)? {
         guard job.items == nil, !job.plan.manualDuplex, JobSides.repeats(job) == 1, job.documents.count == 1,
+              job.settings.poster == 0, MarginChoices.millimetres(job.settings.margin, custom: job.settings.marginMm) == 0,
               let url = documents?.originalFile(job.documents[0]) else { return nil }
         let document = job.documents[0].loaded
         var placed = [SourcePage]()

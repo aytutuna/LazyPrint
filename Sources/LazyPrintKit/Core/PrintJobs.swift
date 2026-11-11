@@ -38,7 +38,7 @@ public enum PrintJobs {
     private static let collatedCopies = "separate-documents-collated-copies"
 
     /// The layout the settings ask for. Photo tasks print one side, never a booklet. The task is only
-    /// consulted for that: the other tasks have already set what they mean in the settings.
+    /// consulted for that: the other tasks have already set what they mean in the settings. Photos have no extra margin either.
     public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions {
         let photos = task == .photos || task == .photoSheet
         return LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
@@ -48,7 +48,9 @@ public enum PrintJobs {
                              sides: photos ? .oneSided : settings.sides,
                              pageBorders: settings.pageBorders,
                              scale: settings.scale,
-                             orientation: settings.orientation)
+                             orientation: settings.orientation,
+                             margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm),
+                             poster: photos ? 0 : settings.poster)
     }
 
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless

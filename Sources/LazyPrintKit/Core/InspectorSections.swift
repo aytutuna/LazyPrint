@@ -69,24 +69,29 @@ public enum InspectorSections {
     /// "2 per side · Borders", "Booklet · Right to left"; "" for one page per side.
     public static func layoutSummary(_ s: PrintSettings) -> String {
         var parts = [String]()
-        if s.booklet {
+        let poster = (2...4).contains(s.poster)
+        if poster {
+            parts.append("Poster \(s.poster) \u{00D7} \(s.poster)")
+        } else if s.booklet {
             parts.append("Booklet")
         } else if s.pagesPerSheet > 1 {
             parts.append("\(s.pagesPerSheet) per side")
         }
         if !s.booklet && s.orientation != .automatic { parts.append(s.orientation == .portrait ? "Portrait" : "Landscape") }
-        if !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
-        if (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
-        if !s.booklet && s.pagesPerSheet == 1 && s.scale != 100 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
+        if !poster && !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
+        if !poster && (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
+        if !poster && !s.booklet && s.pagesPerSheet == 1 && s.scale != 100 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
             parts.append("\(s.scale) %")
         }
-        if s.scaling != .shrinkToFit {
+        if !poster && s.scaling != .shrinkToFit {
             switch s.scaling {
             case .fit: parts.append("Fit to page")
             case .actualSize: parts.append("Actual size")
             default: parts.append("Fill")
             }
         }
+        let margin = MarginChoices.millimetres(s.margin, custom: s.marginMm)
+        if margin > 0 && Imposition.keepsMargin(PrintJobs.layoutOptions(s, task: nil)) { parts.append("\(margin) mm margins") }
         return join(parts)
     }
 
