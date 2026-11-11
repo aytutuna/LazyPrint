@@ -675,6 +675,7 @@ private struct DocumentsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .passwordAlert(state)
     }
 }
 

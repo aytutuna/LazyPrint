@@ -260,19 +260,6 @@ final class DocumentLoaderTests: XCTestCase {
 
     // MARK: Locked PDFs
 
-    private func writeLockedPDF(password: String) throws -> URL {
-        let url = tempURL("pdf")
-        var box = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let info: [CFString: Any] = [kCGPDFContextUserPassword: password, kCGPDFContextOwnerPassword: password + "-owner"]
-        let context = try XCTUnwrap(CGContext(url as CFURL, mediaBox: &box, info as CFDictionary))
-        context.beginPDFPage(nil)
-        context.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
-        context.fill(box)
-        context.endPDFPage()
-        context.closePDF()
-        return url
-    }
-
     func test_pdf_withTheRightPassword_opensAndDraws() throws {
         let url = try writeLockedPDF(password: "secret")
 

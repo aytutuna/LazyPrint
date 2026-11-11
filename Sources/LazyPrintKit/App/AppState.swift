@@ -27,6 +27,17 @@ public struct AppError: Equatable, Sendable {
     }
 }
 
+/// A locked PDF the alert asks the password of; `wrong` when the last one typed did not open it.
+public struct PasswordRequest: Equatable, Sendable {
+    public var name: String
+    public var wrong: Bool
+
+    public init(name: String, wrong: Bool) {
+        self.name = name
+        self.wrong = wrong
+    }
+}
+
 /// Where a two-sided job done by hand waits for the user. The Windows `DuplexStep` without `None`: no card, no step.
 public enum DuplexStep: Equatable, Sendable {
     /// The fronts are printed; the stack goes back in the tray.
@@ -151,6 +162,8 @@ public final class AppState: ObservableObject {
     /// Files are being copied or downloaded into the app; the Add files menus wait for them.
     @Published public internal(set) var isAddingFiles = false
     private var addingFilesCount = 0
+    /// The locked PDF being asked about, the first of `lockedFiles`; nil when none is waiting.
+    @Published public internal(set) var passwordRequest: PasswordRequest?
     /// What was just done, for the status line; nil shows what the app is set up for.
     @Published var statusOverride: String?
 
@@ -178,6 +191,10 @@ public final class AppState: ObservableObject {
     let lifecycle: (any PlatformLifecycle)?
     let background: any BackgroundActivity
     let companionHost: any CompanionHosting
+
+    /// Locked PDFs waiting for their password, in the order they came, and the access taken for each until it is opened.
+    var lockedFiles: [URL] = []
+    var lockedAccess: [URL: ScopedAccess] = [:]
 
     var settingsSaveTask: Task<Void, Never>?
     var previewTask: Task<Void, Never>?
@@ -443,11 +460,14 @@ public final class AppState: ObservableObject {
     /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
     /// `alsoNotAdded` are files the caller could not even try; they are reported with the ones that fail here.
     public func addFiles(_ urls: [URL], alsoNotAdded: [(name: String, reason: String)] = []) async {
-        let (opened, failed) = await openFiles(urls)
+        var locked: [URL] = []
+        let (opened, failed) = await openFiles(urls, locked: { locked.append($0) })
         documents.append(contentsOf: opened)
         let notAdded = alsoNotAdded + failed
         if !notAdded.isEmpty { reportNotAdded(notAdded) }
         replan()
+        lockedFiles += locked.filter { !lockedFiles.contains($0) }
+        askNextPassword()
     }
 
     /// Ties the access taken for files to the documents opened from them; one that opened no document is stopped here.
@@ -455,6 +475,8 @@ public final class AppState: ObservableObject {
         for token in tokens {
             if let i = documents.firstIndex(where: { $0.url == token.url && $0.access == nil }) {
                 documents[i].access = token
+            } else if lockedFiles.contains(token.url) {
+                lockedAccess[token.url] = token
             }
         }
     }
@@ -468,8 +490,10 @@ public final class AppState: ObservableObject {
         isAddingFiles = addingFilesCount > 0
     }
 
-    /// Opens the files without adding them; the ones that cannot be read come back with what was wrong.
-    func openFiles(_ urls: [URL]) async -> (opened: [OpenedDocument], failed: [(name: String, reason: String)]) {
+    /// Opens the files without adding them; the ones that cannot be read come back with what was wrong. A locked PDF goes
+    /// to `locked` when there is one, instead of being counted as one that cannot be read.
+    func openFiles(_ urls: [URL], locked: ((URL) -> Void)? = nil) async
+        -> (opened: [OpenedDocument], failed: [(name: String, reason: String)]) {
         let opener = loader
         var opened: [OpenedDocument] = []
         var failed: [(name: String, reason: String)] = []
@@ -478,7 +502,11 @@ public final class AppState: ObservableObject {
                 let document = try await Task.detached { try opener.load(url) }.value
                 opened.append(document)
             } catch {
-                failed.append((name: url.lastPathComponent, reason: error.localizedDescription))
+                if let locked, error as? PrintError == PrintError.unreadable(DocumentText.lockedPdf) {
+                    locked(url)
+                } else {
+                    failed.append((name: url.lastPathComponent, reason: error.localizedDescription))
+                }
             }
         }
         return (opened, failed)

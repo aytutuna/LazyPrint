@@ -13,5 +13,7 @@ public class DocumentTextTests
         Assert.Equal("Lazy Print prints PDFs, pictures and plain text. Save it as a PDF first.", DocumentText.NotSupported);
         Assert.Equal("Lazy Print can't read this file.", DocumentText.Unreadable);
         Assert.Equal("This PDF has no pages.", DocumentText.NoPages);
+        Assert.Equal("This file has no text.", DocumentText.NoText);
+        Assert.Equal("To open WebP pictures, install the WebP Image Extensions from the Microsoft Store.", DocumentText.NeedsWebP);
     }
 }

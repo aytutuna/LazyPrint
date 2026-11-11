@@ -1055,6 +1055,57 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_addFiles_aLockedPDFAsksForItsPassword_andIsNotReportedAsUnreadable() async throws {
+        let rig = try makeRig()
+        let locked = try writeLockedPDF(password: "secret")
+        await rig.state.addFiles([locked, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)])
+
+        XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["b.pdf"])
+        XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: locked.lastPathComponent, wrong: false))
+        XCTAssertNil(rig.state.error)
+    }
+
+    @MainActor
+    func test_unlock_theRightPasswordAddsTheDocument_andAsksNothingMore() async throws {
+        let rig = try makeRig()
+        let locked = try writeLockedPDF(password: "secret")
+        await rig.state.addFiles([locked])
+
+        await rig.state.unlock(locked, with: "secret")
+
+        XCTAssertEqual(rig.state.documents.map { $0.url }, [locked])
+        XCTAssertNil(rig.state.passwordRequest)
+        XCTAssertEqual(rig.state.documents.first?.annotated?.isLocked, false)
+        XCTAssertEqual(rig.state.pageCount, 1)
+    }
+
+    @MainActor
+    func test_unlock_aWrongPasswordAsksAgain() async throws {
+        let rig = try makeRig()
+        let locked = try writeLockedPDF(password: "secret")
+        await rig.state.addFiles([locked])
+
+        await rig.state.unlock(locked, with: "guess")
+
+        XCTAssertTrue(rig.state.documents.isEmpty)
+        XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: locked.lastPathComponent, wrong: true))
+    }
+
+    @MainActor
+    func test_skipPassword_leavesTheFileOutWithANote_andAsksAboutTheNext() async throws {
+        let rig = try makeRig()
+        let first = try writeLockedPDF(password: "one")
+        let second = try writeLockedPDF(password: "two")
+        await rig.state.addFiles([first, second])
+
+        rig.state.skipPassword()
+
+        XCTAssertTrue(rig.state.documents.isEmpty)
+        XCTAssertEqual(rig.state.error?.detail, DocumentText.lockedLeftOut(first.lastPathComponent))
+        XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: second.lastPathComponent, wrong: false))
+    }
+
+    @MainActor
     func test_addFiles_filesTheCallerCouldNotTryAreReportedWithTheOnesThatFail() async throws {
         let rig = try makeRig()
         let bad = rig.folder.appendingPathComponent("report.docx")

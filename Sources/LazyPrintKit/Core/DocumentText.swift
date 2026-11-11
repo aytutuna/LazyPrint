@@ -11,5 +11,17 @@ public enum DocumentText {
 
     public static let noText = "This file has no text."
 
+    public static let passwordTitle = "This PDF is locked"
+
+    /// "Enter the password for Report.pdf to open it." Asked again after a wrong one.
+    public static func passwordMessage(_ name: String, wrong: Bool) -> String {
+        wrong ? "That password did not work. Enter the password for \(name)." : "Enter the password for \(name) to open it."
+    }
+
+    /// "Report.pdf is locked, so it was left out."
+    public static func lockedLeftOut(_ name: String) -> String {
+        "\(name) is locked, so it was left out."
+    }
+
     public static let noPages = "This PDF has no pages."
 }

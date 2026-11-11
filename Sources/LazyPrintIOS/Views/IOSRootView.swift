@@ -76,6 +76,7 @@ public struct IOSRootView: View {
         }
         .quickLookPreview($fileActions.previewURL)
         .printCertificateAlert(state)
+        .passwordAlert(state)
         // Files from Open In and the share sheet arrive here, Lazy Scan's hand-off address and a pairing link; any other
         // lazyprint: URL only brings the app forward.
         .onOpenURL { (url: URL) in
