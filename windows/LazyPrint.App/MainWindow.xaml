@@ -502,7 +502,7 @@
                                                 <TextBlock x:Name="PerSideReasonText" Style="{StaticResource ReasonText}" />
                                             </DockPanel>
                                             <StackPanel x:Name="OrientationGroup">
-                                                <Label Content="_Orientation" Target="{Binding ElementName=OrientationBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                                <Label Content="Or_ientation" Target="{Binding ElementName=OrientationBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                                 <ComboBox x:Name="OrientationBox" HorizontalAlignment="Stretch"
                                                           AutomationProperties.Name="Orientation"
                                                           SelectionChanged="Setting_Changed" />

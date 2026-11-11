@@ -190,7 +190,7 @@ public partial class MainWindow
             Select(PageSelectionBox, s.PageSelection);
             ReverseBox.IsChecked = s.ReverseOrder;
             SidesGroup.Visibility = state.ShowSides ? Visibility.Visible : Visibility.Collapsed;
-            var shownSides = s.Booklet ? Sides.LongEdge : s.Sides;
+            var shownSides = s.Poster is >= 2 and <= 4 ? Sides.OneSided : s.Booklet ? Sides.LongEdge : s.Sides;
             SidesOne.IsChecked = shownSides == Sides.OneSided;
             SidesLong.IsChecked = shownSides == Sides.LongEdge;
             SidesShort.IsChecked = shownSides == Sides.ShortEdge;
@@ -228,6 +228,7 @@ public partial class MainWindow
             MarginBox.ToolTip = state.MarginReason;
             Show(MarginReasonRow, MarginReasonText, state.MarginReason);
             MarginMmRow.Visibility = s.Margin == MarginChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
+            MarginMmSlider.IsEnabled = state.MarginEnabled;
             MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
             MarginMmText.Text = $"{s.MarginMm} mm";
 
