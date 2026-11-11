@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
@@ -73,8 +74,19 @@ public partial class MainWindow
     /// <summary>Takes the files on the clipboard as a drop would; false when it holds none.</summary>
     private bool PasteFiles()
     {
-        if (!Clipboard.ContainsFileDropList() || ViewModel.IsBusy) return false;
-        if (ExistingFiles(Clipboard.GetFileDropList().Cast<string>()) is not { } paths) return false;
+        if (ViewModel.IsBusy) return false;
+        string[]? paths;
+        try
+        {
+            // Another program holding the clipboard makes the read throw.
+            if (!Clipboard.ContainsFileDropList()) return false;
+            paths = ExistingFiles(Clipboard.GetFileDropList().Cast<string>());
+        }
+        catch (ExternalException)
+        {
+            return false;
+        }
+        if (paths is null) return false;
         _ = TakeFilesAsync(paths);
         return true;
     }
