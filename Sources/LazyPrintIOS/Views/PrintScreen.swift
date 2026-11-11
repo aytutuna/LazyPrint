@@ -131,6 +131,10 @@ struct PrintScreen: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 printBar
             }
+            .sensoryFeedback(trigger: endedJob) { (_: String?, ended: String?) -> SensoryFeedback? in
+                guard let ended else { return nil }
+                return ended.hasSuffix(JobState.done.rawValue) ? .success : .error
+            }
             .sheet(isPresented: $showOptions) {
                 OptionsSheet()
             }
@@ -347,7 +351,7 @@ struct PrintScreen: View {
         let fit: Double = max(0.1, min((size.width - 2 * Self.stagePadding) / across,
                                        (size.height - 2 * Self.stagePadding) / paper.height))
         // Whole steps of a quarter, so a small resize draws nothing.
-        let wanted: Double = min(4, max(0.5, (fit * displayScale * (decks ? 1 : zoom) * 4).rounded(.up) / 4))
+        let wanted: Double = min(3, max(0.5, (fit * displayScale * (decks ? 1 : zoom) * 4).rounded(.up) / 4))
         return ZStack {
             scheme == .dark ? Color(white: 0.08) : Color(uiColor: .systemGroupedBackground)
             pages(decks: decks, paper: CGSize(width: paper.width * fit, height: paper.height * fit))
@@ -515,6 +519,10 @@ struct PrintScreen: View {
                         sendButton
                     }
                 }
+                Text(IOSCompanionText.sendNote)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("print.sendNote")
             } else {
                 printButton(reason)
             }
@@ -527,6 +535,7 @@ struct PrintScreen: View {
                         .accessibilityIdentifier("print.status")
                     if state.canCancelJob {
                         Button("Cancel") { state.cancelJob() }
+                            .keyboardShortcut(.cancelAction)
                             .accessibilityIdentifier("print.cancel")
                     }
                 }
@@ -547,6 +556,12 @@ struct PrintScreen: View {
         .background(.bar)
     }
 
+    /// The newest job's id and state once it is done or failed, which changes when a job ends.
+    private var endedJob: String? {
+        guard let job = state.jobs.first, job.state == .done || job.state == .failed else { return nil }
+        return job.id + job.state.rawValue
+    }
+
     private func printButton(_ reason: String?) -> some View {
         Button {
             Task { await state.print() }
@@ -557,6 +572,7 @@ struct PrintScreen: View {
         .buttonStyle(.borderedProminent)
         .tint(Color("PrintFill"))
         .controlSize(.large)
+        .keyboardShortcut("p", modifiers: .command)
         .disabled(reason != nil)
         .accessibilityLabel(reason == nil ? state.printLabel : "\(state.printLabel), not available: \(reason ?? "")")
         .accessibilityIdentifier("print.button")
@@ -633,7 +649,12 @@ private struct DocumentsSheet: View {
                 }
                 .onDelete { (offsets: IndexSet) in
                     for index in offsets.sorted(by: >) {
+                        let url: URL = state.documents[index].url
                         state.remove(at: index)
+                        // The two-sided job waiting for its backs still holds the files it printed the fronts from.
+                        if !state.hasBacksWaiting && !state.documents.contains(where: { $0.url == url }) {
+                            IOSFileInbox().discardCopy(url)
+                        }
                     }
                 }
             }

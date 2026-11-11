@@ -295,7 +295,7 @@ final class FoldingPaper: UIView {
         super.didMoveToWindow()
         // Off screen the display link would keep the turn, and this view, going.
         if window == nil, let motion {
-            finish(motion.completes)
+            finish(motion.completes, inUpdate: true)
         }
     }
 
@@ -466,7 +466,7 @@ final class FoldingPaper: UIView {
         }
     }
 
-    private func finish(_ completed: Bool) {
+    private func finish(_ completed: Bool, inUpdate: Bool = false) {
         link?.invalidate()
         link = nil
         guard let turn else { return }
@@ -474,10 +474,15 @@ final class FoldingPaper: UIView {
         settle(on: max(0, min(landed, count - 1)))
         if turn.byHand && completed {
             wanted = side
-            // Not during the update that may have taken the view off screen.
-            let onTurn: (Int) -> Void = onTurn
-            let landed: Int = side
-            DispatchQueue.main.async { onTurn(landed) }
+            if inUpdate {
+                // Not during the update that took the view off screen.
+                let onTurn: (Int) -> Void = onTurn
+                let landed: Int = side
+                DispatchQueue.main.async { onTurn(landed) }
+            } else {
+                // At once: an update before the binding changed would send the page back to the old side.
+                onTurn(side)
+            }
         } else if wanted != side {
             go(to: wanted)
         }

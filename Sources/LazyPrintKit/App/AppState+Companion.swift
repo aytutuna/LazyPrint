@@ -252,6 +252,8 @@ extension AppState {
             showFailure("Not sent", CompanionText.outboxFullMessage)
             return
         }
+        let activity = background.beginActivity("Sending to computer") {}
+        defer { if let activity { background.endActivity(activity) } }
         let batch = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         var queued: [String] = []
         do {
@@ -304,13 +306,17 @@ extension AppState {
         guard !companionDraining, let outbox = companionOutbox, let desktop = companionDesktop,
               let client = desktopClient() else { return }
         companionDraining = true
+        // Out of background time: the file in flight finishes if it can, and the rest wait for the next time.
+        var windDown = false
+        let activity = background.beginActivity("Sending to computer") { windDown = true }
         defer {
             companionDraining = false
+            if let activity { background.endActivity(activity) }
             countOutbox()
         }
         var tried: Set<String> = []
         var sent = 0
-        while let item = outbox.next(excluding: tried) {
+        while !windDown, let item = outbox.next(excluding: tried) {
             tried.insert(item.id)
             guard item.desktopId == desktop.id else { continue }
             if item.inSyncFolder, let folder = openSyncFolder(), !syncFolder(folder, holds: item.id) {
@@ -319,19 +325,17 @@ extension AppState {
                 continue
             }
             if item.viaSyncFolder, sendThroughSyncFolder(itemId: item.id) { continue }
-            let data: Data
-            do {
-                data = try Data(contentsOf: outbox.fileURL(of: item), options: .mappedIfSafe)
-            } catch {
-                if FileManager.default.fileExists(atPath: outbox.fileURL(of: item).path) {
-                    outbox.markFailed(item.id, error: error.localizedDescription)
+            let file = outbox.fileURL(of: item)
+            guard FileManager.default.isReadableFile(atPath: file.path) else {
+                if FileManager.default.fileExists(atPath: file.path) {
+                    outbox.markFailed(item.id, error: CocoaError(.fileReadNoPermission).localizedDescription)
                 } else {
                     outbox.remove(item.id)
                 }
                 continue
             }
             do {
-                _ = try await client.send(packageId: item.id, data: data)
+                _ = try await client.send(packageId: item.id, file: file)
                 if item.inSyncFolder, let folder = openSyncFolder() {
                     try? AppState.coordinateWriting(folder.appendingPathComponent(SyncPackage.fileName(item.id)),
                                                     options: .forDeleting) { try FileManager.default.removeItem(at: $0) }

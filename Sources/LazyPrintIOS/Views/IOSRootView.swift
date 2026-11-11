@@ -1,15 +1,18 @@
 #if os(iOS)
+import Combine
 import LazyPrintKit
 import QuickLook
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// The app's window: the Print screen, with Jobs in a panel that slides in from the left. The printer in use is a button at
 /// the top of Print, which opens the printers; the error bar and the bar after a job sit at the bottom. Also the sheets that hang off the state
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
 /// certificate question, and the files that come in: from the Add files menu (Files and Photos), from Open In and the share sheet
 /// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL with `handoff` brings
-/// the files Lazy Scan left in the shared folder; any other only brings the app forward.
+/// the files Lazy Scan left in the shared folder, a `lazyprint://pair?` one opens My computer with that code; any other
+/// only brings the app forward.
 public struct IOSRootView: View {
     @EnvironmentObject private var state: AppState
     @ObservedObject private var fileActions: IOSFileActions
@@ -23,6 +26,8 @@ public struct IOSRootView: View {
     @State private var source: FileSource?
     @State private var showPrinters = false
     @State private var showTroubleshooter = false
+    /// The text of a lazyprint://pair link that was opened, until My computer takes it.
+    @State private var pairingLink: String?
     /// The last files being opened: the next wait for them, so files that arrive one after the other keep their order.
     @State private var opening: Task<Void, Never>?
 
@@ -47,8 +52,18 @@ public struct IOSRootView: View {
         // Outside the panel's dimming, so what a job in the panel says can be read and acted on.
         .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
+        .onDrop(of: [.pdf, .image], isTargeted: nil, perform: drop)
+        .background {
+            // The shortcut needs a button in the view tree; this one is never seen or tapped.
+            Button("Add files") { source = .files }
+                .keyboardShortcut("o", modifiers: .command)
+                .disabled(state.isBusy || state.isAddingFiles)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .sheet(isPresented: $showPrinters) {
-            PrintersScreen(airPrint: airPrint, companion: companion)
+            PrintersScreen(airPrint: airPrint, companion: companion, pairingLink: $pairingLink)
         }
         .sheet(isPresented: $showTroubleshooter) {
             TroubleshooterScreen()
@@ -61,11 +76,15 @@ public struct IOSRootView: View {
         }
         .quickLookPreview($fileActions.previewURL)
         .printCertificateAlert(state)
-        // Files from Open In and the share sheet arrive here, and Lazy Scan's hand-off address; any other lazyprint: URL only
-        // brings the app forward.
+        // Files from Open In and the share sheet arrive here, Lazy Scan's hand-off address and a pairing link; any other
+        // lazyprint: URL only brings the app forward.
         .onOpenURL { (url: URL) in
             if let id = LazyPrintUrl.parseHandoff(url.absoluteString) {
                 receiveHandoff(id)
+            } else if PairingScannerView.isPairingCode(url.absoluteString) {
+                pairingLink = url.absoluteString
+                showJobs = false
+                showPrinters = true
             } else if url.isFileURL {
                 receive([url], delivered: true)
             }
@@ -97,9 +116,10 @@ public struct IOSRootView: View {
             }
         }
         .task {
+            await state.restoreBacks()
+        }
+        .task {
             guard let fixture, let url = try? inbox.receive(fixture.data, named: fixture.name) else { return }
-            // The UI tests expect the plain document task, which files with no task no longer start.
-            await state.startTask(.document)
             take([url], [])
         }
     }
@@ -139,12 +159,46 @@ public struct IOSRootView: View {
         }
     }
 
+    /// Files dropped on the window, taken as data: the file a provider hands over is gone when its callback returns.
+    private func drop(_ providers: [NSItemProvider]) -> Bool {
+        let wanted: [(provider: NSItemProvider, type: UTType)] = providers.compactMap { (provider: NSItemProvider) -> (provider: NSItemProvider, type: UTType)? in
+            provider.registeredContentTypes.first { $0.conforms(to: .pdf) || $0.conforms(to: .image) }.map { (provider: provider, type: $0) }
+        }
+        guard !wanted.isEmpty, !state.isBusy, !state.isAddingFiles else { return false }
+        Task {
+            var urls: [URL] = []
+            var failed: [String] = []
+            await state.whileAddingFiles {
+                for item in wanted {
+                    let ext: String = item.type.preferredFilenameExtension ?? "jpg"
+                    var name: String = item.provider.suggestedName ?? "Dropped file"
+                    if !name.lowercased().hasSuffix("." + ext) { name += "." + ext }
+                    let data: Data? = await withCheckedContinuation { (done: CheckedContinuation<Data?, Never>) in
+                        _ = item.provider.loadDataRepresentation(forTypeIdentifier: item.type.identifier) { (data: Data?, _: Error?) in
+                            done.resume(returning: data)
+                        }
+                    }
+                    if let data, let url = try? inbox.receive(data, named: name) {
+                        urls.append(url)
+                    } else {
+                        failed.append(name)
+                    }
+                }
+            }
+            take(urls, failed)
+        }
+        return true
+    }
+
     /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice. When a
     /// file did not copy the folder stays until the old hand-offs are removed; the files that did copy are in the job.
+    /// While a job runs they wait, and are added once it is over.
     private func receiveHandoff(_ id: UUID) {
         let before: Task<Void, Never>? = opening
         opening = Task {
             await before?.value
+            // Adding files or saying one is missing would replace the status and error of the job that is running.
+            _ = await state.$isBusy.values.first { (busy: Bool) -> Bool in !busy }
             guard let urls = IOSFileInbox.handoffFiles(id) else {
                 state.reportMissingHandoff()
                 return

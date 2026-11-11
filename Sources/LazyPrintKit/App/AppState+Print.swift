@@ -43,27 +43,32 @@ extension AppState {
     /// again relies on.
     private func printDocuments(_ inputs: JobInputs) async {
         clearMessages()
-        let printer = printers.first(where: { $0.id == inputs.printer.id }) ?? inputs.printer
-        let caps = knownCapabilities(of: printer) ?? inputs.capabilities
-        let plan = PrintJobs.plan(inputs.documents.map { $0.loaded }, pageRange: inputs.range, settings: inputs.settings,
-                                  task: inputs.task, printer: caps, prefs: prefs(of: printer))
         let id = UUID().uuidString
-        let job = SheetJob(name: inputs.name, printer: printer, capabilities: caps, settings: inputs.settings, plan: plan,
-                           documents: inputs.documents, id: id, marks: Self.marks(of: inputs.task, inputs.settings),
-                           frameMarks: Self.drawsFrameMarks(of: inputs.task, inputs.settings))
+        let job = sheetJob(inputs, id: id)
+        let printer = job.printer
         let record = addRecord(job)
         keepAgain(id) { [weak self] in
             await self?.printDocuments(inputs)
         }
 
         guard await runPass(job, pass: 0, recordId: id) else { return }
-        if plan.manualDuplex {
+        if job.plan.manualDuplex {
             manual = ManualRun(inputs: inputs, job: job, recordId: id)
             setJob(id, .needsUser, PrintText.loadBacks)
             statusOverride = PrintText.loadBacks
             return
         }
         sent(record, printer)
+    }
+
+    private func sheetJob(_ inputs: JobInputs, id: String) -> SheetJob {
+        let printer = printers.first(where: { $0.id == inputs.printer.id }) ?? inputs.printer
+        let caps = knownCapabilities(of: printer) ?? inputs.capabilities
+        let plan = PrintJobs.plan(inputs.documents.map { $0.loaded }, pageRange: inputs.range, settings: inputs.settings,
+                                  task: inputs.task, printer: caps, prefs: prefs(of: printer))
+        return SheetJob(name: inputs.name, printer: printer, capabilities: caps, settings: inputs.settings, plan: plan,
+                        documents: inputs.documents, id: id, marks: Self.marks(of: inputs.task, inputs.settings),
+                        frameMarks: Self.drawsFrameMarks(of: inputs.task, inputs.settings))
     }
 
     private func keepAgain(_ id: String, _ again: @escaping @MainActor () async -> Void) {
@@ -336,6 +341,61 @@ extension AppState {
         run.step = .reload
         manual = run
         statusOverride = duplexTitle
+    }
+
+    /// Keeps a two-sided job waiting for its backs on disk (the iPhone, where iOS may end the app meanwhile), and drops it
+    /// once the job is over.
+    func keepBacks() {
+        guard platform == .ios else { return }
+        guard let run = manual else {
+            PendingBacks.clear(in: files.settingsDirectory)
+            return
+        }
+        let inputs = run.inputs
+        PendingBacks(printerId: run.job.printer.id, settings: inputs.settings, taskId: inputs.task?.rawValue, range: inputs.range,
+                     paths: inputs.documents.map { $0.url.path }).save(in: files.settingsDirectory)
+    }
+
+    /// At launch: the card for a job whose backs were waiting when the app ended, if its files are still there and its
+    /// printer turns up. The backs are always the next pass; a check sheet in between starts over.
+    public func restoreBacks() async {
+        let directory = files.settingsDirectory
+        guard manual == nil, !isBusy, let saved = PendingBacks.load(in: directory) else { return }
+        let urls = saved.paths.map { URL(fileURLWithPath: $0) }
+        guard urls.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else {
+            PendingBacks.clear(in: directory)
+            return
+        }
+        let (opened, failed) = await openFiles(urls)
+        // The user may have started a job while the files opened or the printer was searched for; that job keeps the saved file.
+        guard manual == nil, !isBusy else { return }
+        guard failed.isEmpty, !opened.isEmpty, let printer = await printerForBacks(saved.printerId) else {
+            PendingBacks.clear(in: directory)
+            return
+        }
+        guard manual == nil, !isBusy else { return }
+        let inputs = JobInputs(printer: printer, capabilities: knownCapabilities(of: printer), settings: saved.settings,
+                               task: PrintTask.tryParse(saved.taskId), documents: opened, range: saved.range,
+                               name: opened[0].loaded.name)
+        let id = UUID().uuidString
+        let job = sheetJob(inputs, id: id)
+        guard job.plan.manualDuplex else {
+            PendingBacks.clear(in: directory)
+            return
+        }
+        _ = addRecord(job)
+        manual = ManualRun(inputs: inputs, job: job, recordId: id)
+        setJob(id, .needsUser, PrintText.loadBacks)
+        statusOverride = PrintText.loadBacks
+    }
+
+    /// The printer the backs go to, once the search has found it and read what it can do; as found if it never says.
+    private func printerForBacks(_ id: String) async -> PrinterInfo? {
+        for _ in 0..<20 {
+            if let printer = printers.first(where: { $0.id == id }), knownCapabilities(of: printer) != nil { return printer }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        return printers.first(where: { $0.id == id })
     }
 
     /// Gives up on the backs; the fronts stay printed.

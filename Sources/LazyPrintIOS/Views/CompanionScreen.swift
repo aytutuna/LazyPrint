@@ -16,9 +16,13 @@ struct CompanionScreen: View {
     @StateObject private var model: IOSCompanionModel
     @State private var choosingFolder: Bool = false
     @State private var confirmingForget: Bool = false
+    @State private var linkIgnored: Bool = false
+    /// A pairing link that was opened; taken into the code's text and cleared.
+    @Binding private var link: String?
 
-    init(state: AppState, browser: IOSCompanionBrowser?) {
+    init(state: AppState, browser: IOSCompanionBrowser?, link: Binding<String?> = .constant(nil)) {
         _model = StateObject(wrappedValue: IOSCompanionModel(state: state, browser: browser))
+        _link = link
     }
 
     var body: some View {
@@ -53,6 +57,11 @@ struct CompanionScreen: View {
                     .accessibilityIdentifier("companion.forget")
                     .confirmForget(of: desktop.name, isPresented: $confirmingForget, identifier: "companion.forget.confirm") {
                         Task { await model.forget() }
+                    }
+                    if linkIgnored && !model.needsPairing {
+                        Text(IOSCompanionText.forgetFirst(desktop.name))
+                            .font(.footnote)
+                            .foregroundStyle(Color.secondary)
                     }
                 }
             }
@@ -101,6 +110,16 @@ struct CompanionScreen: View {
         }
         .onAppear {
             model.appear()
+        }
+        .onChange(of: link, initial: true) { (_: String?, opened: String?) in
+            if let opened {
+                if model.needsPairing {
+                    model.scanned(opened)
+                } else {
+                    linkIgnored = true
+                }
+                link = nil
+            }
         }
         .onChange(of: state.companionOutboxCount) { (_: Int, _: Int) in
             model.lookAtCloudFolder()

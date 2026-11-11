@@ -155,6 +155,8 @@ struct PrintersScreen: View {
     let airPrint: IOSPrinterSystem?
     /// Looks for the paired computer on the network while its screen is open; nil under `-demoPrinter`.
     let companion: IOSCompanionBrowser?
+    /// A pairing link that was opened: My computer opens with it, as with a scanned code.
+    @Binding var pairingLink: String?
     @State private var showTroubleshooter = false
     @State private var showAdd = false
     @State private var showComputer = false
@@ -239,8 +241,11 @@ struct PrintersScreen: View {
                 AddPrinterScreen()
             }
             .navigationDestination(isPresented: $showComputer) {
-                CompanionScreen(state: state, browser: companion)
+                CompanionScreen(state: state, browser: companion, link: $pairingLink)
             }
+        }
+        .onChange(of: pairingLink, initial: true) { (_: String?, link: String?) in
+            if link != nil { showComputer = true }
         }
         .sheet(isPresented: $showTroubleshooter) {
             TroubleshooterScreen()

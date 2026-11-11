@@ -67,19 +67,46 @@ public enum PrintPackage {
 
     public static func make(name: String, contentType: String, batch: String, index: Int, count: Int, from: String,
                             bytes: Data) throws -> Data {
-        let info = PrintPackageInfo(name: name, contentType: contentType, batch: batch, index: index, count: count, from: from)
-        try check(info)
+        var package = try prefixAndHeader(name: name, contentType: contentType, batch: batch, index: index, count: count, from: from)
         guard bytes.count <= maxFileBytes else { throw PrintPackageError(message: tooLargeMessage) }
         guard matches(contentType, [UInt8](bytes.prefix(sniffBytes))) else { throw PrintPackageError(message: contentMessage) }
-        let header = Data(headerJSON(info).utf8)
-        guard header.count <= maxHeaderBytes else { throw PrintPackageError(message: damagedMessage) }
-        var package = Data(magic)
-        let length = UInt32(header.count)
-        package.append(contentsOf: [UInt8(length & 0xFF), UInt8((length >> 8) & 0xFF), UInt8((length >> 16) & 0xFF),
-                                    UInt8((length >> 24) & 0xFF)])
-        package.append(header)
         package.append(bytes)
         return package
+    }
+
+    /// Writes the package for the file at `source` to `destination` without holding the file in memory.
+    public static func write(file source: URL, to destination: URL, name: String, contentType: String, batch: String,
+                             index: Int, count: Int, from: String) throws {
+        let head = try prefixAndHeader(name: name, contentType: contentType, batch: batch, index: index, count: count, from: from)
+        let input = try FileHandle(forReadingFrom: source)
+        defer { try? input.close() }
+        let size = try input.seekToEnd()
+        guard size <= UInt64(maxFileBytes) else { throw PrintPackageError(message: tooLargeMessage) }
+        try input.seek(toOffset: 0)
+        let start = [UInt8](try input.read(upToCount: sniffBytes) ?? Data())
+        guard matches(contentType, start) else { throw PrintPackageError(message: contentMessage) }
+        try input.seek(toOffset: 0)
+        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        let output = try FileHandle(forWritingTo: destination)
+        defer { try? output.close() }
+        try output.write(contentsOf: head)
+        while let chunk = try input.read(upToCount: 1024 * 1024), !chunk.isEmpty {
+            try output.write(contentsOf: chunk)
+        }
+    }
+
+    private static func prefixAndHeader(name: String, contentType: String, batch: String, index: Int, count: Int,
+                                        from: String) throws -> Data {
+        let info = PrintPackageInfo(name: name, contentType: contentType, batch: batch, index: index, count: count, from: from)
+        try check(info)
+        let header = Data(headerJSON(info).utf8)
+        guard header.count <= maxHeaderBytes else { throw PrintPackageError(message: damagedMessage) }
+        var head = Data(magic)
+        let length = UInt32(header.count)
+        head.append(contentsOf: [UInt8(length & 0xFF), UInt8((length >> 8) & 0xFF), UInt8((length >> 16) & 0xFF),
+                                 UInt8((length >> 24) & 0xFF)])
+        head.append(header)
+        return head
     }
 
     /// Checks the magic, the header and the first bytes of the file.

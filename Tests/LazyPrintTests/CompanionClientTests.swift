@@ -95,6 +95,26 @@ final class CompanionClientTests: XCTestCase {
         XCTAssertEqual(put.header(CompanionProtocol.deviceIdHeader), CompanionLink.phoneId)
     }
 
+    func test_send_aPackageFile_goesOutWithItsBytesAndLength() async throws {
+        let fake = CompanionFakeDesktop()
+        let packageId = "pkg-0002-abcd"
+        fake.on("PUT " + CompanionProtocol.inboxPrefix + packageId,
+                .json(201, InboxResponse(packageId: packageId, duplicate: false).toJSON()))
+        let client = makeClient(fake)
+        let package = Data("fake package from a file".utf8)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try package.write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let answer = try await client.send(packageId: packageId, file: file)
+
+        XCTAssertEqual(answer, InboxResponse(packageId: packageId, duplicate: false))
+        let put = try XCTUnwrap(fake.requests("PUT " + CompanionProtocol.inboxPrefix + packageId).first)
+        XCTAssertEqual(put.body, package)
+        XCTAssertEqual(put.header("Content-Length"), String(package.count))
+        XCTAssertEqual(put.header("Content-Type"), CompanionProtocol.packageContentType)
+    }
+
     func test_401_isUnauthorized() async {
         let fake = CompanionFakeDesktop()
         fake.on("GET " + CompanionProtocol.helloPath, CompanionLink.unauthorized)

@@ -5,7 +5,7 @@ import LazyPrintKit
 /// Where the files the pickers and Open In hand over wait to be printed. What those give is security-scoped or may go
 /// away when the picker closes, so each file is copied to `lp-files/<uuid>/<name>` in the temporary folder, under its
 /// own name (two files of one name stay apart in folders of their own), and those copies go to `AppState.addFiles`.
-/// The folder is emptied at launch.
+/// A copy goes when its document is removed from the list, and the folder is emptied at launch.
 public struct IOSFileInbox: Sendable {
     public let folder: URL
 
@@ -14,9 +14,24 @@ public struct IOSFileInbox: Sendable {
         self.folder = folder ?? FileManager.default.temporaryDirectory.appendingPathComponent("lp-files", isDirectory: true)
     }
 
-    /// Removes everything in the inbox.
-    public func empty() {
-        try? FileManager.default.removeItem(at: folder)
+    /// Removes everything in the inbox except the copies in `keeping`, which a two-sided job waiting for its backs still needs.
+    public func empty(keeping kept: [URL] = []) {
+        let manager: FileManager = FileManager.default
+        if kept.isEmpty {
+            try? manager.removeItem(at: folder)
+            return
+        }
+        let slots: [URL] = (try? manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        for slot in slots where !kept.contains(where: { $0.deletingLastPathComponent().standardizedFileURL == slot.standardizedFileURL }) {
+            try? manager.removeItem(at: slot)
+        }
+    }
+
+    /// Removes the copy `receive` made at `url`, with its folder. Any other file is left alone.
+    public func discardCopy(_ url: URL) {
+        let slot: URL = url.deletingLastPathComponent()
+        guard slot.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL else { return }
+        try? FileManager.default.removeItem(at: slot)
     }
 
     /// A copy of each file, in the order given, and the names of those that could not be copied. The copying is off the
@@ -70,6 +85,21 @@ public struct IOSFileInbox: Sendable {
         for url in urls where !failed.contains(url.lastPathComponent) { discardDelivered(url) }
     }
 
+    /// Removes files in the app's `Documents/Inbox` more than a day old: Open In leaves its originals there, and one whose
+    /// copy failed is kept until then.
+    public static func removeOldDelivered() {
+        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let keys: [URLResourceKey] = [.addedToDirectoryDateKey]
+        let inbox: URL = documents.appendingPathComponent("Inbox", isDirectory: true)
+        let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: inbox, includingPropertiesForKeys: keys)) ?? []
+        let cutoff: Date = Date(timeIntervalSinceNow: -24 * 60 * 60)
+        for file in listed {
+            if let made = (try? file.resourceValues(forKeys: Set(keys)))?.addedToDirectoryDate, made < cutoff {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
+
     /// The files Lazy Scan left for hand-off `id` in the shared App Group folder, by name; nil when the folder is not
     /// there or holds nothing. They are read in place and copied by `receive`, then `removeHandoff` clears the folder.
     public static func handoffFiles(_ id: UUID) -> [URL]? {
@@ -87,11 +117,11 @@ public struct IOSFileInbox: Sendable {
     /// reached the app would stay.
     public static func removeOldHandoffs() {
         guard let root = handoffRoot() else { return }
-        let keys: [URLResourceKey] = [.creationDateKey]
+        let keys: [URLResourceKey] = [.addedToDirectoryDateKey]
         let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: keys)) ?? []
         let cutoff: Date = Date(timeIntervalSinceNow: -24 * 60 * 60)
         for folder in listed {
-            if let made = (try? folder.resourceValues(forKeys: Set(keys)))?.creationDate, made < cutoff {
+            if let made = (try? folder.resourceValues(forKeys: Set(keys)))?.addedToDirectoryDate, made < cutoff {
                 try? FileManager.default.removeItem(at: folder)
             }
         }

@@ -222,7 +222,10 @@ public final class AppState: ObservableObject {
     /// The records whose pass was stopped because the system's background time ran out.
     var timedOut: Set<String> = []
     var manual: ManualRun? {
-        didSet { updateCard() }
+        didSet {
+            updateCard()
+            if manual?.recordId != oldValue?.recordId { keepBacks() }
+        }
     }
     var againActions: [String: @MainActor () async -> Void] = [:]
     var againOrder: [String] = []
@@ -494,6 +497,11 @@ public final class AppState: ObservableObject {
         reportNotAdded(names.map { (name: $0, reason: DocumentText.unreadable) })
     }
 
+    /// The file picker failed.
+    public func reportImportFailure(_ error: Error) {
+        showFailure("Not added", error.localizedDescription)
+    }
+
     /// Lazy Scan's hand-off address came but the files it named are gone.
     public func reportMissingHandoff() {
         showFailure("Not added", "The file from Lazy Scan was not there. Share it from Lazy Scan again.")
@@ -635,7 +643,9 @@ public final class AppState: ObservableObject {
         drawnSides.removeAll { $0.key == key }
         drawnSides.append((key: key, image: image))
         // Two decks show two sides and draw the two either side of them ahead.
-        if drawnSides.count > 6 { drawnSides.removeFirst() }
+        // A zoomed page is big: keep the visible side and the four around it only.
+        let limit: Int = previewScale > 2 ? 5 : 6
+        while drawnSides.count > limit { drawnSides.removeFirst() }
     }
 
     private func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {
