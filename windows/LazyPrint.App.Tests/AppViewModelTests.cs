@@ -1,5 +1,6 @@
 using System.IO;
 using LazyPrint.App;
+using LazyPrint.App.Services;
 using LazyPrint.Core;
 using Xunit;
 
@@ -456,6 +457,23 @@ public sealed class AppViewModelTests
         Assert.Equal("Print 1 sheet × 3", rig.Model.PrintLabel);
         await rig.Model.PrintAsync();
         Assert.Equal("Sent 1 sheet × 3 to Demo Printer", rig.Model.SentMessage);
+    }
+
+    [Fact]
+    public async Task AWaitingJobWithADetailShowsTheDetailInsteadOfTheCount()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Sheets.Report = new JobStatus(JobState.Waiting, 0, "Out of paper");
+        rig.Sheets.While = (_, _, token) => Task.Delay(Timeout.Infinite, token);
+
+        var printing = rig.Model.PrintAsync();
+        for (var tries = 0; tries < 200 && rig.Model.StatusMessage != "Out of paper"; tries++) await Task.Delay(10);
+
+        Assert.Equal("Out of paper", rig.Model.StatusMessage);
+        rig.Model.CancelJob();
+        await printing;
     }
 
     [Fact]
