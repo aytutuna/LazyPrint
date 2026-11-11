@@ -208,7 +208,7 @@ final class ScreenshotTests: XCTestCase {
         await state.addFiles([try writePDF(pages: 4, in: work)])
         await state.print()
         XCTAssertNotNil(state.duplexCard, "A printer that prints one side gets the card")
-        try await capture(DuplexSheet(), of: state, name: "two-sided", in: folder, size: CGSize(width: 520, height: 200))
+        try await capture(DuplexCardView(), of: state, name: "two-sided", in: folder, size: CGSize(width: 520, height: 200))
     }
 
     func test_troubleshooter_noPrinter() async throws {

@@ -3,10 +3,10 @@ import LazyPrintKit
 import SwiftUI
 
 /// The two-sided card: where a job done by hand waits for the stack to go back in the tray, and the one-sheet check that
-/// teaches the app how this printer takes it. Escape only moves to Cancel: the fronts are already printed, and a sheet
-/// that closed on its own would lose the backs. Cancel is the way out, and while a pass runs it stops the pass. Twin of the
-/// Windows overlay.
-struct DuplexSheet: View {
+/// teaches the app how this printer takes it. It sits in the window above the tabs, so the preview and Jobs stay usable
+/// while the stack is turned. Escape only moves to Cancel: the fronts are already printed, and a card that closed on its
+/// own would lose the backs. Cancel is the way out, and while a pass runs it stops the pass. Twin of the Windows overlay.
+struct DuplexCardView: View {
     @EnvironmentObject var state: AppState
     @FocusState private var cancelFocused: Bool
 
@@ -50,11 +50,10 @@ struct DuplexSheet: View {
                 .focused($cancelFocused)
             }
         }
-        .padding(20)
-        .frame(width: 480)
-        .interactiveDismissDisabled()
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bar)
         .onExitCommand { cancelFocused = true }
-        .printCertificateAlert(state)
     }
 
     @ViewBuilder

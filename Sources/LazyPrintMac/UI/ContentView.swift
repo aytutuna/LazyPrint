@@ -42,6 +42,10 @@ struct ContentView: View {
             // newer macOS and push the sidebar under the traffic-light buttons.
             VStack(spacing: 0) {
                 bars
+                if state.duplexCard != nil {
+                    DuplexCardView()
+                    Divider()
+                }
                 HStack {
                     Picker("View", selection: $tab) {
                         Text("Print").tag(ContentTab.print)
@@ -107,12 +111,8 @@ struct ContentView: View {
                 .environmentObject(state)
                 .environmentObject(host)
         }
-        .sheet(isPresented: Binding(get: { state.duplexCard != nil }, set: { _ in })) {
-            DuplexSheet()
-                .environmentObject(state)
-        }
         .printCertificateAlert(state)
-        .focusedSceneValue(\.sheetOpen, showTroubleshooter || showAddPrinter || showPhone || state.duplexCard != nil)
+        .focusedSceneValue(\.sheetOpen, showTroubleshooter || showAddPrinter || showPhone)
         // Files from Open With, the Dock icon and `open` arrive here, and lazyprint:open?file=... from Lazy Scan.
         .onOpenURL { url in
             if url.isFileURL {
