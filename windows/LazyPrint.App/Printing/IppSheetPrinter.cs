@@ -31,6 +31,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         using var client = _connect(job.Printer);
         progress.Report(new JobStatus(JobState.Preparing, 0));
         var caps = job.Capabilities ?? await client.CapabilitiesAsync(token);
+        if (!caps.IsAcceptingJobs && job.Capabilities is not null) caps = await client.CapabilitiesAsync(token);
         if (!caps.IsAcceptingJobs)
             throw new PrintException(new PrintError.Refused((ushort)IppStatus.ServerErrorNotAcceptingJobs, PrintText.NotAcceptingJobs(job.Printer.Name)));
         var original = pass == 0 ? await Task.Run(() => AsIs(job), token) : null;

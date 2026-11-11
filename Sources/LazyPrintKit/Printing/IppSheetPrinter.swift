@@ -50,7 +50,7 @@ public final class IppSheetPrinter: SheetPrinter {
         let client = try connect(job.printer)
         progress(JobStatus(state: .preparing, sidesDone: 0))
         let caps: PrinterCapabilities
-        if let known = job.capabilities {
+        if let known = job.capabilities, known.isAcceptingJobs {
             caps = known
         } else {
             caps = try await client.capabilities()
