@@ -9,18 +9,38 @@ namespace LazyPrint.App.Services;
 /// <summary>
 /// Opens <c>lazyprint:</c> addresses (<see cref="LazyPrintUrl"/>) with this app, which is how Lazy Scan hands it a scan:
 /// the scheme is written for the current user only (HKCU\Software\Classes, never HKLM), each start, pointing at the exe
-/// that runs. The app has no installer, so nothing removes it; a value already right is not written again.
+/// that runs. The app has no installer, so nothing removes it; a value already right is not written again. The file
+/// types it opens are added to those types' Open with lists only (OpenWithProgids), never as their default.
 /// </summary>
 public static class FileAssociation
 {
+    private const string ProgId = "LazyPrint.File";
+
+    private static readonly string[] Extensions = [".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".bmp", ".heic"];
+
     /// <summary>The keys under Software\Classes and the value each gets (name "" is the default value), for the app at <paramref name="exePath"/>.</summary>
-    public static IReadOnlyList<(string Key, string Name, string Value)> Entries(string exePath) =>
-    [
-        (LazyPrintUrl.Scheme, "", "URL:Lazy Print"),
-        (LazyPrintUrl.Scheme, "URL Protocol", ""),
-        (LazyPrintUrl.Scheme + @"\DefaultIcon", "", $"\"{exePath}\",0"),
-        (LazyPrintUrl.Scheme + @"\shell\open\command", "", $"\"{exePath}\" \"%1\""),
-    ];
+    public static IReadOnlyList<(string Key, string Name, string Value)> Entries(string exePath)
+    {
+        string open = $"\"{exePath}\" \"%1\"";
+        string application = @"Applications\" + Path.GetFileName(exePath);
+        var entries = new List<(string, string, string)>
+        {
+            (LazyPrintUrl.Scheme, "", "URL:Lazy Print"),
+            (LazyPrintUrl.Scheme, "URL Protocol", ""),
+            (LazyPrintUrl.Scheme + @"\DefaultIcon", "", $"\"{exePath}\",0"),
+            (LazyPrintUrl.Scheme + @"\shell\open\command", "", open),
+            (application, "FriendlyAppName", "Lazy Print"),
+            (application + @"\shell\open\command", "", open),
+            (ProgId, "", "Lazy Print"),
+            (ProgId + @"\shell\open\command", "", open),
+        };
+        foreach (string extension in Extensions)
+        {
+            entries.Add((application + @"\SupportedTypes", extension, ""));
+            entries.Add((extension + @"\OpenWithProgids", ProgId, ""));
+        }
+        return entries;
+    }
 
     /// <summary>Writes <see cref="Entries"/> under <paramref name="classes"/>; true when anything changed.</summary>
     public static bool Register(RegistryKey classes, string exePath)

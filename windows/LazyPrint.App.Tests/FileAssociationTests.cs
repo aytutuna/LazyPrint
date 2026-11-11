@@ -18,14 +18,22 @@ public sealed class FileAssociationTests : IDisposable
     [Fact]
     public void Entries_PointTheSchemeAtTheApp()
     {
-        Assert.Equal(
-            [
-                ("lazyprint", "", "URL:Lazy Print"),
-                ("lazyprint", "URL Protocol", ""),
-                (@"lazyprint\DefaultIcon", "", "\"C:\\Program Files\\Lazy Print\\LazyPrint.exe\",0"),
-                (@"lazyprint\shell\open\command", "", "\"C:\\Program Files\\Lazy Print\\LazyPrint.exe\" \"%1\""),
-            ],
-            FileAssociation.Entries(Exe));
+        var entries = FileAssociation.Entries(Exe);
+        string open = $"\"{Exe}\" \"%1\"";
+        Assert.Contains(("lazyprint", "", "URL:Lazy Print"), entries);
+        Assert.Contains(("lazyprint", "URL Protocol", ""), entries);
+        Assert.Contains((@"lazyprint\shell\open\command", "", open), entries);
+    }
+
+    [Fact]
+    public void Entries_ListTheAppInOpenWithAndNeverAsTheDefault()
+    {
+        var entries = FileAssociation.Entries(Exe);
+        Assert.Contains((@"Applications\LazyPrint.exe\SupportedTypes", ".pdf", ""), entries);
+        Assert.Contains((@"Applications\LazyPrint.exe\SupportedTypes", ".heic", ""), entries);
+        Assert.Contains((@".pdf\OpenWithProgids", "LazyPrint.File", ""), entries);
+        Assert.Contains((@".tiff\OpenWithProgids", "LazyPrint.File", ""), entries);
+        Assert.DoesNotContain(entries, e => e.Key.StartsWith('.') && !e.Key.EndsWith(@"\OpenWithProgids"));
     }
 
     [Fact]
