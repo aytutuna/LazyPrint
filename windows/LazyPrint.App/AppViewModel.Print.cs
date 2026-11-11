@@ -403,7 +403,7 @@ public sealed partial class AppViewModel
         if (_job is null || _canceling) return;
         _canceling = true;
         _job.Cancel();
-        if (_jobRunning is { } id && CurrentJob(id) is { } record) SetJob(id, record.State, PrintText.Canceling);
+        if (_jobRunning is { } id && CurrentJob(id) is { State: not JobState.Canceled } record) SetJob(id, record.State, PrintText.Canceling);
         _statusOverride = PrintText.Canceling;
         NotifyAll();
     }
