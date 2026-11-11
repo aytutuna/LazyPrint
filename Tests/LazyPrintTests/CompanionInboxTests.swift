@@ -16,6 +16,7 @@ final class CompanionInboxTests: XCTestCase {
     override func setUpWithError() throws {
         root = try tempFolder()
         inbox = CompanionInbox(directory: root.appendingPathComponent("Inbox", isDirectory: true))
+        inbox.freeSpace = { _ in Int64.max }
     }
 
     private func at(_ seconds: TimeInterval) -> Date {
@@ -237,6 +238,48 @@ final class CompanionInboxTests: XCTestCase {
         }
         do {
             _ = try await inbox.receive(deviceId: phone, packageId: "package-0002", body: empty, length: 1000, now: start)
+            XCTFail("The upload was received.")
+        } catch CompanionInboxError.endedEarly {
+        }
+    }
+
+    func testUploadsUnderWay_CountAgainstTheByteLimitTogether() async throws {
+        let reading = Guarded<Bool>(false)
+        let slow = CompanionRequestBody(length: 0, prefix: Data()) { _ in
+            reading.value = true
+            try await Task.sleep(nanoseconds: 300_000_000)
+            return Data()
+        }
+        let half = CompanionInbox.maxWaitingBytes / 2 + 1
+        let first = Task { [inbox, phone, start] in
+            try await inbox!.receive(deviceId: phone, packageId: "package-0001", body: slow, length: half, now: start)
+        }
+        while !reading.value { try await Task.sleep(nanoseconds: 5_000_000) }
+        let empty = CompanionRequestBody(length: 0, prefix: Data()) { _ in Data() }
+        do {
+            _ = try await inbox.receive(deviceId: phone, packageId: "package-0002", body: empty, length: half, now: start)
+            XCTFail("The upload was received.")
+        } catch CompanionInboxError.full {
+        }
+        _ = try? await first.value
+        // The reservation went with the failed upload.
+        do {
+            _ = try await inbox.receive(deviceId: phone, packageId: "package-0002", body: empty, length: half, now: start)
+            XCTFail("The upload was received.")
+        } catch CompanionInboxError.endedEarly {
+        }
+    }
+
+    func testAnUploadThatWouldLeaveTooLittleDisk_IsRefused() async throws {
+        inbox.freeSpace = { _ in CompanionInbox.minFreeBytes + 999 }
+        let empty = CompanionRequestBody(length: 0, prefix: Data()) { _ in Data() }
+        do {
+            _ = try await inbox.receive(deviceId: phone, packageId: "package-0001", body: empty, length: 1000, now: start)
+            XCTFail("The upload was received.")
+        } catch CompanionInboxError.full {
+        }
+        do {
+            _ = try await inbox.receive(deviceId: phone, packageId: "package-0001", body: empty, length: 999, now: start)
             XCTFail("The upload was received.")
         } catch CompanionInboxError.endedEarly {
         }

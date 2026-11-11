@@ -115,6 +115,7 @@ public final class CompanionInbox: @unchecked Sendable {
     public static let keepDays = 7
     public static let maxWaitingFiles = 100
     public static let maxWaitingBytes: Int64 = 2 * 1024 * 1024 * 1024
+    public static let minFreeBytes: Int64 = 1024 * 1024 * 1024
     public static let fullMessage = "This computer has too many files from your phone waiting. Add or dismiss them on the computer first."
     public static let batchGrace: TimeInterval = 30
 
@@ -142,10 +143,17 @@ public final class CompanionInbox: @unchecked Sendable {
     public let directory: URL
     private let lock = NSLock()
     private var inProgress: Set<String> = []
+    // What uploads under way have been promised, per phone, so parallel ones count against the quota together.
+    private var reserved: [String: (files: Int, bytes: Int64)] = [:]
 
     /// The name a paired phone goes by on this computer, nil when unknown. A batch shows it instead of the phone's own
     /// word. Set once, before the inbox is used.
     public var nameOf: @Sendable (String) -> String? = { _ in nil }
+
+    /// The free bytes on the volume that holds the given folder; nil when unknown. Set once, before the inbox is used.
+    public var freeSpace: @Sendable (URL) -> Int64? = { url in
+        (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+    }
 
     public init(directory: URL) {
         self.directory = directory
@@ -189,7 +197,8 @@ public final class CompanionInbox: @unchecked Sendable {
                         now: Date) async throws -> ReceivedPackage {
         guard CompanionInbox.valid(deviceId, packageId) else { throw CompanionInboxError.invalidId }
         let folder = deviceFolder(deviceId)
-        try ensureRoom(in: folder, length: length)
+        try reserve(deviceId, folder: folder, length: length)
+        defer { release(deviceId, length: length) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let part = folder.appendingPathComponent(packageId + ".part")
         let final = folder.appendingPathComponent(packageId + "." + PrintPackage.fileExtension)
@@ -432,16 +441,30 @@ public final class CompanionInbox: @unchecked Sendable {
         return candidate
     }
 
-    /// Throws `CompanionInboxError.full` when `length` more bytes would pass what the phone may have waiting.
-    private func ensureRoom(in folder: URL, length: Int64) throws {
-        guard let files = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.fileSizeKey]) else { return }
-        var count = 0
-        var bytes = length
-        for file in files where file.pathExtension == PrintPackage.fileExtension {
-            count += 1
-            bytes += Int64((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+    /// Counts an upload of `length` bytes against the phone's quota until `release`. Throws `CompanionInboxError.full`
+    /// when it would pass what the phone may have waiting, or leave less than `minFreeBytes` on the disk.
+    private func reserve(_ deviceId: String, folder: URL, length: Int64) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        let held = reserved[deviceId] ?? (files: 0, bytes: 0)
+        var count = held.files
+        var bytes = held.bytes + length
+        if let files = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.fileSizeKey]) {
+            for file in files where file.pathExtension == PrintPackage.fileExtension {
+                count += 1
+                bytes += Int64((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+            }
         }
         if count >= CompanionInbox.maxWaitingFiles || bytes > CompanionInbox.maxWaitingBytes { throw CompanionInboxError.full }
+        if let free = freeSpace(directory), free - length < CompanionInbox.minFreeBytes { throw CompanionInboxError.full }
+        reserved[deviceId] = (files: held.files + 1, bytes: held.bytes + length)
+    }
+
+    private func release(_ deviceId: String, length: Int64) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let held = reserved[deviceId] else { return }
+        reserved[deviceId] = held.files <= 1 ? nil : (files: held.files - 1, bytes: held.bytes - length)
     }
 
     private static func valid(_ deviceId: String, _ packageId: String) -> Bool {

@@ -60,6 +60,8 @@ public sealed class CompanionInbox
     public const int MaxWaitingFiles = 100;
     public const long MaxWaitingBytes = 2L * 1024 * 1024 * 1024;
     public const string FullMessage = "This computer has too many files from your phone waiting. Add or dismiss them on the computer first.";
+    public const long MinFreeBytes = 1L * 1024 * 1024 * 1024;
+    public const string DiskFullMessage = "This computer is low on disk space. Free some up and send again.";
     public static readonly TimeSpan BatchGrace = TimeSpan.FromSeconds(30);
 
     // The longest name a taken file gets, so that " (2)" and so on still fit in 255 bytes.
@@ -85,9 +87,14 @@ public sealed class CompanionInbox
     private readonly string _directory;
     private readonly object _gate = new();
     private readonly HashSet<string> _inProgress = [];
+    // What uploads under way have been promised, per phone, so parallel ones count against the quota together.
+    private readonly Dictionary<string, (int Files, long Bytes)> _reserved = [];
 
     /// <summary>The name a paired phone goes by on this computer, null when unknown. A batch shows it instead of the phone's own word.</summary>
     public Func<string, string?> NameOf { get; set; } = _ => null;
+
+    /// <summary>The free bytes on the drive that holds the given folder.</summary>
+    public Func<string, long> FreeSpace { get; set; } = FreeSpaceOf;
 
     public CompanionInbox(string directory)
     {
@@ -134,7 +141,25 @@ public sealed class CompanionInbox
     {
         Check(deviceId, packageId);
         string folder = DeviceFolder(deviceId);
-        EnsureRoom(folder, length);
+        Reserve(deviceId, folder, length);
+        try
+        {
+            return await ReceiveReservedAsync(deviceId, packageId, folder, body, length, now, cancellation).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                var (files, bytes) = _reserved[deviceId];
+                if (files <= 1) _reserved.Remove(deviceId);
+                else _reserved[deviceId] = (files - 1, bytes - length);
+            }
+        }
+    }
+
+    private async Task<ReceivedPackage> ReceiveReservedAsync(string deviceId, string packageId, string folder, Stream body,
+                                                             long length, DateTimeOffset now, CancellationToken cancellation)
+    {
         Directory.CreateDirectory(folder);
         string part = System.IO.Path.Combine(folder, packageId + ".part");
         string final = System.IO.Path.Combine(folder, packageId + "." + PrintPackage.FileExtension);
@@ -359,17 +384,39 @@ public sealed class CompanionInbox
         }
     }
 
-    private static void EnsureRoom(string folder, long length)
+    // Checks the quota and the free disk, then counts the upload against the quota until it ends.
+    private void Reserve(string deviceId, string folder, long length)
     {
-        if (!Directory.Exists(folder)) return;
-        int files = 0;
-        long bytes = length;
-        foreach (string path in Directory.EnumerateFiles(folder, "*." + PrintPackage.FileExtension))
+        lock (_gate)
         {
-            files++;
-            bytes += new FileInfo(path).Length;
+            _reserved.TryGetValue(deviceId, out var reserved);
+            int files = reserved.Files;
+            long bytes = reserved.Bytes + length;
+            if (Directory.Exists(folder))
+            {
+                foreach (string path in Directory.EnumerateFiles(folder, "*." + PrintPackage.FileExtension))
+                {
+                    files++;
+                    bytes += new FileInfo(path).Length;
+                }
+            }
+            if (files >= MaxWaitingFiles || bytes > MaxWaitingBytes) throw new CompanionInboxFullException(FullMessage);
+            if (FreeSpace(_directory) - length < MinFreeBytes) throw new CompanionInboxFullException(DiskFullMessage);
+            _reserved[deviceId] = (reserved.Files + 1, reserved.Bytes + length);
         }
-        if (files >= MaxWaitingFiles || bytes > MaxWaitingBytes) throw new CompanionInboxFullException(FullMessage);
+    }
+
+    private static long FreeSpaceOf(string folder)
+    {
+        try
+        {
+            return new DriveInfo(System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(folder))!).AvailableFreeSpace;
+        }
+        catch (Exception e) when (e is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            // A drive that cannot be asked (a network share, say) is not held against the upload.
+            return long.MaxValue;
+        }
     }
 
     private string DeviceFolder(string deviceId) => System.IO.Path.Combine(_directory, deviceId);
