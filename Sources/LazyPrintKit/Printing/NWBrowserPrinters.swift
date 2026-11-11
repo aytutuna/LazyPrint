@@ -491,9 +491,10 @@ public final class NWBrowserPrinters: NetworkPrinters {
         var refused: AddressCheck?
         for address in endpoint.addresses {
             // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
-            // The other addresses still tell how the printer is.
+            // The other addresses still tell how the printer is; a changed or invalid one is refused outright.
             let result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: nil)
-            if result.certificate != nil {
+            if let certificate = result.certificate {
+                if certificate.verdict != .unknown { return result }
                 refused = refused ?? result
             } else if result.capabilities != nil {
                 return AddressCheck(address: result.address, capabilities: result.capabilities,

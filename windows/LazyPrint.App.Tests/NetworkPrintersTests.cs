@@ -163,6 +163,26 @@ public sealed class NetworkPrintersTests : IDisposable
     }
 
     [Fact]
+    public async Task AReadOfATrustedPrinterWithAChangedCertificateIsNotAnsweredByItsPlainAddress()
+    {
+        using var certificate = LoopbackIppPrinter.SelfSigned("FakePrinter");
+        _loopback.Certificate = certificate;
+        const string uuid = "4509a320-00a0-008f-00b6-00e0b36a5c50";
+        new IppTrustStore(_folder).Trust(new string('a', 64), uuid, "127.0.0.1:" + _loopback.Port, "HP LaserJet");
+        var network = Network();
+        string[] txt = ["rp=ipp/print", "UUID=" + uuid];
+        var secure = new IppService("dnssd-s", "HP LaserJet", true, null, ["127.0.0.1"], _loopback.Port, txt);
+        var plain = new IppService("dnssd-p", "HP LaserJet", false, null, ["127.0.0.1"], _loopback.Port, txt);
+        var endpoint = Assert.Single(IppEndpoint.Choose([secure, plain]));
+
+        var read = await network.ReadAsync(endpoint, CancellationToken.None);
+
+        Assert.Equal(IppTrustVerdict.Changed, read.Certificate!.Verdict);
+        Assert.Null(read.Capabilities);
+        Assert.Equal(0, _loopback.PlainConnections);
+    }
+
+    [Fact]
     public async Task AnAddressThatDoesNotAnswerIsAskedAgainAndListedWhenItDoes()
     {
         new IppHostList(_folder).Add(_loopback.Address());

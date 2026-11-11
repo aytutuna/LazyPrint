@@ -174,8 +174,9 @@ public sealed class NetworkPrinters : INetworkPrinters, IDisposable
         foreach (var address in endpoint.Addresses)
         {
             // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
-            // The other addresses still tell how the printer is.
+            // The other addresses still tell how the printer is; a changed or invalid one is refused outright.
             var result = await CheckAsync(address, endpoint.Uuid, endpoint.Name, null, token);
+            if (result.Certificate is { Verdict: not IppTrustVerdict.Unknown }) return result;
             if (result.Certificate is not null) refused ??= result;
             else if (result.Capabilities is not null) return result with { Certificate = refused?.Certificate };
             else last = result;

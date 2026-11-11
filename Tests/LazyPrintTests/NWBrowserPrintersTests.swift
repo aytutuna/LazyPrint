@@ -283,6 +283,31 @@ final class NWBrowserPrintersTests: XCTestCase {
     }
 
     @MainActor
+    func test_aReadOfATrustedPrinterWithAChangedCertificate_isNotAnsweredByItsPlainAddress() async throws {
+        let loopback = try LoopbackIppPrinter(identity: try LoopbackIdentity.load())
+        try await loopback.start()
+        defer { loopback.stop() }
+        let browsers = FakeBrowsers()
+        let resolver = FakeResolver()
+        resolver.answers[hp] = resolved("127.0.0.1", host: nil, port: Int(loopback.port))
+        let folder = try tempFolder()
+        try IppTrustStore(directory: folder).trust(String(repeating: "a", count: 64), deviceUuid: uuid,
+                                                   authority: "127.0.0.1:\(loopback.port)", name: "HP")
+        let printers = try makePrinters(browsers, resolver, directory: folder)
+        printers.start()
+        defer { printers.stop() }
+        browsers.latest("_ipps._tcp")?.report([result(type: "_ipps._tcp")])
+        browsers.latest("_ipp._tcp")?.report([result()])
+        let endpoint = try XCTUnwrap(IppEndpoint.choose(printers.services).first)
+
+        let check = await printers.read(endpoint)
+
+        XCTAssertEqual(check.certificate?.verdict, .changed)
+        XCTAssertNil(check.capabilities)
+        XCTAssertEqual(loopback.plainConnections, 0)
+    }
+
+    @MainActor
     func test_aPrinterThatDoesNotAnswer_isResolvedAgain() async throws {
         let loopback = try LoopbackIppPrinter()
         try await loopback.start()
