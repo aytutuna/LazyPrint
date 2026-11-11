@@ -146,6 +146,22 @@ public sealed class SpoolerPrinterTests : IDisposable
         Assert.Equal(Duplexing.OneSided, ticket.Duplexing);
     }
 
+    [Theory]
+    [InlineData(PrintJobStatus.Spooling, JobState.Waiting, null)]
+    [InlineData(PrintJobStatus.Printing, JobState.Printing, null)]
+    [InlineData(PrintJobStatus.Paused, JobState.NeedsUser, PrintText.JobPaused)]
+    [InlineData(PrintJobStatus.Offline | PrintJobStatus.Spooling, JobState.NeedsUser, IppProblemText.Offline)]
+    [InlineData(PrintJobStatus.PaperOut | PrintJobStatus.Printing, JobState.NeedsUser, IppProblemText.OutOfPaper)]
+    [InlineData(PrintJobStatus.Error, JobState.NeedsUser, IppProblemText.PrinterError)]
+    [InlineData(PrintJobStatus.UserIntervention, JobState.NeedsUser, PrintText.NeedsAttention)]
+    public void TheSpoolersJobStatusSaysWhatTheJobIsDoing(PrintJobStatus status, JobState state, string? detail)
+    {
+        var described = SpoolerPrinter.Describe(status, 2);
+
+        Assert.Equal(state, described.State);
+        Assert.Equal(detail, described.Detail);
+    }
+
     [Fact]
     public void TheTicketSaysNoScalingNoBindingAndOnePagePerSheetInPrintSchema()
     {

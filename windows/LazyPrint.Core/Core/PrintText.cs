@@ -18,6 +18,18 @@ public static class PrintText
 
     public const string Printed = "Printed";
 
+    /// <summary>The Windows spooler took the job and stopped telling how it went.</summary>
+    public const string SentStatus = "Sent";
+
+    public const string JobPaused = "Job paused";
+
+    public const string NeedsAttention = "Needs attention at the printer";
+
+    public const string JobDeleted = "The job was deleted from the print queue.";
+
+    /// <summary>Cancel on a job the printer already has.</summary>
+    public const string AlreadyAtPrinter = "Already at the printer, so it will finish";
+
     public const string LoadBacks = "Load the backs";
 
     /// <summary>The iPhone stopped a job because the system took back the app's time in the background.</summary>

@@ -26,6 +26,9 @@ public sealed partial class AppViewModel
     private TaskCompletionSource? _passEnded;
     private string? _jobRunning;
 
+    /// <summary>The pass that ended last was handed over without the printer saying it printed.</summary>
+    private bool _unconfirmed;
+
     /// <summary>What a job was made from, so Print again can make it once more.</summary>
     private sealed record JobInputs(PrinterInfo Printer, PrinterCapabilities? Capabilities, PrintSettings Settings, PrintTask? Task,
                                     IReadOnlyList<LoadedDocument> Documents, IReadOnlyList<int>? Range, string Name);
@@ -217,6 +220,9 @@ public sealed partial class AppViewModel
 
     public bool CanPrint => PrintDisabledReason is null;
 
+    /// <summary>The worst problem of the printer in use (paused, offline, out of paper); Print still works, as the queue takes the job.</summary>
+    public string? PrinterTrouble => SelectedPrinter?.Problems.FirstOrDefault(p => p.IsError)?.Title;
+
     public async Task PrintAsync()
     {
         if (!CanPrint || SelectedPrinter is not { } printer || Plan() is null) return;
@@ -263,7 +269,7 @@ public sealed partial class AppViewModel
     private void Sent(JobRecord record, PrinterInfo printer)
     {
         SetJob(record.Id, JobState.Done, null);
-        _statusOverride = PrintText.Printed;
+        _statusOverride = _unconfirmed ? PrintText.SentStatus : PrintText.Printed;
         SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
         _lastFailure = null;
         NotifyAll();
@@ -280,6 +286,7 @@ public sealed partial class AppViewModel
         using var cancellation = _job = new CancellationTokenSource();
         _passEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _jobRunning = recordId;
+        _unconfirmed = false;
         IsBusy = true;
         SetJob(recordId, JobState.Sending, null);
         _statusOverride = PrintText.Printing(1, sides);
@@ -290,6 +297,7 @@ public sealed partial class AppViewModel
             {
                 if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
                 SetJob(recordId, status.State, status.Detail);
+                _unconfirmed = status.Unconfirmed;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
                     : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
@@ -300,7 +308,7 @@ public sealed partial class AppViewModel
         }
         catch (OperationCanceledException)
         {
-            SetJob(recordId, JobState.Canceled, null);
+            SetJob(recordId, JobState.Canceled, CurrentJob(recordId) is { State: JobState.Canceled } stopped ? stopped.Detail : null);
             _statusOverride = null;
             return false;
         }
