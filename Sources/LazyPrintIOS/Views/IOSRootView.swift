@@ -52,7 +52,8 @@ public struct IOSRootView: View {
         // Outside the panel's dimming, so what a job in the panel says can be read and acted on.
         .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
-        .onDrop(of: [.pdf, .image], isTargeted: nil, perform: drop)
+        .environment(\.openRecent, { (file: RecentFile) in receive([state.recentURL(file)]) })
+        .onDrop(of: [.pdf, .image, .plainText, .commaSeparatedText], isTargeted: nil, perform: drop)
         .background {
             // The shortcut needs a button in the view tree; this one is never seen or tapped.
             Button("Add files") { source = .files }
@@ -76,6 +77,7 @@ public struct IOSRootView: View {
         }
         .quickLookPreview($fileActions.previewURL)
         .printCertificateAlert(state)
+        .passwordAlert(state)
         // Files from Open In and the share sheet arrive here, Lazy Scan's hand-off address and a pairing link; any other
         // lazyprint: URL only brings the app forward.
         .onOpenURL { (url: URL) in
@@ -156,13 +158,14 @@ public struct IOSRootView: View {
                 inbox.discardDelivered(urls, failed: received.failed)
             }
             await open(received.copies, notAdded: received.failed)
+            if !delivered { state.remember(urls) }
         }
     }
 
     /// Files dropped on the window, taken as data: the file a provider hands over is gone when its callback returns.
     private func drop(_ providers: [NSItemProvider]) -> Bool {
         let wanted: [(provider: NSItemProvider, type: UTType)] = providers.compactMap { (provider: NSItemProvider) -> (provider: NSItemProvider, type: UTType)? in
-            provider.registeredContentTypes.first { $0.conforms(to: .pdf) || $0.conforms(to: .image) }.map { (provider: provider, type: $0) }
+            provider.registeredContentTypes.first { $0.conforms(to: .pdf) || $0.conforms(to: .image) || $0.conforms(to: .plainText) || $0.conforms(to: .commaSeparatedText) }.map { (provider: provider, type: $0) }
         }
         guard !wanted.isEmpty, !state.isBusy, !state.isAddingFiles else { return false }
         Task {

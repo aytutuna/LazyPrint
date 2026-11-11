@@ -15,7 +15,7 @@ internal static class ShortText
     /// <summary>Over the window while files the print screen takes are dragged over it.</summary>
     public const string DropFiles = "Drop to add to the print";
     /// <summary>The empty print screen's second line.</summary>
-    public const string DropHint = "Or drop PDFs and pictures anywhere in the window.";
+    public const string DropHint = "Or drop PDFs, pictures and text files anywhere in the window.";
     /// <summary>A booklet's pages are always two-sided.</summary>
     public const string BookletTwoSided = "Booklets are two-sided";
     /// <summary>A booklet sets how many pages go on a side.</summary>

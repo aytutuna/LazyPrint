@@ -87,6 +87,13 @@ internal sealed class FakeDiagnostics : ISystemDiagnostics
 
     public void OpenLazyScan() => LazyScanOpened = true;
 
+    public bool LazyPdf { get; set; }
+    public string? OpenedInLazyPdf { get; private set; }
+
+    public bool LazyPdfInstalled() => LazyPdf;
+
+    public void OpenInLazyPdf(string path) => OpenedInLazyPdf = path;
+
     public List<string> Folders { get; } = [];
 
     public void OpenFolder(string path) => Folders.Add(path);

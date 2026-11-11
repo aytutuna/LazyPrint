@@ -12,6 +12,8 @@ struct PrintView: View {
 
     /// Opens the panel for more files.
     var addFiles: () -> Void
+    /// A recent file was picked.
+    var openRecent: (URL) -> Void
     /// A task was picked from the Task menu.
     var pickTask: (PrintTask) -> Void
 
@@ -31,7 +33,7 @@ struct PrintView: View {
                 }
                 if !state.documents.isEmpty {
                     Divider()
-                    DocumentStrip(addFiles: addFiles)
+                    DocumentStrip(addFiles: addFiles, openRecent: openRecent)
                         .padding(12)
                 }
             }
@@ -149,7 +151,8 @@ struct PrintView: View {
                 Label("Add files\u{2026}", systemImage: "plus")
             }
             .padding(.top, 4)
-            Text("Or drop PDFs and pictures anywhere in the window.")
+            RecentMenu(open: openRecent)
+            Text("Or drop PDFs, pictures and text files anywhere in the window.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

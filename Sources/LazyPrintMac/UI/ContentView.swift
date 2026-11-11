@@ -75,7 +75,7 @@ struct ContentView: View {
                 Divider()
                 switch tab {
                 case .print:
-                    PrintView(addFiles: { showImporter = true }, pickTask: { task in
+                    PrintView(addFiles: { showImporter = true }, openRecent: { url in _ = take([url]) }, pickTask: { task in
                         Task { await start(task) }
                     })
                 case .jobs:
@@ -102,7 +102,7 @@ struct ContentView: View {
         }
         // Below this the layout cannot stay usable.
         .frame(minWidth: 760, minHeight: 520)
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image, .plainText, .commaSeparatedText], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { _ = take(urls) }
         }
         .sheet(isPresented: $showTroubleshooter, onDismiss: {
@@ -124,6 +124,7 @@ struct ContentView: View {
                 .environmentObject(host)
         }
         .printCertificateAlert(state)
+        .passwordAlert(state)
         .focusedSceneValue(\.sheetOpen, showTroubleshooter || showAddPrinter || showPhone)
         // Files from Open With, the Dock icon and `open` arrive here, and lazyprint:open?file=... from Lazy Scan.
         .onOpenURL { url in
@@ -316,6 +317,7 @@ struct ContentView: View {
                 await state.addFiles(files, alsoNotAdded: refused)
             }
             state.holdAccess(started)
+            state.remember(files)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print

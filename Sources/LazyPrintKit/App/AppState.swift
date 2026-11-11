@@ -27,6 +27,17 @@ public struct AppError: Equatable, Sendable {
     }
 }
 
+/// A locked PDF the alert asks the password of; `wrong` when the last one typed did not open it.
+public struct PasswordRequest: Equatable, Sendable {
+    public var name: String
+    public var wrong: Bool
+
+    public init(name: String, wrong: Bool) {
+        self.name = name
+        self.wrong = wrong
+    }
+}
+
 /// Where a two-sided job done by hand waits for the user. The Windows `DuplexStep` without `None`: no card, no step.
 public enum DuplexStep: Equatable, Sendable {
     /// The fronts are printed; the stack goes back in the tray.
@@ -115,6 +126,8 @@ public final class AppState: ObservableObject {
             drawingSides.removeAll()
         }
     }
+    /// The files opened last, newest first (AppState+Files.swift).
+    @Published public internal(set) var recentFiles: [RecentFile] = []
     /// The page range as typed ("1-3, 5"); empty is every page.
     @Published public internal(set) var pageRange = ""
     /// The sheets the settings make of the documents; nil with nothing to print or a page range that does not parse.
@@ -152,6 +165,8 @@ public final class AppState: ObservableObject {
     /// Files are being copied or downloaded into the app; the Add files menus wait for them.
     @Published public internal(set) var isAddingFiles = false
     private var addingFilesCount = 0
+    /// The locked PDF being asked about, the first of `lockedFiles`; nil when none is waiting.
+    @Published public internal(set) var passwordRequest: PasswordRequest?
     /// What was just done, for the status line; nil shows what the app is set up for.
     @Published var statusOverride: String?
 
@@ -180,6 +195,12 @@ public final class AppState: ObservableObject {
     let background: any BackgroundActivity
     let companionHost: any CompanionHosting
 
+    /// Locked PDFs waiting for their password, in the order they came, and the access taken for each until it is opened.
+    var lockedFiles: [URL] = []
+    var lockedAccess: [URL: ScopedAccess] = [:]
+    /// The file the user picked for each locked one, for the recent list once it unlocks.
+    var lockedPicked: [URL: URL] = [:]
+
     var settingsSaveTask: Task<Void, Never>?
     var previewTask: Task<Void, Never>?
     var previewRevision = 0
@@ -206,6 +227,9 @@ public final class AppState: ObservableObject {
     var refreshAgain = false
     var statusReading = false
     var lazyScanInstalled = false
+    var lazyPDFInstalled = false
+    /// The files documents were opened from by `addFiles`, which the phone's files are not (AppState+Files.swift).
+    var userFiles: Set<URL> = []
     var systemState = (spooler: ServiceStatus.unknown, network: NetworkStatus.unknown)
     var lastFailure: PrinterFailure?
     /// The sides the document task chose when it started without knowing the printer (`startTask`), kept as the task
@@ -323,10 +347,12 @@ public final class AppState: ObservableObject {
         }
         if saved == nil { sidesPickedBlind = initial.sides }
         self.lazyScanInstalled = self.fileActions.lazyScanInstalled()
+        self.lazyPDFInstalled = self.fileActions.lazyPDFInstalled()
         self.companionHost.onChange = { [weak self] in
             self?.refreshPhoneBatches()
         }
         refreshPhoneBatches()
+        refreshRecent()
         if platform == .ios && initial.printerId != nil {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
@@ -340,6 +366,8 @@ public final class AppState: ObservableObject {
         }
         lifecycle?.observeDidBecomeActive { [weak self] in
             guard let self, self.isActive else { return }
+            self.lazyPDFInstalled = self.fileActions.lazyPDFInstalled()
+            self.refreshRecent()
             Task { await self.refreshPrinters() }
         }
     }
@@ -444,11 +472,15 @@ public final class AppState: ObservableObject {
     /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
     /// `alsoNotAdded` are files the caller could not even try; they are reported with the ones that fail here.
     public func addFiles(_ urls: [URL], alsoNotAdded: [(name: String, reason: String)] = []) async {
-        let (opened, failed) = await openFiles(urls)
+        var locked: [URL] = []
+        let (opened, failed) = await openFiles(urls, locked: { locked.append($0) })
         documents.append(contentsOf: opened)
+        userFiles.formUnion(opened.map { $0.url })
         let notAdded = alsoNotAdded + failed
         if !notAdded.isEmpty { reportNotAdded(notAdded) }
         replan()
+        lockedFiles += locked.filter { !lockedFiles.contains($0) }
+        askNextPassword()
     }
 
     /// Ties the access taken for files to the documents opened from them; one that opened no document is stopped here.
@@ -456,6 +488,8 @@ public final class AppState: ObservableObject {
         for token in tokens {
             if let i = documents.firstIndex(where: { $0.url == token.url && $0.access == nil }) {
                 documents[i].access = token
+            } else if lockedFiles.contains(token.url) {
+                lockedAccess[token.url] = token
             }
         }
     }
@@ -469,8 +503,10 @@ public final class AppState: ObservableObject {
         isAddingFiles = addingFilesCount > 0
     }
 
-    /// Opens the files without adding them; the ones that cannot be read come back with what was wrong.
-    func openFiles(_ urls: [URL]) async -> (opened: [OpenedDocument], failed: [(name: String, reason: String)]) {
+    /// Opens the files without adding them; the ones that cannot be read come back with what was wrong. A locked PDF goes
+    /// to `locked` when there is one, instead of being counted as one that cannot be read.
+    func openFiles(_ urls: [URL], locked: ((URL) -> Void)? = nil) async
+        -> (opened: [OpenedDocument], failed: [(name: String, reason: String)]) {
         let opener = loader
         var opened: [OpenedDocument] = []
         var failed: [(name: String, reason: String)] = []
@@ -479,7 +515,11 @@ public final class AppState: ObservableObject {
                 let document = try await Task.detached { try opener.load(url) }.value
                 opened.append(document)
             } catch {
-                failed.append((name: url.lastPathComponent, reason: error.localizedDescription))
+                if let locked, error as? PrintError == PrintError.unreadable(DocumentText.lockedPdf) {
+                    locked(url)
+                } else {
+                    failed.append((name: url.lastPathComponent, reason: error.localizedDescription))
+                }
             }
         }
         return (opened, failed)
@@ -649,7 +689,7 @@ public final class AppState: ObservableObject {
         while drawnSides.count > limit { drawnSides.removeFirst() }
     }
 
-    private func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {
+    func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {
         var sides = [SheetSide]()
         for sheet in plan.plan.sheets {
             sides.append(sheet.front)

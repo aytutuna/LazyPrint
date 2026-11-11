@@ -183,15 +183,105 @@ final class DocumentLoaderTests: XCTestCase {
     // MARK: Refusals
 
     func test_file_ofAnotherKind_isRefused() {
-        assertRefused(DocumentFixtures.url("notes.txt"), "Lazy Print prints PDFs and pictures. Save it as a PDF first.")
+        assertRefused(DocumentFixtures.url("report.docx"), "Lazy Print prints PDFs, pictures and plain text. Save it as a PDF first.")
     }
 
     func test_file_withoutAnExtension_isRefused() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("lazyprint-\(UUID().uuidString)")
-        try Data("x".utf8).write(to: url)
+        try Data([0x78, 0x00, 0x01]).write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
 
         assertRefused(url, DocumentText.notSupported)
+    }
+
+    // MARK: Text
+
+    private func writeText(_ ext: String, _ bytes: [UInt8]) throws -> URL {
+        let url = tempURL(ext)
+        try Data(bytes).write(to: url)
+        return url
+    }
+
+    func test_text_isPagesOfLinesDrawnInBlack() throws {
+        let document = try loader.load(try writeText("txt", Array("X\n".utf8)))
+
+        XCTAssertEqual(document.loaded.kind, .imposed)
+        XCTAssertEqual(document.loaded.pages.count, 1)
+        let size = document.loaded.pages[0]
+        XCTAssertTrue(abs(size.width - 612) < 0.5 || abs(size.width - 595.3) < 0.5)
+        let bitmap = try drawn(document, width: size.width, height: size.height)
+        Pixels.assertColor(Pixels.white, bitmap, Int(size.width) - 10, Int(size.height) - 10)
+        var inked = false
+        for y in 54..<70 {
+            for x in 54..<64 where Pixels.at(bitmap, x, y).r < 200 { inked = true }
+        }
+        XCTAssertTrue(inked)
+    }
+
+    func test_text_isNeverSentAsItIs() throws {
+        let document = try loader.load(try writeText("md", Array("# Title\n".utf8)))
+
+        XCTAssertNil(loader.originalFile(document))
+    }
+
+    func test_text_withNoNameIsTextToo() throws {
+        let bare = FileManager.default.temporaryDirectory.appendingPathComponent("lazyprint-\(UUID().uuidString)")
+        try Data("one\r\ntwo\r\n".utf8).write(to: bare)
+        addTeardownBlock { try? FileManager.default.removeItem(at: bare) }
+
+        XCTAssertEqual(try loader.load(bare).loaded.kind, .imposed)
+    }
+
+    func test_text_withNothingInIt_isRefused() throws {
+        let url = try writeText("csv", Array("  \r\n".utf8))
+
+        assertRefused(url, DocumentText.noText)
+    }
+
+    func test_text_inAnOldCodePage_isReadAsThat() throws {
+        let url = try writeText("txt", [0x63, 0x61, 0x66, 0xE9])
+
+        XCTAssertEqual(try loader.load(url).loaded.pages.count, 1)
+    }
+
+    // MARK: WebP
+
+    func test_webp_opensAsAPicture() throws {
+        // The smallest lossless WebP (1 x 1).
+        let bytes = try XCTUnwrap(Data(base64Encoded: "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="))
+        let url = tempURL("webp")
+        try bytes.write(to: url)
+
+        let document = try loader.load(url)
+
+        XCTAssertEqual(document.loaded.kind, .photo)
+        XCTAssertEqual(document.loaded.pages.count, 1)
+    }
+
+    // MARK: Locked PDFs
+
+    func test_pdf_withTheRightPassword_opensAndDraws() throws {
+        let url = try writeLockedPDF(password: "secret")
+
+        let document = try loader.load(url, password: "secret")
+
+        XCTAssertEqual(document.loaded.kind, .pdf(encrypted: true))
+        XCTAssertEqual(document.annotated?.isLocked, false)
+        Pixels.assertColor(Pixels.red, try drawn(document, width: 61, height: 79), 30, 40)
+    }
+
+    func test_pdf_withTheWrongPassword_staysLocked() throws {
+        let url = try writeLockedPDF(password: "secret")
+
+        assertRefusedWith(url, password: "guess", DocumentText.lockedPdf)
+        assertRefusedWith(url, password: "", DocumentText.lockedPdf)
+    }
+
+    private func assertRefusedWith(_ url: URL, password: String, _ sentence: String, file: StaticString = #filePath,
+                                   line: UInt = #line) {
+        XCTAssertThrowsError(try loader.load(url, password: password), file: file, line: line) {
+            XCTAssertEqual($0 as? PrintError, .unreadable(sentence), file: file, line: line)
+        }
     }
 
     func test_aFileWhoseNameSaysNothing_isToldByItsContent() throws {

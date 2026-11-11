@@ -129,6 +129,7 @@ public sealed partial class AppViewModel
             }
             var (opened, failed) = await OpenFilesAsync(paths, token);
             foreach (var document in opened) Documents.Add(document);
+            RememberOpened(opened);
             if (failed.Count > 0) ReportNotAdded(failed);
         });
     }
@@ -247,7 +248,14 @@ public sealed partial class AppViewModel
                     continue;
                 }
                 opened.Add(document);
-                if (_takenPaths.Remove(path)) _takenFiles.Add(document, path);
+                if (_takenPaths.Remove(path))
+                {
+                    _takenFiles.Add(document, path);
+                }
+                else
+                {
+                    _sourcePaths.Add(document, path);
+                }
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {

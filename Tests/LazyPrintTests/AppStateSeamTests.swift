@@ -1080,8 +1080,8 @@ final class AppStateSeamTests: XCTestCase {
     @MainActor
     func test_addFiles_aFileThatCannotBeReadIsReportedAndTheOthersGoIn() async throws {
         let rig = try makeRig()
-        let bad = rig.folder.appendingPathComponent("notes.txt")
-        try Data("not a document".utf8).write(to: bad)
+        let bad = rig.folder.appendingPathComponent("report.docx")
+        try Data([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]).write(to: bad)
         await rig.state.addFiles([bad, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)])
 
         XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["b.pdf"])
@@ -1089,10 +1089,61 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_addFiles_aLockedPDFAsksForItsPassword_andIsNotReportedAsUnreadable() async throws {
+        let rig = try makeRig()
+        let locked = try writeLockedPDF(password: "secret")
+        await rig.state.addFiles([locked, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)])
+
+        XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["b.pdf"])
+        XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: locked.lastPathComponent, wrong: false))
+        XCTAssertNil(rig.state.error)
+    }
+
+    @MainActor
+    func test_unlock_theRightPasswordAddsTheDocument_andAsksNothingMore() async throws {
+        let rig = try makeRig()
+        let locked = try writeLockedPDF(password: "secret")
+        await rig.state.addFiles([locked])
+
+        await rig.state.unlock(locked, with: "secret")
+
+        XCTAssertEqual(rig.state.documents.map { $0.url }, [locked])
+        XCTAssertNil(rig.state.passwordRequest)
+        XCTAssertEqual(rig.state.documents.first?.annotated?.isLocked, false)
+        XCTAssertEqual(rig.state.pageCount, 1)
+    }
+
+    @MainActor
+    func test_unlock_aWrongPasswordAsksAgain() async throws {
+        let rig = try makeRig()
+        let locked = try writeLockedPDF(password: "secret")
+        await rig.state.addFiles([locked])
+
+        await rig.state.unlock(locked, with: "guess")
+
+        XCTAssertTrue(rig.state.documents.isEmpty)
+        XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: locked.lastPathComponent, wrong: true))
+    }
+
+    @MainActor
+    func test_skipPassword_leavesTheFileOutWithANote_andAsksAboutTheNext() async throws {
+        let rig = try makeRig()
+        let first = try writeLockedPDF(password: "one")
+        let second = try writeLockedPDF(password: "two")
+        await rig.state.addFiles([first, second])
+
+        rig.state.skipPassword()
+
+        XCTAssertTrue(rig.state.documents.isEmpty)
+        XCTAssertEqual(rig.state.error?.detail, DocumentText.lockedLeftOut(first.lastPathComponent))
+        XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: second.lastPathComponent, wrong: false))
+    }
+
+    @MainActor
     func test_addFiles_filesTheCallerCouldNotTryAreReportedWithTheOnesThatFail() async throws {
         let rig = try makeRig()
-        let bad = rig.folder.appendingPathComponent("notes.txt")
-        try Data("not a document".utf8).write(to: bad)
+        let bad = rig.folder.appendingPathComponent("report.docx")
+        try Data([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]).write(to: bad)
         await rig.state.addFiles([bad, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)],
                                  alsoNotAdded: [(name: "gone.pdf", reason: "Not from here.")])
 
@@ -1100,7 +1151,7 @@ final class AppStateSeamTests: XCTestCase {
         let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 2)
         XCTAssertEqual(lines[0], "gone.pdf: Not from here.")
-        XCTAssertTrue(lines[1].hasPrefix("notes.txt: "))
+        XCTAssertTrue(lines[1].hasPrefix("report.docx: "))
     }
 
     @MainActor

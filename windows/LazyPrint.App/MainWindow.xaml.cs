@@ -55,6 +55,7 @@ public partial class MainWindow : Window
             _ = ViewModel.RefreshPrintersAsync();
             _ = ViewModel.ReadSystemStateAsync();
             _ = ViewModel.RefreshLazyScanAsync();
+            _ = ViewModel.RefreshLazyPdfAsync();
             ViewModel.StartNetwork();
             ViewModel.StartCompanionIfPaired();
             _ = Task.Run(FileAssociation.RegisterForCurrentUser);
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
             if (!IsLoaded) return;
             _ = ViewModel.RefreshPrintersAsync();
             _ = ViewModel.RefreshLazyScanAsync();
+            _ = ViewModel.RefreshLazyPdfAsync();
         };
         Closing += MainWindow_Closing;
         Closed += (_, _) =>

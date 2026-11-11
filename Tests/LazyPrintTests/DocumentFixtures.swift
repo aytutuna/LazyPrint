@@ -75,6 +75,20 @@ extension XCTestCase {
         return url
     }
 
+    /// A one-page red PDF that asks for `password` to open.
+    func writeLockedPDF(password: String) throws -> URL {
+        let url = tempURL("pdf")
+        var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let info: [CFString: Any] = [kCGPDFContextUserPassword: password, kCGPDFContextOwnerPassword: password + "-owner"]
+        let context = try XCTUnwrap(CGContext(url as CFURL, mediaBox: &box, info as CFDictionary))
+        context.beginPDFPage(nil)
+        context.setFillColor(CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1))
+        context.fill(box)
+        context.endPDFPage()
+        context.closePDF()
+        return url
+    }
+
     /// A one-page PDF of the given size, filled with one colour.
     func writePDF(width: Double, height: Double, color: Rgb) throws -> URL {
         let url = tempURL("pdf")

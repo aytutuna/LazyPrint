@@ -5,9 +5,23 @@ import Foundation
 public enum DocumentText {
     public static let lockedPdf = "This PDF is locked. Open it in a PDF app and print it from there."
 
-    public static let notSupported = "Lazy Print prints PDFs and pictures. Save it as a PDF first."
+    public static let notSupported = "Lazy Print prints PDFs, pictures and plain text. Save it as a PDF first."
 
     public static let unreadable = "Lazy Print can't read this file."
+
+    public static let noText = "This file has no text."
+
+    public static let passwordTitle = "This PDF is locked"
+
+    /// "Enter the password for Report.pdf to open it." Asked again after a wrong one.
+    public static func passwordMessage(_ name: String, wrong: Bool) -> String {
+        wrong ? "That password did not work. Enter the password for \(name)." : "Enter the password for \(name) to open it."
+    }
+
+    /// "Report.pdf is locked, so it was left out."
+    public static func lockedLeftOut(_ name: String) -> String {
+        "\(name) is locked, so it was left out."
+    }
 
     public static let noPages = "This PDF has no pages."
 }

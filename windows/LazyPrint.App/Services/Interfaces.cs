@@ -101,6 +101,12 @@ public interface ISystemDiagnostics
     /// <summary>Starts Lazy Scan.</summary>
     void OpenLazyScan();
 
+    /// <summary>Lazy PDF is installed (it has registered the lazypdf: scheme).</summary>
+    bool LazyPdfInstalled();
+
+    /// <summary>Opens the PDF in Lazy PDF for editing; throws when it cannot be started.</summary>
+    void OpenInLazyPdf(string path);
+
     /// <summary>Shows a folder in Explorer. UI thread.</summary>
     void OpenFolder(string path);
 }

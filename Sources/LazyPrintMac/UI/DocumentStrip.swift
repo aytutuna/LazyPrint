@@ -10,6 +10,7 @@ import SwiftUI
 struct DocumentStrip: View {
     @EnvironmentObject var state: AppState
     var addFiles: () -> Void
+    var openRecent: (URL) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -25,7 +26,8 @@ struct DocumentStrip: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(state.isBusy)
-                .help("Add PDFs and pictures")
+                .help("Add PDFs, pictures and text")
+                RecentMenu(open: openRecent)
             }
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 10) {
@@ -80,6 +82,11 @@ struct DocumentStrip: View {
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(nsColor: .separatorColor)))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(document.loaded.name), \(count)")
+        .contextMenu {
+            if state.canEditInLazyPDF(document) {
+                Button("Lazy PDF") { state.editInLazyPDF(document) }
+            }
+        }
     }
 }
 

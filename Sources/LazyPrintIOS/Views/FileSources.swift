@@ -49,10 +49,23 @@ enum PhotoNames {
     }
 }
 
+private struct OpenRecentKey: EnvironmentKey {
+    static let defaultValue: (RecentFile) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    /// Adds a recent file again; the root view sets it, since the file has to be copied into the inbox first.
+    var openRecent: (RecentFile) -> Void {
+        get { self[OpenRecentKey.self] }
+        set { self[OpenRecentKey.self] = newValue }
+    }
+}
+
 /// The Add files menu, a plus that opens Files or Photos, and Lazy Scan when it is installed. It sets the source straight away; a dialog in
 /// between would still be closing when the picker opened, and UIKit drops a picker presented over a dismissal.
 struct AddFilesMenu: View {
     @EnvironmentObject private var state: AppState
+    @Environment(\.openRecent) private var openRecent
     let identifier: String
     let pick: (FileSource) -> Void
 
@@ -70,6 +83,17 @@ struct AddFilesMenu: View {
                 Label("Photos", systemImage: "photo.on.rectangle")
             }
             .accessibilityIdentifier("source.photos")
+            if !state.recentFiles.isEmpty {
+                Menu {
+                    ForEach(Array(state.recentFiles.enumerated()), id: \.offset) { _, file in
+                        Button(URL(fileURLWithPath: file.path).lastPathComponent) { openRecent(file) }
+                    }
+                    Button("Clear recent", role: .destructive) { state.clearRecent() }
+                } label: {
+                    Label("Recent", systemImage: "clock")
+                }
+                .accessibilityIdentifier(identifier + ".recent")
+            }
             if state.availability(of: .scanAndPrint).isAvailable {
                 Button {
                     Task { await state.startTask(.scanAndPrint) }
@@ -101,7 +125,7 @@ struct FileSources: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
+            .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image, .plainText, .commaSeparatedText], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
                 switch result {
                 case .success(let urls):
                     pick(urls)
