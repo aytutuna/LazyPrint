@@ -36,6 +36,9 @@ public enum IOSCompanionText {
         "Send to \(desktopName)"
     }
 
+    /// Under the buttons while Send is offered: the options set here do not go with the files.
+    public static let sendNote = "The computer prints with its own settings."
+
     /// Send is offered once a computer is paired and still knows this phone; one that does not answer is sent to later,
     /// from the outbox.
     public static func offersSend(_ status: CompanionStatus) -> Bool {

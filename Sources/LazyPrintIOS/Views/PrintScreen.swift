@@ -515,6 +515,10 @@ struct PrintScreen: View {
                         sendButton
                     }
                 }
+                Text(IOSCompanionText.sendNote)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("print.sendNote")
             } else {
                 printButton(reason)
             }
