@@ -102,7 +102,7 @@ struct ContentView: View {
         }
         // Below this the layout cannot stay usable.
         .frame(minWidth: 760, minHeight: 520)
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image, .plainText], allowsMultipleSelection: true) { result in
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image, .plainText, .commaSeparatedText], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { _ = take(urls) }
         }
         .sheet(isPresented: $showTroubleshooter, onDismiss: {

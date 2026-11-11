@@ -59,7 +59,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
             <key>CFBundleTypeName</key>      <string>Text document</string>
             <key>CFBundleTypeRole</key>      <string>Viewer</string>
             <key>LSHandlerRank</key>         <string>Alternate</string>
-            <key>LSItemContentTypes</key>    <array><string>public.plain-text</string></array>
+            <key>LSItemContentTypes</key>    <array><string>public.plain-text</string><string>public.comma-separated-values-text</string></array>
         </dict>
     </array>
     <key>CFBundleURLTypes</key>

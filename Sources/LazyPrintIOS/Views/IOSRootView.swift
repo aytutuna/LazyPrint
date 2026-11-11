@@ -53,7 +53,7 @@ public struct IOSRootView: View {
         .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
         .environment(\.openRecent, { (file: RecentFile) in receive([state.recentURL(file)]) })
-        .onDrop(of: [.pdf, .image, .plainText], isTargeted: nil, perform: drop)
+        .onDrop(of: [.pdf, .image, .plainText, .commaSeparatedText], isTargeted: nil, perform: drop)
         .background {
             // The shortcut needs a button in the view tree; this one is never seen or tapped.
             Button("Add files") { source = .files }
@@ -165,7 +165,7 @@ public struct IOSRootView: View {
     /// Files dropped on the window, taken as data: the file a provider hands over is gone when its callback returns.
     private func drop(_ providers: [NSItemProvider]) -> Bool {
         let wanted: [(provider: NSItemProvider, type: UTType)] = providers.compactMap { (provider: NSItemProvider) -> (provider: NSItemProvider, type: UTType)? in
-            provider.registeredContentTypes.first { $0.conforms(to: .pdf) || $0.conforms(to: .image) || $0.conforms(to: .plainText) }.map { (provider: provider, type: $0) }
+            provider.registeredContentTypes.first { $0.conforms(to: .pdf) || $0.conforms(to: .image) || $0.conforms(to: .plainText) || $0.conforms(to: .commaSeparatedText) }.map { (provider: provider, type: $0) }
         }
         guard !wanted.isEmpty, !state.isBusy, !state.isAddingFiles else { return false }
         Task {
