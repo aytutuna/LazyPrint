@@ -7,6 +7,9 @@ public static class PrintText
     /// <summary>Why a task cannot be started: no printer is set up.</summary>
     public const string NoPrinterReason = "Needs a printer";
 
+    /// <summary>Why Print is off: the page choice leaves nothing to print.</summary>
+    public const string NoPagesReason = "No pages to print";
+
     public const string NeedsLazyScanReason = "Needs Lazy Scan";
 
     public const string NoPrinterMessage = "No printer is set up. Add a printer, then try again.";
