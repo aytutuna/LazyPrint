@@ -1,4 +1,5 @@
 #if os(iOS)
+import Combine
 import LazyPrintKit
 import QuickLook
 import SwiftUI
@@ -141,10 +142,13 @@ public struct IOSRootView: View {
 
     /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice. When a
     /// file did not copy the folder stays until the old hand-offs are removed; the files that did copy are in the job.
+    /// While a job runs they wait, and are added once it is over.
     private func receiveHandoff(_ id: UUID) {
         let before: Task<Void, Never>? = opening
         opening = Task {
             await before?.value
+            // Adding files or saying one is missing would replace the status and error of the job that is running.
+            _ = await state.$isBusy.values.first { (busy: Bool) -> Bool in !busy }
             guard let urls = IOSFileInbox.handoffFiles(id) else {
                 state.reportMissingHandoff()
                 return
