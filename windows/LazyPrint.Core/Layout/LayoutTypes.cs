@@ -76,6 +76,11 @@ public sealed record LayoutOptions
     public Sides Sides { get; init; } = Sides.OneSided;
     /// <summary>A thin line around each page when there are several on a side.</summary>
     public bool PageBorders { get; init; }
+    /// <summary>
+    /// The size of a page alone on its side, in percent of its own; <see cref="Scaling"/> still keeps it inside the printable
+    /// area when it shrinks to fit. Cells of several pages, booklets and fit or fill ignore it.
+    /// </summary>
+    public int Scale { get; init; } = 100;
 }
 
 /// <summary>Where one page goes on a sheet side.</summary>

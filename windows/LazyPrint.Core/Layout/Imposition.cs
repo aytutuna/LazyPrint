@@ -54,7 +54,7 @@ public static class Imposition
             {
                 if (perSide == 1)
                 {
-                    placements.Add(Alone(page, area, scaling, notes));
+                    placements.Add(Alone(page, area, scaling, options.Scale, notes));
                     continue;
                 }
                 int index = placements.Count, row = index / columns, column = index % columns;
@@ -127,11 +127,13 @@ public static class Imposition
     }
 
     /// <summary>One page on its side: landscape pages get the landscape view.</summary>
-    private static Placement Alone(SourcePage page, PrintableArea area, Scaling scaling, Notes notes)
+    private static Placement Alone(SourcePage page, PrintableArea area, Scaling scaling, int scale, Notes notes)
     {
         bool landscape = page.Size.Width > page.Size.Height;
         var cell = ViewPrintable(area, landscape);
-        var shown = Shown(page.Size, cell, scaling, false);
+        double factor = scaling is Scaling.ShrinkToFit or Scaling.ActualSize ? Math.Clamp(scale, 10, 400) / 100.0 : 1;
+        var sized = new LayoutSize(page.Size.Width * factor, page.Size.Height * factor);
+        var shown = Shown(sized, cell, scaling, false);
         if (scaling == Scaling.ActualSize)
         {
             notes.Clipped = Math.Max(notes.Clipped, Math.Max(shown.Frame.Width - cell.Width, shown.Frame.Height - cell.Height) / 2);

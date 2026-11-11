@@ -509,7 +509,21 @@
                                             <Label Content="Scal_ing" Target="{Binding ElementName=ScalingBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="ScalingBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Scaling"
+                                                      ToolTipService.ShowOnDisabled="True"
                                                       SelectionChanged="Setting_Changed" />
+                                            <DockPanel x:Name="ScalingReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
+                                                <TextBlock x:Name="ScalingReasonText" Style="{StaticResource ReasonText}" />
+                                            </DockPanel>
+                                            <DockPanel x:Name="ScaleRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                                <TextBlock x:Name="ScaleText" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
+                                                           VerticalAlignment="Center" Style="{StaticResource BodyText}" />
+                                                <Slider x:Name="ScaleSlider" Minimum="25" Maximum="400" SmallChange="5" LargeChange="25"
+                                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                                        AutomationProperties.Name="Scale"
+                                                        ToolTip="Size of each page, in percent of its own"
+                                                        ValueChanged="ScaleSlider_ValueChanged" />
+                                            </DockPanel>
                                         </StackPanel>
                                     </Expander>
 

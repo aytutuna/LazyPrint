@@ -46,6 +46,7 @@ public static class PrintJobs
             Scaling = settings.Scaling,
             Sides = photos ? Sides.OneSided : settings.Sides,
             PageBorders = settings.PageBorders,
+            Scale = settings.Scale,
         };
     }
 

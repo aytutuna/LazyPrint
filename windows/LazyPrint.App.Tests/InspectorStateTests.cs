@@ -39,6 +39,31 @@ public sealed class InspectorStateTests
     }
 
     [Fact]
+    public void ScalingIsGreyedOutUnderSeveralPagesPerSideAndBookletsWithItsReason()
+    {
+        var one = For(new PrintSettings());
+        Assert.True(one.ScalingEnabled);
+        Assert.Null(one.ScalingReason);
+
+        foreach (var s in new[] { new PrintSettings { PagesPerSheet = 4 }, new PrintSettings { Booklet = true } })
+        {
+            var state = For(s);
+            Assert.False(state.ScalingEnabled);
+            Assert.Equal("Pages fit their space", state.ScalingReason);
+            Assert.False(state.ShowScale);
+        }
+    }
+
+    [Fact]
+    public void TheScaleShowsForActualSizeAndShrinkToFitOfOnePagePerSide()
+    {
+        Assert.True(For(new PrintSettings { Scaling = Scaling.ActualSize }).ShowScale);
+        Assert.True(For(new PrintSettings()).ShowScale);
+        Assert.False(For(new PrintSettings { Scaling = Scaling.Fit }).ShowScale);
+        Assert.False(For(new PrintSettings { Scaling = Scaling.ActualSize, PagesPerSheet = 2 }).ShowScale);
+    }
+
+    [Fact]
     public void ABookletGreysOutTheSidesAndThePagesPerSideWithTheirReasons()
     {
         var state = For(new PrintSettings { Booklet = true, PagesPerSheet = 4 });

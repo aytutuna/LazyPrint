@@ -79,7 +79,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             case DocumentKind.Pdf { Encrypted: false }:
                 var settings = job.Settings;
                 bool inOrder = placed.Count == document.Pages.Count && placed.Select((page, i) => page.Document == 0 && page.Index == i).All(ok => ok);
-                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet && settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit;
+                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet && (settings.Scaling == Scaling.Fit || (settings.Scaling == Scaling.ShrinkToFit && settings.Scale == 100));
                 return inOrder && plain ? (document.Kind, bytes) : null;
             case DocumentKind.Photo:
                 var paper = job.Plan.Plan.Area.Paper;
