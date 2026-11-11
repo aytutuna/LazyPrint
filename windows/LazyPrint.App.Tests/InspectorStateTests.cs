@@ -170,6 +170,49 @@ public sealed class InspectorStateTests
         Assert.True(For().ShowOrientation);
         Assert.False(For(new PrintSettings { Booklet = true }).ShowOrientation);
     }
+
+    [Fact]
+    public void APosterGreysOutSidesPagesPerSideBookletAndScaling()
+    {
+        var state = For(new PrintSettings { Poster = 2 });
+
+        Assert.False(state.SidesEnabled);
+        Assert.Equal("Posters are one-sided", state.SidesReason);
+        Assert.False(state.PagesPerSideEnabled);
+        Assert.Equal("Set by Poster", state.PagesPerSideReason);
+        Assert.False(state.BookletEnabled);
+        Assert.False(state.ScalingEnabled);
+        Assert.False(state.ShowBorders);
+        Assert.True(state.PosterEnabled);
+        Assert.Null(state.PosterReason);
+        Assert.True(state.MarginEnabled);
+    }
+
+    [Fact]
+    public void ThePosterNeedsOnePagePerSideAndNoBooklet()
+    {
+        foreach (var s in new[] { new PrintSettings { PagesPerSheet = 4 }, new PrintSettings { Booklet = true } })
+        {
+            var state = For(s);
+            Assert.False(state.PosterEnabled);
+            Assert.Equal("Needs one page per side", state.PosterReason);
+        }
+        Assert.True(For().PosterEnabled);
+    }
+
+    [Fact]
+    public void MarginsAreGreyedOutAtActualSizeAndFillWithTheirReason()
+    {
+        Assert.True(For().MarginEnabled);
+        Assert.True(For(new PrintSettings { Scaling = Scaling.Fit }).MarginEnabled);
+        Assert.True(For(new PrintSettings { Scaling = Scaling.ActualSize, PagesPerSheet = 2 }).MarginEnabled);
+        foreach (var scaling in new[] { Scaling.ActualSize, Scaling.Fill })
+        {
+            var state = For(new PrintSettings { Scaling = scaling });
+            Assert.False(state.MarginEnabled);
+            Assert.Equal("Not used at actual size or fill", state.MarginReason);
+        }
+    }
 }
 
 public sealed class DemoPrinterTests

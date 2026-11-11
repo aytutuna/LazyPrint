@@ -33,7 +33,7 @@ public static class PrintJobs
 
     /// <summary>
     /// The layout the settings ask for. Photo tasks print one side, never a booklet. The task is only
-    /// consulted for that: the other tasks have already set what they mean in the settings.
+    /// consulted for that: the other tasks have already set what they mean in the settings. Photos have no extra margin either.
     /// </summary>
     public static LayoutOptions LayoutOptions(PrintSettings settings, PrintTask? task)
     {
@@ -48,6 +48,8 @@ public static class PrintJobs
             PageBorders = settings.PageBorders,
             Scale = settings.Scale,
             Orientation = settings.Orientation,
+            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm),
+            Poster = photos ? 0 : settings.Poster,
         };
     }
 

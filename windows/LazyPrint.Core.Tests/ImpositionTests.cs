@@ -566,4 +566,139 @@ public class ImpositionTests
         var automatic = Plan(Portrait(4), new LayoutOptions { Booklet = true });
         Assert.Equal(automatic, Plan(Portrait(4), new LayoutOptions { Booklet = true, Orientation = SheetOrientation.Portrait }));
     }
+
+    // MARK: - Margins
+
+    [Fact]
+    public void Plan_MarginWithFit_KeepsEveryEdgeClear()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fit, Margin = 36 });
+        var frame = Front(plan).Placements[0].Frame;
+        Assert.InRange(frame.X, 36 - 1e-6, 612);
+        Assert.InRange(frame.Y, 36 - 1e-6, 792);
+        Assert.InRange(frame.X + frame.Width, 0, 612 - 36 + 1e-6);
+        Assert.InRange(frame.Y + frame.Height, 0, 792 - 36 + 1e-6);
+        Assert.Equal(Whole(Letter), plan.Area);
+    }
+
+    [Fact]
+    public void Plan_MarginWithShrinkToFit_ShrinksALargePageAndWarns()
+    {
+        var plan = Plan([Page(0, 612, 792)], new LayoutOptions { Margin = 36 });
+        AssertRect(36, (792 - 540 * 792 / 612.0) / 2, 540, 540 * 792 / 612.0, Front(plan).Placements[0].Frame);
+        Assert.Contains(plan.Warnings, w => w is PlanWarning.Shrunk);
+    }
+
+    [Fact]
+    public void Plan_Margin_NeverGoesBelowThePrintersOwn()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fit, Margin = 10 }, Margins(Letter, 36));
+        AssertRect(36, (792 - 540 * 792 / 612.0) / 2, 540, 540 * 792 / 612.0, Front(plan).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_Margin_IsIgnoredAtActualSizeAndFill()
+    {
+        var actual = Plan([Page(0, 300, 400)], new LayoutOptions { Scaling = Scaling.ActualSize, Margin = 200 });
+        AssertRect(156, 196, 300, 400, Front(actual).Placements[0].Frame);
+        var fill = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fill, Margin = 100 });
+        AssertRect(0, 0, 612, 792, Front(fill).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_Margin_AppliesToGridsAndBooklets()
+    {
+        var four = Plan(Portrait(4), new LayoutOptions { PagesPerSheet = 4, Margin = 36, Scaling = Scaling.ActualSize });
+        foreach (var p in Front(four).Placements)
+        {
+            Assert.True(p.Frame.X >= 36 - 1e-6 && p.Frame.Y >= 36 - 1e-6);
+            Assert.True(p.Frame.X + p.Frame.Width <= 612 - 36 + 1e-6 && p.Frame.Y + p.Frame.Height <= 792 - 36 + 1e-6);
+        }
+        var booklet = Plan(Portrait(4), new LayoutOptions { Booklet = true, Margin = 36 });
+        foreach (var p in Front(booklet).Placements)
+        {
+            Assert.True(p.Frame.X >= 36 - 1e-6 && p.Frame.X + p.Frame.Width <= 612 - 36 + 1e-6);
+        }
+    }
+
+    // MARK: - Poster
+
+    private const double Overlap = 10 * 72 / 25.4;
+
+    [Fact]
+    public void Plan_Poster_IsOneSheetPerTileInReadingOrder()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Poster = 2 });
+        Assert.Equal(4, plan.Sheets.Count);
+        Assert.False(plan.Duplex);
+        Assert.All(plan.Sheets, s => Assert.Null(s.Back));
+        Assert.All(plan.Sheets, s => Assert.True(Assert.Single(s.Front.Placements).Crop is not null && s.Front.CutMarks));
+
+        double scale = (2 * 600 - Overlap) / 612;
+        var first = Front(plan, 0).Placements[0];
+        AssertRect(6, 6, 600, 780, first.Frame);
+        AssertRect(0, 0, 600 / scale, 780 / scale, first.Crop!.Value);
+        var second = Front(plan, 1).Placements[0].Crop!.Value;
+        var third = Front(plan, 2).Placements[0].Crop!.Value;
+        Assert.True(second.X > 0 && second.Y == 0);
+        Assert.True(third.X == 0 && third.Y > 0);
+    }
+
+    [Fact]
+    public void Plan_Poster_TilesOverlapByACentimetre()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Poster = 3 });
+        Assert.Equal(9, plan.Sheets.Count);
+        var a = Front(plan, 0).Placements[0].Crop!.Value;
+        var b = Front(plan, 1).Placements[0].Crop!.Value;
+        double scale = Front(plan, 0).Placements[0].Frame.Width / a.Width;
+        Assert.Equal(Overlap, (a.X + a.Width - b.X) * scale, 6);
+    }
+
+    [Fact]
+    public void Plan_Poster_ReachesTheEndOfThePage()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Poster = 4 });
+        var last = Front(plan, 15).Placements[0].Crop!.Value;
+        Assert.Equal(612, last.X + last.Width, 6);
+        Assert.Equal(792, last.Y + last.Height, 6);
+    }
+
+    [Fact]
+    public void Plan_Poster_OfALandscapePageUsesLandscapeSheets()
+    {
+        var plan = Plan([Page(0, 792, 612)], new LayoutOptions { Poster = 2 });
+        Assert.Equal(4, plan.Sheets.Count);
+        Assert.All(plan.Sheets, s => Assert.Equal(3, s.Front.Placements[0].Turns));
+    }
+
+    [Fact]
+    public void Plan_Poster_ComesBeforeBookletGridAndTwoSided()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Poster = 2, Booklet = true, PagesPerSheet = 4, Sides = Sides.LongEdge });
+        Assert.Equal(4, plan.Sheets.Count);
+        Assert.False(plan.Duplex);
+    }
+
+    [Fact]
+    public void Plan_Poster_RunsOnForEachPage()
+    {
+        var plan = Plan(Portrait(2), new LayoutOptions { Poster = 2 });
+        Assert.Equal(8, plan.Sheets.Count);
+        Assert.Equal(1, Front(plan, 4).Placements[0].Page.Index);
+    }
+
+    [Fact]
+    public void Plan_Poster_KeepsTheMarksInsideTheMargin()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Poster = 2, Margin = 36 }, Margins(Letter, 10));
+        AssertRect(42, 42, 528, 708, Front(plan).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_PosterOfOne_IsNoPoster()
+    {
+        Assert.Equal(Plan(Portrait(1), new LayoutOptions()), Plan(Portrait(1), new LayoutOptions { Poster = 1 }));
+        Assert.Single(Plan(Portrait(1), new LayoutOptions { Poster = 5 }).Sheets);
+    }
 }

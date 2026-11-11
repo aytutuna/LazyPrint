@@ -41,6 +41,8 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.False(s.PageBorders);
         Assert.Equal(Scaling.ShrinkToFit, s.Scaling);
         Assert.Equal(SheetOrientation.Automatic, s.Orientation);
+        Assert.Equal(MarginChoice.None, s.Margin);
+        Assert.Equal(0, s.Poster);
         Assert.Equal(PageSelection.All, s.PageSelection);
         Assert.False(s.ReverseOrder);
         Assert.Equal("auto", s.PaperId);
@@ -56,7 +58,7 @@ public sealed class PrintSettingsTests : IDisposable
         {
             TaskId = "booklet", PrinterId = "ipp:4509a320", Copies = 3, Collate = false, Color = ColorChoice.Gray,
             Quality = QualityChoice.Best, Sides = Sides.ShortEdge, PagesPerSheet = 4, Booklet = true, RightToLeft = true,
-            PageBorders = true, Scaling = Scaling.Fill, Orientation = SheetOrientation.Landscape, PaperId = "a4", PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
+            PageBorders = true, Scaling = Scaling.Fill, Orientation = SheetOrientation.Landscape, Margin = MarginChoice.Custom, MarginMm = 20, Poster = 3, PaperId = "a4", PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
         };
         SettingsStore.Save(s, _directory);
         Assert.Equal(s with { Copies = 1 }, SettingsStore.Load(_directory));

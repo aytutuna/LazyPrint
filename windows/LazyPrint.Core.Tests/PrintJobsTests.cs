@@ -454,4 +454,25 @@ public class PrintJobsTests
         Assert.Equal(SheetOrientation.Landscape,
             PrintJobs.LayoutOptions(Settings(s => s.Orientation = SheetOrientation.Landscape), PrintTask.Document).Orientation);
     }
+
+    [Theory]
+    [InlineData(MarginChoice.None, 0, 0)]
+    [InlineData(MarginChoice.Small, 0, 6)]
+    [InlineData(MarginChoice.Normal, 0, 12)]
+    [InlineData(MarginChoice.Custom, 20, 20)]
+    [InlineData(MarginChoice.Custom, 900, 50)]
+    public void LayoutOptions_CarryTheMarginInPoints(MarginChoice choice, int custom, int millimetres)
+    {
+        var options = PrintJobs.LayoutOptions(Settings(s => { s.Margin = choice; s.MarginMm = custom; }), PrintTask.Document);
+        Assert.Equal(millimetres * 72 / 25.4, options.Margin, 6);
+    }
+
+    [Fact]
+    public void LayoutOptions_PhotosHaveNoMarginAndNoPoster()
+    {
+        var settings = Settings(s => { s.Margin = MarginChoice.Normal; s.Poster = 2; });
+        Assert.Equal(0, PrintJobs.LayoutOptions(settings, PrintTask.Photos).Margin);
+        Assert.Equal(0, PrintJobs.LayoutOptions(settings, PrintTask.PhotoSheet).Poster);
+        Assert.Equal(2, PrintJobs.LayoutOptions(settings, PrintTask.Document).Poster);
+    }
 }

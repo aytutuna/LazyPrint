@@ -21,6 +21,11 @@ public sealed record InspectorState(
     bool ScalingEnabled,
     string? ScalingReason,
     bool ShowScale,
+    bool BookletEnabled,
+    bool PosterEnabled,
+    string? PosterReason,
+    bool MarginEnabled,
+    string? MarginReason,
     bool ShowPhotos,
     bool PhotoSizeEnabled,
     string? PhotoSizeReason,
@@ -40,7 +45,9 @@ public sealed record InspectorState(
         bool twoSided = s.Booklet || s.Sides != Sides.OneSided;
         string? byHand = twoSided && !photos && capabilities is not null && !canTurn ? ShortText.ByHand : null;
 
-        bool alone = !s.Booklet && s.PagesPerSheet == 1;
+        bool poster = s.Poster is >= 2 and <= 4;
+        bool alone = !poster && !s.Booklet && s.PagesPerSheet == 1;
+        bool margins = Imposition.KeepsMargin(PrintJobs.LayoutOptions(s, task));
 
         bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
@@ -56,18 +63,23 @@ public sealed record InspectorState(
         return new InspectorState(
             ShowCollate: s.Copies > 1,
             ShowSides: !photos,
-            SidesEnabled: !s.Booklet,
-            SidesReason: s.Booklet ? ShortText.BookletTwoSided : null,
+            SidesEnabled: !s.Booklet && !poster,
+            SidesReason: poster ? ShortText.PosterOneSided : s.Booklet ? ShortText.BookletTwoSided : null,
             SidesNote: byHand,
             ShowLayout: task != PrintTask.Photos,
-            PagesPerSideEnabled: !s.Booklet,
-            PagesPerSideReason: s.Booklet ? ShortText.BookletPages : null,
-            ShowRightToLeft: s.Booklet || s.PagesPerSheet > 1,
-            ShowBorders: !s.Booklet && s.PagesPerSheet > 1,
+            PagesPerSideEnabled: !s.Booklet && !poster,
+            PagesPerSideReason: poster ? ShortText.PosterPages : s.Booklet ? ShortText.BookletPages : null,
+            ShowRightToLeft: !poster && (s.Booklet || s.PagesPerSheet > 1),
+            ShowBorders: !poster && !s.Booklet && s.PagesPerSheet > 1,
             ShowOrientation: !s.Booklet,
-            ScalingEnabled: alone || s.Scaling == Scaling.Fill,
-            ScalingReason: alone || s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
+            ScalingEnabled: alone || !poster && s.Scaling == Scaling.Fill,
+            ScalingReason: alone || !poster && s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
             ShowScale: alone && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize,
+            BookletEnabled: !poster,
+            PosterEnabled: poster || !s.Booklet && s.PagesPerSheet == 1,
+            PosterReason: poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
+            MarginEnabled: margins,
+            MarginReason: margins ? null : ShortText.MarginsUnused,
             ShowPhotos: photos,
             PhotoSizeEnabled: task == PrintTask.Photos,
             PhotoSizeReason: task == PrintTask.PhotoSheet ? ShortText.SheetLayout : null,

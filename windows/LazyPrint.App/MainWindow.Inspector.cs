@@ -127,6 +127,12 @@ public partial class MainWindow
     {
         for (int count = 1; count <= PrintCopies.MaxCount; count++) CopiesBox.Items.Add(count);
         foreach (int n in PagesPerSide) PerSideBox.Items.Add(Item(n == 1 ? "1 (one per side)" : $"{n} per side", n));
+        PosterBox.Items.Add(Item("Off", 0));
+        for (int n = 2; n <= 4; n++) PosterBox.Items.Add(Item($"{n} × {n} sheets", n, "One page enlarged across the sheets, with an overlap and cut marks"));
+        MarginBox.Items.Add(Item("None", MarginChoice.None, "Only what the printer cannot reach"));
+        MarginBox.Items.Add(Item("Small, 6 mm", MarginChoice.Small));
+        MarginBox.Items.Add(Item("Normal, 12 mm", MarginChoice.Normal));
+        MarginBox.Items.Add(Item("Custom", MarginChoice.Custom));
         PageSelectionBox.Items.Add(Item("All pages", PageSelection.All));
         PageSelectionBox.Items.Add(Item("Odd pages only", PageSelection.Odd, "Pages 1, 3, 5 and so on"));
         PageSelectionBox.Items.Add(Item("Even pages only", PageSelection.Even, "Pages 2, 4, 6 and so on"));
@@ -200,6 +206,12 @@ public partial class MainWindow
             OrientationGroup.Visibility = state.ShowOrientation ? Visibility.Visible : Visibility.Collapsed;
             Select(OrientationBox, s.Orientation);
             BookletBox.IsChecked = s.Booklet;
+            BookletBox.IsEnabled = state.BookletEnabled;
+            BookletBox.ToolTip = state.BookletEnabled ? "Two pages on each side, in the order that folds into a booklet" : ShortText.PosterPages;
+            Select(PosterBox, s.Poster is >= 2 and <= 4 ? s.Poster : 0);
+            PosterBox.IsEnabled = state.PosterEnabled;
+            PosterBox.ToolTip = state.PosterReason;
+            Show(PosterReasonRow, PosterReasonText, state.PosterReason);
             RightToLeftBox.Visibility = state.ShowRightToLeft ? Visibility.Visible : Visibility.Collapsed;
             RightToLeftBox.IsChecked = s.RightToLeft;
             BordersBox.Visibility = state.ShowBorders ? Visibility.Visible : Visibility.Collapsed;
@@ -211,6 +223,13 @@ public partial class MainWindow
             ScaleRow.Visibility = state.ShowScale ? Visibility.Visible : Visibility.Collapsed;
             ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
             ScaleText.Text = $"{s.Scale} %";
+            Select(MarginBox, s.Margin);
+            MarginBox.IsEnabled = state.MarginEnabled;
+            MarginBox.ToolTip = state.MarginReason;
+            Show(MarginReasonRow, MarginReasonText, state.MarginReason);
+            MarginMmRow.Visibility = s.Margin == MarginChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
+            MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
+            MarginMmText.Text = $"{s.MarginMm} mm";
 
             // Paper
             Select(PaperBox, PaperSizes.Parse(s.PaperId));
@@ -267,10 +286,12 @@ public partial class MainWindow
             s.Sides = SidesLong.IsChecked == true ? Sides.LongEdge : SidesShort.IsChecked == true ? Sides.ShortEdge : Sides.OneSided;
         }
         if (state.PagesPerSideEnabled && TagOf<int>(PerSideBox) is { } perSide and > 0) s.PagesPerSheet = perSide;
-        s.Booklet = BookletBox.IsChecked == true;
+        if (state.BookletEnabled) s.Booklet = BookletBox.IsChecked == true;
+        if (state.PosterEnabled && TagOf<int?>(PosterBox) is { } poster) s.Poster = poster;
         s.RightToLeft = RightToLeftBox.IsChecked == true;
         s.PageBorders = BordersBox.IsChecked == true;
         if (state.ScalingEnabled && TagOf<Scaling?>(ScalingBox) is { } scaling) s.Scaling = scaling;
+        if (state.MarginEnabled && TagOf<MarginChoice?>(MarginBox) is { } margin) s.Margin = margin;
         if (TagOf<PaperSize?>(PaperBox) is { } paper) s.PaperId = paper.RawValue();
         if (state.QualityEnabled && TagOf<QualityChoice?>(QualityBox) is { } quality) s.Quality = quality;
         if (state.ColorEnabled) s.Color = ColorGray.IsChecked == true ? ColorChoice.Gray : ColorChoice.Color;
@@ -285,6 +306,14 @@ public partial class MainWindow
         if (_updatingUi || !IsLoaded) return;
         ViewModel.Settings.Scale = (int)e.NewValue;
         ScaleText.Text = $"{(int)e.NewValue} %";
+        ViewModel.SettingsEdited();
+    }
+
+    private void MarginMmSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_updatingUi || !IsLoaded) return;
+        ViewModel.Settings.MarginMm = (int)e.NewValue;
+        MarginMmText.Text = $"{(int)e.NewValue} mm";
         ViewModel.SettingsEdited();
     }
 
