@@ -329,7 +329,18 @@ public sealed partial class AppViewModel
     {
         if (_networkPrinters is not { } network) return;
         _network = network.Services;
+        var before = new Dictionary<string, HashSet<PrinterAddress>>();
+        foreach (var info in _printerInfos)
+        {
+            if (info.IppEndpoint is { } known) before.TryAdd(info.Id, known.Addresses.ToHashSet());
+        }
         RebuildPrinters();
+        // A printer that moved is read at once, not at the next 30 s poll.
+        foreach (var row in _printerInfos)
+        {
+            if (row.IppEndpoint is { } endpoint && before.TryGetValue(row.Id, out var old) && !old.SetEquals(endpoint.Addresses))
+                _ippReads.Remove(row.Id);
+        }
         NotifyAll();
         _ = RefreshNetworkStatusAsync(onlyNew: true);
         WriteLog();
@@ -346,7 +357,11 @@ public sealed partial class AppViewModel
         try
         {
             var rows = _printerInfos.Where(p => p.IppEndpoint is not null && (!onlyNew || !_ippReads.ContainsKey(p.Id))).ToList();
-            await ReadStatusAsync(rows);
+            // An answer for addresses the printer no longer has is dropped, and that printer is read again.
+            if (await ReadStatusAsync(rows))
+            {
+                await ReadStatusAsync(_printerInfos.Where(p => p.IppEndpoint is not null && !_ippReads.ContainsKey(p.Id)).ToList());
+            }
         }
         finally
         {
@@ -354,9 +369,10 @@ public sealed partial class AppViewModel
         }
     }
 
-    private async Task ReadStatusAsync(IReadOnlyList<PrinterInfo> rows)
+    /// <summary>True when an answer was dropped because the printer's addresses changed while it was read.</summary>
+    private async Task<bool> ReadStatusAsync(IReadOnlyList<PrinterInfo> rows)
     {
-        if (_networkPrinters is not { } network || rows.Count == 0) return;
+        if (_networkPrinters is not { } network || rows.Count == 0) return false;
         var reads = await Task.WhenAll(rows.Select(async printer =>
         {
             try
@@ -368,8 +384,15 @@ public sealed partial class AppViewModel
                 return (printer.Id, Check: new AddressCheck(printer.IppEndpoint!.Addresses[0], null, null, e.Message));
             }
         }));
+        bool dropped = false;
         foreach (var (id, check) in reads)
         {
+            var asked = rows.First(p => p.Id == id).IppEndpoint!.Addresses;
+            if (_printerInfos.FirstOrDefault(p => p.Id == id)?.IppEndpoint is not { } now || !now.Addresses.ToHashSet().SetEquals(asked))
+            {
+                dropped = true;
+                continue;
+            }
             _ippReads[id] = check;
             if (check.Capabilities is { } capabilities && _printerInfos.FirstOrDefault(p => p.Id == id) is { Route: PrinterRoute.Ipp })
             {
@@ -380,6 +403,7 @@ public sealed partial class AppViewModel
         RebuildPrinters();
         NotifyAll();
         WriteLog();
+        return dropped;
     }
 
     /// <summary>A refused certificate of the printer is shown to the user, who may trust it; the printer is then asked again.</summary>

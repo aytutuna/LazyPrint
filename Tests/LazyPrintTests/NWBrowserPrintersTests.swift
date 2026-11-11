@@ -204,7 +204,7 @@ final class NWBrowserPrintersTests: XCTestCase {
     }
 
     @MainActor
-    func test_aServiceThatIsResolved_isNotResolvedAgainByTheNextReport() throws {
+    func test_aServiceThatIsResolved_isResolvedAgainByTheNextReport() throws {
         let browsers = FakeBrowsers()
         let resolver = FakeResolver()
         resolver.answers[hp] = resolved()
@@ -215,7 +215,7 @@ final class NWBrowserPrintersTests: XCTestCase {
         browsers.latest("_ipp._tcp")?.report([result()])
         browsers.latest("_ipp._tcp")?.report([result()])
 
-        XCTAssertEqual(resolver.requests.count, 1)
+        XCTAssertEqual(resolver.requests.count, 2) // a new address does not change the report
     }
 
     @MainActor

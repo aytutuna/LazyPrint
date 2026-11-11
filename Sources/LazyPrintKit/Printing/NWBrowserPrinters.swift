@@ -337,18 +337,17 @@ public final class NWBrowserPrinters: NetworkPrinters {
     }
 
     /// A browser's full list: new instances are resolved, a changed TXT record is taken as it is, one that did not resolve
-    /// is tried again, and the instances of its type it no longer reports are gone. A changed report is resolved again too,
-    /// and the old addresses stay in use until the answer.
+    /// is tried again, and the instances of its type it no longer reports are gone. Every report resolves its instances
+    /// again, since a printer's new address does not change what the browser says of it; the old addresses stay in use
+    /// until the answer.
     private func browserResults(_ browse: Browse, _ results: [BrowseResult]) {
         guard isCurrent(browse) else { return }
         var reported = Set<String>()
         for result in results where result.secure == browse.secure {
             reported.insert(result.key)
             if let entry = found.first(where: { $0.result.key == result.key }) {
-                // A changed report may mean a new address: the old one stays in use until the answer.
-                let changed = entry.result != result
                 entry.result = result
-                if (entry.resolved == nil || changed) && !entry.isResolving { startResolve(entry) }
+                if !entry.isResolving { startResolve(entry) }
             } else {
                 let entry = Found(result: result)
                 found.append(entry)
@@ -510,7 +509,7 @@ public final class NWBrowserPrinters: NetworkPrinters {
 
     /// A printer that did not answer may have a new address: its services are resolved again, and the old addresses stay
     /// until the answer.
-    private func resolveAgain(_ endpoint: IppEndpoint) {
+    public func resolveAgain(_ endpoint: IppEndpoint) {
         for entry in found where !entry.isResolving {
             if endpoint.instanceNames.contains(where: { $0.lowercased() == entry.result.name.lowercased() }) {
                 startResolve(entry)

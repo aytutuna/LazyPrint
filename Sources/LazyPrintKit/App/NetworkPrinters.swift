@@ -38,6 +38,9 @@ public protocol NetworkPrinters: AnyObject {
     /// Get-Printer-Attributes at the printer's addresses in order. A refused certificate, new or changed, is returned,
     /// not pinned or asked about; the answer of another address of the printer comes with it.
     func read(_ endpoint: IppEndpoint) async -> AddressCheck
+    /// Resolves the printer's services again after it did not answer: it may have a new address, and the old ones stay
+    /// in use until the answer.
+    func resolveAgain(_ endpoint: IppEndpoint)
     /// What the "Add printer" sheet checks.
     func check(_ address: PrinterAddress, firstUse: String?) async -> AddressCheck
     /// Lists an address that answered in ipp-hosts.json and among the printers.
@@ -61,6 +64,8 @@ final class NoNetworkPrinters: NetworkPrinters {
     func read(_ endpoint: IppEndpoint) async -> AddressCheck {
         AddressCheck(address: endpoint.addresses[0], capabilities: nil, certificate: nil, error: "it did not answer")
     }
+
+    func resolveAgain(_ endpoint: IppEndpoint) {}
 
     func check(_ address: PrinterAddress, firstUse: String?) async -> AddressCheck {
         AddressCheck(address: address, capabilities: nil, certificate: nil, error: "it did not answer")

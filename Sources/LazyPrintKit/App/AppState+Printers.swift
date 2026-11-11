@@ -191,20 +191,31 @@ extension AppState {
         statusReading = true
         defer { statusReading = false }
         let rows = printers.filter { $0.ippEndpoint != nil && (!onlyNew || ippReads[$0.id] == nil) }
-        await readStatus(rows)
+        // An answer for addresses the printer no longer has is dropped, and that printer is read again.
+        if await readStatus(rows) {
+            await readStatus(printers.filter { $0.ippEndpoint != nil && ippReads[$0.id] == nil })
+        }
     }
 
-    private func readStatus(_ rows: [PrinterInfo]) async {
-        guard !rows.isEmpty else { return }
-        let reads = rows.compactMap { row -> (String, Task<AddressCheck, Never>)? in
+    /// True when an answer was dropped because the printer's addresses changed while it was read.
+    @discardableResult
+    private func readStatus(_ rows: [PrinterInfo]) async -> Bool {
+        guard !rows.isEmpty else { return false }
+        let reads = rows.compactMap { row -> (String, IppEndpoint, Task<AddressCheck, Never>)? in
             guard let endpoint = row.ippEndpoint else { return nil }
-            return (row.id, Task { await self.network.read(endpoint) })
+            return (row.id, endpoint, Task { await self.network.read(endpoint) })
         }
-        var answers = [(String, AddressCheck)]()
-        for (id, read) in reads {
-            answers.append((id, await read.value))
+        var answers = [(String, IppEndpoint, AddressCheck)]()
+        for (id, endpoint, read) in reads {
+            answers.append((id, endpoint, await read.value))
         }
-        for (id, check) in answers {
+        var dropped = false
+        for (id, endpoint, check) in answers {
+            let now = printers.first(where: { $0.id == id })?.ippEndpoint
+            if now == nil || Set(now?.addresses ?? []) != Set(endpoint.addresses) {
+                dropped = true
+                continue
+            }
             ippReads[id] = check
             guard let capabilities = check.capabilities, let row = printers.first(where: { $0.id == id }) else { continue }
             // A network printer is printed to as it says; a queue's own capabilities win, IPP's stand in until they come.
@@ -219,6 +230,7 @@ extension AppState {
         syncCapabilities()
         replan()
         writeLog()
+        return dropped
     }
 
     /// A refused certificate of the printer is shown to the user, who may trust it; the printer is then asked again. Only

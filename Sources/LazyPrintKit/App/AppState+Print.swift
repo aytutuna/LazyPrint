@@ -172,6 +172,12 @@ extension AppState {
         } catch let certificate as IppCertificateError where certificate.canTrust {
             guard await confirmCertificate(certificate, for: job.printer) else { throw certificate }
             try await sheets.print(job, pass: pass, progress: report)
+        } catch let error as PrintError {
+            // A printer that does not connect may have a new address.
+            if case .unreachable = error, job.printer.route == .ipp, let endpoint = job.printer.ippEndpoint {
+                network.resolveAgain(endpoint)
+            }
+            throw error
         }
     }
 

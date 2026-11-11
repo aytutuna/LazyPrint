@@ -153,6 +153,8 @@ private final class SeamNetwork: NetworkPrinters {
     func restart() { restarts += 1 }
     func raise() { onChange?() }
 
+    func resolveAgain(_ endpoint: IppEndpoint) {}
+
     func read(_ endpoint: IppEndpoint) async -> AddressCheck {
         answers[endpoint.name]
             ?? AddressCheck(address: endpoint.addresses[0], capabilities: nil, certificate: nil, error: "it did not answer in time")
