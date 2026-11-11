@@ -308,6 +308,29 @@ public sealed class IppTrustTests : IDisposable
     }
 
     [Fact]
+    public void ADeviceClaimingATrustedUuidIsAChangeNotAFirstUse()
+    {
+        using var real = SelfSigned("RealPrinter");
+        using var spoof = SelfSigned("Spoof");
+        var store = new IppTrustStore(_directory);
+        var chain = SslPolicyErrors.RemoteCertificateChainErrors;
+
+        // Seeing a certificate pins nothing; the user trusts it.
+        var validator = new IppCertificateValidator(store, Uuid, "HP M479");
+        Assert.False(validator.Validate(new Uri("https://hp.local/ipp/print"), real, chain));
+        Assert.Equal(IppTrustVerdict.Unknown, validator.TakeRejection()!.Verdict);
+        Assert.Empty(store.Certificates);
+        store.Trust(IppCertificates.Fingerprint(real), Uuid, "hp.local:443", "HP M479");
+
+        var other = new IppCertificateValidator(store, Uuid, "HP M479");
+        Assert.False(other.Validate(new Uri("https://evil.local/ipp/print"), spoof, chain));
+        var rejection = other.TakeRejection()!;
+        Assert.Equal(IppTrustVerdict.Changed, rejection.Verdict);
+        Assert.Equal(IppCertificates.Fingerprint(real), rejection.Previous?.Fingerprint);
+        Assert.Single(store.Certificates);
+    }
+
+    [Fact]
     public void APinMadeByAddressLearnsThePrintersUuid()
     {
         using var certificate = SelfSigned("FakePrinter");

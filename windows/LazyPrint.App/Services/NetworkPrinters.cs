@@ -173,11 +173,7 @@ public sealed class NetworkPrinters : INetworkPrinters, IDisposable
         foreach (var address in endpoint.Addresses)
         {
             var result = await CheckAsync(address, endpoint.Uuid, endpoint.Name, null, token);
-            // The user did not type this address: a new certificate is trusted on first use, as for a listed one.
-            if (result.Certificate is { Verdict: IppTrustVerdict.Unknown, CanTrust: true } certificate)
-            {
-                result = await CheckAsync(address, endpoint.Uuid, endpoint.Name, certificate.Fingerprint, token);
-            }
+            // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
             if (result.Capabilities is not null || result.Certificate is not null) return result;
             last = result;
         }

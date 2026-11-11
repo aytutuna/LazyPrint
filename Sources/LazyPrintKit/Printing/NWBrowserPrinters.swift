@@ -486,11 +486,8 @@ public final class NWBrowserPrinters: NetworkPrinters {
     public func read(_ endpoint: IppEndpoint) async -> AddressCheck {
         var last: AddressCheck?
         for address in endpoint.addresses {
-            var result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: nil)
-            // The user did not type this address: a new certificate is trusted on first use, as for a listed one.
-            if let certificate = result.certificate, certificate.verdict == .unknown, certificate.canTrust {
-                result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: certificate.fingerprint)
-            }
+            // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
+            let result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: nil)
             if result.capabilities != nil || result.certificate != nil { return result }
             last = result
         }
