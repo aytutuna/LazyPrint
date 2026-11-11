@@ -12,9 +12,22 @@ extension AppState {
     /// printer is used only when it is the one chosen, so a machine with no printer has none in use. A chosen printer
     /// that has gone away is not used.
     public var selectedPrinter: PrinterInfo? {
-        printers.first(where: { $0.id == settings.printerId })
+        if missingPrinter != nil { return nil }
+        return printers.first(where: { $0.id == settings.printerId })
             ?? printers.first(where: { $0.isDefault })
             ?? printers.first(where: { $0.route != .demo })
+    }
+
+    /// The chosen printer on the iPhone when it is not listed, as the name to show: Bonjour has not found it yet, or it is
+    /// gone. It stays the chosen one, with no other printer taking its place, until it is found or another is picked.
+    var missingPrinter: String? {
+        guard platform == .ios, let id = settings.printerId, !printers.contains(where: { $0.id == id }) else { return nil }
+        return Self.queue(of: id) ?? "your printer"
+    }
+
+    /// "Looking for X" until the search has run its time, then "X was not found".
+    public var missingPrinterMessage: String? {
+        missingPrinter.map { printerSearchOver ? PrintText.printerNotFound($0) : PrintText.lookingFor($0) }
     }
 
     /// A printer other than the demo printer is listed; without one the sidebar offers the troubleshooter.

@@ -195,6 +195,8 @@ public final class AppState: ObservableObject {
     /// What each network printer's address last said, by printer id; a row with no entry has not been asked yet.
     var ippReads: [String: AddressCheck] = [:]
     var printersRead = false
+    /// The saved printer has had its time to be found.
+    @Published var printerSearchOver = false
     var refreshing = false
     /// A call came while a read was running: one more pass follows it.
     var refreshAgain = false
@@ -318,6 +320,12 @@ public final class AppState: ObservableObject {
             self?.refreshPhoneBatches()
         }
         refreshPhoneBatches()
+        if platform == .ios && initial.printerId != nil {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                self?.printerSearchOver = true
+            }
+        }
 
         // A change made just before the app quits is not lost.
         lifecycle?.observeWillTerminate { [weak self] in
@@ -355,6 +363,7 @@ public final class AppState: ObservableObject {
     /// The sentence the status line shortens; the whole of it is the line's name for screen readers.
     private var statusMessage: String {
         if let statusOverride { return statusOverride }
+        if let missing = missingPrinterMessage { return missing }
         if let task { return PrintText.ready(TaskCatalog.definition(task).title) }
         if let printer = selectedPrinter { return printer.name }
         return printersRead ? PrintText.noPrinterMessage : "Looking for printers\u{2026}"

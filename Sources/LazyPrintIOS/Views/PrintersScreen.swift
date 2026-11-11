@@ -124,7 +124,7 @@ struct PrinterButton: View {
                 if let printer = state.selectedPrinter {
                     PrinterLabel(printer: printer)
                 } else {
-                    Label("No printer", systemImage: "printer")
+                    Label(state.missingPrinterMessage ?? "No printer", systemImage: "printer")
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 4)
                 }
