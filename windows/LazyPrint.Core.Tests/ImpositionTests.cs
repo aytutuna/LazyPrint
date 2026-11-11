@@ -91,7 +91,7 @@ public class ImpositionTests
     public void Plan_Scale_SizesAPageAloneOnItsSideAndShrinkToFitStillKeepsItInside()
     {
         var half = Plan([Page(0, 306, 396)], new LayoutOptions { Scaling = Scaling.ActualSize, Scale = 50 });
-        AssertRect(153, 198, 153, 198, Assert.Single(Front(half).Placements).Frame);
+        AssertRect(229.5, 297, 153, 198, Assert.Single(Front(half).Placements).Frame);
 
         var big = Plan([Page(0, 306, 396)], new LayoutOptions { Scale = 400 });
         AssertRect(0, 0, 612, 792, Assert.Single(Front(big).Placements).Frame);

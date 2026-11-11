@@ -16,7 +16,7 @@ public static class FileAssociation
 {
     private const string ProgId = "LazyPrint.File";
 
-    private static readonly string[] Extensions = [".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".bmp", ".heic"];
+    private static readonly string[] Extensions = [".pdf", .. DocumentLoader.PictureExtensions];
 
     /// <summary>The keys under Software\Classes and the value each gets (name "" is the default value), for the app at <paramref name="exePath"/>.</summary>
     public static IReadOnlyList<(string Key, string Name, string Value)> Entries(string exePath)
