@@ -136,15 +136,19 @@ public static partial class PrinterMerge
         {
             State = state,
             Problems = problems,
-            Supplies = [.. capabilities.Supplies
-                .Where(s => !s.Type.StartsWith("waste", StringComparison.OrdinalIgnoreCase))
-                .Select(s => new Supply(
-                    s.Name,
-                    string.IsNullOrEmpty(s.Color) ? null : s.Color,
-                    s.Level is >= 0 and <= 100 ? s.Level : null,
-                    s.Level >= 0 && s.LowLevel is { } low && s.Level <= low))],
+            Supplies = SuppliesOf(capabilities),
         };
     }
+
+    /// <summary>The marker levels a printer reported, without the supplies that hold waste.</summary>
+    public static IReadOnlyList<Supply> SuppliesOf(PrinterCapabilities capabilities) =>
+        [.. capabilities.Supplies
+            .Where(s => !s.Type.StartsWith("waste", StringComparison.OrdinalIgnoreCase))
+            .Select(s => new Supply(
+                s.Name,
+                string.IsNullOrEmpty(s.Color) ? null : s.Color,
+                s.Level is >= 0 and <= 100 ? s.Level : null,
+                s.Level >= 0 && s.LowLevel is { } low && s.Level <= low))];
 
     private static PrinterInfo FromQueue(SystemPrinter queue, PortHints hints, IppEndpoint? endpoint)
     {

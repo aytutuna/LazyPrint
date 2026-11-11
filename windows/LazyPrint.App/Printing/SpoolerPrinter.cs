@@ -27,6 +27,8 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
     /// <summary>The resolution pictures are drawn at; the XPS path never asks the driver for its own.</summary>
     private const double Dpi = 300;
     private const double DipsPerPoint = 96.0 / 72;
+    private static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan FollowLimit = TimeSpan.FromMinutes(2);
 
     public Task PrintAsync(SheetJob job, int pass, IProgress<JobStatus> progress, CancellationToken token) =>
         StaWork.RunAsync(async () =>
@@ -42,13 +44,140 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
                 queue.CurrentJobSettings.Description = job.Name;
                 var writer = PrintQueue.CreateXpsDocumentWriter(queue);
                 progress.Report(new JobStatus(JobState.Sending, 0));
+                var before = JobIds(queue);
                 await WriteAsync(writer, Pages(job, pass), merged.ValidatedPrintTicket, progress, token);
+                await FollowAsync(queue, before, job.Name, progress, token);
             }
             catch (Exception e) when (e is not (OperationCanceledException or PrintException) && IsPrintSystemError(e))
             {
                 throw new PrintException(new PrintError.Unreachable(job.Printer.Name, e.Message));
             }
         });
+
+    /// <summary>
+    /// Follows the spooler's job until it is printed or gone. A job that is not found (it may have left the queue already) or
+    /// still in the queue after <see cref="FollowLimit"/> ends as sent, not as printed. Cancelling takes the job out of the queue
+    /// unless the printer has it.
+    /// </summary>
+    private static async Task FollowAsync(PrintQueue queue, HashSet<int> before, string name, IProgress<JobStatus> progress, CancellationToken token)
+    {
+        int? found;
+        try
+        {
+            found = Find(queue, before, name);
+        }
+        catch (PrintSystemException)
+        {
+            found = null;
+        }
+        if (found is not { } id)
+        {
+            progress.Report(new JobStatus(JobState.Waiting, 0, null, true));
+            return;
+        }
+        var started = DateTime.UtcNow;
+        bool reachedPrinting = false;
+        while (DateTime.UtcNow - started < FollowLimit)
+        {
+            try
+            {
+                await Task.Delay(PollEvery, token);
+            }
+            catch (OperationCanceledException)
+            {
+                CancelSpooled(queue, id, progress);
+                throw;
+            }
+            PrintJobStatus status;
+            PrintQueueStatus queueStatus;
+            int done;
+            try
+            {
+                using var info = queue.GetJob(id);
+                status = info.JobStatus;
+                done = info.NumberOfPagesPrinted;
+                queue.Refresh();
+                queueStatus = queue.QueueStatus;
+            }
+            catch (PrintJobException)
+            {
+                return;
+            }
+            catch (PrintSystemException)
+            {
+                break;
+            }
+            if ((status & (PrintJobStatus.Printed | PrintJobStatus.Completed)) != 0) return;
+            if ((status & PrintJobStatus.Printing) != 0) reachedPrinting = true;
+            if ((status & (PrintJobStatus.Deleted | PrintJobStatus.Deleting)) != 0)
+            {
+                // The spooler deletes a job it has printed, so only a job that never printed was deleted by someone.
+                if (reachedPrinting) continue;
+                throw new PrintException(new PrintError.Refused(0, PrintText.JobDeleted));
+            }
+            progress.Report(Describe(status, done, queueStatus));
+        }
+        progress.Report(new JobStatus(JobState.Waiting, 0, null, true));
+    }
+
+    /// <summary>
+    /// What the spooler's job is doing, as the Jobs tab says it: waiting, printing or stuck on something the user can fix. A
+    /// paused or offline queue is set on the queue, not on the job, so a job that is not printing also takes the queue's problem.
+    /// </summary>
+    internal static JobStatus Describe(PrintJobStatus status, int pagesPrinted, PrintQueueStatus queue = PrintQueueStatus.None)
+    {
+        if ((status & PrintJobStatus.Offline) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, IppProblemText.Offline);
+        if ((status & PrintJobStatus.PaperOut) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, IppProblemText.OutOfPaper);
+        if ((status & (PrintJobStatus.Error | PrintJobStatus.Blocked)) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, IppProblemText.PrinterError);
+        if ((status & PrintJobStatus.UserIntervention) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, PrintText.NeedsAttention);
+        if ((status & PrintJobStatus.Paused) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, PrintText.JobPaused);
+        if ((status & PrintJobStatus.Printing) != 0) return new JobStatus(JobState.Printing, pagesPrinted);
+        var problem = SystemQueueProblems.Describe(PrinterMapping.QueueStates(queue)).FirstOrDefault(p => p.IsError);
+        return problem is null ? new JobStatus(JobState.Waiting, 0) : new JobStatus(JobState.NeedsUser, 0, problem.Title);
+    }
+
+    private static HashSet<int> JobIds(PrintQueue queue)
+    {
+        var ids = new HashSet<int>();
+        using var jobs = queue.GetPrintJobInfoCollection();
+        foreach (var job in jobs)
+        {
+            ids.Add(job.JobIdentifier);
+            job.Dispose();
+        }
+        return ids;
+    }
+
+    /// <summary>The job the writer just made: the new one of the job's name, else the only new one.</summary>
+    private static int? Find(PrintQueue queue, HashSet<int> before, string name)
+    {
+        var added = new List<(int Id, string Name)>();
+        using var jobs = queue.GetPrintJobInfoCollection();
+        foreach (var job in jobs)
+        {
+            if (!before.Contains(job.JobIdentifier)) added.Add((job.JobIdentifier, job.Name));
+            job.Dispose();
+        }
+        var named = added.Where(j => j.Name == name).ToList();
+        if (named.Count > 0) return named[0].Id;
+        return added.Count == 1 ? added[0].Id : null;
+    }
+
+    private static void CancelSpooled(PrintQueue queue, int id, IProgress<JobStatus> progress)
+    {
+        try
+        {
+            using var info = queue.GetJob(id);
+            const PrintJobStatus stuck = PrintJobStatus.Error | PrintJobStatus.Offline | PrintJobStatus.PaperOut | PrintJobStatus.Paused
+                                         | PrintJobStatus.UserIntervention | PrintJobStatus.Blocked;
+            if ((info.JobStatus & PrintJobStatus.Printing) != 0 && (info.JobStatus & stuck) == 0)
+                progress.Report(new JobStatus(JobState.Canceled, info.NumberOfPagesPrinted, PrintText.AlreadyAtPrinter));
+            else info.Cancel();
+        }
+        catch (PrintSystemException)
+        {
+        }
+    }
 
     /// <summary>Writes the pass to an XPS file under the ticket it would print with; null caps list everything.</summary>
     internal Task WriteFileAsync(SheetJob job, int pass, string path, PrintCapabilities? caps = null) => StaWork.Run(() =>

@@ -93,7 +93,7 @@ public partial class MainWindow : Window
             e.Cancel = true;
             return;
         }
-        if (ViewModel.IsBusy)
+        if (ViewModel.IsBusy && !ViewModel.JobIsInSpooler)
         {
             e.Cancel = true;
             if (MessageBox.Show(this, "A job is still being sent to the printer.", "Stop it and quit?",

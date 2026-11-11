@@ -118,6 +118,10 @@ public sealed partial class AppViewModel
     private PrinterFailure? _lastFailure;
     /// <summary>What each network printer's address last said, by printer id; a row with no entry has not been asked yet.</summary>
     private readonly Dictionary<string, AddressCheck> _ippReads = [];
+    /// <summary>The marker levels a queue's host answered over IPP, by printer id; null when it did not answer.</summary>
+    private readonly Dictionary<string, PrinterCapabilities?> _hostReads = [];
+    private static readonly string[] HostPaths = ["ipp/print", "ipp/printer"];
+    private static readonly TimeSpan HostTimeout = TimeSpan.FromSeconds(4);
     private bool _statusReading;
     private string? _lastLog;
 
@@ -185,7 +189,10 @@ public sealed partial class AppViewModel
             NotifyAll();
             WriteLog();
             // A printer a queue was just matched to has not been asked yet.
-            if (_printerInfos.Any(p => p.IppEndpoint is not null && !_ippReads.ContainsKey(p.Id))) _ = RefreshNetworkStatusAsync(onlyNew: true);
+            if (_printerInfos.Any(p => p.IppEndpoint is not null && !_ippReads.ContainsKey(p.Id) || IsPlainQueue(p) && !_hostReads.ContainsKey(p.Id)))
+            {
+                _ = RefreshNetworkStatusAsync(onlyNew: true);
+            }
         }
         finally
         {
@@ -202,6 +209,7 @@ public sealed partial class AppViewModel
         var ids = merged.Select(p => p.Id).ToHashSet();
         foreach (string gone in _capabilities.Keys.Where(id => !ids.Contains(id)).ToList()) _capabilities.Remove(gone);
         foreach (string gone in _ippReads.Keys.Where(id => !ids.Contains(id)).ToList()) _ippReads.Remove(gone);
+        foreach (string gone in _hostReads.Keys.Where(id => !ids.Contains(id)).ToList()) _hostReads.Remove(gone);
         for (int i = 0; i < merged.Count; i++)
         {
             int at = Printers.ToList().FindIndex(row => row.Id == merged[i].Id);
@@ -231,6 +239,10 @@ public sealed partial class AppViewModel
     /// </summary>
     private PrinterInfo WithNetworkState(PrinterInfo info)
     {
+        if (info.IppEndpoint is null && _hostReads.TryGetValue(info.Id, out var host) && host is not null)
+        {
+            return info with { Supplies = PrinterMerge.SuppliesOf(host) };
+        }
         if (info.IppEndpoint is not { } endpoint || !_ippReads.TryGetValue(info.Id, out var read)) return info;
         var refreshed = PrinterMerge.Refresh(info, read.Capabilities);
         return read.Capabilities is null ? refreshed : refreshed with { IppEndpoint = endpoint.Preferring(read.Address) };
@@ -347,11 +359,46 @@ public sealed partial class AppViewModel
         {
             var rows = _printerInfos.Where(p => p.IppEndpoint is not null && (!onlyNew || !_ippReads.ContainsKey(p.Id))).ToList();
             await ReadStatusAsync(rows);
+            await ReadHostsAsync(_printerInfos.Where(p => IsPlainQueue(p) && (!onlyNew || !_hostReads.ContainsKey(p.Id))).ToList());
         }
         finally
         {
             _statusReading = false;
         }
+    }
+
+    /// <summary>A system queue with a host in its port and no IPP printer matched to it.</summary>
+    private static bool IsPlainQueue(PrinterInfo printer) =>
+        printer.Route == PrinterRoute.System && printer.IppEndpoint is null && printer.Address is { Length: > 0 };
+
+    /// <summary>
+    /// Asks the host of a queue on a TCP/IP port for its marker levels, at the usual IPP paths. A host that does not
+    /// answer shows no levels, as before.
+    /// </summary>
+    private async Task ReadHostsAsync(IReadOnlyList<PrinterInfo> rows)
+    {
+        if (_networkPrinters is not { } network || rows.Count == 0) return;
+        var reads = await Task.WhenAll(rows.Select(async printer =>
+        {
+            foreach (string path in HostPaths)
+            {
+                if (PrinterAddress.Create(false, printer.Address!, PrinterAddress.DefaultPort, path) is not { } address) break;
+                using var timeout = new CancellationTokenSource(HostTimeout);
+                try
+                {
+                    var check = await network.CheckAsync(address, null, timeout.Token);
+                    if (check.Capabilities is { } capabilities) return (printer.Id, Capabilities: capabilities);
+                }
+                catch (Exception)
+                {
+                    // No answer in time, or none that makes sense; the next path is tried.
+                }
+            }
+            return (printer.Id, Capabilities: (PrinterCapabilities?)null);
+        }));
+        foreach (var (id, capabilities) in reads) _hostReads[id] = capabilities;
+        RebuildPrinters();
+        NotifyAll();
     }
 
     private async Task ReadStatusAsync(IReadOnlyList<PrinterInfo> rows)

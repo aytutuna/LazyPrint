@@ -50,8 +50,8 @@ public sealed record SheetJob(string Name, PrinterInfo Printer, PrinterCapabilit
     }
 }
 
-/// <summary>How a job is going, as its printer tells it: the state, the sides done so far and a few words about it.</summary>
-public sealed record JobStatus(JobState State, int SidesDone, string? Detail = null);
+/// <summary>How a job is going, as its printer tells it: the state, the sides done so far and a few words about it. <paramref name="Unconfirmed"/>: the printer stopped telling, so the job may not be printed.</summary>
+public sealed record JobStatus(JobState State, int SidesDone, string? Detail = null, bool Unconfirmed = false);
 
 /// <summary>Draws the sheets of a job and hands them to a printer.</summary>
 public interface ISheetPrinter

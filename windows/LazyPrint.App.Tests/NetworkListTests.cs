@@ -75,6 +75,36 @@ public sealed class NetworkListTests
     }
 
     [Fact]
+    public async Task AQueueOnAnIpPortShowsInkFromItsHostWithoutAMatch()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("Plain Queue", isDefault: true));
+        rig.Network.HostAnswers["192.168.1.20/ipp/printer"] = new PrinterCapabilities
+        {
+            Supplies = [new MarkerSupply("Black", "#000000", "toner", 40, 10, null)],
+        };
+        await rig.Model.RefreshPrintersAsync();
+        rig.Model.StartNetwork();
+        await rig.Model.RefreshNetworkStatusAsync();
+
+        var row = rig.Model.Printers.Single(p => p.Id == "system:Plain Queue");
+        Assert.Null(row.Info.IppEndpoint);
+        Assert.Equal(40, Assert.Single(row.Info.Supplies).Level);
+    }
+
+    [Fact]
+    public async Task AQueueWhoseHostDoesNotAnswerShowsNoInk()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("Plain Queue", isDefault: true));
+        await rig.Model.RefreshPrintersAsync();
+        rig.Model.StartNetwork();
+        await rig.Model.RefreshNetworkStatusAsync();
+
+        Assert.Empty(rig.Model.Printers.Single(p => p.Id == "system:Plain Queue").Info.Supplies);
+    }
+
+    [Fact]
     public async Task ANetworkPrinterThatDoesNotAnswerIsOffline()
     {
         using var rig = new Rig();

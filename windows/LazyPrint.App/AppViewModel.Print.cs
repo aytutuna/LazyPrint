@@ -27,6 +27,10 @@ public sealed partial class AppViewModel
     private TaskCompletionSource? _passEnded;
     private string? _jobRunning;
 
+    /// <summary>The pass that ended last was handed over without the printer saying it printed.</summary>
+    private bool _unconfirmed;
+    private bool _spooled;
+
     /// <summary>What a job was made from, so Print again can make it once more.</summary>
     private sealed record JobInputs(PrinterInfo Printer, PrinterCapabilities? Capabilities, PrintSettings Settings, PrintTask? Task,
                                     IReadOnlyList<LoadedDocument> Documents, IReadOnlyList<int>? Range, string Name);
@@ -218,6 +222,12 @@ public sealed partial class AppViewModel
 
     public bool CanPrint => PrintDisabledReason is null;
 
+    /// <summary>The job being followed is in the system's print queue, which keeps it when the app closes.</summary>
+    public bool JobIsInSpooler => _job is not null && _spooled;
+
+    /// <summary>The worst problem of the printer in use (paused, offline, out of paper); Print still works, as the queue takes the job.</summary>
+    public string? PrinterTrouble => SelectedPrinter?.Problems.FirstOrDefault(p => p.IsError)?.Title;
+
     public async Task PrintAsync()
     {
         if (!CanPrint || SelectedPrinter is not { } printer || Plan() is null) return;
@@ -264,6 +274,7 @@ public sealed partial class AppViewModel
     private void Sent(JobRecord record, PrinterInfo printer)
     {
         string? warning = CurrentJob(record.Id) is { State: JobState.Done } now ? now.Detail : null;
+        if (warning is null && _unconfirmed) warning = PrintText.SentStatus;
         SetJob(record.Id, JobState.Done, warning);
         _statusOverride = warning ?? PrintText.Printed;
         SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
@@ -283,25 +294,31 @@ public sealed partial class AppViewModel
         _passEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _jobRunning = recordId;
         _canceling = false;
+        _unconfirmed = false;
+        _spooled = false;
         IsBusy = true;
         SetJob(recordId, JobState.Sending, null);
         _statusOverride = PrintText.Printing(1, sides);
         NotifyAll();
         try
         {
+            int sidesDone = 0;
             var progress = new Progress<JobStatus>(status =>
             {
                 if (_canceling) return;
                 if (CurrentJob(recordId) is not { } record) return;
                 bool open = record.State is JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser;
                 if (status.State == JobState.Done ? _jobRunning != recordId && record.State != JobState.Done : !open) return;
+                sidesDone = Math.Max(sidesDone, status.SidesDone);
                 SetJob(recordId, status.State, status.Detail);
                 if (status.State == JobState.Done) return;
+                _unconfirmed = status.Unconfirmed;
+                if (printer.Route == PrinterRoute.System && status.State != JobState.Sending) _spooled = true;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
                     : status.State == JobState.Waiting
                         ? PrintText.WaitingFor(job.Printer.Name, status.Detail)
-                        : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
+                        : PrintText.Printing(Math.Min(sidesDone + 1, sides), sides);
                 NotifyAll();
             });
             await SendAsync(job, pass, progress, cancellation.Token);
@@ -309,7 +326,7 @@ public sealed partial class AppViewModel
         }
         catch (OperationCanceledException)
         {
-            SetJob(recordId, JobState.Canceled, null);
+            SetJob(recordId, JobState.Canceled, CurrentJob(recordId) is { State: JobState.Canceled } stopped ? stopped.Detail : null);
             _statusOverride = null;
             return false;
         }

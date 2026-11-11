@@ -53,10 +53,14 @@ internal sealed class FakeSheetPrinter : ISheetPrinter
     /// <summary>Runs while a pass is being printed; a test holds the job here.</summary>
     public Func<SheetJob, int, CancellationToken, Task>? While { get; set; }
 
+    /// <summary>Told to the view model before the pass is held.</summary>
+    public JobStatus? Report { get; set; }
+
     public async Task PrintAsync(SheetJob job, int pass, IProgress<JobStatus> progress, CancellationToken token)
     {
         if (Fails is not null) throw Fails;
         Passes.Add((job, pass));
+        if (Report is not null) progress.Report(Report);
         if (While is not null) await While(job, pass, token);
     }
 }
@@ -97,6 +101,8 @@ internal sealed class FakeNetwork : INetworkPrinters
     public string? Detail { get; set; }
     /// <summary>What a printer answers, by the name of its endpoint; a printer not here does not answer.</summary>
     public Dictionary<string, AddressCheck> Answers { get; } = [];
+    /// <summary>What a plain host answers to CheckAsync, by "host/path"; a host not here does not answer.</summary>
+    public Dictionary<string, PrinterCapabilities> HostAnswers { get; } = [];
     public List<IppCertificateException> Trusted { get; } = [];
     public int Restarts { get; private set; }
     public int Reads { get; private set; }
@@ -121,7 +127,7 @@ internal sealed class FakeNetwork : INetworkPrinters
     }
 
     public Task<AddressCheck> CheckAsync(PrinterAddress address, string? firstUse, CancellationToken token) =>
-        Task.FromResult(new AddressCheck(address, null, null, "it did not answer in time"));
+        Task.FromResult(new AddressCheck(address, HostAnswers.GetValueOrDefault(address.Host + "/" + address.ResourcePath), null, "it did not answer in time"));
 
     public void Add(PrinterAddress address, PrinterCapabilities capabilities) { }
 
