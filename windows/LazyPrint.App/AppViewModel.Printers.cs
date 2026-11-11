@@ -305,6 +305,7 @@ public sealed partial class AppViewModel
         }
         _capabilityFailed.Remove(printer.Id);
         _capabilities[printer.Id] = capabilities;
+        RelayoutText();
         ChooseSidesAgain();
     }
 
@@ -468,6 +469,7 @@ public sealed partial class AppViewModel
                 _capabilities[id] = capabilities;
             }
         }
+        RelayoutText();
         ChooseSidesAgain();
         RebuildPrinters();
         NotifyAll();

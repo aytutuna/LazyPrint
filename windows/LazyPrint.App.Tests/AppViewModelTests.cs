@@ -73,6 +73,24 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task ATextDocumentFollowsThePaperOfAPrinterWhoseCapabilitiesArriveLater()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.txt"]);
+        var a5 = PaperSizes.PointsOf("a5")!.Value;
+        Assert.NotEqual(a5, rig.Model.Documents[0].Pages[0]);
+
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = new PrinterCapabilities { MediaReady = ["iso_a5_148x210mm"] };
+        await rig.Model.RefreshPrintersAsync();
+
+        var laid = rig.Model.Documents[0].Pages[0];
+        Assert.Equal(a5.Width, laid.Width, 0.1);
+        Assert.Equal(a5.Height, laid.Height, 0.1);
+    }
+
+    [Fact]
     public async Task TheDefaultPrinterIsUsedUntilOneIsChosen()
     {
         using var rig = new Rig();
