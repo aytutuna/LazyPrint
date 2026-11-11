@@ -102,6 +102,14 @@ public class PrintTaskTests
     }
 
     [Fact]
+    public void Apply_DocumentAndTwoSided_BackToFullScale()
+    {
+        var start = new PrintSettings { Scale = 50 };
+        Assert.Equal(100, TaskCatalog.Apply(PrintTask.Document, start, null).Scale);
+        Assert.Equal(100, TaskCatalog.Apply(PrintTask.TwoSided, start, null).Scale);
+    }
+
+    [Fact]
     public void Apply_TwoSided_LongEdge_WhateverThePrinterCan()
     {
         foreach (var printer in new[] { Duplex, OneSidedOnly, null })

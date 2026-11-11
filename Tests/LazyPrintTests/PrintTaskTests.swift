@@ -110,6 +110,12 @@ final class PrintTaskTests: XCTestCase {
         }
     }
 
+    func test_apply_documentAndTwoSided_backToFullScale() {
+        let start = settings { $0.scale = 50 }
+        XCTAssertEqual(TaskCatalog.apply(.document, to: start, printer: nil).scale, 100)
+        XCTAssertEqual(TaskCatalog.apply(.twoSided, to: start, printer: nil).scale, 100)
+    }
+
     func test_apply_booklet_handouts() {
         let booklet = TaskCatalog.apply(.booklet, to: PrintSettings(), printer: nil)
         XCTAssertEqual(booklet.taskId, "booklet")

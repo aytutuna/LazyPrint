@@ -105,12 +105,13 @@ public static class TaskCatalog
                     Poster = 0,
                     Booklet = false,
                     Scaling = Scaling.ShrinkToFit,
+                    Scale = 100,
                     Sides = canTwoSided ? Sides.LongEdge : Sides.OneSided,
                     Quality = QualityChoice.Normal,
                 };
             case PrintTask.TwoSided:
                 // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
-                return s with { PagesPerSheet = 1, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { PagesPerSheet = 1, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, Scale = 100, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
             case PrintTask.Booklet:
                 return s with { Poster = 0, Booklet = true, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
             case PrintTask.Handouts:
