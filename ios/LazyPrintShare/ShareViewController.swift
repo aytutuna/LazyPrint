@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 /// The share sheet's Lazy Print: copies what was shared into `Shared/<time>-<uuid>` of the App Group, where the app picks it up
 /// the next time it is in front, and says to open the app. An extension cannot open its app, so this only leaves the files.
 final class ShareViewController: UIViewController {
-    private let types: [UTType] = [.pdf, .image]
+    private let types: [UTType] = [.pdf, .image, .plainText]
 
     override func viewDidLoad() {
         super.viewDidLoad()
