@@ -31,4 +31,9 @@ final class PrintTextTests: XCTestCase {
         XCTAssertEqual(PrintText.jobName(["Report.pdf"]), "Report.pdf")
         XCTAssertEqual(PrintText.jobName(["Report.pdf", "a.png", "b.png"]), "Report.pdf and 2 more")
     }
+
+    func test_pageRangeHint_saysTheRangeCountsAcrossDocuments() {
+        XCTAssertEqual(PrintText.pageRangeHint(pages: 3, documents: 1), "All, or 1-3, 5")
+        XCTAssertEqual(PrintText.pageRangeHint(pages: 12, documents: 2), "1-12 (all documents)")
+    }
 }

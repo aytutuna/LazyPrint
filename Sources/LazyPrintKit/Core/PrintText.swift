@@ -65,5 +65,10 @@ public enum PrintText {
         names.count > 1 ? "\(names[0]) and \(names.count - 1) more" : names[0]
     }
 
+    /// The page range field's hint; with several documents it says the range counts across all of them.
+    public static func pageRangeHint(pages: Int, documents: Int) -> String {
+        documents > 1 ? "1-\(pages) (all documents)" : "All, or 1-3, 5"
+    }
+
     public static let printedInGray = "Printed in gray: this printer has no color"
 }

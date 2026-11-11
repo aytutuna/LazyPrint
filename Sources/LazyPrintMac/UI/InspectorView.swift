@@ -73,7 +73,7 @@ struct InspectorView: View {
                 }
             }
             field("Pages") {
-                TextField("All, or 1-3, 5", text: Binding(get: { state.pageRange }, set: { state.setPageRange($0) }))
+                TextField(PrintText.pageRangeHint(pages: state.pageCount, documents: state.documents.count), text: Binding(get: { state.pageRange }, set: { state.setPageRange($0) }))
                     .textFieldStyle(.roundedBorder)
                     .help("Page numbers and ranges, for example 1-3, 5. Empty prints every page.")
                 if let problem = state.pageRangeError {
