@@ -307,6 +307,29 @@ final class IppTrustTests: XCTestCase {
         XCTAssertEqual(validator.takeRejection()?.verdict, .invalid)
     }
 
+    func testADeviceClaimingATrustedUuidIsAChangeNotAFirstUse() throws {
+        let real = try IppFixtures.certificateDER("certificate-p256.pem")
+        let spoof = try IppFixtures.certificateDER("certificate-p384.pem")
+        let store = makeStore()
+
+        // Seeing a certificate pins nothing; the user trusts it.
+        let validator = IppCertificateValidator(store: store, deviceUuid: uuid, deviceName: "HP M479")
+        let url = try XCTUnwrap(URL(string: "https://hp.local/ipp/print"))
+        XCTAssertFalse(validator.validate(url: url, certificateDER: real, subject: "CN=RealPrinter", systemTrusted: false))
+        XCTAssertEqual(validator.takeRejection()?.verdict, .unknown)
+        XCTAssertTrue(store.certificates.isEmpty)
+        try store.trust(try XCTUnwrap(IppCertificates.fingerprint(certificateDER: real)), deviceUuid: uuid,
+                        authority: "hp.local:443", name: "HP M479")
+
+        let other = IppCertificateValidator(store: store, deviceUuid: uuid, deviceName: "HP M479")
+        let evil = try XCTUnwrap(URL(string: "https://evil.local/ipp/print"))
+        XCTAssertFalse(other.validate(url: evil, certificateDER: spoof, subject: "CN=Spoof", systemTrusted: false))
+        let rejection = try XCTUnwrap(other.takeRejection())
+        XCTAssertEqual(rejection.verdict, .changed)
+        XCTAssertEqual(rejection.previous?.fingerprint, IppCertificates.fingerprint(certificateDER: real))
+        XCTAssertEqual(store.certificates.count, 1)
+    }
+
     func testAPinMadeByAddressLearnsThePrintersUuid() throws {
         let der = try IppFixtures.certificateDER("certificate-p256.pem")
         let store = makeStore()

@@ -337,7 +337,9 @@ public final class NWBrowserPrinters: NetworkPrinters {
     }
 
     /// A browser's full list: new instances are resolved, a changed TXT record is taken as it is, one that did not resolve
-    /// is tried again, and the instances of its type it no longer reports are gone.
+    /// is tried again, and the instances of its type it no longer reports are gone. Every report resolves its instances
+    /// again, since a printer's new address does not change what the browser says of it; the old addresses stay in use
+    /// until the answer.
     private func browserResults(_ browse: Browse, _ results: [BrowseResult]) {
         guard isCurrent(browse) else { return }
         var reported = Set<String>()
@@ -345,7 +347,7 @@ public final class NWBrowserPrinters: NetworkPrinters {
             reported.insert(result.key)
             if let entry = found.first(where: { $0.result.key == result.key }) {
                 entry.result = result
-                if entry.resolved == nil && !entry.isResolving { startResolve(entry) }
+                if !entry.isResolving { startResolve(entry) }
             } else {
                 let entry = Found(result: result)
                 found.append(entry)
@@ -485,16 +487,34 @@ public final class NWBrowserPrinters: NetworkPrinters {
 
     public func read(_ endpoint: IppEndpoint) async -> AddressCheck {
         var last: AddressCheck?
+        var refused: AddressCheck?
         for address in endpoint.addresses {
-            var result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: nil)
-            // The user did not type this address: a new certificate is trusted on first use, as for a listed one.
-            if let certificate = result.certificate, certificate.verdict == .unknown, certificate.canTrust {
-                result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: certificate.fingerprint)
+            // A new certificate is not pinned by discovery: it is shown when the user selects or prints to the printer.
+            // The other addresses still tell how the printer is; a changed or invalid one is refused outright.
+            let result = await check(address, uuid: endpoint.uuid, name: endpoint.name, firstUse: nil)
+            if let certificate = result.certificate {
+                if certificate.verdict != .unknown { return result }
+                refused = refused ?? result
+            } else if result.capabilities != nil {
+                return AddressCheck(address: result.address, capabilities: result.capabilities,
+                                    certificate: refused?.certificate, error: nil)
+            } else {
+                last = result
             }
-            if result.capabilities != nil || result.certificate != nil { return result }
-            last = result
         }
+        if let refused { return refused }
+        resolveAgain(endpoint)
         return last ?? AddressCheck(address: endpoint.addresses[0], capabilities: nil, certificate: nil, error: "it has no address")
+    }
+
+    /// A printer that did not answer may have a new address: its services are resolved again, and the old addresses stay
+    /// until the answer.
+    public func resolveAgain(_ endpoint: IppEndpoint) {
+        for entry in found where !entry.isResolving {
+            if endpoint.instanceNames.contains(where: { $0.lowercased() == entry.result.name.lowercased() }) {
+                startResolve(entry)
+            }
+        }
     }
 
     public func check(_ address: PrinterAddress, firstUse: String?) async -> AddressCheck {
@@ -639,7 +659,7 @@ public final class DnssdResolver: Resolving {
 /// The resolve's answer: the operation is kept alive (retained by hand) until it finishes, since the DNS-SD callbacks only
 /// carry a raw pointer to it.
 private let resolveReply: DNSServiceResolveReply = {
-    (_: DNSServiceRef?, _: DNSServiceFlags, interfaceIndex: UInt32, error: DNSServiceErrorType,
+    (_: DNSServiceRef?, _: DNSServiceFlags, _: UInt32, error: DNSServiceErrorType,
      _: UnsafePointer<CChar>?, hostTarget: UnsafePointer<CChar>?, port: UInt16, _: UInt16,
      _: UnsafePointer<UInt8>?, context: UnsafeMutableRawPointer?) -> Void in
     guard let context else { return }
@@ -650,7 +670,7 @@ private let resolveReply: DNSServiceResolveReply = {
     }
     let hostPort: Int = Int(UInt16(bigEndian: port))
     MainActor.assumeIsolated {
-        operation.resolved(error: error, hostTarget: host, port: hostPort, interfaceIndex: interfaceIndex)
+        operation.resolved(error: error, hostTarget: host, port: hostPort)
     }
 }
 
@@ -720,7 +740,7 @@ final class DnssdResolve: ResolveHandle {
     }
 
     /// The service's host and port: its addresses are asked for next.
-    fileprivate func resolved(error: DNSServiceErrorType, hostTarget: String?, port: Int, interfaceIndex: UInt32) {
+    fileprivate func resolved(error: DNSServiceErrorType, hostTarget: String?, port: Int) {
         guard completion != nil, addressRef == nil else { return }
         guard Int(error) == kDNSServiceErr_NoError else {
             finish(DnssdResolve.outcome(error, doing: "resolve"))
@@ -743,7 +763,8 @@ final class DnssdResolve: ResolveHandle {
         guard let unmanaged = retained else { return }
         var ref: DNSServiceRef?
         let protocols: DNSServiceProtocol = DNSServiceProtocol(kDNSServiceProtocol_IPv4 | kDNSServiceProtocol_IPv6)
-        let started: DNSServiceErrorType = DNSServiceGetAddrInfo(&ref, 0, interfaceIndex, protocols, target,
+        // Interface 0: the addresses on every interface, not only the one the service answered on, as Windows lists them.
+        let started: DNSServiceErrorType = DNSServiceGetAddrInfo(&ref, 0, 0, protocols, target,
                                                                  addressReply, unmanaged.toOpaque())
         guard Int(started) == kDNSServiceErr_NoError, let lookup = ref else {
             finish(DnssdResolve.outcome(started, doing: "address lookup"))
