@@ -371,7 +371,10 @@ public sealed partial class AppViewModel
         : PageRangeError is { } error ? error
         : null;
 
-    /// <summary>The job the saved PDF is laid out from: the plan of the settings for the selected printer's paper, one copy, no printer to send it to.</summary>
+    /// <summary>
+    /// The job the saved PDF is laid out from: the plan of the settings for the selected printer's paper, one copy, no printer
+    /// to send it to. Two-sided sheets stay as front and back, whatever the printer does, since the file is printed elsewhere.
+    /// </summary>
     public SheetJob? SaveJob()
     {
         if (Plan() is null) return null;
@@ -379,6 +382,11 @@ public sealed partial class AppViewModel
         var printer = SelectedPrinter ?? new PrinterInfo("pdf", "PDF file", null, null, PrinterRoute.Demo, null, false, PrinterState.Idle, [], []);
         IReadOnlyList<LoadedDocument> documents = [.. Documents];
         var plan = PrintJobs.Plan(documents, PageRangeIndexes(), settings, SelectedTask, SelectedCapabilities, SelectedPrefs);
+        if (plan.ManualDuplex)
+        {
+            var sides = plan.Plan.Sheets.SelectMany(sheet => sheet.Back is { } back ? new[] { sheet.Front, back } : [sheet.Front]).ToList();
+            plan = plan with { ManualDuplex = false, Passes = [new DuplexPass(sides, [])] };
+        }
         return new SheetJob(PrintText.JobName([.. documents.Select(d => d.Name)]), printer, SelectedCapabilities, settings, plan, documents, "",
                             null, MarksOf(SelectedTask, settings), FrameMarksOf(SelectedTask, settings));
     }

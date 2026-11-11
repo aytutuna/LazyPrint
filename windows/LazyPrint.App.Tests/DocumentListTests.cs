@@ -202,6 +202,25 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public async Task ATwoSidedJobIsSavedAsFrontsAndBacksInOrderWithNoPrinter()
+    {
+        using var rig = new Rig();
+        var model = new AppViewModel(rig.Spooler, new DocumentLoader(), rig.Sheets, rig.Diagnostics, rig.Directory);
+        await model.StartTaskAsync(PrintTask.Booklet);
+        model.Settings.PaperId = "letter";
+        await model.AddFilesAsync([DocumentFixtures.PathOf("mixed.pdf")]);
+
+        var job = model.SaveJob()!;
+        var sides = SheetPdf.AllSides(job);
+
+        var sheet = Assert.Single(job.Plan.Plan.Sheets);
+        Assert.True(job.Plan.Plan.Duplex);
+        Assert.False(job.Plan.ManualDuplex);
+        Assert.Equal([sheet.Front, sheet.Back], sides.Select(s => s.Side));
+        Assert.All(sides, s => Assert.False(s.Turned || s.Marked));
+    }
+
+    [Fact]
     public async Task ARefusedFileSaysWhyAndTheOthersGoIn()
     {
         using var rig = new Rig();
