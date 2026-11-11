@@ -126,5 +126,28 @@ final class IOSFileInboxTests: XCTestCase {
         // An inbox that does not exist is emptied all the same.
         inbox.empty()
     }
+
+    func test_empty_keepsTheCopiesItIsToldTo() async throws {
+        let inbox = inbox()
+        let (copies, _) = await inbox.receive([try source("a.pdf"), try source("b.pdf")])
+
+        inbox.empty(keeping: [copies[0]])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copies[0].path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copies[1].path))
+    }
+
+    func test_discardCopy_removesACopyWithItsFolderAndNothingElse() async throws {
+        let inbox = inbox()
+        let original = try source("a.pdf")
+        let (copies, _) = await inbox.receive([original])
+
+        inbox.discardCopy(original)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+
+        inbox.discardCopy(copies[0])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copies[0].deletingLastPathComponent().path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+    }
 }
 #endif

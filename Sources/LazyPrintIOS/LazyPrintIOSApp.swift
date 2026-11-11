@@ -21,6 +21,7 @@ public struct LazyPrintIOSApp: App {
         let files: IOSFileInbox = IOSFileInbox()
         files.empty()
         IOSFileInbox.removeOldHandoffs()
+        IOSFileInbox.removeOldDelivered()
         let actions: IOSFileActions = IOSFileActions()
         let printerSystem: IOSPrinterSystem = IOSPrinterSystem()
         let browser: IOSCompanionBrowser? = options.demoPrinterOnly ? nil : IOSCompanionBrowser()

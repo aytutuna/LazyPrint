@@ -634,7 +634,12 @@ private struct DocumentsSheet: View {
                 }
                 .onDelete { (offsets: IndexSet) in
                     for index in offsets.sorted(by: >) {
+                        let url: URL = state.documents[index].url
                         state.remove(at: index)
+                        // The two-sided job waiting for its backs still holds the files it printed the fronts from.
+                        if !state.hasBacksWaiting && !state.documents.contains(where: { $0.url == url }) {
+                            IOSFileInbox().discardCopy(url)
+                        }
                     }
                 }
             }
