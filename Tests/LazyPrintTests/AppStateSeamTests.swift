@@ -376,6 +376,41 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_eachPrinter_bringsBackItsOwnPaperSidesColorAndQuality() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true), Rig.queue("Brother")]
+        await rig.state.refreshPrinters()
+
+        rig.state.settings.paperId = "a5"
+        rig.state.settings.color = .gray
+        rig.state.settings.quality = .best
+        rig.state.settings.copies = 3
+
+        // A printer never used keeps what is in front of the user, and then remembers it too.
+        await rig.state.selectPrinter("system:Brother")
+        XCTAssertEqual(rig.state.settings.paperId, "a5")
+        rig.state.settings.paperId = "legal"
+        rig.state.settings.color = .color
+
+        await rig.state.selectPrinter("system:HP LaserJet")
+        XCTAssertEqual(rig.state.settings.paperId, "a5")
+        XCTAssertEqual(rig.state.settings.color, .gray)
+        XCTAssertEqual(rig.state.settings.copies, 3)
+
+        await rig.state.selectPrinter("system:Brother")
+        XCTAssertEqual(rig.state.settings.paperId, "legal")
+        XCTAssertEqual(rig.state.settings.color, .color)
+        XCTAssertEqual(rig.state.settings.quality, .best)
+
+        // They are kept across a restart.
+        rig.state.flushSettings()
+        let next = rig.open()
+        await next.refreshPrinters()
+        await next.selectPrinter("system:HP LaserJet")
+        XCTAssertEqual(next.settings.paperId, "a5")
+    }
+
+    @MainActor
     func test_aPrinterThatWentAway_isNotUsed() async throws {
         let rig = try makeRig()
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true), Rig.queue("Brother")]

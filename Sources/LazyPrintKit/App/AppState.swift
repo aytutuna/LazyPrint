@@ -99,6 +99,7 @@ public final class AppState: ObservableObject {
                 sentMessage = nil
             }
             if let chosen = sidesPickedBlind, settings.sides != chosen { sidesPickedBlind = nil }
+            rememberForPrinter()
             scheduleSettingsSave()
             replan()
         }

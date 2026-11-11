@@ -165,8 +165,15 @@ extension AppState {
     /// refused is asked about now, since the user just chose it.
     public func selectPrinter(_ id: String) async {
         guard settings.printerId != id else { return }
-        settings.printerId = id
-        settings.printerName = printers.first(where: { $0.id == id })?.name
+        // One assignment, so the choices kept for the printer replace the old ones before they are kept for it.
+        var next = settings
+        next.printerId = id
+        next.printerName = printers.first(where: { $0.id == id })?.name
+        if let kept = printerPrefs[id] {
+            kept.apply(to: &next)
+            if kept.sides != nil { sidesPickedBlind = nil }
+        }
+        settings = next
         statusOverride = nil
         syncCapabilities()
         await loadCapabilities()
@@ -175,6 +182,16 @@ extension AppState {
             reviewCertificate(of: chosen)
         }
         replan()
+    }
+
+    /// Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back.
+    func rememberForPrinter() {
+        guard let printer = selectedPrinter else { return }
+        let before = prefs(of: printer)
+        let after = before.remembering(settings)
+        guard after != before else { return }
+        printerPrefs[printer.id] = after
+        SettingsStore.savePrinters(printerPrefs, in: files.settingsDirectory)
     }
 
     // MARK: Network printers

@@ -75,12 +75,40 @@ extension PrintSettings {
 /// What is remembered about one printer.
 public struct PrinterPrefs: Codable, Equatable, Sendable {
     public var paperPath: PaperPath
-    public init(paperPath: PaperPath = PaperPath()) {
+    /// What was last used with this printer; nil until it was used, which leaves the current choice alone.
+    public var paperId: String?
+    public var sides: Sides?
+    public var color: ColorChoice?
+    public var quality: QualityChoice?
+
+    public init(paperPath: PaperPath = PaperPath(), paperId: String? = nil, sides: Sides? = nil,
+                color: ColorChoice? = nil, quality: QualityChoice? = nil) {
         self.paperPath = paperPath
+        self.paperId = paperId
+        self.sides = sides
+        self.color = color
+        self.quality = quality
     }
 
     enum CodingKeys: String, CodingKey {
-        case paperPath
+        case paperPath, paperId, sides, color, quality
+    }
+
+    /// Brings back the paper, sides, color and quality last used with the printer; copies, range and layout stay.
+    public func apply(to settings: inout PrintSettings) {
+        settings.paperId = paperId ?? settings.paperId
+        settings.sides = sides ?? settings.sides
+        settings.color = color ?? settings.color
+        settings.quality = quality ?? settings.quality
+    }
+
+    public func remembering(_ settings: PrintSettings) -> PrinterPrefs {
+        var next = self
+        next.paperId = settings.paperId
+        next.sides = settings.sides
+        next.color = settings.color
+        next.quality = settings.quality
+        return next
     }
 }
 
@@ -88,6 +116,10 @@ extension PrinterPrefs {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         paperPath = c.decodeLenient(forKey: .paperPath, default: PaperPath())
+        paperId = c.decodeLenient(forKey: .paperId, default: paperId)
+        sides = c.decodeLenient(forKey: .sides, default: sides)
+        color = c.decodeLenient(forKey: .color, default: color)
+        quality = c.decodeLenient(forKey: .quality, default: quality)
     }
 }
 

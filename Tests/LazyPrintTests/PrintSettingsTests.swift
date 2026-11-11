@@ -144,6 +144,37 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertTrue(x.paperPath.turnStackOver)
     }
 
+    func test_printers_keepWhatWasLastUsed_andOldFilesLoadWithoutIt() throws {
+        let used = PrinterPrefs(paperId: "a5", sides: .longEdge, color: .gray, quality: .draft)
+        SettingsStore.savePrinters(["system:Office": used], in: directory)
+        XCTAssertEqual(SettingsStore.loadPrinters(in: directory)["system:Office"], used)
+
+        try write(#"{"system:Old": {"paperPath": {"turnBacks": true}}, "system:Bad": {"paperId": 4, "sides": "sideways"}}"#, to: printersURL)
+        let loaded = SettingsStore.loadPrinters(in: directory)
+        XCTAssertNil(loaded["system:Old"]?.paperId)
+        XCTAssertNil(loaded["system:Old"]?.sides)
+        XCTAssertEqual(loaded["system:Bad"], PrinterPrefs())
+    }
+
+    func test_printers_applyOnlyWhatTheyRemember_andRememberOnlyThoseFour() {
+        var settings = PrintSettings()
+        settings.paperId = "legal"
+        settings.sides = .shortEdge
+        settings.copies = 4
+        settings.pagesPerSheet = 2
+        var untouched = settings
+        PrinterPrefs().apply(to: &untouched)
+        XCTAssertEqual(untouched, settings)
+
+        let prefs = PrinterPrefs().remembering(settings)
+        var other = PrintSettings()
+        prefs.apply(to: &other)
+        XCTAssertEqual(other.paperId, "legal")
+        XCTAssertEqual(other.sides, .shortEdge)
+        XCTAssertEqual(other.copies, 1)
+        XCTAssertEqual(other.pagesPerSheet, 1)
+    }
+
     func test_printers_unreadable_areMovedAside_andEmpty() throws {
         try write("[1, 2", to: printersURL)
         XCTAssertTrue(SettingsStore.loadPrinters(in: directory).isEmpty)
