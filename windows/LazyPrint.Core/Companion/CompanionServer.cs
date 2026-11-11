@@ -19,6 +19,11 @@ public sealed record CompanionServerOptions
     public TimeSpan HeadTimeout { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>How long a body may stall between two reads, and a response between two writes.</summary>
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>How long a small body (pairing, control) may take in all, from its first read.</summary>
+    public TimeSpan BodyTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    /// <summary>An upload's body must average <see cref="MinUploadBytesPerSecond"/> once this long has passed.</summary>
+    public TimeSpan UploadGrace { get; init; } = TimeSpan.FromSeconds(10);
+    public long MinUploadBytesPerSecond { get; init; } = 16 * 1024;
     /// <summary>A refused request's unread body is read and dropped up to this size before closing.</summary>
     public long MaxDiscardBytes { get; init; } = 1024 * 1024;
     /// <summary>The whole time that dropping may take, however slowly the client sends.</summary>
@@ -68,6 +73,12 @@ public sealed class CompanionServer : IAsyncDisposable
     /// <summary>The endpoints listened on (with the ports actually bound); empty when stopped.</summary>
     public IReadOnlyList<IPEndPoint> LocalEndpoints { get; private set; } = [];
 
+    /// <summary>The endpoints that could not be bound, or whose listener died, since <see cref="Start"/>; <see cref="RetryFailed"/> tries them again.</summary>
+    public IReadOnlyList<IPEndPoint> FailedEndpoints { get; private set; } = [];
+
+    /// <summary>Raised (on any thread) when a listener died and its endpoint moved from <see cref="LocalEndpoints"/> to <see cref="FailedEndpoints"/>.</summary>
+    public event EventHandler? ListenerFailed;
+
     public bool IsRunning => _stop is not null;
 
     /// <summary>The connections being served now.</summary>
@@ -80,44 +91,88 @@ public sealed class CompanionServer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Listens on <paramref name="endpoints"/>. A port of 0 takes one the system picks; the first
-    /// endpoint's port is then used for the others, so all share one port. Throws
-    /// <see cref="SocketException"/> (nothing left listening) when one cannot be bound.
+    /// Listens on <paramref name="endpoints"/>, each bound on its own: one that cannot be bound is
+    /// left in <see cref="FailedEndpoints"/> and the others still serve. A port of 0 takes one the
+    /// system picks; the first endpoint bound then gives its port to the others, so all share one
+    /// port. Throws <see cref="SocketException"/> (nothing left listening) when none can be bound.
     /// </summary>
     public IReadOnlyList<IPEndPoint> Start(IReadOnlyList<IPEndPoint> endpoints)
     {
         if (IsRunning) throw new InvalidOperationException("The server is already running.");
         if (endpoints.Count == 0) throw new ArgumentException("Nothing to listen on.", nameof(endpoints));
         _context ??= SslStreamCertificateContext.Create(_certificate, additionalCertificates: null, offline: true);
+        _stop = new CancellationTokenSource();
+        _accept = new CancellationTokenSource();
         var bound = new List<IPEndPoint>();
+        var failed = new List<IPEndPoint>();
+        SocketException? failure = null;
         int sharedPort = 0;
-        try
+        foreach (var requested in endpoints)
         {
-            foreach (var requested in endpoints)
+            var endpoint = requested.Port != 0 ? requested : new IPEndPoint(requested.Address, sharedPort);
+            try
             {
-                int port = requested.Port != 0 ? requested.Port : sharedPort;
-                var listener = new TcpListener(new IPEndPoint(requested.Address, port));
-                listener.Server.ExclusiveAddressUse = true;
-                listener.Start(backlog: 16);
-                _listeners.Add(listener);
-                var local = (IPEndPoint)listener.LocalEndpoint;
+                var local = Listen(endpoint);
                 if (sharedPort == 0) sharedPort = local.Port;
                 bound.Add(local);
             }
+            catch (SocketException e)
+            {
+                failure = e;
+                failed.Add(endpoint);
+            }
         }
-        catch
+        if (bound.Count == 0)
         {
-            foreach (var listener in _listeners) listener.Stop();
-            _listeners.Clear();
-            throw;
+            _stop.Dispose();
+            _accept.Dispose();
+            _stop = null;
+            _accept = null;
+            throw failure!;
         }
-        _stop = new CancellationTokenSource();
-        _accept = new CancellationTokenSource();
-        var accept = _accept.Token;
-        var stop = _stop.Token;
-        foreach (var listener in _listeners) _acceptLoops.Add(Task.Run(() => AcceptLoopAsync(listener, accept, stop)));
-        LocalEndpoints = bound;
+        // A failed endpoint that asked for a system port is retried on the one the others got.
+        lock (_gate) FailedEndpoints = [.. failed.Select(f => f.Port != 0 ? f : new IPEndPoint(f.Address, sharedPort))];
         return bound;
+    }
+
+    /// <summary>Tries to bind the endpoints of <see cref="FailedEndpoints"/> again; true when at least one is serving now.</summary>
+    public bool RetryFailed()
+    {
+        if (!IsRunning) return false;
+        IPEndPoint[] failed;
+        lock (_gate) failed = [.. FailedEndpoints];
+        bool any = false;
+        foreach (var endpoint in failed)
+        {
+            try
+            {
+                Listen(endpoint);
+                lock (_gate) FailedEndpoints = [.. FailedEndpoints.Where(f => !f.Equals(endpoint))];
+                any = true;
+            }
+            catch (SocketException)
+            {
+                // Still not bindable; tried again at the next network change.
+            }
+        }
+        return any;
+    }
+
+    private IPEndPoint Listen(IPEndPoint endpoint)
+    {
+        var listener = new TcpListener(endpoint);
+        listener.Server.ExclusiveAddressUse = true;
+        listener.Start(backlog: 16);
+        var local = (IPEndPoint)listener.LocalEndpoint;
+        var accept = _accept!.Token;
+        var stop = _stop!.Token;
+        lock (_gate)
+        {
+            _listeners.Add(listener);
+            LocalEndpoints = [.. LocalEndpoints, local];
+            _acceptLoops.Add(Task.Run(() => AcceptLoopAsync(listener, local, accept, stop)));
+        }
+        return local;
     }
 
     /// <summary>
@@ -133,10 +188,13 @@ public sealed class CompanionServer : IAsyncDisposable
         _stop = null;
         _accept = null;
         accept.Cancel();
-        foreach (var listener in _listeners) listener.Stop();
-        _listeners.Clear();
         Task[] serving;
-        lock (_gate) serving = [.. _connections.Keys];
+        lock (_gate)
+        {
+            foreach (var listener in _listeners) listener.Stop();
+            _listeners.Clear();
+            serving = [.. _connections.Keys];
+        }
         try
         {
             await Task.WhenAll(serving).WaitAsync(_options.StopGrace).ConfigureAwait(false);
@@ -148,7 +206,7 @@ public sealed class CompanionServer : IAsyncDisposable
         stop.Cancel();
         Task[] pending;
         lock (_gate) pending = [.. _acceptLoops, .. _connections.Keys];
-        _acceptLoops.Clear();
+        lock (_gate) _acceptLoops.Clear();
         try
         {
             await Task.WhenAll(pending).WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
@@ -157,14 +215,18 @@ public sealed class CompanionServer : IAsyncDisposable
         {
             System.Diagnostics.Trace.TraceWarning($"Companion connections did not end in time: {e.Message}");
         }
-        LocalEndpoints = [];
+        lock (_gate)
+        {
+            LocalEndpoints = [];
+            FailedEndpoints = [];
+        }
         stop.Dispose();
         accept.Dispose();
     }
 
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
 
-    private async Task AcceptLoopAsync(TcpListener listener, CancellationToken accept, CancellationToken stop)
+    private async Task AcceptLoopAsync(TcpListener listener, IPEndPoint endpoint, CancellationToken accept, CancellationToken stop)
     {
         while (!accept.IsCancellationRequested)
         {
@@ -176,26 +238,37 @@ public sealed class CompanionServer : IAsyncDisposable
             catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException or SocketException
                                           or InvalidOperationException)
             {
-                // A connection reset while it was being accepted is no reason to stop accepting; a short
-                // pause keeps a listener that fails over and over from spinning.
-                if (accept.IsCancellationRequested || e is not SocketException) return;
-                try
+                if (accept.IsCancellationRequested) return;
+                // A connection reset while it was being accepted is no reason to stop accepting.
+                if (e is SocketException { SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted
+                                                            or SocketError.Interrupted or SocketError.TimedOut
+                                                            or SocketError.TooManyOpenSockets or SocketError.NoBufferSpaceAvailable })
                 {
-                    await Task.Delay(100, accept).ConfigureAwait(false);
+                    try
+                    {
+                        await Task.Delay(100, accept).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    continue;
                 }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-                continue;
+                // Anything else means the listener is dead (its address went away, say): stop here, and
+                // let whoever started the server know, so it reports the truth and binds again later.
+                System.Diagnostics.Trace.TraceWarning($"The companion listener on {endpoint} stopped: {e.Message}");
+                ListenerDied(listener, endpoint);
+                return;
             }
             var remote = (client.Client.RemoteEndPoint as IPEndPoint)?.Address ?? IPAddress.None;
             var peer = LocalSubnet.Normalize(remote);
+            var arrival = (client.Client.LocalEndPoint as IPEndPoint)?.Address;
             Task connection;
             // Counted before the lock is left: every listener has its own loop and one peer can reach them all.
             lock (_gate)
             {
-                if (_connections.Count >= _options.MaxConnections
+                if (!IsServed(arrival)
+                    || _connections.Count >= _options.MaxConnections
                     || _connections.Values.Count(held => held.Equals(peer)) >= _options.MaxConnectionsPerPeer
                     || (_options.AllowPeer is { } allow && !allow(remote))
                     || _limiter.IsBlocked(remote, _clock()))
@@ -211,6 +284,26 @@ public sealed class CompanionServer : IAsyncDisposable
                 lock (_gate) _connections.Remove(done);
             }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
+    }
+
+    /// <summary>Whether <paramref name="arrival"/> (the local address a connection came in on) is one the server chose to serve; with the gate held.</summary>
+    private bool IsServed(IPAddress? arrival)
+    {
+        if (arrival is null) return false;
+        var bytes = LocalSubnet.Normalize(arrival).GetAddressBytes();
+        return LocalEndpoints.Any(e => e.Address.GetAddressBytes().AsSpan().SequenceEqual(bytes));
+    }
+
+    private void ListenerDied(TcpListener listener, IPEndPoint endpoint)
+    {
+        lock (_gate)
+        {
+            if (!_listeners.Remove(listener)) return;
+            LocalEndpoints = [.. LocalEndpoints.Where(e => !e.Equals(endpoint))];
+            FailedEndpoints = [.. FailedEndpoints, endpoint];
+        }
+        listener.Stop();
+        ListenerFailed?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task ServeAsync(TcpClient client, IPAddress remote, CancellationToken stop)
@@ -232,7 +325,7 @@ public sealed class CompanionServer : IAsyncDisposable
                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 }, handshake.Token).ConfigureAwait(false);
             }
-            await ServeRequestAsync(tls, remote, stop).ConfigureAwait(false);
+            await ServeRequestAsync(tls, tcp.Client, remote, stop).ConfigureAwait(false);
         }
         catch (Exception e) when (e is IOException or AuthenticationException or OperationCanceledException
                                       or ObjectDisposedException or SocketException or InvalidOperationException)
@@ -241,7 +334,7 @@ public sealed class CompanionServer : IAsyncDisposable
         }
     }
 
-    private async Task ServeRequestAsync(SslStream tls, IPAddress remote, CancellationToken stop)
+    private async Task ServeRequestAsync(SslStream tls, Socket socket, IPAddress remote, CancellationToken stop)
     {
         var buffer = new byte[CompanionHttp.MaxHeadBytes + 4096];
         int filled = 0;
@@ -270,8 +363,9 @@ public sealed class CompanionServer : IAsyncDisposable
         }
 
         var idle = new IdleStream(tls, _options.IdleTimeout);
+        var timed = new BodyGuard(idle, head.ContentLength is <= CompanionProtocol.MaxJsonBodyBytes, _options);
         var body = new CompanionRequestBody(
-            idle, head.ContentLength ?? 0, buffer.AsMemory(parsed.Consumed, filled - parsed.Consumed),
+            timed, head.ContentLength ?? 0, buffer.AsMemory(parsed.Consumed, filled - parsed.Consumed),
             head.ExpectsContinue ? token => idle.WriteAsync(CompanionHttp.ContinueResponse.ToArray(), token).AsTask() : null);
         CompanionResponse response;
         try
@@ -284,7 +378,20 @@ public sealed class CompanionServer : IAsyncDisposable
             System.Diagnostics.Trace.TraceError($"A companion request failed: {e}");
             response = CompanionResponse.Error(500, CompanionError.ServerError);
         }
-        await WriteAsync(idle, response, stop).ConfigureAwait(false);
+        bool written = false;
+        try
+        {
+            // A write into a closed socket still succeeds once; a phone that already hung up never gets the secret.
+            if (response.Written is null || !(socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0))
+            {
+                await WriteAsync(idle, response, stop).ConfigureAwait(false);
+                written = true;
+            }
+        }
+        finally
+        {
+            response.Written?.Invoke(written);
+        }
         // Leave the client its whole send when it is small, so closing does not cut off the answer.
         using var discard = CancellationTokenSource.CreateLinkedTokenSource(stop);
         discard.CancelAfter(_options.DiscardTimeout);
@@ -299,6 +406,58 @@ public sealed class CompanionServer : IAsyncDisposable
             await stream.WriteAsync(response.Body, stop).ConfigureAwait(false);
         }
         await stream.FlushAsync(stop).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The connection as the body's source: a small body has <see cref="CompanionServerOptions.BodyTimeout"/> in all, a
+    /// large one must keep up <see cref="CompanionServerOptions.MinUploadBytesPerSecond"/> after the grace time. Either
+    /// ends the connection. Reads only.
+    /// </summary>
+    private sealed class BodyGuard(Stream inner, bool small, CompanionServerOptions options) : Stream
+    {
+        private long? _started;
+        private long _bytes;
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            long now = Environment.TickCount64;
+            long started = _started ??= now;
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (small)
+            {
+                var left = options.BodyTimeout - TimeSpan.FromMilliseconds(now - started);
+                limit.CancelAfter(left > TimeSpan.Zero ? left : TimeSpan.Zero);
+            }
+            int read = await inner.ReadAsync(buffer, limit.Token).ConfigureAwait(false);
+            _bytes += read;
+            var elapsed = TimeSpan.FromMilliseconds(Environment.TickCount64 - started);
+            if (!small && elapsed > options.UploadGrace
+                && _bytes < options.MinUploadBytesPerSecond * (elapsed - options.UploadGrace).TotalSeconds)
+            {
+                throw new IOException("The upload is too slow.");
+            }
+            return read;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
     }
 
     /// <summary>The connection, with each read and write given at most the idle timeout.</summary>

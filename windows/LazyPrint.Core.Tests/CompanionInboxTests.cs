@@ -13,7 +13,7 @@ public sealed class CompanionInboxTests : IDisposable
 
     public CompanionInboxTests()
     {
-        _inbox = new CompanionInbox(Path.Combine(_root, "Inbox"));
+        _inbox = new CompanionInbox(Path.Combine(_root, "Inbox")) { FreeSpace = _ => long.MaxValue };
     }
 
     public void Dispose()
@@ -248,6 +248,53 @@ public sealed class CompanionInboxTests : IDisposable
             () => _inbox.ReceiveAsync(Phone, "package-0002", body, CompanionInbox.MaxWaitingBytes, _start, CancellationToken.None));
         await Assert.ThrowsAsync<EndOfStreamException>(
             () => _inbox.ReceiveAsync(Phone, "package-0002", body, 1000, _start, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UploadsUnderWay_CountAgainstTheByteLimitTogether()
+    {
+        var release = new TaskCompletionSource();
+        var slow = new SlowStream(release.Task);
+        long half = CompanionInbox.MaxWaitingBytes / 2 + 1;
+        var first = _inbox.ReceiveAsync(Phone, "package-0001", slow, half, _start, CancellationToken.None);
+        await Assert.ThrowsAsync<CompanionInboxFullException>(
+            () => _inbox.ReceiveAsync(Phone, "package-0002", new MemoryStream(), half, _start, CancellationToken.None));
+        release.SetResult();
+        await Assert.ThrowsAnyAsync<Exception>(() => first);
+        // The reservation went with the failed upload.
+        await Assert.ThrowsAsync<EndOfStreamException>(
+            () => _inbox.ReceiveAsync(Phone, "package-0002", new MemoryStream(), half, _start, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AnUploadThatWouldLeaveTooLittleDisk_IsRefused()
+    {
+        _inbox.FreeSpace = _ => CompanionInbox.MinFreeBytes + 999;
+        await Assert.ThrowsAsync<CompanionInboxFullException>(
+            () => _inbox.ReceiveAsync(Phone, "package-0001", new MemoryStream(), 1000, _start, CancellationToken.None));
+        await Assert.ThrowsAsync<EndOfStreamException>(
+            () => _inbox.ReceiveAsync(Phone, "package-0001", new MemoryStream(), 999, _start, CancellationToken.None));
+    }
+
+    // A body that gives nothing until released, then ends.
+    private sealed class SlowStream(Task release) : Stream
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await release.ConfigureAwait(false);
+            return 0;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     [Fact]

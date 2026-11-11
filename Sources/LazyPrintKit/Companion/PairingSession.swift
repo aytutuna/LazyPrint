@@ -11,7 +11,7 @@ public enum PairingSessionState: Equatable, Sendable {
     case used
     /// Its five minutes are over.
     case expired
-    /// Closed by the desktop, or after too many wrong tokens.
+    /// Closed by the desktop, or after too many wrong tokens from all peers together.
     case closed
 }
 
@@ -28,17 +28,20 @@ public enum PairingRedeemResult: Equatable, Sendable {
 public struct PairingSessionError: Error, Equatable, Sendable {}
 
 /// One pairing window on the desktop: a random 128-bit token shown in the QR code, good for one
-/// pairing within `lifetime`. Tokens are compared in constant time; after `maxFailedAttempts` wrong
-/// ones the session closes, so a token cannot be guessed. The clock is passed in, so tests control it.
+/// pairing within `lifetime`. Tokens are compared in constant time; a peer that sends
+/// `maxFailedAttempts` wrong ones is refused for the rest of the session, and `maxTotalFailedAttempts`
+/// wrong ones from anyone close it, so a token cannot be guessed. The clock is passed in, so tests control it.
 /// Safe to use from any thread.
 public final class PairingSession: @unchecked Sendable {
     public static let lifetime: TimeInterval = 5 * 60
     public static let maxFailedAttempts = 5
+    public static let maxTotalFailedAttempts = 25
 
     private let lock = NSLock()
     private let tokenBytes: [UInt8]
     private var current: PairingSessionState = .open
     private var failed = 0
+    private var failedByPeer: [[UInt8]: Int] = [:]
 
     /// The token as the pairing code carries it (base64url, 22 characters).
     public let token: String
@@ -81,9 +84,11 @@ public final class PairingSession: @unchecked Sendable {
         state(at: now) == .open ? expires.timeIntervalSince(now) : 0
     }
 
-    /// Presents `token` at `now`. The right token while the session is open is accepted once; a wrong
-    /// one counts towards `maxFailedAttempts`, after which the session is closed.
-    public func redeem(_ token: String?, now: Date) -> PairingRedeemResult {
+    /// Presents `token` from `peer` (an address's bytes, empty when unknown) at `now`. The right token
+    /// while the session is open is accepted once; a wrong one counts against its peer
+    /// (`maxFailedAttempts`, after which that peer gets `.closed` for the session) and against the total
+    /// (`maxTotalFailedAttempts`, after which the session is closed).
+    public func redeem(_ token: String?, now: Date, peer: [UInt8] = []) -> PairingRedeemResult {
         lock.lock()
         defer { lock.unlock() }
         switch current {
@@ -96,6 +101,8 @@ public final class PairingSession: @unchecked Sendable {
             return .expired
         }
         if current == .expired { return .expired }
+        let byPeer = failedByPeer[peer] ?? 0
+        if byPeer >= PairingSession.maxFailedAttempts { return .closed }
         var matches = false
         if let presented = CompanionProtocol.decodeBase64Url(token), presented.count == PairingUri.tokenByteCount {
             let bytes = [UInt8](presented)
@@ -107,7 +114,8 @@ public final class PairingSession: @unchecked Sendable {
         }
         if !matches {
             failed += 1
-            if failed >= PairingSession.maxFailedAttempts { current = .closed }
+            failedByPeer[peer] = byPeer + 1
+            if failed >= PairingSession.maxTotalFailedAttempts { current = .closed }
             return .wrongToken
         }
         current = .used

@@ -151,7 +151,7 @@ public sealed class CompanionHost : IAsyncDisposable
     }
 
     /// <summary>Checks the networks and what is wanted, then starts, moves or stops the server and the advertisements.</summary>
-    public async Task RefreshAsync(bool restart = false)
+    public async Task RefreshAsync(bool restart = false, bool retry = true)
     {
         await _refresh.WaitAsync().ConfigureAwait(false);
         try
@@ -172,8 +172,18 @@ public sealed class CompanionHost : IAsyncDisposable
             else if (restart || _server is null || !SameAddresses(_listening, addresses))
             {
                 await StopServerAsync().ConfigureAwait(false);
-                error = Start(addresses);
+                error = await StartAsync(addresses).ConfigureAwait(false);
                 if (error is not null) state = CompanionListenState.Failed;
+            }
+            else if (retry && _server.FailedEndpoints.Count > 0)
+            {
+                _server.RetryFailed();
+            }
+            if (state == CompanionListenState.Listening && _server is { FailedEndpoints.Count: > 0 } unbound)
+            {
+                // Every listener is gone, or only some are: either way the status says what is real.
+                error = $"Windows did not let Lazy Print listen on {string.Join(", ", unbound.FailedEndpoints.Select(f => f.Address))}.";
+                if (unbound.LocalEndpoints.Count == 0) state = CompanionListenState.Failed;
             }
             UpdateAdvertisements(state == CompanionListenState.Listening ? states : []);
             var status = new CompanionHostStatus(state, states, _server?.LocalEndpoints ?? [], error);
@@ -205,6 +215,18 @@ public sealed class CompanionHost : IAsyncDisposable
         }
     }
 
+    private async void Listener_Failed(object? sender, EventArgs e)
+    {
+        try
+        {
+            await RefreshAsync(retry: false).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            System.Diagnostics.Trace.TraceError($"Could not follow a listener failure: {error}");
+        }
+    }
+
     private async void Networks_Changed(object? sender, EventArgs e)
     {
         try
@@ -218,7 +240,7 @@ public sealed class CompanionHost : IAsyncDisposable
     }
 
     /// <summary>Starts the server on <paramref name="addresses"/>; null when it listens, else why not.</summary>
-    private string? Start(IReadOnlyList<LocalSubnet> addresses)
+    private async Task<string?> StartAsync(IReadOnlyList<LocalSubnet> addresses)
     {
         X509Certificate2 certificate;
         try
@@ -234,12 +256,30 @@ public sealed class CompanionHost : IAsyncDisposable
         var options = _options.Server with { AllowPeer = remote => TrustedNetworkPolicy.IsAllowedPeer(remote, listening) };
         var ports = new[] { _lastPort, _options.PreferredPort, 0 }.Where((p, i) => i == 2 || p > 0).Distinct().ToList();
         SocketException? failure = null;
+        // A port taken on only some addresses is kept as a fallback while the others are tried.
+        CompanionServer? partial = null;
+        int partialPort = 0;
         foreach (int port in ports)
         {
             var server = new CompanionServer(certificate, _router, _limiter, options, _options.Clock);
             try
             {
                 var bound = server.Start([.. addresses.Select(a => new IPEndPoint(a.Address, port))]);
+                if (server.FailedEndpoints.Count > 0 && port != ports[^1])
+                {
+                    if (partial is null)
+                    {
+                        partial = server;
+                        partialPort = bound[0].Port;
+                    }
+                    else
+                    {
+                        await server.StopAsync().ConfigureAwait(false);
+                    }
+                    continue;
+                }
+                if (partial is not null) await partial.StopAsync().ConfigureAwait(false);
+                server.ListenerFailed += Listener_Failed;
                 _server = server;
                 _listening = addresses;
                 _lastPort = bound[0].Port;
@@ -251,6 +291,14 @@ public sealed class CompanionHost : IAsyncDisposable
                 if (e.SocketErrorCode is not (SocketError.AddressAlreadyInUse or SocketError.AccessDenied)) break;
             }
         }
+        if (partial is not null)
+        {
+            partial.ListenerFailed += Listener_Failed;
+            _server = partial;
+            _listening = addresses;
+            _lastPort = partialPort;
+            return null;
+        }
         return $"Windows did not let Lazy Print listen for phones ({failure?.Message}).";
     }
 
@@ -260,6 +308,7 @@ public sealed class CompanionHost : IAsyncDisposable
         {
             _server = null;
             _listening = [];
+            server.ListenerFailed -= Listener_Failed;
             await server.StopAsync().ConfigureAwait(false);
         }
     }
@@ -268,6 +317,7 @@ public sealed class CompanionHost : IAsyncDisposable
     private void UpdateAdvertisements(IReadOnlyList<CompanionNetworkState> states)
     {
         var wanted = new Dictionary<int, DnsSdRegistration>();
+        var bound = (_server?.LocalEndpoints ?? []).Select(e => e.Address).ToHashSet();
         int port = _server?.LocalEndpoints.FirstOrDefault()?.Port ?? 0;
         if (port > 0)
         {
@@ -277,6 +327,7 @@ public sealed class CompanionHost : IAsyncDisposable
             foreach (var adapter in states.Where(s => s.Trust != NetworkTrust.NotTrusted).SelectMany(s => s.Network.Interfaces))
             {
                 if (untrusted.Contains(adapter.AdapterId) || adapter.Index <= 0 || wanted.ContainsKey(adapter.Index)) continue;
+                if (!adapter.Addresses.Any(a => bound.Contains(a.Address))) continue;
                 var ipv4 = adapter.Addresses.Select(a => a.Address).FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
                 wanted[adapter.Index] = new DnsSdRegistration(
                     _options.InstanceName, _options.HostName, port, adapter.Index, ipv4,

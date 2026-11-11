@@ -62,13 +62,9 @@ public enum SyncPackage {
 
     /// The package sealed in `data` for `packageId` by `phoneId`. Throws `SyncPackageError`.
     public static func open(_ data: Data, packageId: String, phoneId: String, key: Data) throws -> Data {
-        guard data.count <= maxFileBytes else { throw SyncPackageError.tooLarge }
+        try checkHeader(data, length: data.count)
         let bytes = [UInt8](data)
         let prefix = magic.count + headerByteCount
-        guard bytes.count >= prefix + tagByteCount, Data(bytes[0..<magic.count]) == magic, bytes[magic.count] != 0 else {
-            throw SyncPackageError.notASyncPackage
-        }
-        guard Int(bytes[magic.count]) <= version else { throw SyncPackageError.newerVersion }
         guard key.count == keyByteCount else { throw SyncPackageError.wrongKeyOrTampered }
         let nonceStart = magic.count + 4
         do {
@@ -81,6 +77,19 @@ public enum SyncPackage {
         } catch {
             throw SyncPackageError.wrongKeyOrTampered
         }
+    }
+
+    /// Checks a file of `length` bytes by its first bytes (`start`, the magic and header at least when there are that
+    /// many), so a file that is no sync package is turned away without being read whole. Throws `SyncPackageError`.
+    public static func checkHeader(_ start: Data, length: Int) throws {
+        guard length <= maxFileBytes else { throw SyncPackageError.tooLarge }
+        let bytes = [UInt8](start)
+        let prefix = magic.count + headerByteCount
+        guard length >= prefix + tagByteCount, bytes.count >= prefix, Data(bytes[0..<magic.count]) == magic,
+              bytes[magic.count] != 0 else {
+            throw SyncPackageError.notASyncPackage
+        }
+        guard Int(bytes[magic.count]) <= version else { throw SyncPackageError.newerVersion }
     }
 
     /// The file name a package is put in the folder under.

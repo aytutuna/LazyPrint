@@ -38,6 +38,8 @@ final class CompanionRouterTests: XCTestCase {
     private var inbox: CompanionInbox!
     private var router: CompanionRouter!
     private var pairing: PairingSession?
+    // What the server reports once it has tried to write a response.
+    private var delivered = true
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("LazyPrintTests-\(UUID().uuidString)")
@@ -68,7 +70,9 @@ final class CompanionRouterTests: XCTestCase {
         }
         let head = HttpRequestHead(method: method, target: target, headers: list, contentLength: length, expectsContinue: false)
         let requestBody = CompanionRequestBody(length: length ?? 0, prefix: body ?? Data()) { _ in Data() }
-        return await router.handle(CompanionRequest(head: head, body: requestBody, remote: from ?? phone))
+        let response = await router.handle(CompanionRequest(head: head, body: requestBody, remote: from ?? phone))
+        response.written?(delivered)
+        return response
     }
 
     private func pairPhone(_ id: String = "phone-0001") async throws -> String {
@@ -116,6 +120,19 @@ final class CompanionRouterTests: XCTestCase {
         XCTAssertTrue(wrong.headers.contains(HttpHeader("WWW-Authenticate", "Bearer")))
         let post = await send("POST", CompanionProtocol.healthPath, body: Data())
         XCTAssertEqual(post.status, 405)
+    }
+
+    func testPair_ForgetsAPhoneThatNeverGotItsSecret() async throws {
+        let session = try PairingSession(opened: now)
+        pairing = session
+        let paired = Guarded<Int>(0)
+        router.onDevicePaired = { _ in paired.value += 1 }
+        delivered = false
+        let response = await send("POST", CompanionProtocol.pairPath, body: pairRequest(session.token))
+        XCTAssertEqual(response.status, 200)
+        XCTAssertTrue(devices.devices.isEmpty)
+        XCTAssertEqual(paired.value, 0)
+        XCTAssertEqual(router.awaitingApproval, 0)
     }
 
     func testPair_GivesASecretForTheOpenSessionsToken() async throws {
@@ -432,8 +449,9 @@ final class CompanionRouterTests: XCTestCase {
         for _ in 0..<PairingSession.maxFailedAttempts {
             _ = await send("POST", CompanionProtocol.pairPath, body: pairRequest(CompanionVectors.tokenText), from: attacker)
         }
-        // The session is closed now, even for the right token.
-        let closed = await send("POST", CompanionProtocol.pairPath, body: pairRequest(session.token))
+        // The attacker is refused now, even with the right token; the session stays open for others.
+        let closed = await send("POST", CompanionProtocol.pairPath, body: pairRequest(session.token), from: attacker)
         XCTAssertEqual(code(closed), CompanionErrorCode.pairingClosed)
+        XCTAssertEqual(session.state(at: now), .open)
     }
 }

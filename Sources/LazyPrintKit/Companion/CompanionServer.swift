@@ -18,6 +18,11 @@ public struct CompanionServerOptions {
     public var headTimeout: TimeInterval = 10
     /// How long a body may stall between two reads, and a response between two writes.
     public var idleTimeout: TimeInterval = 30
+    /// How long a small body (pairing, control) may take in all, from its first read.
+    public var bodyTimeout: TimeInterval = 15
+    /// An upload's body must average `minUploadBytesPerSecond` once this long has passed.
+    public var uploadGrace: TimeInterval = 10
+    public var minUploadBytesPerSecond: Int64 = 16 * 1024
     /// A refused request's unread body is read and dropped up to this size before closing.
     public var maxDiscardBytes: Int64 = 1024 * 1024
     /// The whole time that dropping may take, however slowly the client sends.
@@ -279,12 +284,32 @@ public final class CompanionServer: @unchecked Sendable {
         if head.expectsContinue {
             sendContinue = { try await link.send(CompanionHttp.continueResponse, timeout: idle) }
         }
+        let pace = BodyPace(small: (head.contentLength ?? 0) <= Int64(CompanionProtocol.maxJsonBodyBytes), options: options)
         let body = CompanionRequestBody(length: head.contentLength ?? 0, prefix: Data(buffer.dropFirst(parsed.consumed)),
                                         sendContinue: sendContinue) { (maxLength: Int) in
-            try await link.receive(maxLength: maxLength, timeout: idle)
+            do {
+                let wait: TimeInterval = try pace.timeToRead()
+                let chunk: Data = try await link.receive(maxLength: maxLength, timeout: wait)
+                try pace.record(chunk.count)
+                return chunk
+            } catch {
+                link.cancel()
+                throw error
+            }
         }
         let response = await router.handle(CompanionRequest(head: head, body: body, remote: remote))
-        try await write(response, to: link)
+        // A send into a closed connection still completes once; a phone that already hung up never gets the secret.
+        if response.written != nil, await link.peerClosed() {
+            response.written?(false)
+            return
+        }
+        do {
+            try await write(response, to: link)
+        } catch {
+            response.written?(false)
+            throw error
+        }
+        response.written?(true)
         // Leave the client its whole send when it is small, so closing does not cut off the answer.
         let limit: TimeInterval = options.discardTimeout
         let cutOff: Task<Void, Never> = Task {
@@ -363,6 +388,44 @@ public final class CompanionServer: @unchecked Sendable {
     }
 }
 
+/// The time a request's body is allowed: a small one has `bodyTimeout` in all, a large one must keep up
+/// `minUploadBytesPerSecond` after `uploadGrace`. Either ends the connection (ETIMEDOUT).
+private final class BodyPace: @unchecked Sendable {
+    private let lock = NSLock()
+    private let small: Bool
+    private let options: CompanionServerOptions
+    private var started: Date?
+    private var bytes: Int64 = 0
+
+    init(small: Bool, options: CompanionServerOptions) {
+        self.small = small
+        self.options = options
+    }
+
+    /// How long the next read may wait.
+    func timeToRead() throws -> TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        let begin: Date = started ?? Date()
+        started = begin
+        guard small else { return options.idleTimeout }
+        let left: TimeInterval = options.bodyTimeout - Date().timeIntervalSince(begin)
+        guard left > 0 else { throw NWError.posix(.ETIMEDOUT) }
+        return min(options.idleTimeout, left)
+    }
+
+    func record(_ count: Int) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        bytes += Int64(count)
+        guard !small, let begin = started else { return }
+        let elapsed: TimeInterval = Date().timeIntervalSince(begin)
+        if elapsed > options.uploadGrace && Double(bytes) < Double(options.minUploadBytesPerSecond) * (elapsed - options.uploadGrace) {
+            throw NWError.posix(.ETIMEDOUT)
+        }
+    }
+}
+
 /// One accepted connection: its handshake, reads and writes as async calls, each bounded in time.
 /// When one takes too long it fails with ETIMEDOUT, and the server then cancels the connection.
 private final class CompanionLink: @unchecked Sendable {
@@ -420,6 +483,24 @@ private final class CompanionLink: @unchecked Sendable {
                 }
             }
         }
+    }
+
+    /// True when the peer has closed its side; anything it sent meanwhile is dropped.
+    func peerClosed() async -> Bool {
+        let connection: NWConnection = self.connection
+        let queue: DispatchQueue = self.queue
+        return (try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+            let once: Once<Bool> = Once(continuation)
+            let timer: DispatchWorkItem = DispatchWorkItem {
+                once.resume(.success(false))
+            }
+            queue.asyncAfter(deadline: .now() + 0.05, execute: timer)
+            connection.receive(minimumIncompleteLength: 0, maximumLength: 1) {
+                (_: Data?, _: NWConnection.ContentContext?, isComplete: Bool, error: NWError?) in
+                timer.cancel()
+                once.resume(.success(isComplete || error != nil))
+            }
+        }) ?? false
     }
 
     func send(_ data: Data, timeout: TimeInterval) async throws {

@@ -163,27 +163,30 @@ public sealed class SyncFolderWatcherTests : IDisposable
     }
 
     [Fact]
-    public async Task AReportedFile_IsTriedAgainOnlyAfterAMinute()
+    public async Task AReportedFile_IsNotTriedAgainUntilItChanges()
     {
         if (!OperatingSystem.IsWindows()) return;
         string path = Put("package-0001", PairPhone());
+        string junk = Path.Combine(_folder, "notes.lpsync");
+        File.WriteAllText(junk, "not a package, but long enough to hold a header and a tag");
         string devicesFile = Path.Combine(_root, PairedDeviceStore.FileName);
         string paired = File.ReadAllText(devicesFile);
         File.WriteAllText(devicesFile, """{"devices":[{"id":"phone-0001","name":"Aytu's iPhone"}]}""");
         await PollTwiceAsync();
-        Assert.Equal([SyncFolderWatcher.UnreadableMessage("package-0001.lpsync", SyncPackage.WrongKeyMessage)], _problems);
+        Assert.Equal(2, _problems.Count);
 
         File.WriteAllText(devicesFile, paired);
-        _now += SyncFolderWatcher.RetryTime - TimeSpan.FromSeconds(1);
+        _now += SyncFolderWatcher.RetryTime * 2;
         await _watcher.PollAsync();
         Assert.Empty(_received);
 
-        _now += TimeSpan.FromSeconds(1);
-        await _watcher.PollAsync();
+        File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(path).AddSeconds(5));
+        await PollTwiceAsync();
 
         Assert.Single(_received);
         Assert.False(File.Exists(path));
-        Assert.Single(_problems);
+        Assert.True(File.Exists(junk));
+        Assert.Equal(2, _problems.Count);
     }
 
     [Fact]

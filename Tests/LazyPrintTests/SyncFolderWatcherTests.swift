@@ -124,25 +124,27 @@ final class SyncFolderWatcherTests: XCTestCase {
             "notes.lpsync", reason: SyncPackageError.notASyncPackage.localizedDescription)))
     }
 
-    func test_aReportedFile_isTriedAgainOnlyAfterAMinute() async throws {
+    func test_aReportedFile_isNotTriedAgainUntilItChanges() async throws {
         let key = try pairPhone()
         let url = try put("package-0001", key: key)
+        let junk = folder.appendingPathComponent("notes.lpsync")
+        try Data("not a package, but long enough to hold a header and a tag".utf8).write(to: junk)
         try keys.delete(for: phoneId)
         await pollTwice()
-        XCTAssertEqual(problems, [SyncFolderWatcher.unreadableMessage(
-            "package-0001.lpsync", reason: SyncPackageError.wrongKeyOrTampered.localizedDescription)])
+        XCTAssertEqual(problems.count, 2)
 
         try keys.save(key, for: phoneId)
-        now = now.addingTimeInterval(SyncFolderWatcher.retryTime - 1)
+        now = now.addingTimeInterval(SyncFolderWatcher.retryTime * 2)
         await watcher.poll()
         XCTAssertTrue(received.isEmpty)
 
-        now = now.addingTimeInterval(1)
-        await watcher.poll()
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: url.path)
+        await pollTwice()
 
         XCTAssertEqual(received.count, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
-        XCTAssertEqual(problems.count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: junk.path))
+        XCTAssertEqual(problems.count, 2)
     }
 
     func test_aKeyThatCannotBeRead_isReportedOnce_andTheFileWaitsAMinute() async throws {

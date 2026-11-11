@@ -95,6 +95,8 @@ public struct CompanionResponse {
     /// Headers besides Content-Length and Connection, which the server adds.
     public let headers: [HttpHeader]
     public let body: Data
+    /// Called once by the server with whether the response was written to the client.
+    public var written: (@Sendable (Bool) -> Void)?
 
     public static func json(_ status: Int, _ json: String, headers: [HttpHeader] = []) -> CompanionResponse {
         let body = Data(json.utf8)
@@ -234,11 +236,11 @@ public final class CompanionRouter: @unchecked Sendable {
         // Counted from before the token is used until the phone is stored (or refused), so the desktop
         // never stops listening in between: once the session is used it no longer keeps the link on.
         changeAwaiting(by: 1)
+        var settleWhenWritten = false
         defer {
-            changeAwaiting(by: -1)
-            onApprovalSettled?()
+            if !settleWhenWritten { settleApproval() }
         }
-        switch session.redeem(pair.token, now: now) {
+        switch session.redeem(pair.token, now: now, peer: LocalSubnet.bytes(request.remote) ?? []) {
         case .wrongToken:
             limiter.recordFailure(request.remote, now: now)
             return .error(403, .tokenInvalid)
@@ -253,7 +255,14 @@ public final class CompanionRouter: @unchecked Sendable {
         }
         let name = PairedDeviceStore.cleanName(pair.phoneName)
         pair.phoneName = name.isEmpty ? "Phone" : name
-        return await approveAndPair(pair)
+        let response = await approveAndPair(pair)
+        settleWhenWritten = response.written != nil
+        return response
+    }
+
+    private func settleApproval() {
+        changeAwaiting(by: -1)
+        onApprovalSettled?()
     }
 
     private func approveAndPair(_ pair: PairRequest) async -> CompanionResponse {
@@ -267,10 +276,20 @@ public final class CompanionRouter: @unchecked Sendable {
         } catch {
             return .error(500, .serverError)
         }
-        if let device = devices.devices.first(where: { $0.id == pair.phoneId }) { onDevicePaired?(device) }
-        return .json(200, PairResponse(desktopId: devices.desktopId, desktopName: desktopName(), deviceSecret: secret,
-                                       protocolVersion: CompanionProtocol.version,
-                                       syncKey: (try? devices.syncKey(for: pair.phoneId)).map(CompanionProtocol.encodeBase64Url)).toJSON())
+        var response = CompanionResponse.json(200, PairResponse(desktopId: devices.desktopId, desktopName: desktopName(), deviceSecret: secret,
+                                                                protocolVersion: CompanionProtocol.version,
+                                                                syncKey: (try? devices.syncKey(for: pair.phoneId)).map(CompanionProtocol.encodeBase64Url)).toJSON())
+        // The phone counts as paired once it has the secret; when the reply never got to it, it is forgotten again.
+        let phoneId = pair.phoneId
+        response.written = { [self] delivered in
+            if !delivered {
+                _ = devices.remove(phoneId)
+            } else if let device = devices.devices.first(where: { $0.id == phoneId }) {
+                onDevicePaired?(device)
+            }
+            settleApproval()
+        }
+        return response
     }
 
     /// The user's answer; false when none came within `approvalTimeout` or the request was cut off.

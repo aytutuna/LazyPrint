@@ -121,6 +121,9 @@ public sealed class CompanionResponse
     public IReadOnlyList<KeyValuePair<string, string>> Headers { get; }
     public byte[] Body { get; }
 
+    /// <summary>Called once by the server with whether the response was written to the client.</summary>
+    public Action<bool>? Written { get; set; }
+
     public static CompanionResponse Json(int status, string json, params KeyValuePair<string, string>[] headers)
     {
         var body = CompanionProtocol.Utf8(json);
@@ -274,9 +277,10 @@ public sealed class CompanionRouter
         // desktop never stops listening in between: once the session is used it no longer keeps
         // the link on.
         Interlocked.Increment(ref _awaitingApproval);
+        bool settleWhenWritten = false;
         try
         {
-            switch (session.Redeem(pair.Token, now))
+            switch (session.Redeem(pair.Token, now, request.Remote))
             {
                 case PairingRedeemResult.WrongToken:
                     _limiter.RecordFailure(request.Remote, now);
@@ -290,13 +294,20 @@ public sealed class CompanionRouter
             }
             string name = PairedDeviceStore.CleanName(pair.PhoneName);
             pair = pair with { PhoneName = name.Length > 0 ? name : "Phone" };
-            return await ApproveAndPairAsync(pair, cancellation).ConfigureAwait(false);
+            var response = await ApproveAndPairAsync(pair, cancellation).ConfigureAwait(false);
+            settleWhenWritten = response.Written is not null;
+            return response;
         }
         finally
         {
-            Interlocked.Decrement(ref _awaitingApproval);
-            ApprovalSettled?.Invoke(this, EventArgs.Empty);
+            if (!settleWhenWritten) SettleApproval();
         }
+    }
+
+    private void SettleApproval()
+    {
+        Interlocked.Decrement(ref _awaitingApproval);
+        ApprovalSettled?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task<CompanionResponse> ApproveAndPairAsync(PairRequest pair, CancellationToken cancellation)
@@ -328,7 +339,6 @@ public sealed class CompanionRouter
         {
             return CompanionResponse.Error(500, CompanionError.ServerError);
         }
-        if (_devices.Devices.FirstOrDefault(d => d.Id == pair.PhoneId) is { } device) DevicePaired?.Invoke(this, device);
         string? syncKey = null;
         try
         {
@@ -338,8 +348,22 @@ public sealed class CompanionRouter
         {
             // Paired without the sync folder.
         }
-        return CompanionResponse.Json(200, new PairResponse(_devices.DesktopId, DesktopName(), secret, CompanionProtocol.Version,
-                                                            syncKey).ToJson());
+        var response = CompanionResponse.Json(200, new PairResponse(_devices.DesktopId, DesktopName(), secret, CompanionProtocol.Version,
+                                                                    syncKey).ToJson());
+        // The phone counts as paired once it has the secret; when the reply never got to it, it is forgotten again.
+        response.Written = delivered =>
+        {
+            try
+            {
+                if (!delivered) _devices.Remove(pair.PhoneId);
+                else if (_devices.Devices.FirstOrDefault(d => d.Id == pair.PhoneId) is { } device) DevicePaired?.Invoke(this, device);
+            }
+            finally
+            {
+                SettleApproval();
+            }
+        };
+        return response;
     }
 
     private async Task<CompanionResponse> InboxAsync(CompanionRequest request, string packageId, DateTimeOffset now,
