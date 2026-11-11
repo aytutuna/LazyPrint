@@ -290,6 +290,7 @@ final class IppSheetPrinterTests: XCTestCase {
         loopback.script(
             LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)),
             LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)),
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.printerState()),
             LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 5, "job-printing")),
             LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 9, "job-completed-successfully")))
         let reports = Reports()
@@ -297,12 +298,40 @@ final class IppSheetPrinterTests: XCTestCase {
                                   progress: reports.callback)
 
         let operations = loopback.requests.compactMap { try? $0.ipp().code }
-        XCTAssertEqual(operations, [IppOperation.printJob, .getJobAttributes, .getJobAttributes, .getJobAttributes].map { $0.rawValue })
+        XCTAssertEqual(operations, [IppOperation.printJob, .getJobAttributes, .getPrinterAttributes, .getJobAttributes, .getJobAttributes].map { $0.rawValue })
         var states = [JobState]()
         for report in reports.all where states.last != report.state {
             states.append(report.state)
         }
         XCTAssertEqual(states, [.preparing, .sending, .waiting, .printing, .done])
+    }
+
+    func test_aJobThePrinterHolds_saysWhyItWaits() async throws {
+        loopback.script(
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)),
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)),
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.printerState("media-jam-error")),
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 4, "job-hold-until-specified")),
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.printerState()),
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 9)))
+        let reports = Reports()
+        try await printer().print(try job(pages: 1, caps: plain(pdfAndRaster)), pass: 0, progress: reports.callback)
+
+        let waiting = reports.all.filter { $0.state == .waiting }.map { $0.detail }
+        XCTAssertEqual(waiting, [nil, "Paper jam", "Job held"])
+        XCTAssertEqual(PrintText.waiting(for: "Test Printer", reason: "Paper jam"), "Waiting for Test Printer: Paper jam")
+    }
+
+    func test_aPrinterNotAcceptingJobs_isNotSentTheJob() async throws {
+        var caps = plain(pdfAndRaster)
+        caps.isAcceptingJobs = false
+        do {
+            try await printer().print(try job(pages: 1, caps: caps), pass: 0) { _ in }
+            XCTFail("Nothing should have been sent")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Test Printer is not accepting jobs. Check that it is on and not paused.")
+        }
+        XCTAssertTrue(loopback.requests.isEmpty)
     }
 
     func test_aJobThePrinterAborts_isReportedByItsProblem() async throws {

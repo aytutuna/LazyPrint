@@ -223,15 +223,45 @@ public sealed class IppSheetPrinterTests : IDisposable
         _loopback.Script(
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.PrinterState()),
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 5, "job-printing")),
             LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 9, "job-completed-successfully")));
         var reports = new Reports<JobStatus>();
         await Printer().PrintAsync(Job(s => s.PagesPerSheet = 2, pages: 2), 0, reports, CancellationToken.None);
 
         var operations = _loopback.Requests.Select(request => (IppOperation)request.Ipp.Code).ToList();
-        Assert.Equal([IppOperation.PrintJob, IppOperation.GetJobAttributes, IppOperation.GetJobAttributes, IppOperation.GetJobAttributes], operations);
+        Assert.Equal([IppOperation.PrintJob, IppOperation.GetJobAttributes, IppOperation.GetPrinterAttributes, IppOperation.GetJobAttributes, IppOperation.GetJobAttributes], operations);
         var states = reports.All.Select(report => report.State).Distinct().ToList();
         Assert.Equal([JobState.Preparing, JobState.Sending, JobState.Waiting, JobState.Printing, JobState.Done], states);
+    }
+
+    [Fact]
+    public async Task AJobThePrinterHoldsSaysWhyItWaits()
+    {
+        _loopback.Script(
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.PrinterState("media-jam-error")),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 4, "job-hold-until-specified")),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.PrinterState()),
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 9)));
+        var reports = new Reports<JobStatus>();
+        await Printer().PrintAsync(Job(_ => { }, pages: 1), 0, reports, CancellationToken.None);
+
+        var waiting = reports.All.Where(report => report.State == JobState.Waiting).Select(report => report.Detail).ToList();
+        Assert.Equal([null, "Paper jam", "Job held"], waiting);
+        Assert.Equal("Waiting for Test Printer: Paper jam", PrintText.WaitingFor("Test Printer", "Paper jam"));
+    }
+
+    [Fact]
+    public async Task APrinterNotAcceptingJobsIsNotSentTheJob()
+    {
+        var caps = new PrinterCapabilities { DocumentFormatsSupported = ["application/pdf"], IsAcceptingJobs = false };
+        var error = await Assert.ThrowsAsync<PrintException>(
+            () => Printer().PrintAsync(Job(_ => { }, pages: 1, caps), 0, new Reports<JobStatus>(), CancellationToken.None));
+
+        Assert.Equal("Test Printer is not accepting jobs. Check that it is on and not paused.", error.Message);
+        Assert.Empty(_loopback.Requests);
     }
 
     [Fact]

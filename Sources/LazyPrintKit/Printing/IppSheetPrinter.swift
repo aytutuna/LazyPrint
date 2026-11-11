@@ -55,6 +55,9 @@ public final class IppSheetPrinter: SheetPrinter {
         } else {
             caps = try await client.capabilities()
         }
+        if !caps.isAcceptingJobs {
+            throw PrintError.refused(status: IppStatus.serverErrorNotAcceptingJobs.rawValue, detail: PrintText.notAcceptingJobs(job.printer.name))
+        }
         let original = pass == 0 ? asIs(job) : nil
         guard let format = DocumentFormats.choose(supported: caps.documentFormatsSupported, kind: original?.kind ?? .imposed,
                                                   canWritePDF: true) else {
@@ -201,6 +204,7 @@ public final class IppSheetPrinter: SheetPrinter {
                     job = try await client.job(sent.id)
                     missed = 0
                 } catch let error as PrintError {
+                    if case .lostContact = error { throw error }
                     missed += 1
                     if missed < Self.missedAnswers { continue }
                     if case .unreachable = error { throw PrintError.lostContact(name: printer) }
@@ -219,7 +223,8 @@ public final class IppSheetPrinter: SheetPrinter {
                 case .processingStopped:
                     progress(JobStatus(state: .needsUser, sidesDone: job.impressions, detail: Self.problem(job)?.title))
                 default:
-                    progress(JobStatus(state: .waiting, sidesDone: 0))
+                    let reason = await Self.waitReason(client, job)
+                    progress(JobStatus(state: .waiting, sidesDone: 0, detail: reason))
                 }
             }
         } catch {
@@ -231,6 +236,19 @@ public final class IppSheetPrinter: SheetPrinter {
             }
             throw error
         }
+    }
+
+    /// Why a job the printer has not started is waiting, from the job's and the printer's state reasons.
+    private static func waitReason(_ client: IppClient, _ job: IppJob) async -> String? {
+        let printer = (try? await client.printerReasons()) ?? []
+        let reasons = job.reasons + printer
+        if reasons.contains(where: { $0.hasPrefix("offline") || $0.hasPrefix("shutdown") }) {
+            return IppProblemText.offline
+        }
+        if let problem = IppProblems.describe(reasons: reasons, message: nil, reachable: true).first(where: { $0.isError }) {
+            return problem.title
+        }
+        return job.state == .pendingHeld ? PrintText.jobHeld : nil
     }
 
     private static func problem(_ job: IppJob) -> PrinterProblem? {

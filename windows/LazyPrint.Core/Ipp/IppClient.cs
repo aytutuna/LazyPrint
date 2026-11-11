@@ -85,15 +85,23 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     }
 
     /// <summary>
-    /// Get-Job-Attributes. A printer that no longer knows an accepted job has finished it and forgotten it:
-    /// that is <see cref="IppJobState.Completed"/>.
+    /// Get-Job-Attributes. A printer that no longer knows an accepted job may have finished it or lost it: that is
+    /// <see cref="PrintError.LostContact"/>, since nothing says it was printed.
     /// </summary>
     public async Task<IppJob> JobAsync(int id, CancellationToken token = default)
     {
         var response = await RoundTrip((uri, requestId) => IppRequests.GetJobAttributes(uri, userName, id, requestId), null, token).ConfigureAwait(false);
-        if (response.Code == (ushort)IppStatus.ClientErrorNotFound) return new IppJob(id, IppJobState.Completed, [], 0);
+        if (response.Code == (ushort)IppStatus.ClientErrorNotFound) throw Failure(new PrintError.LostContact(PrinterName));
         Succeeded(response);
         return IppJob.From(response, id)!;
+    }
+
+    /// <summary>The printer's printer-state-reasons, for saying why a job waits.</summary>
+    public async Task<IReadOnlyList<string>> PrinterReasonsAsync(CancellationToken token = default)
+    {
+        var response = await RoundTrip((uri, id) => IppRequests.GetPrinterReasons(uri, userName, id), null, token).ConfigureAwait(false);
+        Succeeded(response);
+        return response["printer-state-reasons"] is { } reasons ? [.. reasons.Values.OfType<IppValue.Keyword>().Select(k => k.Value)] : [];
     }
 
     /// <summary>Cancel-Job. A job the printer does not know, or can no longer cancel, is already over.</summary>

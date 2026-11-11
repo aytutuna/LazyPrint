@@ -153,14 +153,12 @@ final class IppClientTests: XCTestCase {
                        IppRequests.getJobAttributes(printerUri: try printer.address().printerUri, userName: user, jobId: 42).encoded())
     }
 
-    func test_aJobThePrinterForgotAfterAcceptingIt_isCompleted() async throws {
+    func test_aJobThePrinterForgotAfterAcceptingIt_isLostContact() async throws {
         let printer = try await startPrinter()
         printer.script(.ipp(.clientErrorNotFound))
         let client = try makeClient(printer)
-        let job = try await client.job(42)
-        XCTAssertEqual(job.state, .completed)
-        XCTAssertTrue(job.isFinished)
-        XCTAssertEqual(job.id, 42)
+        let error = await thrown { try await client.job(42) }
+        XCTAssertEqual(error as? PrintError, .lostContact(name: client.printerName))
     }
 
     func test_cancel_sendsCancelJob_andAnOverJobIsFine() async throws {

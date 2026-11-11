@@ -43,6 +43,16 @@ public static class PrintText
     /// <summary>"Printing 2 of 5": sheet 2 of 5.</summary>
     public static string Printing(int sheet, int sheets) => $"Printing {sheet} of {sheets}";
 
+    /// <summary>"Waiting for Office printer: Paper jam": a job the printer or its queue is holding and has not started.</summary>
+    public static string WaitingFor(string printerName, string? reason = null) =>
+        reason is null ? $"Waiting for {printerName}" : $"Waiting for {printerName}: {reason}";
+
+    /// <summary>The printer says it takes no jobs, so nothing is sent.</summary>
+    public static string NotAcceptingJobs(string printerName) => $"{printerName} is not accepting jobs. Check that it is on and not paused.";
+
+    /// <summary>Why a job waits when the printer says only that it holds the job.</summary>
+    public const string JobHeld = "Job held";
+
     /// <summary>A note about a job, added after the status sentence: "2 blank pages added".</summary>
     public static string BlanksAdded(int count) => $"{count} blank page{(count == 1 ? "" : "s")} added";
 

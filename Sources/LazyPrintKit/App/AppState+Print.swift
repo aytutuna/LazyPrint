@@ -164,7 +164,7 @@ extension AppState {
     private func send(_ job: SheetJob, pass: Int, sides: Int, recordId: String) async throws {
         let report: @Sendable (JobStatus) -> Void = { [weak self] status in
             Task { @MainActor in
-                self?.progress(status, recordId: recordId, sides: sides)
+                self?.progress(status, recordId: recordId, sides: sides, printer: job.printer.name)
             }
         }
         do {
@@ -176,11 +176,13 @@ extension AppState {
     }
 
     /// What the printer says of the pass while it runs. A report that comes after the pass has ended is dropped.
-    private func progress(_ status: JobStatus, recordId: String, sides: Int) {
+    private func progress(_ status: JobStatus, recordId: String, sides: Int, printer: String) {
         guard runningRecord == recordId else { return }
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
             statusOverride = detail
+        } else if status.state == .waiting, let detail = status.detail {
+            statusOverride = PrintText.waiting(for: printer, reason: detail)
         } else {
             statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)
         }

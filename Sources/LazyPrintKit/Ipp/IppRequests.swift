@@ -45,6 +45,10 @@ public enum IppRequests {
         ])
     }
 
+    public static func getPrinterReasons(printerUri: String, userName: String, requestId: Int32 = 1) -> IppMessage {
+        request(.getPrinterAttributes, printerUri, userName, requestId, [keywords("requested-attributes", "printer-state-reasons")])
+    }
+
     public static func cancelJob(printerUri: String, userName: String, jobId: Int, requestId: Int32 = 1) -> IppMessage {
         request(.cancelJob, printerUri, userName, requestId, [IppAttribute("job-id", .integer(Int32(jobId)))])
     }

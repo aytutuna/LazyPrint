@@ -165,18 +165,31 @@ public final class IppClient: @unchecked Sendable {
         return job
     }
 
-    /// Get-Job-Attributes. A printer that no longer knows an accepted job has finished it and forgotten it: that is
-    /// `IppJobState.completed`.
+    /// Get-Job-Attributes. A printer that no longer knows an accepted job may have finished it or lost it: that is
+    /// `PrintError.lostContact`, since nothing says it was printed.
     public func job(_ id: Int) async throws -> IppJob {
         let response = try await roundTrip(document: nil) { uri, requestId in
             IppRequests.getJobAttributes(printerUri: uri, userName: self.userName, jobId: id, requestId: requestId)
         }
         if response.code == IppStatus.clientErrorNotFound.rawValue {
-            return IppJob(id: id, state: .completed, reasons: [], impressions: 0)
+            throw PrintError.lostContact(name: printerName)
         }
         try IppClient.succeeded(response)
         guard let job = IppJob.from(response, id: id) else { throw PrintError.badResponse }
         return job
+    }
+
+    /// The printer's printer-state-reasons, for saying why a job waits.
+    public func printerReasons() async throws -> [String] {
+        let response = try await roundTrip(document: nil) { uri, id in
+            IppRequests.getPrinterReasons(printerUri: uri, userName: self.userName, requestId: id)
+        }
+        try IppClient.succeeded(response)
+        var reasons = [String]()
+        for case .keyword(let reason) in response["printer-state-reasons"]?.values ?? [] {
+            reasons.append(reason)
+        }
+        return reasons
     }
 
     /// Cancel-Job. A job the printer does not know, or can no longer cancel, is already over.

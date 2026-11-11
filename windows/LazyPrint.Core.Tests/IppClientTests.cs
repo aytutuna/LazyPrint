@@ -129,15 +129,13 @@ public sealed class IppClientTests : IDisposable
     }
 
     [Fact]
-    public async Task AJobThePrinterForgotAfterAcceptingItIsCompleted()
+    public async Task AJobThePrinterForgotAfterAcceptingItIsLostContact()
     {
         using var printer = new LoopbackIppPrinter();
         printer.Script(LoopbackAnswer.Ipp(IppStatus.ClientErrorNotFound));
         using var client = Client(printer);
-        var job = await client.JobAsync(42);
-        Assert.Equal(IppJobState.Completed, job.State);
-        Assert.True(job.IsFinished);
-        Assert.Equal(42, job.Id);
+        var error = await Assert.ThrowsAsync<PrintException>(() => client.JobAsync(42));
+        Assert.Equal(new PrintError.LostContact(client.PrinterName), error.Error);
     }
 
     [Fact]

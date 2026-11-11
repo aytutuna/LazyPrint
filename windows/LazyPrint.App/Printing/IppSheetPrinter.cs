@@ -31,6 +31,8 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
         using var client = _connect(job.Printer);
         progress.Report(new JobStatus(JobState.Preparing, 0));
         var caps = job.Capabilities ?? await client.CapabilitiesAsync(token);
+        if (!caps.IsAcceptingJobs)
+            throw new PrintException(new PrintError.Refused((ushort)IppStatus.ServerErrorNotAcceptingJobs, PrintText.NotAcceptingJobs(job.Printer.Name)));
         var original = pass == 0 ? await Task.Run(() => AsIs(job), token) : null;
         string format = DocumentFormats.Choose(caps.DocumentFormatsSupported, original?.Kind ?? new DocumentKind.Imposed(), canWritePdf: false)
                         ?? throw new PrintException(new PrintError.NeedsDriver());
@@ -221,6 +223,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 }
                 catch (PrintException e)
                 {
+                    if (e.Error is PrintError.LostContact) throw;
                     if (++missed < MissedAnswers) continue;
                     if (e.Error is PrintError.Unreachable) throw new PrintException(new PrintError.LostContact(printer));
                     throw;
@@ -241,7 +244,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                         progress.Report(new JobStatus(JobState.NeedsUser, job.Impressions, Problem(job)?.Title));
                         break;
                     default:
-                        progress.Report(new JobStatus(JobState.Waiting, 0));
+                        progress.Report(new JobStatus(JobState.Waiting, 0, await WaitReason(client, job, token)));
                         break;
                 }
             }
@@ -252,6 +255,19 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             catch (PrintException) { }
             throw;
         }
+    }
+
+    /// <summary>Why a job the printer has not started is waiting, from the job's and the printer's state reasons.</summary>
+    private static async Task<string?> WaitReason(IppClient client, IppJob job, CancellationToken token)
+    {
+        IReadOnlyList<string> printer;
+        try { printer = await client.PrinterReasonsAsync(token); }
+        catch (PrintException) { printer = []; }
+        IReadOnlyList<string> reasons = [.. job.Reasons, .. printer];
+        if (reasons.Any(r => r.StartsWith("offline", StringComparison.Ordinal) || r.StartsWith("shutdown", StringComparison.Ordinal)))
+            return IppProblemText.Offline;
+        return IppProblems.Describe(reasons, null, true).FirstOrDefault(p => p.IsError)?.Title
+               ?? (job.State == IppJobState.PendingHeld ? PrintText.JobHeld : null);
     }
 
     private static PrinterProblem? Problem(IppJob job) => IppProblems.Describe(job.Reasons, null, true).FirstOrDefault();

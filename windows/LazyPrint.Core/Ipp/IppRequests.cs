@@ -47,6 +47,9 @@ public static class IppRequests
             Keywords("requested-attributes", "job-state", "job-state-reasons", "job-impressions-completed"),
         ]);
 
+    public static IppMessage GetPrinterReasons(string printerUri, string userName, int requestId = 1) =>
+        Request(IppOperation.GetPrinterAttributes, printerUri, userName, requestId, [Keywords("requested-attributes", "printer-state-reasons")]);
+
     public static IppMessage CancelJob(string printerUri, string userName, int jobId, int requestId = 1) =>
         Request(IppOperation.CancelJob, printerUri, userName, requestId,
             [new IppAttribute("job-id", new IppValue.Integer(jobId))]);
