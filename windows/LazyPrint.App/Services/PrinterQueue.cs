@@ -24,8 +24,15 @@ public sealed class PrinterQueue
             {
                 using var server = new LocalPrintServer();
                 using var queue = SpoolerPrinter.FindQueue(server, printer);
-                using var job = queue?.GetJob(id);
-                job?.Cancel();
+                try
+                {
+                    using var job = queue?.GetJob(id);
+                    job?.Cancel();
+                }
+                catch (PrintJobException)
+                {
+                    // The job finished before the cancel arrived.
+                }
                 return 0;
             })
             : IppCancelAsync(printer, id, token);
@@ -55,7 +62,7 @@ public sealed class PrinterQueue
             {
                 if ((info.JobStatus & (PrintJobStatus.Printed | PrintJobStatus.Completed | PrintJobStatus.Deleted | PrintJobStatus.Deleting)) != 0)
                     continue;
-                jobs.Add(new QueuedJob(info.JobIdentifier, info.Name, info.Submitter, StateOf(info.JobStatus), info.NumberOfPages,
+                jobs.Add(new QueuedJob(info.JobIdentifier, info.Name ?? "", info.Submitter ?? "", StateOf(info.JobStatus), info.NumberOfPages,
                     string.Equals(info.Submitter, Environment.UserName, StringComparison.OrdinalIgnoreCase)));
             }
         }
