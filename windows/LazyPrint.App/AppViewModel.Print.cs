@@ -164,7 +164,7 @@ public sealed partial class AppViewModel
         return new PhotoOptions(size, 1, settings.PhotoFill, true);
     }
 
-    /// <summary>What the Print button says it does: "Print", "Print 5 sheets", "Print the fronts".</summary>
+    /// <summary>What the Print button says it does: "Print", "Print 5 sheets", "Print 5 sheets × 3", "Print the fronts".</summary>
     public string PrintLabel
     {
         get
@@ -172,7 +172,7 @@ public sealed partial class AppViewModel
             if (Plan() is not { } plan) return "Print";
             if (plan.ManualDuplex) return "Print the fronts";
             int sheets = plan.Plan.Sheets.Count;
-            return sheets == 0 ? "Print" : $"Print {sheets} sheet{(sheets == 1 ? "" : "s")}";
+            return sheets == 0 ? "Print" : $"Print {PrintText.SheetCount(sheets, Settings.Copies)}";
         }
     }
 
@@ -234,7 +234,7 @@ public sealed partial class AppViewModel
     {
         SetJob(record.Id, JobState.Done, null);
         _statusOverride = PrintText.Printed;
-        SentMessage = PrintText.Sent(record.Sheets, printer.Name);
+        SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
         _lastFailure = null;
         NotifyAll();
     }

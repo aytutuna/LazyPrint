@@ -133,7 +133,7 @@ private struct JobRow: View {
 
     /// The printer, the sheets, and what went wrong or what the printer needs.
     private var summary: String {
-        let sheets: String = "\(record.sheets) sheet\(record.sheets == 1 ? "" : "s")" + (record.copies > 1 ? " \u{00D7} \(record.copies)" : "")
+        let sheets: String = PrintText.sheetCount(record.sheets, copies: record.copies)
         return [record.printerName, sheets, record.detail ?? ""].filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 }

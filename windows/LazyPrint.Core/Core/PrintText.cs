@@ -27,9 +27,13 @@ public static class PrintText
     /// <summary>"Ready for “Booklet”."; the status line shows the printer instead.</summary>
     public static string Ready(string taskTitle) => $"Ready for “{taskTitle}”.";
 
-    /// <summary>"Sent 1 sheet to HP LaserJet", "Sent 3 sheets to HP LaserJet".</summary>
-    public static string Sent(int sheets, string printerName) =>
-        $"Sent {sheets} sheet{(sheets == 1 ? "" : "s")} to {printerName}";
+    /// <summary>"1 sheet", "3 sheets", "2 sheets × 3" for three copies.</summary>
+    public static string SheetCount(int sheets, int copies = 1) =>
+        $"{sheets} sheet{(sheets == 1 ? "" : "s")}{(copies > 1 ? $" × {copies}" : "")}";
+
+    /// <summary>"Sent 1 sheet to HP LaserJet", "Sent 3 sheets to HP LaserJet", "Sent 2 sheets × 3 to HP LaserJet".</summary>
+    public static string Sent(int sheets, string printerName, int copies = 1) =>
+        $"Sent {SheetCount(sheets, copies)} to {printerName}";
 
     /// <summary>"Printing 2 of 5": sheet 2 of 5.</summary>
     public static string Printing(int sheet, int sheets) => $"Printing {sheet} of {sheets}";

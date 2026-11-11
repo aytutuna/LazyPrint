@@ -955,6 +955,19 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_copies_showOnThePrintLabelAndTheSentMessage() async throws {
+        let rig = try makeRig(demo: true)
+        await rig.state.refreshPrinters()
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 2, in: rig.folder)])
+        rig.state.settings.paperId = "letter"
+        rig.state.settings.copies = 3
+
+        XCTAssertEqual(rig.state.printLabel, "Print 2 sheets \u{00D7} 3")
+        await rig.state.print()
+        XCTAssertEqual(rig.state.sentMessage, "Sent 2 sheets \u{00D7} 3 to Demo Printer")
+    }
+
+    @MainActor
     func test_aPageRangePastTheEnd_isReportedAndStopsPrint() async throws {
         let rig = try await printingRig()
         rig.state.setPageRange("9")

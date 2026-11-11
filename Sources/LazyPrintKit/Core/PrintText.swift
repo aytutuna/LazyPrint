@@ -28,9 +28,14 @@ public enum PrintText {
         "Ready for \u{201C}\(taskTitle)\u{201D}."
     }
 
-    /// "Sent 1 sheet to HP LaserJet", "Sent 3 sheets to HP LaserJet".
-    public static func sent(_ sheets: Int, printerName: String) -> String {
-        "Sent \(sheets) sheet\(sheets == 1 ? "" : "s") to \(printerName)"
+    /// "1 sheet", "3 sheets", "2 sheets × 3" for three copies.
+    public static func sheetCount(_ sheets: Int, copies: Int = 1) -> String {
+        "\(sheets) sheet\(sheets == 1 ? "" : "s")" + (copies > 1 ? " \u{00D7} \(copies)" : "")
+    }
+
+    /// "Sent 1 sheet to HP LaserJet", "Sent 3 sheets to HP LaserJet", "Sent 2 sheets × 3 to HP LaserJet".
+    public static func sent(_ sheets: Int, copies: Int = 1, printerName: String) -> String {
+        "Sent \(sheetCount(sheets, copies: copies)) to \(printerName)"
     }
 
     /// "Printing 2 of 5": sheet 2 of 5.

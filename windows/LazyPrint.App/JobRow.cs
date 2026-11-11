@@ -31,7 +31,7 @@ public sealed class JobRow(JobRecord record, string? folder) : INotifyPropertyCh
         string.Join(" · ", new[]
         {
             Record.PrinterName,
-            $"{Record.Sheets} sheet{(Record.Sheets == 1 ? "" : "s")}{(Record.Copies > 1 ? $" × {Record.Copies}" : "")}",
+            PrintText.SheetCount(Record.Sheets, Record.Copies),
             Record.Detail ?? "",
         }.Where(part => part.Length > 0));
 

@@ -22,4 +22,14 @@ public class PrintTextTests
         Assert.Equal("Sent 1 sheet to HP LaserJet", PrintText.Sent(1, "HP LaserJet"));
         Assert.Equal("Sent 3 sheets to HP LaserJet", PrintText.Sent(3, "HP LaserJet"));
     }
+
+    [Fact]
+    public void SheetCount_ShowsCopiesAboveOne()
+    {
+        Assert.Equal("2 sheets", PrintText.SheetCount(2));
+        Assert.Equal("2 sheets", PrintText.SheetCount(2, 1));
+        Assert.Equal("1 sheet × 3", PrintText.SheetCount(1, 3));
+        Assert.Equal("2 sheets × 3", PrintText.SheetCount(2, 3));
+        Assert.Equal("Sent 2 sheets × 3 to HP LaserJet", PrintText.Sent(2, "HP LaserJet", 3));
+    }
 }

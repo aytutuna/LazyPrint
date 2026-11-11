@@ -420,6 +420,21 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task CopiesShowOnThePrintButtonAndTheSentBar()
+    {
+        using var rig = new Rig(demo: true);
+        rig.Loader.Pages = [new LayoutSize(612, 792), new LayoutSize(612, 792)];
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Model.Settings.Copies = 3;
+        rig.Model.SettingsEdited();
+
+        Assert.Equal("Print 2 sheets × 3", rig.Model.PrintLabel);
+        await rig.Model.PrintAsync();
+        Assert.Equal("Sent 2 sheets × 3 to Demo Printer", rig.Model.SentMessage);
+    }
+
+    [Fact]
     public async Task APageRangePastTheEndIsReportedAndStopsPrint()
     {
         using var rig = new Rig(demo: true);

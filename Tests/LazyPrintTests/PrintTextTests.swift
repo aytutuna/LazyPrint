@@ -18,4 +18,12 @@ final class PrintTextTests: XCTestCase {
         XCTAssertEqual(PrintText.sent(1, printerName: "HP LaserJet"), "Sent 1 sheet to HP LaserJet")
         XCTAssertEqual(PrintText.sent(3, printerName: "HP LaserJet"), "Sent 3 sheets to HP LaserJet")
     }
+
+    func test_sheetCount_showsCopiesAboveOne() {
+        XCTAssertEqual(PrintText.sheetCount(2), "2 sheets")
+        XCTAssertEqual(PrintText.sheetCount(2, copies: 1), "2 sheets")
+        XCTAssertEqual(PrintText.sheetCount(1, copies: 3), "1 sheet \u{00D7} 3")
+        XCTAssertEqual(PrintText.sheetCount(2, copies: 3), "2 sheets \u{00D7} 3")
+        XCTAssertEqual(PrintText.sent(2, copies: 3, printerName: "HP LaserJet"), "Sent 2 sheets \u{00D7} 3 to HP LaserJet")
+    }
 }

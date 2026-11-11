@@ -11,12 +11,12 @@ extension AppState {
 
     // MARK: The Print button
 
-    /// What the Print button says it does: "Print", "Print 5 sheets", "Print the fronts".
+    /// What the Print button says it does: "Print", "Print 5 sheets", "Print 5 sheets × 3", "Print the fronts".
     public var printLabel: String {
         guard let plan = jobPlan else { return "Print" }
         if plan.manualDuplex { return "Print the fronts" }
         let sheets = plan.plan.sheets.count
-        return sheets == 0 ? "Print" : "Print \(sheets) sheet\(sheets == 1 ? "" : "s")"
+        return sheets == 0 ? "Print" : "Print \(PrintText.sheetCount(sheets, copies: settings.copies))"
     }
 
     /// Why Print is greyed out; nil when it can run.
@@ -83,7 +83,7 @@ extension AppState {
     private func sent(_ record: JobRecord, _ printer: PrinterInfo) {
         setJob(record.id, .done, nil)
         statusOverride = PrintText.printed
-        sentMessage = PrintText.sent(record.sheets, printerName: printer.name)
+        sentMessage = PrintText.sent(record.sheets, copies: record.copies, printerName: printer.name)
         lastFailure = nil
     }
 
