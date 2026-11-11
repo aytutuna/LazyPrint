@@ -335,6 +335,10 @@ public static class PaperSizes
         return found;
     }
 
+    /// <summary>The PWG name the printer lists (media-supported or media-ready) for a sheet; null when it lists none of that size.</summary>
+    public static string? ListedName(PrinterCapabilities? printer, LayoutSize paper) =>
+        printer?.MediaSupported.Concat(printer.MediaReady).FirstOrDefault(name => PwgSize(name) is { } size && Same(size, paper));
+
     /// <summary>The printer lists no sizes, or this one is among them or in its custom range: nothing to say against it.</summary>
     public static bool Supports(PrinterCapabilities? printer, LayoutSize paper)
     {

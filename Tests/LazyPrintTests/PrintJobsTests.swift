@@ -367,6 +367,17 @@ final class PrintJobsTests: XCTestCase {
                        "custom_sheet_106x176mm")
     }
 
+    func test_ticket_aSizeWithoutACase_goesOutUnderTheNameThePrinterLists() {
+        var job = makePlan([doc(1)], makeSettings(), nil)
+        job.plan.area = PrintableArea(paper: LayoutSize(width: 297 * 72 / 25.4, height: 420 * 72 / 25.4), margins: noMargins)
+        XCTAssertEqual(PrintJobs.ticket(job, settings: makeSettings(), format: "image/jpeg", printer: nil, name: "x").media.name,
+                       "iso_a3_297x420mm")
+        var lists = PrinterCapabilities()
+        lists.mediaSupported = ["iso_a4_210x297mm", "iso_a3_297x420mm"]
+        XCTAssertEqual(PrintJobs.ticket(job, settings: makeSettings(), format: "image/jpeg", printer: lists, name: "x").media.name,
+                       "iso_a3_297x420mm")
+    }
+
     // MARK: - Job records
 
     func test_jobStates_areNamedAsTheContract() {

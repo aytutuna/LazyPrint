@@ -402,6 +402,19 @@ public class PrintJobsTests
         Assert.Equal("custom_sheet_106x176mm", PrintJobs.Ticket(odd, Settings(), "image/jpeg", null, "x").Media.Name);
     }
 
+    [Fact]
+    public void Ticket_ASizeWithoutACase_GoesOutUnderTheNameThePrinterLists()
+    {
+        var a3 = new PrintableArea(new LayoutSize(297 * 72 / 25.4, 420 * 72 / 25.4), new LayoutInsets(0, 0, 0, 0));
+        var job = Plan([Doc(1)], Settings(), null);
+        job = job with { Plan = job.Plan with { Area = a3 } };
+        Assert.Equal("iso_a3_297x420mm", PrintJobs.Ticket(job, Settings(), "image/jpeg", null, "x").Media.Name);
+        var lists = new PrinterCapabilities { MediaSupported = ["iso_a4_210x297mm", "iso_a3_297x420mm"] };
+        Assert.Equal("iso_a3_297x420mm", PrintJobs.Ticket(job, Settings(), "image/jpeg", lists, "x").Media.Name);
+        var odd = new PrinterCapabilities { MediaSupported = ["om_a3-extra_300x420mm"] };
+        Assert.Equal("iso_a3_297x420mm", PrintJobs.Ticket(job, Settings(), "image/jpeg", odd, "x").Media.Name);
+    }
+
     // MARK: - Job records
 
     [Fact]

@@ -320,6 +320,14 @@ extension PaperSizes {
         return found
     }
 
+    /// The PWG name the printer lists (media-supported or media-ready) for a sheet; nil when it lists none of that size.
+    public static func listedName(_ printer: PrinterCapabilities?, _ paper: LayoutSize) -> String? {
+        guard let printer else { return nil }
+        return (printer.mediaSupported + printer.mediaReady).first { name in
+            pwgSize(name).map { same($0, paper) } ?? false
+        }
+    }
+
     /// The printer lists no sizes, or this one is among them or in its custom range: nothing to say against it.
     public static func supports(_ printer: PrinterCapabilities?, _ paper: LayoutSize) -> Bool {
         let sizes = listed(printer)

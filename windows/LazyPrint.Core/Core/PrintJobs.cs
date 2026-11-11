@@ -163,7 +163,7 @@ public static class PrintJobs
     /// </summary>
     private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? type, string? source)
     {
-        string name = MediaName(area.Paper);
+        string name = MediaName(area.Paper, printer);
         var supported = printer?.MediaColSupported ?? [];
         bool Takes(string member) => supported.Count == 0 || supported.Contains(member);
         List<IppAttribute> Chosen(List<IppAttribute> members)
@@ -248,7 +248,10 @@ public static class PrintJobs
         return notes;
     }
 
-    /// <summary>A PWG self-describing media name: the named sizes as printers list them, else a custom one in millimetres.</summary>
+    /// <summary>A PWG self-describing media name: the one the printer lists for the sheet, else the standard one of a named size, else a custom one in millimetres.</summary>
+    private static string MediaName(LayoutSize paper, PrinterCapabilities? printer) =>
+        PaperSizes.ListedName(printer, paper) ?? MediaName(paper);
+
     private static string MediaName(LayoutSize paper) => PaperSizes.Match(paper) switch
     {
         PaperSize.Letter => "na_letter_8.5x11in",
@@ -261,8 +264,20 @@ public static class PrintJobs
         PaperSize.IdCard => "iso_id-1_53.98x85.6mm",
         PaperSize.Photo4x6 => "na_index-4x6_4x6in",
         PaperSize.Photo5x7 => "na_5x7_5x7in",
-        _ => string.Create(CultureInfo.InvariantCulture,
-            $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm"),
+        _ => PaperSizes.NameOf(paper) switch
+        {
+            "A3" => "iso_a3_297x420mm",
+            "B4" => "iso_b4_250x353mm",
+            "B4 (JIS)" => "jis_b4_257x364mm",
+            "B5" => "iso_b5_176x250mm",
+            "Tabloid" => "na_ledger_11x17in",
+            "8 × 10 in" => "na_govt-letter_8x10in",
+            "Envelope #10" => "na_number-10_4.125x9.5in",
+            "Envelope DL" => "iso_dl_110x220mm",
+            "Envelope C5" => "iso_c5_162x229mm",
+            _ => string.Create(CultureInfo.InvariantCulture,
+                $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm"),
+        },
     };
 }
 
