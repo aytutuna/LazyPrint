@@ -353,19 +353,15 @@ public final class CompanionClient: @unchecked Sendable {
                 request.setValue(contentType, forHTTPHeaderField: "Content-Type")
             }
         }
-        if file != nil {
+        if let file = file {
+            request.httpBodyStream = InputStream(url: file)
             request.setValue(String(size), forHTTPHeaderField: "Content-Length")
             if let contentType = contentType {
                 request.setValue(contentType, forHTTPHeaderField: "Content-Type")
             }
         }
         do {
-            let (data, response): (Data, URLResponse)
-            if let file = file {
-                (data, response) = try await session.upload(for: request, fromFile: file)
-            } else {
-                (data, response) = try await session.data(for: request)
-            }
+            let (data, response): (Data, URLResponse) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw CompanionClientError.unreachable(URLError(.badServerResponse))
             }
