@@ -45,7 +45,7 @@ public final class CupsPrinter: SheetPrinter {
         progress(JobStatus(state: .sending, sidesDone: 0))
         let sent = await Self.submit(file, queue: queue, title: job.name, options: options)
         guard sent.id > 0 else { throw PrintError.refused(status: UInt16(truncatingIfNeeded: sent.status), detail: sent.message) }
-        try await follow(queue, printer: job.printer.name, id: sent.id, sides: sides.count, progress)
+        try await follow(queue, printer: job.printer.name, id: sent.id, sides: sides.count * job.plan.copiesInJob, progress)
     }
 
     /// Asks the scheduler about the job until it is done with it. A scheduler that misses an answer or two is asked again;
@@ -113,7 +113,7 @@ public final class CupsPrinter: SheetPrinter {
     /// "Waiting for HP LaserJet", with the first reason the job or the printer gives that a person can act on.
     private static func waiting(for printer: String, _ answer: Answer) -> String {
         let text = PrintText.waiting(for: printer)
-        guard let reason = problem(answer.reasons + answer.printerReasons) else { return text }
+        guard let reason = problem(answer.reasons + answer.printerReasons), reason.isError else { return text }
         return text + ": " + reason.title
     }
 
