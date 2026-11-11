@@ -866,6 +866,7 @@ final class AppStateSeamTests: XCTestCase {
         let rig = try makeRig()
         rig.actions.lazyScan = true
         let state = rig.open()
+        state.clearTask()
 
         XCTAssertTrue(state.availability(of: .scanAndPrint).isAvailable)
         await state.startTask(.scanAndPrint)
