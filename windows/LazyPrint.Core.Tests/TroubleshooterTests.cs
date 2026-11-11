@@ -86,8 +86,8 @@ public class TroubleshooterTests
     {
         var snapshot = HealthyWindows();
         var checks = Diagnose(snapshot);
-        Assert.Equal(["network", "spooler", "discovery", "usb", "asleep", "wifiDirect", "otherApps"], Ids(checks));
-        Assert.Equal([CheckStatus.Ok, CheckStatus.Ok, CheckStatus.Ok, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip],
+        Assert.Equal(["network", "spooler", "discovery", "usb", "asleep", "wifiDirect", "otherApps", "testPage"], Ids(checks));
+        Assert.Equal([CheckStatus.Ok, CheckStatus.Ok, CheckStatus.Ok, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip],
                      checks.Select(c => c.Status));
         Assert.Equal("1 printer found", Troubleshooter.Headline(snapshot));
         Assert.Equal("Nothing here stops printers from appearing. The tips below cover the usual causes.",
@@ -100,11 +100,11 @@ public class TroubleshooterTests
         var snapshot = TroubledWindows();
         var checks = Diagnose(snapshot);
         Assert.Equal(["lastFailure", "spooler", "printer:system:Brother", "paused:system:Epson", "network", "discovery",
-                      "stuckJobs:system:Brother", "manualHost:192.168.1.50", "usb", "asleep", "wifiDirect", "otherApps"],
+                      "stuckJobs:system:Brother", "manualHost:192.168.1.50", "usb", "asleep", "wifiDirect", "otherApps", "testPage"],
                      Ids(checks));
         Assert.Equal([CheckStatus.Problem, CheckStatus.Problem, CheckStatus.Problem, CheckStatus.Problem,
                       CheckStatus.Warning, CheckStatus.Warning, CheckStatus.Warning, CheckStatus.Warning,
-                      CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip], checks.Select(c => c.Status));
+                      CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip, CheckStatus.Tip], checks.Select(c => c.Status));
         Assert.Equal("2 printers found", Troubleshooter.Headline(snapshot));
         Assert.Equal("4 problems and 4 warnings found.", Troubleshooter.Summary(checks));
         Assert.Equal("2 printers found · 4 problems, 4 warnings", Troubleshooter.Overview(snapshot, checks));
@@ -195,6 +195,13 @@ public class TroubleshooterTests
     }
 
     [Fact]
+    public void TestPageTip_OffersThePageOnlyWhenAPrinterIsListed()
+    {
+        Assert.Equal([TroubleshootAction.PrintTestPage], Check(Diagnose(HealthyWindows()), "testPage").Actions);
+        Assert.DoesNotContain(Diagnose(new PrinterSnapshot { Platform = AppPlatform.Windows }), c => c.Id == "testPage");
+    }
+
+    [Fact]
     public void NothingKnown_OnlyTheTips()
     {
         Assert.Equal(["usb", "asleep", "wifiDirect", "otherApps"], Ids(Diagnose(new PrinterSnapshot { Platform = AppPlatform.Windows })));
@@ -247,7 +254,7 @@ public class TroubleshooterTests
     {
         var snapshot = HealthyPhone();
         var checks = Diagnose(snapshot);
-        Assert.Equal(["network", "discovery", "networkPrinter", "localNetworkAccess", "airPrint", "asleep", "wifiDirect", "otherApps"],
+        Assert.Equal(["network", "discovery", "networkPrinter", "localNetworkAccess", "airPrint", "asleep", "wifiDirect", "otherApps", "testPage"],
                      Ids(checks));
         Assert.Equal("1 printer found", Troubleshooter.Overview(snapshot, checks));
         var network = Check(checks, "network");
@@ -280,7 +287,7 @@ public class TroubleshooterTests
         var snapshot = TroubledPhone();
         var checks = Diagnose(snapshot);
         Assert.Equal(["network", "localNetwork", "lastFailure", "manualHost:192.168.1.50", "networkPrinter", "localNetworkAccess",
-                      "airPrint", "asleep", "wifiDirect", "otherApps"], Ids(checks));
+                      "airPrint", "asleep", "wifiDirect", "otherApps", "testPage"], Ids(checks));
         Assert.Equal("No printer found · 2 problems, 2 warnings", Troubleshooter.Overview(snapshot, checks));
         Assert.Equal(new TroubleshootCheck(
             "localNetwork", CheckStatus.Problem, "Local Network access is off",
@@ -715,10 +722,10 @@ public class TroubleshooterTests
         Assert.Equal("1 printer found. Nothing here stops printers from appearing. The tips below cover the usual causes.", lines[1]);
         Assert.Equal("OK: Connected to a private network", lines[2]);
         Assert.Equal("  Network printers on this network can be found.", lines[3]);
-        Assert.Equal("Tip: Still not listed?", lines[^4]);
-        Assert.Equal("  Restart the printer and close other printing apps.", lines[^3]);
+        Assert.Equal("Tip: Still not listed?", lines[^7]);
+        Assert.Equal("  Restart the printer and close other printing apps.", lines[^6]);
         Assert.Equal("  Turn the printer off and on. Close other printing apps. Some printers print only through their "
-                     + "maker's app.", lines[^2]);
+                     + "maker's app.", lines[^5]);
         Assert.Equal("", lines[^1]);
         Assert.Equal(2 + 2 * checks.Count + checks.Count(c => c.More.Length > 0) + 1, lines.Length);
     }

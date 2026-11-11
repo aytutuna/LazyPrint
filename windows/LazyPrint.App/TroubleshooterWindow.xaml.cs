@@ -318,7 +318,14 @@ public partial class TroubleshooterWindow : Window
                 }
                 break;
             case TroubleshootAction.PrintTestPage:
+                if (_viewModel.IsBusy || _viewModel.IsWaitingForBacks)
+                {
+                    ShowStatus("Wait for the job to finish.");
+                    break;
+                }
                 await _viewModel.PrintTestPageAsync();
+                if (_viewModel.ErrorMessage is { } failure) ShowStatus($"Couldn't print the test page: {failure}");
+                else if (_viewModel.SentMessage is { } sent) ShowStatus(sent);
                 break;
         }
     }
