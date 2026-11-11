@@ -34,11 +34,11 @@ public partial class MainWindow
     /// <summary>Counts the drawings started; one that finishes after a newer began is dropped.</summary>
     private int _previewVersion;
 
-    private sealed record PreviewKey(JobPlan Plan, IReadOnlyList<LoadedDocument> Documents, int Sheet, bool Back, int Dpi, bool Marks)
+    private sealed record PreviewKey(JobPlan Plan, IReadOnlyList<LoadedDocument> Documents, int Sheet, bool Back, int Dpi, bool Marks, bool Gray)
     {
         public bool SameAs(PreviewKey? other) =>
             other is not null && Plan.Equals(other.Plan) && Sheet == other.Sheet && Back == other.Back && Dpi == other.Dpi
-            && Marks == other.Marks && Documents.Count == other.Documents.Count
+            && Marks == other.Marks && Gray == other.Gray && Documents.Count == other.Documents.Count
             && Documents.Zip(other.Documents).All(pair => ReferenceEquals(pair.First, pair.Second));
     }
 
@@ -86,10 +86,11 @@ public partial class MainWindow
         int dpi = PreviewDpi(area.Paper);
         var documents = ViewModel.Documents.ToList();
         bool marks = ViewModel.DrawsCutMarks;
+        bool gray = ViewModel.Settings.Color == ColorChoice.Gray;
         SyncPreviewBar(plan);
         ShowNotes(plan);
 
-        var key = new PreviewKey(plan, documents, _previewSheet, _previewBack, dpi, marks);
+        var key = new PreviewKey(plan, documents, _previewSheet, _previewBack, dpi, marks, gray);
         if (key.SameAs(_previewKey)) return;
         // Set before drawing: a drawing that fails is not tried again until something changes.
         _previewKey = key;
@@ -102,7 +103,7 @@ public partial class MainWindow
         {
             var picture = await StaWork.Run(() => renderer.Render(side, area, dpi, items));
             if (version != _previewVersion) return;
-            PreviewImage.Source = picture;
+            PreviewImage.Source = gray ? Grayed(picture) : picture;
             PreviewImage.Visibility = Visibility.Visible;
             AutomationProperties.SetName(PreviewImage, $"{SheetLabel.Text}, {(_previewBack ? "back" : "front")}");
         }
@@ -111,6 +112,13 @@ public partial class MainWindow
             if (version != _previewVersion) return;
             ViewModel.ShowNotice("Couldn't draw the preview", e.Message);
         }
+    }
+
+    private static BitmapSource Grayed(BitmapSource picture)
+    {
+        var gray = new FormatConvertedBitmap(picture, PixelFormats.Gray8, null, 0);
+        gray.Freeze();
+        return gray;
     }
 
     /// <summary>The resolution that fills the stage with the sheet on this screen, in steps so a small resize draws nothing.</summary>

@@ -66,6 +66,7 @@ struct PreviewKey: Equatable, Sendable {
     var side: RenderedSide
     var area: PrintableArea
     var dpi: Double
+    var gray: Bool
     var documents: [URL]
 }
 
@@ -554,7 +555,7 @@ public final class AppState: ObservableObject {
         let renderer = SheetRenderer(documents: documents)
         previewTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
-            let image = (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: false))?.image()
+            let image = (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: key.gray))?.image()
             await self?.previewDrawn(image, key: key, revision: revision)
         }
     }
@@ -566,7 +567,7 @@ public final class AppState: ObservableObject {
         if let drawing = drawingSides.first(where: { $0.key == key }) { return await drawing.task.value }
         let renderer = SheetRenderer(documents: documents)
         let task = Task.detached(priority: .userInitiated) {
-            (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: false))?.image()
+            (try? renderer.bitmap(key.side, area: key.area, dpi: key.dpi, gray: key.gray))?.image()
         }
         drawingSides.append((key: key, task: task))
         let image = await task.value
@@ -588,7 +589,7 @@ public final class AppState: ObservableObject {
 
     private func sideKey(_ index: Int) -> PreviewKey? {
         guard let plan = jobPlan, let side = renderedSide(of: plan, at: index) else { return nil }
-        return PreviewKey(side: side, area: plan.plan.area, dpi: previewScale * 72, documents: documents.map { $0.url })
+        return PreviewKey(side: side, area: plan.plan.area, dpi: previewScale * 72, gray: settings.color == .gray, documents: documents.map { $0.url })
     }
 
     private func drawnImage(_ key: PreviewKey) -> CGImage? {
