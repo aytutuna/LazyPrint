@@ -8,6 +8,7 @@ import SwiftUI
 /// and the Dock icon bounces once when the app is in the background. Twin of the Windows phone bar (MainWindow.Phone.cs).
 struct PhoneBarView: View {
     let batch: PhoneBatch
+    let queued: Bool
     let add: () -> Void
     let startNew: () -> Void
     let dismiss: () -> Void
@@ -24,8 +25,13 @@ struct PhoneBarView: View {
                 .font(.callout)
                 .lineLimit(2)
             Spacer(minLength: 8)
-            Button("Add to this job", action: add)
-            Button("Start a new job", action: startNew)
+            if queued {
+                Text("Taken when the job ends")
+                    .foregroundStyle(.secondary)
+            } else {
+                Button("Add to this job", action: add)
+                Button("Start a new job", action: startNew)
+            }
             Button {
                 dismiss()
             } label: {

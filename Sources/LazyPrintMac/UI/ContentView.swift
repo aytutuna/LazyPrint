@@ -34,6 +34,7 @@ struct ContentView: View {
     @State private var addPrinterAfterTroubleshooter = false
     /// Files are dragged over the window: it says where they go.
     @State private var dropTargeted = false
+    @State private var queuedBatch: String?
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
     @State private var opening: Task<Void, Never>?
 
@@ -91,7 +92,7 @@ struct ContentView: View {
         }
         .overlay {
             if dropTargeted {
-                Text("Drop to add to the print")
+                Text(state.isBusy ? "Drop to add when the job ends" : "Drop to add to the print")
                     .font(.title2.weight(.semibold))
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
@@ -213,6 +214,7 @@ struct ContentView: View {
         }
         if let batch = state.phoneBatches.first {
             PhoneBarView(batch: batch,
+                         queued: queuedBatch == batch.id,
                          add: { usePhoneBatch(batch.id, startNew: false) },
                          startNew: { usePhoneBatch(batch.id, startNew: true) },
                          dismiss: { state.dismissBatch(batch.id) })
@@ -226,6 +228,7 @@ struct ContentView: View {
     private func takeQueued() {
         let waiting = PendingOpens.items
         PendingOpens.items = []
+        queuedBatch = nil
         for item in waiting {
             switch item {
             case .files(let urls, let refused): _ = take(urls, refused: refused)
@@ -261,6 +264,7 @@ struct ContentView: View {
     private func usePhoneBatch(_ id: String, startNew: Bool) {
         if state.isBusy {
             PendingOpens.items.append(.batch(id, startNew: startNew))
+            queuedBatch = id
             return
         }
         let before = opening
