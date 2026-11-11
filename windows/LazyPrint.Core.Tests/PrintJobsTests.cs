@@ -402,6 +402,19 @@ public class PrintJobsTests
         Assert.Equal("custom_sheet_106x176mm", PrintJobs.Ticket(odd, Settings(), "image/jpeg", null, "x").Media.Name);
     }
 
+    [Fact]
+    public void Ticket_ASizeWithoutACase_GoesOutUnderTheNameThePrinterLists()
+    {
+        var a3 = new PrintableArea(new LayoutSize(297 * 72 / 25.4, 420 * 72 / 25.4), new LayoutInsets(0, 0, 0, 0));
+        var job = Plan([Doc(1)], Settings(), null);
+        job = job with { Plan = job.Plan with { Area = a3 } };
+        Assert.Equal("iso_a3_297x420mm", PrintJobs.Ticket(job, Settings(), "image/jpeg", null, "x").Media.Name);
+        var lists = new PrinterCapabilities { MediaSupported = ["iso_a4_210x297mm", "iso_a3_297x420mm"] };
+        Assert.Equal("iso_a3_297x420mm", PrintJobs.Ticket(job, Settings(), "image/jpeg", lists, "x").Media.Name);
+        var odd = new PrinterCapabilities { MediaSupported = ["om_a3-extra_300x420mm"] };
+        Assert.Equal("iso_a3_297x420mm", PrintJobs.Ticket(job, Settings(), "image/jpeg", odd, "x").Media.Name);
+    }
+
     // MARK: - Job records
 
     [Fact]
@@ -474,5 +487,101 @@ public class PrintJobsTests
         Assert.Equal(0, PrintJobs.LayoutOptions(settings, PrintTask.Photos).Margin);
         Assert.Equal(0, PrintJobs.LayoutOptions(settings, PrintTask.PhotoSheet).Poster);
         Assert.Equal(2, PrintJobs.LayoutOptions(settings, PrintTask.Document).Poster);
+    }
+
+    [Fact]
+    public void AnySizeAPrinterListsCanBeChosen()
+    {
+        var area = PrintJobs.Area("custom_sheet_297x420mm", null, false);
+        Assert.Equal(297 * 72 / 25.4, area.Paper.Width, 0.1);
+        Assert.Equal(420 * 72 / 25.4, area.Paper.Height, 0.1);
+
+        var plan = Plan([Doc(1)], Settings(s => s.PaperId = "iso_a3_297x420mm"), null);
+        Assert.Equal(297 * 72 / 25.4, plan.Plan.Area.Paper.Width, 0.1);
+    }
+
+    private static PrinterCapabilities WithMedia(PrinterCapabilities basis, string[] types) => new()
+    {
+        SidesSupported = basis.SidesSupported,
+        CopiesSupported = basis.CopiesSupported,
+        MediaColDatabase = basis.MediaColDatabase,
+        MediaColReady = basis.MediaColReady,
+        MediaColSupported = ["media-size", "media-top-margin", "media-type", "media-source"],
+        MediaTypeSupported = types,
+        MediaSourceSupported = ["main", "tray-2"],
+    };
+
+    private static string Member(IppJobTicket ticket, string name) =>
+        ((IppValue.Keyword)ticket.Media.Entry!.Single(m => m.Name == name).Values[0]).Value;
+
+    [Fact]
+    public void Ticket_TheTypeAndTrayGoInTheMediaCol_InPlaceOfTheEntrys()
+    {
+        var printer = WithMedia(Hp, ["stationery", "labels"]);
+        var settings = Settings(s => { s.PaperId = "letter"; s.MediaType = "labels"; s.MediaSource = "tray-2"; });
+        var ticket = PrintJobs.Ticket(Plan([Doc(1)], settings, printer), settings, "application/pdf", printer, "x");
+        Assert.Equal("labels", Member(ticket, "media-type"));
+        Assert.Equal("tray-2", Member(ticket, "media-source"));
+        Assert.Contains(ticket.Media.Entry!, m => m.Name == "media-size");
+    }
+
+    [Fact]
+    public void Ticket_ASheetWithNoEntryIsSentAsAMediaColWhenATypeIsAsked()
+    {
+        var printer = new PrinterCapabilities
+        {
+            MediaColSupported = ["media-size", "media-type"],
+            MediaTypeSupported = ["stationery", "cardstock"],
+        };
+        var settings = Settings(s => s.MediaType = "cardstock");
+        var ticket = PrintJobs.Ticket(Plan([Doc(1)], settings, printer), settings, "application/pdf", printer, "x");
+        Assert.Equal(["media-size", "media-type"], ticket.Media.Entry!.Select(m => m.Name));
+
+        var none = Settings();
+        Assert.Null(PrintJobs.Ticket(Plan([Doc(1)], none, printer), none, "application/pdf", printer, "x").Media.Entry);
+    }
+
+    [Fact]
+    public void Ticket_ATypeTheMediaColDoesNotTakeIsLeftOut()
+    {
+        var printer = new PrinterCapabilities
+        {
+            MediaColDatabase = Hp.MediaColDatabase, MediaColSupported = ["media-size"], MediaTypeSupported = ["labels"],
+        };
+        var settings = Settings(s => { s.PaperId = "letter"; s.MediaType = "labels"; });
+        var ticket = PrintJobs.Ticket(Plan([Doc(1)], settings, printer), settings, "application/pdf", printer, "x");
+        Assert.DoesNotContain(ticket.Media.Entry ?? [], m => m.Values[0] is IppValue.Keyword { Value: "labels" });
+    }
+
+    [Fact]
+    public void Ticket_APhotoTaskAsksForThePhotoType()
+    {
+        var printer = WithMedia(Epson, ["stationery", "photographic-glossy"]);
+        var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
+        var settings = Settings(s => s.TaskId = "photos");
+        var ticket = PrintJobs.Ticket(Plan([photo], settings, printer, task: PrintTask.Photos), settings, "image/jpeg", printer, "x");
+        Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
+    }
+
+    [Fact]
+    public void Ticket_AnEntrysOwnPhotoTypeStaysWhenTheTypeIsOnAutomatic()
+    {
+        var basis = WithMedia(Epson, ["stationery", "photographic", "photographic-glossy"]);
+        var printer = new PrinterCapabilities
+        {
+            SidesSupported = basis.SidesSupported,
+            CopiesSupported = basis.CopiesSupported,
+            MediaColReady = basis.MediaColReady,
+            MediaColSupported = basis.MediaColSupported,
+            MediaTypeSupported = basis.MediaTypeSupported,
+            MediaColDatabase = [.. basis.MediaColDatabase.Select(e => e with
+            {
+                Attributes = [.. e.Attributes.Where(a => a.Name != "media-type"), new IppAttribute("media-type", new IppValue.Keyword("photographic-glossy"))],
+            })],
+        };
+        var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
+        var settings = Settings(s => s.TaskId = "photos");
+        var ticket = PrintJobs.Ticket(Plan([photo], settings, printer, task: PrintTask.Photos), settings, "image/jpeg", printer, "x");
+        Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
     }
 }

@@ -22,6 +22,17 @@ final class CupsOptionsTests: XCTestCase {
                            duplexPass: duplexPass)
     }
 
+    func test_forJob_theTrayAndPaperTypeAreSentOnlyWhenChosen() {
+        let plain = CupsOptions.forJob(sides: .oneSided, copies: 1, collate: true, color: .color, quality: .normal, media: nil,
+                                       duplexPass: false)
+        XCTAssertNil(plain["media-source"])
+        XCTAssertNil(plain["media-type"])
+        let chosen = CupsOptions.forJob(sides: .oneSided, copies: 1, collate: true, color: .color, quality: .normal, media: nil,
+                                        duplexPass: false, source: "tray-2", type: "photographic-glossy")
+        XCTAssertEqual(chosen["media-source"], "tray-2")
+        XCTAssertEqual(chosen["media-type"], "photographic-glossy")
+    }
+
     func test_forJob_alwaysForcesTheLayoutOptions() {
         let combinations: [[String: String]] = [
             options(),

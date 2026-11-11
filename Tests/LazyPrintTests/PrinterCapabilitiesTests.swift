@@ -208,4 +208,36 @@ final class PrinterCapabilitiesTests: XCTestCase {
         XCTAssertEqual(caps.supplies[1].level, -1)
         XCTAssertNil(caps.supplies[1].lowLevel)
     }
+
+    func test_mediaSupportedAndTheCustomRange_areRead() {
+        func size(_ x: IppValue, _ y: IppValue) -> IppValue {
+            .collection([IppAttribute("x-dimension", x), IppAttribute("y-dimension", y)])
+        }
+        let caps = PrinterCapabilities.from(IppMessage(version: .v20, code: 0, requestId: 1, groups: [
+            IppGroup(tag: IppTag.printerAttributes, attributes: [
+                IppAttribute("media-supported", .keyword("iso_a4_210x297mm"), .keyword("na_ledger_11x17in")),
+                IppAttribute("media-size-supported", size(.integer(21000), .integer(29700)),
+                             size(.range(7620, 21590), .range(12700, 35560))),
+            ]),
+        ]))
+        XCTAssertEqual(caps.mediaSupported, ["iso_a4_210x297mm", "na_ledger_11x17in"])
+        XCTAssertEqual(caps.customPaper, PaperRange(minWidth: 7620, maxWidth: 21590, minHeight: 12700, maxHeight: 35560))
+        XCTAssertEqual(PaperSizes.listed(caps).count, 2)
+    }
+
+    func test_withoutARange_thereIsNoCustomSize() {
+        let caps = PrinterCapabilities.from(IppMessage(version: .v20, code: 0, requestId: 1, groups: [
+            IppGroup(tag: IppTag.printerAttributes, attributes: []),
+        ]))
+        XCTAssertNil(caps.customPaper)
+    }
+
+    func test_theCustomRange_fallsBackToTheMinAndMaxNames() {
+        let caps = PrinterCapabilities.from(IppMessage(version: .v20, code: 0, requestId: 1, groups: [
+            IppGroup(tag: IppTag.printerAttributes, attributes: [
+                IppAttribute("media-supported", .keyword("iso_a4_210x297mm"), .keyword("custom_min_3x5in"), .keyword("custom_max_8.5x14in")),
+            ]),
+        ]))
+        XCTAssertEqual(caps.customPaper, PaperRange(minWidth: 7620, maxWidth: 21590, minHeight: 12700, maxHeight: 35560))
+    }
 }

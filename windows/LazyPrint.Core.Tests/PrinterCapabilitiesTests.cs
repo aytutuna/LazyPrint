@@ -232,4 +232,45 @@ public class PrinterCapabilitiesTests
         Assert.Equal(-1, caps.Supplies[1].Level);
         Assert.Null(caps.Supplies[1].LowLevel);
     }
+
+    [Fact]
+    public void MediaSupportedAndTheCustomRangeAreRead()
+    {
+        IppValue.Collection Size(IppValue x, IppValue y) =>
+            new([new IppAttribute("x-dimension", x), new IppAttribute("y-dimension", y)]);
+        var caps = PrinterCapabilities.From(new IppMessage(IppVersion.V20, 0, 1,
+        [
+            new IppGroup(IppTag.PrinterAttributes,
+            [
+                new IppAttribute("media-supported", new IppValue.Keyword("iso_a4_210x297mm"), new IppValue.Keyword("na_ledger_11x17in")),
+                new IppAttribute("media-size-supported",
+                    Size(new IppValue.Integer(21000), new IppValue.Integer(29700)),
+                    Size(new IppValue.Range(7620, 21590), new IppValue.Range(12700, 35560))),
+            ]),
+        ]));
+        Assert.Equal(["iso_a4_210x297mm", "na_ledger_11x17in"], caps.MediaSupported);
+        Assert.Equal(new PaperRange(7620, 21590, 12700, 35560), caps.CustomPaper);
+        Assert.Equal(2, PaperSizes.Listed(caps).Count);
+    }
+
+    [Fact]
+    public void WithoutARangeThereIsNoCustomSize()
+    {
+        Assert.Null(PrinterCapabilities.From(new IppMessage(IppVersion.V20, 0, 1, [new IppGroup(IppTag.PrinterAttributes, [])])).CustomPaper);
+    }
+
+    [Fact]
+    public void TheCustomRange_FallsBackToTheMinAndMaxNames()
+    {
+        var caps = PrinterCapabilities.From(new IppMessage(IppVersion.V20, 0, 1,
+        [
+            new IppGroup(IppTag.PrinterAttributes,
+            [
+                new IppAttribute("media-supported", new IppValue.Keyword("iso_a4_210x297mm"), new IppValue.Keyword("custom_min_3x5in"),
+                    new IppValue.Keyword("custom_max_8.5x14in")),
+            ]),
+        ]));
+        Assert.Equal(new PaperRange(7620, 21590, 12700, 35560), caps.CustomPaper);
+        Assert.Null(PaperSizes.CustomRange(["custom_min_3x5in"]));
+    }
 }

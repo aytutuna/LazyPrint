@@ -134,11 +134,14 @@ extension AppState {
         replan()
     }
 
-    /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists.
+    /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists, whatever
+    /// they are (the paper picker takes any size). Not its custom range: AirPrint prints on the nearest paper it lists.
     @discardableResult
     static func useListedPapers(_ own: inout PrinterCapabilities, from ipp: PrinterCapabilities, platform: AppPlatform) -> Bool {
-        guard platform == .ios, !ipp.mediaColDatabase.isEmpty, own.mediaColDatabase != ipp.mediaColDatabase else { return false }
+        guard platform == .ios, !PaperSizes.listed(ipp).isEmpty else { return false }
+        guard own.mediaColDatabase != ipp.mediaColDatabase || own.mediaSupported != ipp.mediaSupported else { return false }
         own.mediaColDatabase = ipp.mediaColDatabase
+        own.mediaSupported = ipp.mediaSupported
         return true
     }
 
@@ -165,8 +168,15 @@ extension AppState {
     /// refused is asked about now, since the user just chose it.
     public func selectPrinter(_ id: String) async {
         guard settings.printerId != id else { return }
-        settings.printerId = id
-        settings.printerName = printers.first(where: { $0.id == id })?.name
+        // One assignment, so the choices kept for the printer replace the old ones before they are kept for it.
+        var next = settings
+        next.printerId = id
+        next.printerName = printers.first(where: { $0.id == id })?.name
+        if let kept = printerPrefs[id] {
+            kept.apply(to: &next)
+            if kept.sides != nil { sidesPickedBlind = nil }
+        }
+        settings = next
         statusOverride = nil
         syncCapabilities()
         await loadCapabilities()
@@ -175,6 +185,17 @@ extension AppState {
             reviewCertificate(of: chosen)
         }
         replan()
+    }
+
+    /// Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back. The default
+    /// that stands in for a chosen printer that is gone is left alone: its own were never applied.
+    func rememberForPrinter() {
+        guard let printer = selectedPrinter, settings.printerId == nil || settings.printerId == printer.id else { return }
+        let before = prefs(of: printer)
+        let after = before.remembering(settings)
+        guard after != before else { return }
+        printerPrefs[printer.id] = after
+        SettingsStore.savePrinters(printerPrefs, in: files.settingsDirectory)
     }
 
     // MARK: Network printers

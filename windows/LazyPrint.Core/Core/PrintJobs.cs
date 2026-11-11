@@ -58,9 +58,13 @@ public static class PrintJobs
     /// or not, the other kind when only that exists), else 0.25 in on every side. Automatic is the paper the
     /// printer has loaded, else the usual one where the user lives.
     /// </summary>
-    public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless)
+    public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless) =>
+        Area(paper.RawValue(), printer, borderless);
+
+    /// <summary><paramref name="paperId"/> is a <see cref="PrintSettings.PaperId"/>: a named size or any PWG name.</summary>
+    public static PrintableArea Area(string paperId, PrinterCapabilities? printer, bool borderless)
     {
-        var size = Sheet(paper, printer);
+        var size = Sheet(paperId, printer);
         if (printer?.Match(size, borderless)?.PrintableArea is { } area) return area;
         const double Margin = 0.25 * 72;
         return new PrintableArea(size, new LayoutInsets(Margin, Margin, Margin, Margin));
@@ -84,7 +88,7 @@ public static class PrintJobs
         var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();
 
         bool photos = task == PrintTask.Photos;
-        var paper = PaperSizes.Parse(settings.PaperId);
+        var paper = settings.PaperId;
         var area = Area(paper, printer, photos && Borderless(settings.PhotoSizeId, Sheet(paper, printer)));
         var plan = photos
             ? PhotoLayout.Plan(pages, new PhotoOptions(PhotoSizeOf(settings.PhotoSizeId), 1, settings.PhotoFill, settings.CutMarks), area)
@@ -142,7 +146,7 @@ public static class PrintJobs
             job.CopiesInJob,
             sides,
             mode,
-            Media(area, printer),
+            Media(area, printer, MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer), settings.MediaType == MediaChoices.Auto),
             printer?.PrintQualitySupported.Contains(quality) == true ? quality : null,
             PrintScaling(settings.Scaling, printer, asIs),
             hasCopies && settings.Collate && printer?.MultipleDocumentHandlingSupported.Contains(CollatedCopies) == true);
@@ -158,13 +162,36 @@ public static class PrintJobs
         return wanted.FirstOrDefault(w => listed.Contains(w));
     }
 
-    /// <summary>The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name.</summary>
-    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer)
+    /// <summary>
+    /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name. The type
+    /// and tray, when asked for, go in the media-col in place of the entry's own, except that an entry's own photo type stays
+    /// when the type was left on automatic.
+    /// </summary>
+    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? type, string? source,
+                                         bool autoType)
     {
-        string name = MediaName(area.Paper);
-        if (printer?.Match(area.Paper, area.Margins == default) is { } entry) return new IppMediaChoice(entry.Attributes, name);
-
+        string name = MediaName(area.Paper, printer);
         var supported = printer?.MediaColSupported ?? [];
+        bool Takes(string member) => supported.Count == 0 || supported.Contains(member);
+        static bool IsPhotoType(IppAttribute m) => m.Name == "media-type" && m.Values[0] is IppValue.Keyword { Value: var v } && v.StartsWith("photographic", StringComparison.Ordinal);
+        List<IppAttribute> Chosen(List<IppAttribute> members)
+        {
+            if (type is not null && Takes("media-type") && !(autoType && members.Any(IsPhotoType)))
+            {
+                members.RemoveAll(m => m.Name == "media-type");
+                members.Add(new IppAttribute("media-type", new IppValue.Keyword(type)));
+            }
+            if (source is not null && Takes("media-source"))
+            {
+                members.RemoveAll(m => m.Name == "media-source");
+                members.Add(new IppAttribute("media-source", new IppValue.Keyword(source)));
+            }
+            return members;
+        }
+
+        if (printer?.Match(area.Paper, area.Margins == default) is { } entry)
+            return new IppMediaChoice(entry.Attributes.Count > 0 ? Chosen([.. entry.Attributes]) : entry.Attributes, name);
+
         int Hundredths(double points) => (int)Math.Round(points * 2540 / 72);
         var members = new List<IppAttribute>
         {
@@ -181,6 +208,7 @@ public static class PrintJobs
         };
         foreach (var (margin, points) in margins.Where(m => supported.Contains(m.Name)))
             members.Add(new IppAttribute(margin, new IppValue.Integer(Hundredths(points))));
+        Chosen(members);
         return new IppMediaChoice(members.Count > 1 ? members : null, name);
     }
 
@@ -190,8 +218,8 @@ public static class PrintJobs
         || (Math.Abs(photo.Width - sheet.Width) <= PaperSizes.FitTolerance && Math.Abs(photo.Height - sheet.Height) <= PaperSizes.FitTolerance);
 
     /// <summary>The paper a job goes on, portrait, in points.</summary>
-    private static LayoutSize Sheet(PaperSize paper, PrinterCapabilities? printer) =>
-        (paper == PaperSize.Auto ? Loaded(printer) ?? PaperSizes.Points(UsualPaper()) : PaperSizes.Points(paper))
+    private static LayoutSize Sheet(string paperId, PrinterCapabilities? printer) =>
+        (PaperSizes.PointsOf(paperId) ?? Loaded(printer) ?? PaperSizes.Points(UsualPaper()))
         ?? throw new InvalidOperationException("A paper size has points.");
 
     private static bool CanCollate(PrintSettings settings, PrinterCapabilities? printer) =>
@@ -208,22 +236,7 @@ public static class PrintJobs
             double width = MediaEntry.Points(entry.Width), height = MediaEntry.Points(entry.Height);
             return new LayoutSize(Math.Min(width, height), Math.Max(width, height));
         }
-        return printer.MediaReady.Select(PwgSize).OfType<LayoutSize>().FirstOrDefault() is { Width: > 0 } size ? size : null;
-    }
-
-    /// <summary>The size in a PWG self-describing name ("iso_a4_210x297mm", "na_letter_8.5x11in"), portrait, in points; null for any other.</summary>
-    private static LayoutSize? PwgSize(string name)
-    {
-        string[] parts = name.Split('_');
-        if (parts.Length < 3 || parts[1] is "min" or "max") return null;
-        string last = parts[^1];
-        double unit = last.EndsWith("mm", StringComparison.Ordinal) ? 72 / 25.4 : last.EndsWith("in", StringComparison.Ordinal) ? 72 : 0;
-        string[] sides = last.Length > 2 ? last[..^2].Split('x') : [];
-        if (unit == 0 || sides.Length != 2
-            || !double.TryParse(sides[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double a)
-            || !double.TryParse(sides[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double b)
-            || a <= 0 || b <= 0) return null;
-        return new LayoutSize(Math.Min(a, b) * unit, Math.Max(a, b) * unit);
+        return printer.MediaReady.Select(PaperSizes.PwgSize).OfType<LayoutSize>().FirstOrDefault() is { Width: > 0 } size ? size : null;
     }
 
     private static PaperSize UsualPaper() => PaperSizes.DefaultForRegion(RegionInfo.CurrentRegion.TwoLetterISORegionName);
@@ -243,7 +256,10 @@ public static class PrintJobs
         return notes;
     }
 
-    /// <summary>A PWG self-describing media name: the named sizes as printers list them, else a custom one in millimetres.</summary>
+    /// <summary>A PWG self-describing media name: the one the printer lists for the sheet, else the standard one of a named size, else a custom one in millimetres.</summary>
+    private static string MediaName(LayoutSize paper, PrinterCapabilities? printer) =>
+        PaperSizes.ListedName(printer, paper) ?? MediaName(paper);
+
     private static string MediaName(LayoutSize paper) => PaperSizes.Match(paper) switch
     {
         PaperSize.Letter => "na_letter_8.5x11in",
@@ -256,8 +272,20 @@ public static class PrintJobs
         PaperSize.IdCard => "iso_id-1_53.98x85.6mm",
         PaperSize.Photo4x6 => "na_index-4x6_4x6in",
         PaperSize.Photo5x7 => "na_5x7_5x7in",
-        _ => string.Create(CultureInfo.InvariantCulture,
-            $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm"),
+        _ => PaperSizes.NameOf(paper) switch
+        {
+            "A3" => "iso_a3_297x420mm",
+            "B4" => "iso_b4_250x353mm",
+            "B4 (JIS)" => "jis_b4_257x364mm",
+            "B5" => "iso_b5_176x250mm",
+            "Tabloid" => "na_ledger_11x17in",
+            "8 × 10 in" => "na_govt-letter_8x10in",
+            "Envelope #10" => "na_number-10_4.125x9.5in",
+            "Envelope DL" => "iso_dl_110x220mm",
+            "Envelope C5" => "iso_c5_162x229mm",
+            _ => string.Create(CultureInfo.InvariantCulture,
+                $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm"),
+        },
     };
 }
 

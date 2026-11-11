@@ -168,7 +168,8 @@ public final class IOSPrinterSystem: PrinterSystem {
     }
 
     /// The region's usual paper, then the other of Letter and A4, then 4x6, 5x7 and Legal, each with margins of 0.25 in.
-    /// iOS does not say what a printer has in its trays; an IPP printer the app knows replaces this list with its own.
+    /// iOS does not say what a printer has in its trays; an IPP printer the app knows replaces this list with its own,
+    /// and the paper picker takes every size on it.
     nonisolated static func papers(region: String?) -> [MediaEntry] {
         let usual: PaperSize = PaperSizes.defaultForRegion(region)
         let other: PaperSize = usual == .letter ? .a4 : .letter

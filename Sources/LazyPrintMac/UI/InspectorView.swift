@@ -190,16 +190,30 @@ struct InspectorView: View {
     private func paperSection(_ rules: Rules) -> some View {
         InspectorSection(id: InspectorSections.paper, icon: "doc.plaintext", summary: InspectorSections.paperSummary(state.settings)) {
             field("Paper") {
+                let papers = PaperSizes.choices(printer: state.capabilities, chosen: state.settings.paperId,
+                                                region: Locale.current.region?.identifier)
                 Picker("Paper", selection: Binding(
-                    get: { PaperSizes.parse(state.settings.paperId) },
-                    set: { state.settings.paperId = $0.rawValue })) {
-                    ForEach(PaperSizes.displayOrder(region: Locale.current.region?.identifier)) { paper in
-                        Text(paper.label).tag(paper)
+                    get: { papers.selected },
+                    set: { id in
+                        state.settings.paperId = id == PaperSizes.customId
+                            ? PaperSizes.startCustom(printer: state.capabilities, chosen: state.settings.paperId,
+                                                     region: Locale.current.region?.identifier)
+                            : id
+                    })) {
+                    ForEach(papers.options) { paper in
+                        Text(paper.label).tag(paper.id)
                     }
                 }
                 .labelsHidden()
+                if papers.selected == PaperSizes.customId { CustomPaperFields() }
                 if let note = rules.paperNote { self.note(note) }
             }
+            mediaField("Tray", ids: MediaChoices.sources(state.capabilities), label: MediaChoices.sourceLabel, selection: Binding(
+                get: { MediaChoices.sources(state.capabilities).contains(state.settings.mediaSource) ? state.settings.mediaSource : MediaChoices.auto },
+                set: { state.settings.mediaSource = $0 }))
+            mediaField("Paper type", ids: MediaChoices.types(state.capabilities), label: MediaChoices.typeLabel, selection: Binding(
+                get: { MediaChoices.types(state.capabilities).contains(state.settings.mediaType) ? state.settings.mediaType : MediaChoices.auto },
+                set: { state.settings.mediaType = $0 }))
             field("Quality") {
                 Picker("Quality", selection: Binding(
                     get: { rules.qualityEnabled ? state.settings.quality : QualityChoice.normal },
@@ -245,6 +259,22 @@ struct InspectorView: View {
     }
 
     // MARK: Parts
+
+    /// A picker of what the printer lists, with Automatic first; the row is left out when it lists none.
+    @ViewBuilder
+    private func mediaField(_ title: String, ids: [String], label: @escaping (String) -> String, selection: Binding<String>) -> some View {
+        if !ids.isEmpty {
+            field(title) {
+                Picker(title, selection: selection) {
+                    Text("Automatic").tag(MediaChoices.auto)
+                    ForEach(ids, id: \.self) { id in
+                        Text(label(id)).tag(id)
+                    }
+                }
+                .labelsHidden()
+            }
+        }
+    }
 
     private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -352,12 +382,64 @@ struct InspectorView: View {
             qualityEnabled = !noQuality
             qualityReason = noQuality ? "Not on this printer" : nil
 
-            let paper = PaperSizes.parse(s.paperId)
-            if paper != .auto, let capabilities, !capabilities.mediaColDatabase.isEmpty,
-               let size = PaperSizes.points(paper), capabilities.match(size) == nil {
+            if let size = PaperSizes.pointsOf(s.paperId), !PaperSizes.supports(capabilities, size) {
                 paperNote = "Not listed by this printer"
             }
         }
+    }
+}
+
+/// The width and height of a size typed in, in the region's unit; taken as far as the printer takes it, and shown as taken.
+private struct CustomPaperFields: View {
+    @EnvironmentObject private var state: AppState
+    @State private var width = ""
+    @State private var height = ""
+    @State private var shownWidth = ""
+    @State private var shownHeight = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        let region: String? = Locale.current.region?.identifier
+        HStack(spacing: 8) {
+            TextField("Width", text: $width)
+                .focused($focused)
+                .onSubmit { commit() }
+                .accessibilityLabel("Paper width")
+            Text("\u{00D7}")
+            TextField("Height", text: $height)
+                .focused($focused)
+                .onSubmit { commit() }
+                .accessibilityLabel("Paper height")
+            Text(PaperSizes.usesInches(region) ? "in" : "mm")
+        }
+        .textFieldStyle(.roundedBorder)
+        .onAppear { load() }
+        .onChange(of: state.settings.paperId) { _, _ in load() }
+        .onChange(of: focused) { _, now in
+            if !now { commit() }
+        }
+    }
+
+    private func load() {
+        guard let size: LayoutSize = PaperSizes.pointsOf(state.settings.paperId) else { return }
+        let (w, h): (Double, Double) = PaperSizes.dimensions(size, region: Locale.current.region?.identifier)
+        width = w == w.rounded() ? String(Int(w)) : String(w)
+        height = h == h.rounded() ? String(Int(h)) : String(h)
+        shownWidth = width
+        shownHeight = height
+    }
+
+    private func commit() {
+        // Tabbing through the boxes must not turn the rounded text on show into the size.
+        guard width != shownWidth || height != shownHeight else { return }
+        guard let w: Double = Double(width.replacingOccurrences(of: ",", with: ".")),
+              let h: Double = Double(height.replacingOccurrences(of: ",", with: ".")), w > 0, h > 0 else {
+            load()
+            return
+        }
+        state.settings.paperId = PaperSizes.customSizeId(width: w, height: h, region: Locale.current.region?.identifier,
+                                                         printer: state.capabilities)
+        load()
     }
 }
 

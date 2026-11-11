@@ -261,6 +261,17 @@ public sealed class SpoolerPrinter(IPageRenderer pages, IOriginalFiles? files = 
             ticket.OutputColor = OutputColor.Color;
         }
 
+        if (MediaChoices.Source(settings, job.Capabilities) is { } source && PrinterMapping.Tray(source) is { } bin
+            && Lists(caps?.InputBinCapability, bin))
+        {
+            ticket.InputBin = bin;
+        }
+        if (MediaChoices.Type(settings, job.Capabilities) is { } type
+            && PrinterMapping.PaperTypes(type).Where(t => Lists(caps?.PageMediaTypeCapability, t)).Cast<PageMediaType?>().FirstOrDefault() is { } paperType)
+        {
+            ticket.PageMediaType = paperType;
+        }
+
         var quality = settings.Quality switch { QualityChoice.Draft => OutputQuality.Draft, QualityChoice.Best => OutputQuality.High, _ => OutputQuality.Normal };
         if (Lists(caps?.OutputQualityCapability, quality)) ticket.OutputQuality = quality;
         return Unbound(ticket);

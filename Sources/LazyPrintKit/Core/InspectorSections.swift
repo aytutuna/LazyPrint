@@ -100,8 +100,7 @@ public enum InspectorSections {
     /// "Letter · Best · Gray"; "" for automatic paper, normal quality and color.
     public static func paperSummary(_ s: PrintSettings) -> String {
         var parts = [String]()
-        let size = PaperSizes.parse(s.paperId)
-        if size != .auto { parts.append(size.label) }
+        if let paper = PaperSizes.labelOf(s.paperId, region: Locale.current.region?.identifier) { parts.append(paper) }
         if s.quality != .normal { parts.append(s.quality == .best ? "Best" : "Draft") }
         if s.color == .gray { parts.append("Gray") }
         return join(parts)

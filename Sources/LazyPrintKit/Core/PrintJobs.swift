@@ -57,7 +57,12 @@ public enum PrintJobs {
     /// or not, the other kind when only that exists), else 0.25 in on every side. Automatic is the paper the
     /// printer has loaded, else the usual one where the user lives.
     public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea {
-        let size = sheet(paper, printer)
+        area(paperId: paper.rawValue, printer: printer, borderless: borderless)
+    }
+
+    /// `paperId` is a `PrintSettings.paperId`: a named size or any PWG name.
+    public static func area(paperId: String, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea {
+        let size = sheet(paperId, printer)
         if let area = printer?.match(size, borderless: borderless)?.printableArea { return area }
         let margin = 0.25 * 72
         return PrintableArea(paper: size, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
@@ -80,8 +85,8 @@ public enum PrintJobs {
         let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
         let photos = task == .photos
-        let paper = PaperSizes.parse(settings.paperId)
-        let printable = area(paper: paper, printer: printer,
+        let paper = settings.paperId
+        let printable = area(paperId: paper, printer: printer,
                              borderless: photos && borderless(settings.photoSizeId, sheet: sheet(paper, printer)))
         let layout: SheetPlan
         if photos {
@@ -149,7 +154,8 @@ public enum PrintJobs {
                             copies: job.copiesInJob,
                             sides: sides,
                             colorMode: mode,
-                            media: media(sheet, printer),
+                            media: media(sheet, printer, type: MediaChoices.type(settings, printer), source: MediaChoices.source(settings, printer),
+                                         autoType: settings.mediaType == MediaChoices.auto),
                             quality: printer?.printQualitySupported.contains(quality) == true ? quality : nil,
                             scaling: printScaling(settings.scaling, printer: printer, asIs: asIs),
                             collatedCopies: collated)
@@ -170,15 +176,33 @@ public enum PrintJobs {
         return wanted.first { listed.contains($0) }
     }
 
-    /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name.
-    private static func media(_ area: PrintableArea, _ printer: PrinterCapabilities?) -> IppMediaChoice {
-        let name = mediaName(area.paper)
-        let borderless = area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
-        if let entry = printer?.match(area.paper, borderless: borderless) {
-            return IppMediaChoice(entry: entry.attributes, name: name)
+    /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name. The type
+    /// and tray, when asked for, go in the media-col in place of the entry's own, except that an entry's own photo type stays
+    /// when the type was left on automatic.
+    private static func media(_ area: PrintableArea, _ printer: PrinterCapabilities?, type: String?, source: String?,
+                              autoType: Bool) -> IppMediaChoice {
+        let name = PaperSizes.listedName(printer, area.paper) ?? mediaName(area.paper)
+        let supported = printer?.mediaColSupported ?? []
+        func chosen(_ members: [IppAttribute]) -> [IppAttribute] {
+            var members: [IppAttribute] = members
+            let hasPhotoType: Bool = members.contains { (attribute: IppAttribute) -> Bool in
+                if attribute.name == "media-type", case .keyword(let value)? = attribute.values.first { return value.hasPrefix("photographic") }
+                return false
+            }
+            for (member, keyword) in [("media-type", type), ("media-source", source)] {
+                guard let keyword, supported.isEmpty || supported.contains(member) else { continue }
+                if member == "media-type" && autoType && hasPhotoType { continue }
+                members.removeAll { (attribute: IppAttribute) -> Bool in attribute.name == member }
+                members.append(IppAttribute(member, .keyword(keyword)))
+            }
+            return members
         }
 
-        let supported = printer?.mediaColSupported ?? []
+        let borderless = area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
+        if let entry = printer?.match(area.paper, borderless: borderless) {
+            return IppMediaChoice(entry: entry.attributes.isEmpty ? entry.attributes : chosen(entry.attributes), name: name)
+        }
+
         func hundredths(_ points: Double) -> IppValue {
             .integer(Int32((points * 2540 / 72).rounded(.toNearestOrEven)))
         }
@@ -189,6 +213,7 @@ public enum PrintJobs {
         for (margin, points) in margins where supported.contains(margin) {
             members.append(IppAttribute(margin, hundredths(points)))
         }
+        members = chosen(members)
         return IppMediaChoice(entry: members.count > 1 ? members : nil, name: name)
     }
 
@@ -199,8 +224,8 @@ public enum PrintJobs {
     }
 
     /// The paper a job goes on, portrait, in points.
-    private static func sheet(_ paper: PaperSize, _ printer: PrinterCapabilities?) -> LayoutSize {
-        let known = paper == .auto ? loaded(printer) ?? PaperSizes.points(usualPaper()) : PaperSizes.points(paper)
+    private static func sheet(_ paperId: String, _ printer: PrinterCapabilities?) -> LayoutSize {
+        let known = PaperSizes.pointsOf(paperId) ?? loaded(printer) ?? PaperSizes.points(usualPaper())
         guard let size = known else { preconditionFailure("A paper size has points.") }
         return size
     }
@@ -221,24 +246,7 @@ public enum PrintJobs {
             let height = MediaEntry.points(entry.height)
             return LayoutSize(width: min(width, height), height: max(width, height))
         }
-        return printer.mediaReady.lazy.compactMap { pwgSize($0) }.first
-    }
-
-    /// The size in a PWG self-describing name ("iso_a4_210x297mm", "na_letter_8.5x11in"), portrait, in points; nil for any other.
-    private static func pwgSize(_ name: String) -> LayoutSize? {
-        let parts = name.components(separatedBy: "_")
-        guard parts.count >= 3, parts[1] != "min", parts[1] != "max", let last = parts.last else { return nil }
-        let unit: Double
-        if last.hasSuffix("mm") {
-            unit = 72 / 25.4
-        } else if last.hasSuffix("in") {
-            unit = 72
-        } else {
-            return nil
-        }
-        let sides = last.dropLast(2).components(separatedBy: "x")
-        guard sides.count == 2, let a = Double(sides[0]), let b = Double(sides[1]), a > 0, b > 0 else { return nil }
-        return LayoutSize(width: min(a, b) * unit, height: max(a, b) * unit)
+        return printer.mediaReady.lazy.compactMap { PaperSizes.pwgSize($0) }.first
     }
 
     private static func usualPaper() -> PaperSize {
@@ -263,7 +271,7 @@ public enum PrintJobs {
         return notes
     }
 
-    /// A PWG self-describing media name: the named sizes as printers list them, else a custom one in millimetres.
+    /// A PWG self-describing media name: the standard one of a named size, else a custom one in millimetres.
     private static func mediaName(_ paper: LayoutSize) -> String {
         switch PaperSizes.match(paper) {
         case .letter?: return "na_letter_8.5x11in"
@@ -277,6 +285,18 @@ public enum PrintJobs {
         case .photo4x6?: return "na_index-4x6_4x6in"
         case .photo5x7?: return "na_5x7_5x7in"
         default:
+            switch PaperSizes.nameOf(paper) {
+            case "A3"?: return "iso_a3_297x420mm"
+            case "B4"?: return "iso_b4_250x353mm"
+            case "B4 (JIS)"?: return "jis_b4_257x364mm"
+            case "B5"?: return "iso_b5_176x250mm"
+            case "Tabloid"?: return "na_ledger_11x17in"
+            case "8 \u{00D7} 10 in"?: return "na_govt-letter_8x10in"
+            case "Envelope #10"?: return "na_number-10_4.125x9.5in"
+            case "Envelope DL"?: return "iso_dl_110x220mm"
+            case "Envelope C5"?: return "iso_c5_162x229mm"
+            default: break
+            }
             let width = Int((paper.width * 25.4 / 72).rounded(.toNearestOrEven))
             let height = Int((paper.height * 25.4 / 72).rounded(.toNearestOrEven))
             return "custom_sheet_\(width)x\(height)mm"

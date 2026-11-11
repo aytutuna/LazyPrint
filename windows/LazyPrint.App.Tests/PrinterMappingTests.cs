@@ -170,6 +170,7 @@ public sealed class PrinterMappingTests
     [InlineData(793.7, 1122.5, true)] // A4
     [InlineData(384, 576, true)]      // 4 x 6 in
     [InlineData(1056, 816, false)]    // landscape
+    [InlineData(1122.5, 1587.4, true)] // A3
     [InlineData(500, 700, false)]     // no name
     [InlineData(0, 0, false)]
     public void OnlyNamedAndPhotoPapersAreAskedForTheirArea(double width, double height, bool useful)
@@ -183,6 +184,28 @@ public sealed class PrinterMappingTests
         Duplexing[]? duplex = null, OutputColor[]? colors = null, int? copies = null, Collation[]? collation = null,
         OutputQuality[]? quality = null) =>
         PrinterMapping.Capabilities("HP", "HP Driver", duplex ?? [], colors ?? [], copies, collation ?? [], quality ?? [], []);
+
+    [Fact]
+    public void TraysAndPaperTypesBecomeTheKeywordsAPrinterWouldList()
+    {
+        var caps = PrinterMapping.Capabilities("HP", null, [], [], null, [], [], [], false,
+            [InputBin.AutoSelect, InputBin.Manual, InputBin.Cassette],
+            [PageMediaType.Plain, PageMediaType.Stationery, PageMediaType.PhotographicGlossy, PageMediaType.Unknown]);
+        Assert.Equal(["manual", "tray-1"], caps.MediaSourceSupported);
+        Assert.Equal(["stationery", "photographic-glossy"], caps.MediaTypeSupported);
+        Assert.Empty(Caps().MediaSourceSupported);
+        Assert.Empty(Caps().MediaTypeSupported);
+        Assert.Equal(InputBin.Manual, PrinterMapping.Tray("manual"));
+        Assert.Null(PrinterMapping.Tray("tray-9"));
+        Assert.Equal(PageMediaType.CardStock, PrinterMapping.PaperType("cardstock"));
+    }
+
+    [Fact]
+    public void PlainAndStationeryAreBothStationery()
+    {
+        Assert.Equal([PageMediaType.Plain, PageMediaType.Stationery], PrinterMapping.PaperTypes("stationery"));
+        Assert.Empty(PrinterMapping.PaperTypes("no-such-type"));
+    }
 
     [Fact]
     public void ADriverWithoutDuplexPrintsOneSide()

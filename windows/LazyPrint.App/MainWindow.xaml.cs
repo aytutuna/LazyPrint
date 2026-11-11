@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     public AppViewModel ViewModel { get; }
 
     private bool _updatingUi;
+    private string _shownWidth = "", _shownHeight = "";
     private readonly DispatcherTimer _printerPoll = new() { Interval = PrinterPollInterval };
     private readonly DispatcherTimer _statusPoll = new() { Interval = StatusPollInterval };
 

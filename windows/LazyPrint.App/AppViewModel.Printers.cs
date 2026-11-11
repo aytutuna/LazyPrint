@@ -313,6 +313,11 @@ public sealed partial class AppViewModel
     {
         if (Settings.PrinterId == id) return;
         Settings.PrinterId = id;
+        if (_prefs.TryGetValue(id, out var prefs))
+        {
+            prefs.ApplyTo(Settings);
+            if (prefs.Sides is not null) _sidesPickedBlind = null;
+        }
         _statusOverride = null;
         _capabilityFailed.Remove(id);
         await LoadCapabilitiesAsync();
@@ -323,6 +328,17 @@ public sealed partial class AppViewModel
             await ReviewCertificateAsync(network);
         }
         SettingsEdited();
+    }
+
+    /// <summary>Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back. The default that stands in for a chosen printer that is gone is left alone: its own were never applied.</summary>
+    private void RememberForPrinter()
+    {
+        if (SelectedPrinter is not { } printer || Settings.PrinterId is { } chosen && chosen != printer.Id) return;
+        var prefs = PrefsOf(printer);
+        var remembered = prefs.Remembering(Settings);
+        if (remembered == prefs) return;
+        _prefs[printer.Id] = remembered;
+        SettingsStore.SavePrinters(_prefs, _directory);
     }
 
     // MARK: Network printers

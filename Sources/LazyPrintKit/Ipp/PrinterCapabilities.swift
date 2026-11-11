@@ -62,6 +62,39 @@ public struct MediaEntry: Equatable, Sendable {
     }
 }
 
+/// The sizes a printer takes in a range (custom sizes), in hundredths of a millimetre: the x-dimension is the width and the
+/// y-dimension the height, as media-size-supported lists them.
+public struct PaperRange: Equatable, Sendable {
+    public var minWidth: Int
+    public var maxWidth: Int
+    public var minHeight: Int
+    public var maxHeight: Int
+
+    public init(minWidth: Int, maxWidth: Int, minHeight: Int, maxHeight: Int) {
+        self.minWidth = minWidth
+        self.maxWidth = maxWidth
+        self.minHeight = minHeight
+        self.maxHeight = maxHeight
+    }
+
+    /// A sheet (portrait, in points) the range takes, held either way round.
+    public func accepts(_ paper: LayoutSize) -> Bool {
+        let w = paper.width * 2540 / 72
+        let h = paper.height * 2540 / 72
+        func fits(_ across: Double, _ along: Double) -> Bool {
+            across >= Double(minWidth) && across <= Double(maxWidth) && along >= Double(minHeight) && along <= Double(maxHeight)
+        }
+        return fits(w, h) || fits(h, w)
+    }
+
+    /// The sheet (portrait, in points) moved into the range.
+    public func clamp(_ paper: LayoutSize) -> LayoutSize {
+        let w = min(max(paper.width * 2540 / 72, Double(minWidth)), Double(maxWidth))
+        let h = min(max(paper.height * 2540 / 72, Double(minHeight)), Double(maxHeight))
+        return LayoutSize(width: min(w, h) * 72 / 2540, height: max(w, h) * 72 / 2540)
+    }
+}
+
 /// One ink or toner supply. The level is a percent; -1 is unknown, -2 unavailable, -3 some left.
 public struct MarkerSupply: Equatable, Sendable {
     public var name: String
@@ -124,6 +157,10 @@ public struct PrinterCapabilities: Equatable, Sendable {
     public var mediaColReady = [MediaEntry]()
     public var mediaColDatabase = [MediaEntry]()
     public var mediaReady = [String]()
+    /// media-supported: the sizes by name ("iso_a3_297x420mm"), as a printer without a media-col-database lists them.
+    public var mediaSupported = [String]()
+    /// What a custom size may be; nil when the printer takes only the sizes it lists.
+    public var customPaper: PaperRange?
     public var mediaTypeSupported = [String]()
     public var mediaSourceSupported = [String]()
     public var printQualitySupported = [Int]()
@@ -206,6 +243,8 @@ public struct PrinterCapabilities: Equatable, Sendable {
         caps.mediaColReady = entries("media-col-ready")
         caps.mediaColDatabase = entries("media-col-database")
         caps.mediaReady = strings("media-ready")
+        caps.mediaSupported = strings("media-supported")
+        caps.customPaper = customRange(message["media-size-supported"]) ?? PaperSizes.customRange(caps.mediaSupported)
         caps.mediaTypeSupported = strings("media-type-supported")
         caps.mediaSourceSupported = strings("media-source-supported")
         caps.printQualitySupported = ints("print-quality-supported")
@@ -237,6 +276,25 @@ public struct PrinterCapabilities: Equatable, Sendable {
                    lowLevel: at(lows, i),
                    highLevel: at(highs, i))
         }
+    }
+
+    /// The first media-size-supported entry that takes a range; its fixed side counts as a range of one value.
+    private static func customRange(_ sizes: IppAttribute?) -> PaperRange? {
+        func bounds(_ value: IppValue?) -> (lower: Int, upper: Int)? {
+            switch value {
+            case .integer(let v)?: return (Int(v), Int(v))
+            case .range(let lower, let upper)?: return (Int(lower), Int(upper))
+            default: return nil
+            }
+        }
+        for value in sizes?.values ?? [] {
+            guard case .collection(let members) = value,
+                  let x = bounds(firstValue(members, "x-dimension")), let y = bounds(firstValue(members, "y-dimension")) else { continue }
+            if x.lower != x.upper || y.lower != y.upper {
+                return PaperRange(minWidth: x.lower, maxWidth: x.upper, minHeight: y.lower, maxHeight: y.upper)
+            }
+        }
+        return nil
     }
 
     private static func text(_ value: IppValue) -> String? {

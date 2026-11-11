@@ -46,6 +46,10 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var reverseOrder = false
     /// A `PaperSize` raw value; "auto" is what the printer has loaded, else the regional default.
     public var paperId = "auto"
+    /// A media-source keyword the printer lists ("main", "tray-2", "manual"); "auto" lets the printer pick.
+    public var mediaSource = MediaChoices.auto
+    /// A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.
+    public var mediaType = MediaChoices.auto
     public var photoSizeId = "4x6"
     public var photoFill = true
     public var cutMarks = true
@@ -54,7 +58,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
-        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, photoSizeId, photoFill, cutMarks
+        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, photoSizeId, photoFill, cutMarks
     }
 }
 
@@ -79,6 +83,8 @@ extension PrintSettings {
         marginMm = c.decodeLenient(forKey: .marginMm, default: marginMm)
         poster = c.decodeLenient(forKey: .poster, default: poster)
         paperId = c.decodeLenient(forKey: .paperId, default: paperId)
+        mediaSource = c.decodeLenient(forKey: .mediaSource, default: mediaSource)
+        mediaType = c.decodeLenient(forKey: .mediaType, default: mediaType)
         photoSizeId = c.decodeLenient(forKey: .photoSizeId, default: photoSizeId)
         photoFill = c.decodeLenient(forKey: .photoFill, default: photoFill)
         cutMarks = c.decodeLenient(forKey: .cutMarks, default: cutMarks)
@@ -88,12 +94,48 @@ extension PrintSettings {
 /// What is remembered about one printer.
 public struct PrinterPrefs: Codable, Equatable, Sendable {
     public var paperPath: PaperPath
-    public init(paperPath: PaperPath = PaperPath()) {
+    /// What was last used with this printer; nil until it was used, which leaves the current choice alone.
+    public var paperId: String?
+    public var sides: Sides?
+    public var color: ColorChoice?
+    public var quality: QualityChoice?
+    public var mediaSource: String?
+    public var mediaType: String?
+
+    public init(paperPath: PaperPath = PaperPath(), paperId: String? = nil, sides: Sides? = nil,
+                color: ColorChoice? = nil, quality: QualityChoice? = nil, mediaSource: String? = nil, mediaType: String? = nil) {
         self.paperPath = paperPath
+        self.paperId = paperId
+        self.sides = sides
+        self.color = color
+        self.quality = quality
+        self.mediaSource = mediaSource
+        self.mediaType = mediaType
     }
 
     enum CodingKeys: String, CodingKey {
-        case paperPath
+        case paperPath, paperId, sides, color, quality, mediaSource, mediaType
+    }
+
+    /// Brings back the paper, tray, paper type, sides, color and quality last used with the printer; copies, range and layout stay.
+    public func apply(to settings: inout PrintSettings) {
+        settings.paperId = paperId ?? settings.paperId
+        settings.sides = sides ?? settings.sides
+        settings.color = color ?? settings.color
+        settings.quality = quality ?? settings.quality
+        settings.mediaSource = mediaSource ?? settings.mediaSource
+        settings.mediaType = mediaType ?? settings.mediaType
+    }
+
+    public func remembering(_ settings: PrintSettings) -> PrinterPrefs {
+        var next = self
+        next.paperId = settings.paperId
+        next.sides = settings.sides
+        next.color = settings.color
+        next.quality = settings.quality
+        next.mediaSource = settings.mediaSource
+        next.mediaType = settings.mediaType
+        return next
     }
 }
 
@@ -101,6 +143,12 @@ extension PrinterPrefs {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         paperPath = c.decodeLenient(forKey: .paperPath, default: PaperPath())
+        paperId = c.decodeLenient(forKey: .paperId, default: paperId)
+        sides = c.decodeLenient(forKey: .sides, default: sides)
+        color = c.decodeLenient(forKey: .color, default: color)
+        quality = c.decodeLenient(forKey: .quality, default: quality)
+        mediaSource = c.decodeLenient(forKey: .mediaSource, default: mediaSource)
+        mediaType = c.decodeLenient(forKey: .mediaType, default: mediaType)
     }
 }
 

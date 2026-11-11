@@ -273,6 +273,23 @@ public final class CupsQueues: PrinterSystem {
             }
         }
 
+        // The names the queue lists, which say what a custom size may be ("custom_min_...", "custom_max_...").
+        if let names = cupsFindDestSupported(nil, dest, info, "media") {
+            for i in 0..<Int(ippGetCount(names)) {
+                if let name = ippGetString(names, Int32(i), nil) { caps.mediaSupported.append(String(cString: name)) }
+            }
+            caps.customPaper = PaperSizes.customRange(caps.mediaSupported)
+        }
+
+        // The trays and paper types, which CUPS names with the media-source and media-type keywords (InputSlot and MediaType of a PPD).
+        for (attribute, isTray) in [("media-source", true), ("media-type", false)] {
+            guard let listed = cupsFindDestSupported(nil, dest, info, attribute) else { continue }
+            for i in 0..<Int(ippGetCount(listed)) {
+                guard let text = ippGetString(listed, Int32(i), nil) else { continue }
+                if isTray { caps.mediaSourceSupported.append(String(cString: text)) } else { caps.mediaTypeSupported.append(String(cString: text)) }
+            }
+        }
+
         caps.sidesSupported = ["one-sided"]
         if cupsCheckDestSupported(nil, dest, info, "sides", "two-sided-long-edge") != 0 {
             caps.sidesSupported += ["two-sided-long-edge", "two-sided-short-edge"]
