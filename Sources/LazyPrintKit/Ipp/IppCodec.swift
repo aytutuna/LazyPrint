@@ -173,7 +173,7 @@ public struct IppMessage: Equatable, Sendable {
             while tag > 0x0F {
                 let nameLength = try reader.uint16()
                 let name = try reader.text(nameLength)
-                let value = try readValue(&reader, tag)
+                let value = try readValue(&reader, tag, depth: 0)
                 if !name.isEmpty {
                     attributes.append(IppAttribute(name: name, values: [value]))
                 } else if !attributes.isEmpty {
@@ -190,18 +190,22 @@ public struct IppMessage: Equatable, Sendable {
         return (message, reader.position)
     }
 
-    private static func readValue(_ reader: inout IppReader, _ tag: UInt8) throws -> IppValue {
+    // Real printers nest two or three deep; a reply deeper than this is hostile and would overflow the stack.
+    private static let maxDepth = 16
+
+    private static func readValue(_ reader: inout IppReader, _ tag: UInt8, depth: Int) throws -> IppValue {
         let length = try reader.uint16()
         if tag == IppTag.begCollection {
+            guard depth < maxDepth else { throw PrintError.badResponse }
             try reader.skip(length)
-            return try readCollection(&reader)
+            return try readCollection(&reader, depth: depth + 1)
         }
         let bytes = try reader.take(length)
         return value(tag, bytes)
     }
 
     // Members come as a memberAttrName whose value is the name, then that member's values with empty names.
-    private static func readCollection(_ reader: inout IppReader) throws -> IppValue {
+    private static func readCollection(_ reader: inout IppReader, depth: Int) throws -> IppValue {
         var members = [IppAttribute]()
         while true {
             let tag = try reader.byte()
@@ -219,7 +223,7 @@ public struct IppMessage: Equatable, Sendable {
                 continue
             }
             guard !members.isEmpty else { throw PrintError.badResponse }
-            let value = try readValue(&reader, tag)
+            let value = try readValue(&reader, tag, depth: depth)
             members[members.count - 1].values.append(value)
         }
         return .collection(members)

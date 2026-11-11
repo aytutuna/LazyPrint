@@ -194,13 +194,41 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
         request.Headers.ExpectContinue = false;
         try
         {
-            return await _http.SendAsync(request, timeout.Token).ConfigureAwait(false);
+            var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            try
+            {
+                await LimitBody(response, timeout.Token).ConfigureAwait(false);
+            }
+            catch
+            {
+                response.Dispose();
+                throw;
+            }
+            return response;
         }
         finally
         {
             if (request.Options.TryGetValue(IppCertificateValidator.CertificateSeen, out bool seen) && seen)
                 certificateSeen.Value = true;
         }
+    }
+
+    // A printer's answer is a few hundred KB at most; a bigger one is refused before it is all read.
+    private const int MaxResponse = 8 * 1024 * 1024;
+
+    private static async Task LimitBody(HttpResponseMessage response, CancellationToken token)
+    {
+        if (response.Content.Headers.ContentLength > MaxResponse) throw Failure(new PrintError.BadResponse());
+        await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        var body = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
+        {
+            if (body.Length + read > MaxResponse) throw Failure(new PrintError.BadResponse());
+            body.Write(chunk, 0, read);
+        }
+        response.Content = new ByteArrayContent(body.ToArray());
     }
 
     private static async Task<bool> IsBusy(HttpResponseMessage response)

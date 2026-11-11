@@ -163,6 +163,28 @@ public class IppCodecTests
         Assert.Throws<PrintException>(() => IppMessage.Decode(data));
     }
 
+    private static IppValue Nested(int levels)
+    {
+        IppValue value = new IppValue.Collection([new IppAttribute("x", new IppValue.Integer(1))]);
+        for (int i = 1; i < levels; i++) value = new IppValue.Collection([new IppAttribute("c", value)]);
+        return value;
+    }
+
+    [Fact]
+    public void Decode_CollectionsNestedSixteenDeep_AreKept()
+    {
+        var message = Single(new IppAttribute("c", Nested(16)));
+        Assert.Equal(message, Roundtrip(message));
+    }
+
+    [Fact]
+    public void Decode_CollectionsNestedPastTheLimit_AreABadResponse()
+    {
+        byte[] data = Single(new IppAttribute("c", Nested(17))).Encoded();
+        var error = Assert.Throws<PrintException>(() => IppMessage.Decode(data));
+        Assert.IsType<PrintError.BadResponse>(error.Error);
+    }
+
     [Fact]
     public void IsSuccess_CodesBelow0x0100()
     {

@@ -143,6 +143,23 @@ final class IppCodecTests: XCTestCase {
         assertBadResponse(Data([0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x21, 0x00, 0x00, 0x00, 0x04, 0, 0, 0, 1, 0x03]))
     }
 
+    private func nested(_ levels: Int) -> IppValue {
+        var value = IppValue.collection([IppAttribute("x", .integer(1))])
+        for _ in 1..<max(levels, 1) {
+            value = .collection([IppAttribute("c", value)])
+        }
+        return value
+    }
+
+    func test_decode_collectionsNestedSixteenDeep_areKept() throws {
+        let message = single(IppAttribute("c", nested(16)))
+        XCTAssertEqual(try roundtrip(message), message)
+    }
+
+    func test_decode_collectionsNestedPastTheLimit_areABadResponse() {
+        assertBadResponse(single(IppAttribute("c", nested(17))).encoded())
+    }
+
     func test_isSuccess_codesBelow0x0100() {
         func with(_ code: UInt16) -> IppMessage { IppMessage(version: .v20, code: code, requestId: 1, groups: []) }
         XCTAssertTrue(with(0x0000).isSuccess)

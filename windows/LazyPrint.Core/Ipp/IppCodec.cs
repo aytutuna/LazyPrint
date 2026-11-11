@@ -194,7 +194,7 @@ public sealed record IppMessage(IppVersion Version, ushort Code, int RequestId, 
                 while (tag > 0x0F)
                 {
                     string name = reader.Text(reader.UInt16());
-                    IppValue value = ReadValue(ref reader, tag);
+                    IppValue value = ReadValue(ref reader, tag, 0);
                     if (name.Length > 0) attributes.Add((name, [value]));
                     else if (attributes.Count > 0) attributes[^1].Values.Add(value);
                     else throw Bad();
@@ -212,19 +212,23 @@ public sealed record IppMessage(IppVersion Version, ushort Code, int RequestId, 
 
     private static PrintException Bad() => new(new PrintError.BadResponse());
 
-    private static IppValue ReadValue(ref Reader reader, byte tag)
+    // Real printers nest two or three deep; a reply deeper than this is hostile and would overflow the stack.
+    private const int MaxDepth = 16;
+
+    private static IppValue ReadValue(ref Reader reader, byte tag, int depth)
     {
         int length = reader.UInt16();
         if (tag == IppTag.BegCollection)
         {
+            if (depth >= MaxDepth) throw Bad();
             reader.Skip(length);
-            return ReadCollection(ref reader);
+            return ReadCollection(ref reader, depth + 1);
         }
         return Value(tag, reader.Bytes(length));
     }
 
     // Members come as a memberAttrName whose value is the name, then that member's values with empty names.
-    private static IppValue.Collection ReadCollection(ref Reader reader)
+    private static IppValue.Collection ReadCollection(ref Reader reader, int depth)
     {
         var members = new List<(string Name, List<IppValue> Values)>();
         while (true)
@@ -242,7 +246,7 @@ public sealed record IppMessage(IppVersion Version, ushort Code, int RequestId, 
                 continue;
             }
             if (members.Count == 0) throw Bad();
-            members[^1].Values.Add(ReadValue(ref reader, tag));
+            members[^1].Values.Add(ReadValue(ref reader, tag, depth));
         }
         return new IppValue.Collection([.. members.Select(m => new IppAttribute(m.Name, m.Values))]);
     }

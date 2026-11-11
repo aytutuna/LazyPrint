@@ -270,6 +270,9 @@ public final class IppClient: @unchecked Sendable {
                                        policy: options.retryPolicy, delay: options.delay, elapsed: elapsed)
     }
 
+    // A printer's answer is a few hundred KB at most; a bigger one is refused before it is all read.
+    private static let maxResponse = 8 * 1024 * 1024
+
     private func post(_ head: Data, _ body: URL?, to target: PrinterAddress) async throws -> IppReply {
         guard let url = target.requestURL else { throw URLError(.badURL) }
         let timeout = body == nil ? options.requestTimeout : options.printTimeout
@@ -278,10 +281,18 @@ public final class IppClient: @unchecked Sendable {
         request.setValue("application/ipp", forHTTPHeaderField: "Content-Type")
         let result: (Data, URLResponse)
         if let body {
+            // Print-Job's answer is small and URLSession hands an upload's answer over whole, so it is checked after.
             result = try await session.upload(for: request, fromFile: body)
+            guard result.0.count <= IppClient.maxResponse else { throw PrintError.badResponse }
         } else {
             request.httpBody = head
-            result = try await session.data(for: request)
+            let (bytes, response) = try await session.bytes(for: request)
+            var data = Data()
+            for try await byte in bytes {
+                data.append(byte)
+                guard data.count <= IppClient.maxResponse else { throw PrintError.badResponse }
+            }
+            result = (data, response)
         }
         guard let http = result.1 as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         var retryAfter: TimeInterval?

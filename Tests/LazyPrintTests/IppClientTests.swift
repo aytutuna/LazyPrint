@@ -469,6 +469,14 @@ final class IppClientTests: XCTestCase {
         XCTAssertEqual(truncated as? PrintError, .badResponse)
     }
 
+    func test_anAnswerOverEightMebibytes_isABadResponse() async throws {
+        let printer = try await startPrinter()
+        printer.script(LoopbackAnswer(status: 200, body: Data(count: 8 * 1024 * 1024 + 1)))
+        let client = try makeClient(printer)
+        let error = await thrown { try await client.capabilities() }
+        XCTAssertEqual(error as? PrintError, .badResponse)
+    }
+
     func test_aPrinterThatIsNotThere_isUnreachable() async throws {
         let printer = try await startPrinter()
         let address = try printer.address()
