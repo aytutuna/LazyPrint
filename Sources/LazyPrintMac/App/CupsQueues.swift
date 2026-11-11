@@ -17,6 +17,9 @@ public final class CupsQueues: PrinterSystem {
     /// Where the slow reads of one queue run, so a queue that does not answer holds up neither the others nor `work`.
     nonisolated private static let details = DispatchQueue(label: "local.lazyprint.cups.details", attributes: .concurrent)
 
+    /// Where the timeouts of `details` run: not on `details`, whose threads may all be stuck in libcups.
+    nonisolated private static let timers = DispatchQueue(label: "local.lazyprint.cups.timer")
+
     /// How long a queue gets to describe itself.
     nonisolated static let detailsTimeout: TimeInterval = 8
 
@@ -89,7 +92,7 @@ public final class CupsQueues: PrinterSystem {
             await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
                 if !answer.set(continuation) { return }
                 details.async { answer.finish(body()) }
-                details.asyncAfter(deadline: .now() + seconds) { answer.finish(nil) }
+                timers.asyncAfter(deadline: .now() + seconds) { answer.finish(nil) }
             }
         } onCancel: {
             answer.finish(nil)

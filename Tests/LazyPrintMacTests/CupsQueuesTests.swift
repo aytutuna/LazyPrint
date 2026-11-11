@@ -93,6 +93,34 @@ final class CupsQueuesTests: XCTestCase {
         }
     }
 
+    func test_within_returnsTheResult() async {
+        let value = await CupsQueues.within(5) { 42 }
+        XCTAssertEqual(value, 42)
+    }
+
+    func test_within_givesUpAfterTheTimeoutWhileTheBodyIsBlocked() async {
+        let release = DispatchSemaphore(value: 0)
+        let value = await CupsQueues.within(0.1) { () -> Int in
+            release.wait()
+            return 1
+        }
+        release.signal()
+        XCTAssertNil(value)
+    }
+
+    func test_within_givesUpWhenTheTaskIsCancelled() async {
+        let release = DispatchSemaphore(value: 0)
+        let task = Task { await CupsQueues.within(30) { () -> Int in
+            release.wait()
+            return 1
+        } }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        task.cancel()
+        let value = await task.value
+        release.signal()
+        XCTAssertNil(value)
+    }
+
     @MainActor
     func test_capabilities_ofARealQueue() async throws {
         let queues = await CupsQueues().queues().filter { !$0.isVirtual }
