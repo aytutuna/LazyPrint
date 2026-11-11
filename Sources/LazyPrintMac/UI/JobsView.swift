@@ -71,7 +71,7 @@ private struct JobRow: View {
                 } label: {
                     Label("Print again", systemImage: "arrow.clockwise")
                 }
-                .disabled(state.isBusy || state.duplexCard != nil)
+                .disabled(state.isBusy || state.isAddingFiles || state.duplexCard != nil)
             }
             if state.demoFolder(of: record) != nil {
                 Button {

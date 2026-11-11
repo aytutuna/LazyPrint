@@ -91,7 +91,7 @@ struct PrintView: View {
                     Image(systemName: "xmark")
                 }
                 .buttonStyle(.borderless)
-                .disabled(state.isBusy)
+                .disabled(state.isBusy || state.hasBacksWaiting)
                 .help("Keep the settings and leave the task")
                 .accessibilityLabel("Leave the task")
             }
@@ -117,7 +117,7 @@ struct PrintView: View {
             Label("Task", systemImage: "list.bullet")
         }
         .fixedSize()
-        .disabled(state.isBusy)
+        .disabled(state.isBusy || state.isAddingFiles || state.hasBacksWaiting)
     }
 
     /// The current task is the checked item; one that cannot be started says why after its title.

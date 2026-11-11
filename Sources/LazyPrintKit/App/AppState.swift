@@ -352,7 +352,7 @@ public final class AppState: ObservableObject {
 
     /// The sentence the status line shortens; the whole of it is the line's name for screen readers.
     private var statusMessage: String {
-        if isAddingFiles { return "Opening files\u{2026}" }
+        if isAddingFiles && !isBusy { return "Opening files\u{2026}" }
         if let statusOverride { return statusOverride }
         if let task { return PrintText.ready(TaskCatalog.definition(task).title) }
         if let printer = selectedPrinter { return printer.name }
