@@ -352,7 +352,7 @@ public final class AppState: ObservableObject {
 
     /// The sentence the status line shortens; the whole of it is the line's name for screen readers.
     private var statusMessage: String {
-        if isAddingFiles && !isBusy { return "Opening files\u{2026}" }
+        if isAddingFiles { return "Opening files\u{2026}" }
         if let statusOverride { return statusOverride }
         if let task { return PrintText.ready(TaskCatalog.definition(task).title) }
         if let printer = selectedPrinter { return printer.name }
@@ -431,6 +431,15 @@ public final class AppState: ObservableObject {
         let notAdded = alsoNotAdded + failed
         if !notAdded.isEmpty { reportNotAdded(notAdded) }
         replan()
+    }
+
+    /// Ties the access taken for files to the documents opened from them; one that opened no document is stopped here.
+    public func holdAccess(_ tokens: [ScopedAccess]) {
+        for token in tokens {
+            if let i = documents.firstIndex(where: { $0.url == token.url && $0.access == nil }) {
+                documents[i].access = token
+            }
+        }
     }
 
     /// Runs `work`, which brings files in, with `isAddingFiles` set.

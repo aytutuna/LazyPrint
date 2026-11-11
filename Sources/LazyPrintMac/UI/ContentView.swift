@@ -9,6 +9,18 @@ enum ContentTab: String, Hashable {
     case jobs
 }
 
+/// Files and phone batches that came while a job ran, taken once it has ended. Kept outside the window, which can be closed
+/// and reopened meanwhile.
+@MainActor
+enum PendingOpens {
+    enum Item {
+        case files([URL], refused: [(name: String, reason: String)])
+        case batch(String, startNew: Bool)
+    }
+
+    static var items: [Item] = []
+}
+
 struct ContentView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var host: MacCompanionHosting
@@ -24,9 +36,6 @@ struct ContentView: View {
     @State private var dropTargeted = false
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
     @State private var opening: Task<Void, Never>?
-    /// Files and phone batches that came while a job ran; they are taken once it has ended, in the order they came.
-    @State private var queued: [() -> Void] = []
-    @State private var scoped = ScopedFiles()
 
     static let tabKey = "selectedTab"
 
@@ -129,13 +138,7 @@ struct ContentView: View {
             if !state.isBusy { showImporter = true }
         }
         .onChange(of: state.isBusy) { _, busy in
-            guard !busy else { return }
-            let waiting = queued
-            queued = []
-            for work in waiting { work() }
-        }
-        .onChange(of: state.documents.map(\.url)) { _, urls in
-            scoped.release(keeping: urls)
+            if !busy { takeQueued() }
         }
         .onChange(of: tab) { _, tab in
             UserDefaults.standard.set(tab.rawValue, forKey: ContentView.tabKey)
@@ -143,7 +146,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .tabRequested)) { note in
             if let raw = note.object as? String, let requested = ContentTab(rawValue: raw) { tab = requested }
         }
-        .onAppear { state.phoneWindowRequested = { showPhone = true } }
+        .onAppear {
+            state.phoneWindowRequested = { showPhone = true }
+            if !state.isBusy { takeQueued() }
+        }
         // A problem with the cloud folder is also said here, where it is seen without the phone sheet open.
         .onChange(of: host.syncFolderProblem) { _, problem in
             state.reportSyncProblem(problem)
@@ -216,6 +222,18 @@ struct ContentView: View {
 
     // MARK: Files and tasks
 
+    /// Takes what came while a job ran, in the order it came.
+    private func takeQueued() {
+        let waiting = PendingOpens.items
+        PendingOpens.items = []
+        for item in waiting {
+            switch item {
+            case .files(let urls, let refused): _ = take(urls, refused: refused)
+            case .batch(let id, let startNew): usePhoneBatch(id, startNew: startNew)
+            }
+        }
+    }
+
     /// The files a lazyprint: URL asks to add: absolute paths only, as `LazyPrintUrl` parses them.
     static func files(in url: URL) -> [URL] {
         LazyPrintUrl.parse(url.absoluteString).map { URL(fileURLWithPath: $0) }
@@ -242,13 +260,13 @@ struct ContentView: View {
     /// Takes the files of the oldest batch from a phone into the job, or into a new one, and shows the print tab.
     private func usePhoneBatch(_ id: String, startNew: Bool) {
         if state.isBusy {
-            queued.append { usePhoneBatch(id, startNew: startNew) }
+            PendingOpens.items.append(.batch(id, startNew: startNew))
             return
         }
         let before = opening
         opening = Task {
-            await before?.value
             await state.whileAddingFiles {
+                await before?.value
                 await state.takeBatch(id, startNew: startNew)
             }
             if !state.documents.isEmpty {
@@ -282,47 +300,24 @@ struct ContentView: View {
             return false
         }
         if state.isBusy {
-            queued.append { _ = take(urls, refused: refused) }
+            PendingOpens.items.append(.files(urls, refused: refused))
             return true
         }
-        // Files from the file importer are scoped to this app; the access lasts while a document reads the file.
-        let started = files.filter { $0.startAccessingSecurityScopedResource() }
+        // Files from the file importer are scoped to this app; each document keeps the access for as long as it lives.
+        let started = files.filter { $0.startAccessingSecurityScopedResource() }.map { ScopedAccess(url: $0) }
         let before = opening
         opening = Task {
-            await before?.value
             await state.whileAddingFiles {
+                await before?.value
                 await state.addFiles(files, alsoNotAdded: refused)
             }
-            scoped.keep(started, in: state.documents.map(\.url))
+            state.holdAccess(started)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print
             }
         }
         return true
-    }
-}
-
-/// The security-scoped access taken for the files the importer and the drop gave: held while a document of the job reads
-/// the file, stopped when it leaves the job, or at once for a file that did not open.
-final class ScopedFiles {
-    private var held: Set<URL> = []
-
-    func keep(_ started: [URL], in documents: [URL]) {
-        for url in started {
-            if !documents.contains(url) || held.contains(url) {
-                url.stopAccessingSecurityScopedResource()
-            } else {
-                held.insert(url)
-            }
-        }
-    }
-
-    func release(keeping documents: [URL]) {
-        for url in held where !documents.contains(url) {
-            url.stopAccessingSecurityScopedResource()
-            held.remove(url)
-        }
     }
 }
 
