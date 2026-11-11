@@ -1189,6 +1189,8 @@ final class AppStateSeamTests: XCTestCase {
 
         XCTAssertTrue(rig.state.documents.isEmpty)
         XCTAssertEqual(rig.state.error?.detail, DocumentText.lockedLeftOut(first.lastPathComponent))
+        // The next question waits for the alert to go away.
+        try await waitUntil { rig.state.passwordRequest != nil }
         XCTAssertEqual(rig.state.passwordRequest, PasswordRequest(name: second.lastPathComponent, wrong: false))
     }
 
