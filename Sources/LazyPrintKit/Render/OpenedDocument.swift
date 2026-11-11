@@ -13,6 +13,8 @@ public struct OpenedDocument: @unchecked Sendable {
     public let drawing = DrawingLock()
     /// The security-scoped access the file was opened under; it stops when the last copy of the document is gone.
     public var access: ScopedAccess?
+    /// The text of a plain text file, which `TextPages` sets again when the paper changes.
+    public var text: String?
 
     public enum Source {
         case pdf(CGPDFDocument)

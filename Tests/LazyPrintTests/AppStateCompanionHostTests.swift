@@ -124,7 +124,7 @@ final class AppStateCompanionHostTests: XCTestCase {
         XCTAssertEqual(state.error?.title, "Phone sync")
         XCTAssertEqual(state.error?.isNotice, true)
 
-        state.showFailure("Not added", "Notes.txt: unreadable")
+        state.showFailure("Not added", "Notes.dat: unreadable")
         state.reportSyncProblem("Another file could not be read.")
 
         XCTAssertEqual(state.error?.title, "Not added")
@@ -209,7 +209,7 @@ final class AppStateCompanionHostTests: XCTestCase {
         let folder = try tempFolder()
         await state.addFiles([try writePDF(named: "Mine.pdf", pages: 3, in: folder)])
         state.setPageRange("1-2")
-        let notes = folder.appendingPathComponent("Notes.txt")
+        let notes = folder.appendingPathComponent("Notes.dat")
         try Data("not a picture".utf8).write(to: notes)
         host.stored = [whole("batch-0001")]
         host.files["batch-0001"] = [notes]
@@ -220,7 +220,7 @@ final class AppStateCompanionHostTests: XCTestCase {
         XCTAssertEqual(state.documents.map { $0.url.lastPathComponent }, ["Mine.pdf"])
         XCTAssertEqual(state.pageRange, "1-2")
         XCTAssertEqual(state.error?.title, "Not added")
-        XCTAssertEqual(state.error?.detail.hasPrefix("Notes.txt: "), true)
+        XCTAssertEqual(state.error?.detail.hasPrefix("Notes.dat: "), true)
     }
 
     @MainActor
@@ -230,7 +230,7 @@ final class AppStateCompanionHostTests: XCTestCase {
         let folder = try tempFolder()
         await state.addFiles([try writePDF(named: "Mine.pdf", pages: 3, in: folder)])
         state.settings.pagesPerSheet = 2
-        let notes = folder.appendingPathComponent("Notes.txt")
+        let notes = folder.appendingPathComponent("Notes.dat")
         try Data("not a picture".utf8).write(to: notes)
         host.stored = [whole("batch-0001")]
         host.files["batch-0001"] = [notes]
@@ -247,7 +247,7 @@ final class AppStateCompanionHostTests: XCTestCase {
         let host = SeamHosting()
         let state = try makeState(host)
         let folder = try tempFolder()
-        let notes = folder.appendingPathComponent("Notes.txt")
+        let notes = folder.appendingPathComponent("Notes.dat")
         try Data("not a picture".utf8).write(to: notes)
         let good = try writePDF(named: "Good.pdf", pages: 1, in: folder)
         host.stored = [whole("batch-0001", count: 2)]

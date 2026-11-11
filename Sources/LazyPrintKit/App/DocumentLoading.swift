@@ -8,4 +8,10 @@ public protocol DocumentLoading: Sendable {
     func load(_ url: URL, password: String) throws -> OpenedDocument
     /// The file as it is, for a PDF or an upright JPEG that can be sent unchanged; nil for the rest.
     func originalFile(_ document: OpenedDocument) -> URL?
+    /// A text document set again on pages of the paper's size; nil for any other, or a text one that already is that size.
+    func relaid(_ document: OpenedDocument, on paper: LayoutSize) -> OpenedDocument?
+}
+
+extension DocumentLoading {
+    public func relaid(_ document: OpenedDocument, on paper: LayoutSize) -> OpenedDocument? { nil }
 }

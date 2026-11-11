@@ -409,6 +409,27 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_textDocuments_areLaidOutOnTheChosenPaper() async throws {
+        let rig = try makeRig()
+        rig.state.settings.paperId = "letter"
+        let notes = rig.folder.appendingPathComponent("Notes.txt")
+        try Data((1...200).map { "line \($0)" }.joined(separator: "
+").utf8).write(to: notes)
+        await rig.state.addFiles([notes, try writePDF(named: "a.pdf", pages: 2, in: rig.folder)])
+        let onLetter = rig.state.documents[0].loaded.pages
+        XCTAssertEqual(onLetter[0], PaperSizes.pointsOf("letter"))
+
+        rig.state.settings.paperId = "a5"
+
+        let a5 = try XCTUnwrap(PaperSizes.pointsOf("a5"))
+        let pages = rig.state.documents[0].loaded.pages
+        XCTAssertGreaterThan(pages.count, onLetter.count)
+        XCTAssertTrue(pages.allSatisfy { $0 == a5 })
+        XCTAssertEqual(rig.state.documents[1].loaded.pages.count, 2)
+        XCTAssertEqual(rig.state.jobPlan?.plan.area.paper, a5)
+    }
+
+    @MainActor
     func test_eachPrinter_bringsBackItsOwnPaperSidesColorAndQuality() async throws {
         let rig = try makeRig()
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true), Rig.queue("Brother")]
@@ -1191,7 +1212,7 @@ final class AppStateSeamTests: XCTestCase {
     func test_addFiles_everyFileThatCannotBeReadIsNamed_andALongListIsCut() async throws {
         let rig = try makeRig()
         var files: [URL] = []
-        for name in ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"] {
+        for name in ["a.dat", "b.dat", "c.dat", "d.dat", "e.dat"] {
             let file = rig.folder.appendingPathComponent(name)
             try Data("not a document".utf8).write(to: file)
             files.append(file)
@@ -1201,8 +1222,8 @@ final class AppStateSeamTests: XCTestCase {
 
         let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 4)
-        XCTAssertTrue(lines[0].hasPrefix("a.txt: "))
-        XCTAssertTrue(lines[2].hasPrefix("c.txt: "))
+        XCTAssertTrue(lines[0].hasPrefix("a.dat: "))
+        XCTAssertTrue(lines[2].hasPrefix("c.dat: "))
         XCTAssertEqual(lines[3], "and 2 more")
     }
 

@@ -89,15 +89,31 @@ public final class DocumentLoader: DocumentLoading {
     /// The text laid out in pages and drawn into a PDF of its own in memory, which the renderer then draws like any PDF.
     private func loadText(_ url: URL) throws -> OpenedDocument {
         guard let data = try? Data(contentsOf: url) else { throw PrintError.unreadable(DocumentText.unreadable) }
-        // The usual paper where the user lives: the printer's paper is not known yet, and the page is fitted to it later.
+        // The usual paper where the user lives until the chosen paper is known; `relaid` sets the pages again then.
         let size = PaperSizes.points(PaperSizes.defaultForRegion(Locale.current.region?.identifier))
             ?? LayoutSize(width: 612, height: 792)
-        let pages = TextPages.paginate(TextPages.decode(data), page: size)
-        guard !pages.isEmpty else { throw PrintError.unreadable(DocumentText.noText) }
-        guard let pdf = Self.drawText(pages, size: size) else { throw PrintError.unreadable(DocumentText.unreadable) }
+        let text = TextPages.decode(data)
+        guard let opened = Self.layText(text, name: url.lastPathComponent, url: url, size: size) else {
+            throw PrintError.unreadable(TextPages.paginate(text, page: size).isEmpty ? DocumentText.noText : DocumentText.unreadable)
+        }
+        return opened
+    }
+
+    public func relaid(_ document: OpenedDocument, on paper: LayoutSize) -> OpenedDocument? {
+        guard let text = document.text, document.loaded.pages.first != paper,
+              var laid = Self.layText(text, name: document.loaded.name, url: document.url, size: paper) else { return nil }
+        laid.access = document.access
+        return laid
+    }
+
+    private static func layText(_ text: String, name: String, url: URL, size: LayoutSize) -> OpenedDocument? {
+        let pages = TextPages.paginate(text, page: size)
+        guard !pages.isEmpty, let pdf = drawText(pages, size: size) else { return nil }
         // Not a PDF to send as it is: the file's own bytes are text.
-        let loaded = LoadedDocument(name: url.lastPathComponent, kind: .imposed, pages: pages.map { _ in size })
-        return OpenedDocument(loaded: loaded, url: url, source: .pdf(pdf))
+        let loaded = LoadedDocument(name: name, kind: .imposed, pages: pages.map { _ in size })
+        var opened = OpenedDocument(loaded: loaded, url: url, source: .pdf(pdf))
+        opened.text = text
+        return opened
     }
 
     private static func drawText(_ pages: [[String]], size: LayoutSize) -> CGPDFDocument? {

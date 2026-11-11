@@ -224,7 +224,7 @@ public enum PrintJobs {
     }
 
     /// The paper a job goes on, portrait, in points.
-    private static func sheet(_ paperId: String, _ printer: PrinterCapabilities?) -> LayoutSize {
+    public static func sheet(_ paperId: String, _ printer: PrinterCapabilities?) -> LayoutSize {
         let known = PaperSizes.pointsOf(paperId) ?? loaded(printer) ?? PaperSizes.points(usualPaper())
         guard let size = known else { preconditionFailure("A paper size has points.") }
         return size

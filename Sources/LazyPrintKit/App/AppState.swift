@@ -579,10 +579,23 @@ public final class AppState: ObservableObject {
     /// The sheets the settings make of the documents, and a new preview. Every change to the settings, the documents, the
     /// range or the printer comes here.
     func replan() {
+        relayText()
         jobPlan = computePlan()
         let sides = jobPlan?.plan.sideCount ?? 0
         if previewSide >= sides { previewSide = max(0, sides - 1) }
         startPreview()
+    }
+
+    /// Text documents are laid out for the chosen paper, so they are set again when it changes.
+    private func relayText() {
+        let paper = PrintJobs.sheet(settings.paperId, capabilities)
+        var changed = false
+        let laid = documents.map { (document: OpenedDocument) -> OpenedDocument in
+            guard let again = loader.relaid(document, on: paper) else { return document }
+            changed = true
+            return again
+        }
+        if changed { documents = laid }
     }
 
     private var lastValidRange: [Int]?
