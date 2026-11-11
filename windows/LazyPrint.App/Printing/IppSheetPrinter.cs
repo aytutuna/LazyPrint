@@ -68,7 +68,6 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
     private (DocumentKind Kind, byte[] Bytes, (int First, int Last)? Pages)? AsIs(SheetJob job, PrinterCapabilities caps)
     {
         if (job.Items is not null || job.Plan.ManualDuplex || JobSides.Repeats(job) != 1 || job.Documents.Count != 1) return null;
-        if (job.Settings.Poster != 0 || MarginChoices.Millimetres(job.Settings.Margin, job.Settings.MarginMm) != 0) return null;
         var document = job.Documents[0];
         if (files?.OriginalFile(document) is not { } bytes) return null;
 
@@ -84,7 +83,8 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 var settings = job.Settings;
                 bool ascending = placed.Count > 0 && placed.Select((page, i) => page.Document == 0 && page.Index == placed[0].Index + i).All(ok => ok);
                 bool whole = placed.Count == document.Pages.Count;
-                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
+                bool plain = settings.Poster == 0 && MarginChoices.Millimetres(settings.Margin, settings.MarginMm) == 0
+                    && settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
                     && (settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit
                     || settings.Scaling == Scaling.ActualSize && caps.PrintScalingSupported.Contains("none"));
                 if (!ascending || !plain || !whole && !caps.PageRangesSupported) return null;
@@ -92,7 +92,12 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             case DocumentKind.Photo:
                 var paper = job.Plan.Plan.Area.Paper;
                 var photo = document.Pages[0];
+                var frame = job.Plan.Plan.Area.Printable;
+                // Only a photo the plan laid out filling the printable area upright goes as it is: a margin or a forced orientation shrinks or turns it.
                 bool ownSize = placed.Count == 1
+                               && job.Plan.Plan.Sheets[0].Front.Placements[0] is { Turns: 0 } placement
+                               && (Math.Abs(placement.Frame.Width - frame.Width) <= PaperSizes.FitTolerance
+                                   || Math.Abs(placement.Frame.Height - frame.Height) <= PaperSizes.FitTolerance)
                                && Math.Abs(Math.Min(photo.Width, photo.Height) - paper.Width) <= PaperSizes.FitTolerance
                                && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance;
                 return ownSize ? (document.Kind, bytes, null) : null;

@@ -86,7 +86,6 @@ public final class IppSheetPrinter: SheetPrinter {
     /// printer does not make itself, a poster, extra margins, a booklet and manual two-sided are sheets drawn by Lazy Print.
     private func asIs(_ job: SheetJob, _ caps: PrinterCapabilities) -> (kind: DocumentKind, url: URL, pages: ClosedRange<Int>?)? {
         guard job.items == nil, !job.plan.manualDuplex, JobSides.repeats(job) == 1, job.documents.count == 1,
-              job.settings.poster == 0, MarginChoices.millimetres(job.settings.margin, custom: job.settings.marginMm) == 0,
               let url = documents?.originalFile(job.documents[0]) else { return nil }
         let document = job.documents[0].loaded
         var placed = [SourcePage]()
@@ -102,7 +101,8 @@ public final class IppSheetPrinter: SheetPrinter {
                   placed.enumerated().allSatisfy({ $0.element.document == 0 && $0.element.index == first + $0.offset }) else { return nil }
             let whole = placed.count == document.pages.count
             let settings = job.settings
-            let plain = settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
+            let plain = settings.poster == 0 && MarginChoices.millimetres(settings.margin, custom: settings.marginMm) == 0
+                && settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
                 && (settings.scaling == .fit || settings.scaling == .shrinkToFit
                     || settings.scaling == .actualSize && caps.printScalingSupported.contains("none"))
             guard plain, whole || caps.pageRangesSupported else { return nil }
@@ -110,9 +110,13 @@ public final class IppSheetPrinter: SheetPrinter {
         case .photo:
             let paper = job.plan.plan.area.paper
             let photo = document.pages[0]
-            let ownSize = placed.count == 1
+            let frame = job.plan.plan.area.printable
+            // Only a photo the plan laid out filling the printable area upright goes as it is: a margin or a forced orientation shrinks or turns it.
+            guard placed.count == 1, let placement = job.plan.plan.sheets.first?.front.placements.first else { return nil }
+            let ownSize = placement.turns == 0
+                && (abs(placement.frame.width - frame.width) <= PaperSizes.fitTolerance
+                    || abs(placement.frame.height - frame.height) <= PaperSizes.fitTolerance)
                 && abs(min(photo.width, photo.height) - paper.width) <= PaperSizes.fitTolerance
-                && abs(max(photo.width, photo.height) - paper.height) <= PaperSizes.fitTolerance
                 && abs(max(photo.width, photo.height) - paper.height) <= PaperSizes.fitTolerance
                 && (job.settings.scale == 100 || (job.settings.scaling != .shrinkToFit && job.settings.scaling != .actualSize))
             return ownSize ? (kind: document.kind, url: url, pages: nil) : nil

@@ -37,9 +37,9 @@ public sealed class IppSheetPrinterTests : IDisposable
         PrintFixtures.Job(PrintFixtures.Letter(edit), pages, PrintFixtures.Printer(PrinterRoute.Ipp), caps ?? IppFixtures.Capabilities(name));
 
     /// <summary>A black and white printer that takes PDF and PWG raster, with what the test changes.</summary>
-    private static PrinterCapabilities Plain(int copies = 99, string[]? sides = null) => new()
+    private static PrinterCapabilities Plain(int copies = 99, string[]? sides = null, bool jpeg = false) => new()
     {
-        DocumentFormatsSupported = ["application/pdf", "image/pwg-raster"],
+        DocumentFormatsSupported = jpeg ? ["application/pdf", "image/jpeg", "image/pwg-raster"] : ["application/pdf", "image/pwg-raster"],
         PwgRasterResolutions = [(300, 300)],
         PwgRasterTypes = ["sgray_8"],
         SidesSupported = sides ?? ["one-sided", "two-sided-long-edge"],
@@ -120,6 +120,39 @@ public sealed class IppSheetPrinterTests : IDisposable
         await Printer(files).PrintAsync(Job(_ => { }, pages: 1), 0, new Reports<JobStatus>(), CancellationToken.None);
 
         Assert.Equal(pdf, Assert.Single(Sent(IppOperation.PrintJob)).Document);
+    }
+
+    private async Task<string?> SentFormat(SheetJob job, string content)
+    {
+        string file = Path.Combine(_folder, "file.bin");
+        File.WriteAllBytes(file, System.Text.Encoding.ASCII.GetBytes(content));
+        await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
+        return Attribute(Sent(IppOperation.PrintJob).Last(), "document-format");
+    }
+
+    [Fact]
+    public async Task APdfWithAMarginOrAPosterIsDrawnHere()
+    {
+        Assert.Equal("image/pwg-raster", await SentFormat(Job(s => s.Margin = MarginChoice.Small, 1, Plain()), "%PDF-1.4"));
+        Assert.Equal("image/pwg-raster", await SentFormat(Job(s => s.Poster = 2, 1, Plain()), "%PDF-1.4"));
+    }
+
+    [Fact]
+    public async Task APhotoFillingTheSheetGoesAsItIs()
+    {
+        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain(jpeg: true), new DocumentKind.Photo());
+        Assert.Equal("image/jpeg", await SentFormat(job, "jpeg bytes"));
+    }
+
+    [Fact]
+    public async Task APhotoWithAMarginOrAForcedOrientationIsDrawnHere()
+    {
+        var margin = PrintFixtures.Job(PrintFixtures.Letter(s => s.Margin = MarginChoice.Normal), 1, PrintFixtures.Printer(PrinterRoute.Ipp),
+                                       Plain(jpeg: true), new DocumentKind.Photo());
+        Assert.NotEqual("image/jpeg", await SentFormat(margin, "jpeg bytes"));
+        var landscape = PrintFixtures.Job(PrintFixtures.Letter(s => s.Orientation = SheetOrientation.Landscape), 1,
+                                          PrintFixtures.Printer(PrinterRoute.Ipp), Plain(jpeg: true), new DocumentKind.Photo());
+        Assert.NotEqual("image/jpeg", await SentFormat(landscape, "jpeg bytes"));
     }
 
     [Fact]
