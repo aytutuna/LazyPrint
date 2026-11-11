@@ -190,6 +190,8 @@ public final class AppState: ObservableObject {
     /// would not say.
     var capabilitiesById: [String: PrinterCapabilities] = [:]
     var capabilitiesAsked: Set<String> = []
+    /// Printers whose capabilities are being read now, so a poll does not start the same slow read again.
+    var capabilitiesLoading: Set<String> = []
     /// What each network printer's address last said, by printer id; a row with no entry has not been asked yet.
     var ippReads: [String: AddressCheck] = [:]
     var printersRead = false
