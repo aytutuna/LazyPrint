@@ -90,7 +90,7 @@ struct InspectorView: View {
             if rules.showSides {
                 field("Two-sided") {
                     Picker("Two-sided", selection: Binding(
-                        get: { state.settings.booklet ? Sides.longEdge : state.settings.sides },
+                        get: { (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
                         set: { state.settings.sides = $0 })) {
                         Text("Off").tag(Sides.oneSided)
                         Text("Long edge").tag(Sides.longEdge)
@@ -320,7 +320,7 @@ struct InspectorView: View {
             let photos = task == .photos || task == .photoSheet
             let canTurn = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
-            let twoSided = s.booklet || s.sides != .oneSided
+            let twoSided = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
             let grayOnly = capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
             let noQuality = capabilities.map { $0.printQualitySupported.isEmpty } ?? false
 

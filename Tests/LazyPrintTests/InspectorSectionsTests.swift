@@ -113,6 +113,10 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.orientation = .landscape }), "Booklet")
     }
 
+    func test_pagesSummary_leavesOutTwoSidedForAPoster() {
+        XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.sides = .longEdge; $0.poster = 2 }), "")
+    }
+
     func test_layoutSummary_namesAPosterAndTheMarginsThatApply() {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 3; $0.pagesPerSheet = 4; $0.rightToLeft = true }), "Poster 3 \u{00D7} 3")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")

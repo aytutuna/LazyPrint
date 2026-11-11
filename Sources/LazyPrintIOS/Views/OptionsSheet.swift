@@ -88,7 +88,7 @@ struct OptionsSheet: View {
                 .accessibilityIdentifier("print.reverse")
             if rules.showSides {
                 Choice(title: "Two-sided", selection: Binding(
-                    get: { state.settings.booklet ? Sides.longEdge : state.settings.sides },
+                    get: { (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
                     set: { (sides: Sides) in state.settings.sides = sides }),
                        options: [("Off", Sides.oneSided), ("Long edge", Sides.longEdge), ("Short edge", Sides.shortEdge)],
                        segmented: true, enabled: rules.sidesEnabled, reason: rules.sidesReason ?? rules.sidesNote,
@@ -256,7 +256,7 @@ struct OptionsSheet: View {
             let photos: Bool = task == .photos || task == .photoSheet
             let canTurn: Bool = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
-            let twoSided: Bool = s.booklet || s.sides != .oneSided
+            let twoSided: Bool = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
             let grayOnly: Bool = OptionsSheet.grayOnly(capabilities)
             let noQuality: Bool = OptionsSheet.noQuality(capabilities)
 

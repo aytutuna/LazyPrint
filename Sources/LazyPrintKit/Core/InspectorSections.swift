@@ -58,7 +58,9 @@ public enum InspectorSections {
         if copies > 1 && !s.collate { parts.append("Not collated") }
         if s.pageSelection != .all { parts.append(s.pageSelection == .odd ? "Odd pages" : "Even pages") }
         if s.reverseOrder { parts.append("Reverse order") }
-        if s.sides == .shortEdge {
+        if (2...4).contains(s.poster) {
+            // a poster is one-sided
+        } else if s.sides == .shortEdge {
             parts.append("Two-sided, short edge")
         } else if s.sides == .longEdge {
             parts.append("Two-sided")

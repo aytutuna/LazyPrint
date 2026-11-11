@@ -56,7 +56,9 @@ public static class InspectorSections
         if (copies > 1 && !s.Collate) parts.Add("Not collated");
         if (s.PageSelection != PageSelection.All) parts.Add(s.PageSelection == PageSelection.Odd ? "Odd pages" : "Even pages");
         if (s.ReverseOrder) parts.Add("Reverse order");
-        if (s.Sides == Sides.ShortEdge) parts.Add("Two-sided, short edge");
+        bool poster = s.Poster is >= 2 and <= 4;
+        if (poster) { }
+        else if (s.Sides == Sides.ShortEdge) parts.Add("Two-sided, short edge");
         else if (s.Sides == Sides.LongEdge) parts.Add("Two-sided");
         return Join(parts);
     }

@@ -112,6 +112,7 @@ public class InspectorSectionsTests
         Assert.Equal("Odd pages · Reverse order", InspectorSections.PagesSummary(s));
         Assert.Equal("Landscape", InspectorSections.LayoutSummary(s));
         Assert.Equal("Even pages", InspectorSections.PagesSummary(new PrintSettings { PageSelection = PageSelection.Even }));
+        Assert.Equal("", InspectorSections.PagesSummary(new PrintSettings { Sides = Sides.LongEdge, Poster = 2 }));
         Assert.Equal("Booklet", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, Orientation = SheetOrientation.Landscape }));
     }
 

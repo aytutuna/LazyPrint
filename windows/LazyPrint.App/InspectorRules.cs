@@ -42,10 +42,10 @@ public sealed record InspectorState(
         bool canTurn = capabilities?.SidesSupported.Contains("two-sided-long-edge") == true;
 
         // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
-        bool twoSided = s.Booklet || s.Sides != Sides.OneSided;
+        bool poster = s.Poster is >= 2 and <= 4;
+        bool twoSided = !poster && (s.Booklet || s.Sides != Sides.OneSided);
         string? byHand = twoSided && !photos && capabilities is not null && !canTurn ? ShortText.ByHand : null;
 
-        bool poster = s.Poster is >= 2 and <= 4;
         bool alone = !poster && !s.Booklet && s.PagesPerSheet == 1;
         bool margins = Imposition.KeepsMargin(PrintJobs.LayoutOptions(s, task));
 
