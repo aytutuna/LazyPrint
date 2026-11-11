@@ -226,6 +226,7 @@ public static class PrintJobs
     {
         PlanWarning.PaddedWithBlanks padded => PrintText.BlanksAdded(padded.Count),
         PlanWarning.Clipped clipped => PrintText.EdgesCut(Math.Max(1, (int)Math.Round(clipped.Points * 25.4 / 72))),
+        PlanWarning.Shrunk shrunk => PrintText.Shrunk(shrunk.Percent),
         _ => "",
     }).Where(text => text.Length > 0)];
 

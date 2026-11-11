@@ -250,8 +250,8 @@ public enum PrintJobs {
             switch warning {
             case .paddedWithBlanks(let count):
                 return PrintText.blanksAdded(count)
-            case .shrunk:
-                return nil
+            case .shrunk(let percent):
+                return PrintText.shrunk(percent)
             case .clipped(let points):
                 return PrintText.edgesCut(max(1, Int((points * 25.4 / 72).rounded(.toNearestOrEven))))
             }

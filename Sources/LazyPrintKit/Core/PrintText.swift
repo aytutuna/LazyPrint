@@ -59,4 +59,9 @@ public enum PrintText {
     public static func edgesCut(_ millimetres: Int) -> String {
         "Edges cut off (\(millimetres) mm)"
     }
+
+    /// A note about a job, added after the status sentence: "Shrunk to 82 %".
+    public static func shrunk(_ percent: Int) -> String {
+        "Shrunk to \(percent) %"
+    }
 }

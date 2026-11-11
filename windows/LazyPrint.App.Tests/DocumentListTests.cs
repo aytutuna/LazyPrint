@@ -176,8 +176,8 @@ public sealed class DocumentListTests
         var plan = model.Plan()!;
         Assert.Equal(4, plan.Plan.Sheets.Count);
         Assert.Equal("Print 4 sheets", model.PrintLabel);
-        // The A4 page does not fit Letter's printable area at real size; shrinking it goes unsaid.
-        Assert.Empty(plan.Notes);
+        // The A4 page does not fit Letter's printable area at real size, so it is shrunk, and the note says so.
+        Assert.StartsWith("Shrunk to ", Assert.Single(plan.Notes));
     }
 
     [Fact]

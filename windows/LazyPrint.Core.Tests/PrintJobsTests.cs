@@ -224,7 +224,8 @@ public class PrintJobsTests
     {
         var big = new LoadedDocument("Poster", new DocumentKind.Pdf(false), [new LayoutSize(1000, 1400)]);
         var shrunk = Plan([big], Settings(), Hp);
-        Assert.Empty(shrunk.Notes);
+        Assert.Single(shrunk.Notes);
+        Assert.StartsWith("Shrunk to ", shrunk.Notes[0]);
 
         var clipped = Plan([big], Settings(s => s.Scaling = Scaling.ActualSize), Hp);
         Assert.Single(clipped.Notes);
