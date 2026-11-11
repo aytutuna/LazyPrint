@@ -336,17 +336,20 @@ extension AppState {
     /// printer turns up. The backs are always the next pass; a check sheet in between starts over.
     public func restoreBacks() async {
         let directory = files.settingsDirectory
-        guard manual == nil, let saved = PendingBacks.load(in: directory) else { return }
+        guard manual == nil, !isBusy, let saved = PendingBacks.load(in: directory) else { return }
         let urls = saved.paths.map { URL(fileURLWithPath: $0) }
         guard urls.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else {
             PendingBacks.clear(in: directory)
             return
         }
         let (opened, failed) = await openFiles(urls)
-        guard failed.isEmpty, !opened.isEmpty, manual == nil, let printer = await printerForBacks(saved.printerId) else {
+        // The user may have started a job while the files opened or the printer was searched for; that job keeps the saved file.
+        guard manual == nil, !isBusy else { return }
+        guard failed.isEmpty, !opened.isEmpty, let printer = await printerForBacks(saved.printerId) else {
             PendingBacks.clear(in: directory)
             return
         }
+        guard manual == nil, !isBusy else { return }
         let inputs = JobInputs(printer: printer, capabilities: knownCapabilities(of: printer), settings: saved.settings,
                                task: PrintTask.tryParse(saved.taskId), documents: opened, range: saved.range,
                                name: opened[0].loaded.name)
