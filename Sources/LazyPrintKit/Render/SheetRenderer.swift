@@ -80,7 +80,7 @@ public struct SheetRenderer {
     /// A PDF with one page per side, each page the paper's size in points, written to `url` as it is drawn. `onPage` is
     /// told how many pages are written, after each.
     public func writePDF(_ sides: [RenderedSide], area: PrintableArea, imageDpi: Double = 300, to url: URL,
-                         onPage: ((Int) -> Void)? = nil) throws {
+                         onPage: (Int) -> Void = { _ in }) throws {
         var box = CGRect(x: 0, y: 0, width: area.paper.width, height: area.paper.height)
         guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { throw Self.cannotDraw }
         for (i, side) in sides.enumerated() {
@@ -90,7 +90,7 @@ public struct SheetRenderer {
                 draw(side, area: area, imageDpi: imageDpi, in: context)
                 context.endPDFPage()
             }
-            onPage?(i + 1)
+            onPage(i + 1)
         }
         context.closePDF()
     }
