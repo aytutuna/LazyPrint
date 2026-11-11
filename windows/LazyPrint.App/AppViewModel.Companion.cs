@@ -113,6 +113,7 @@ public sealed partial class AppViewModel
                 };
             }
             var companion = new CompanionService(options);
+            companion.Inbox.DeleteTaken();
             companion.Router.ApprovePairing = ApprovePhonePairingAsync;
             companion.PackageReceived += (_, _) => _dispatcher.BeginInvoke(RefreshPhoneBatches);
             companion.Changed += (_, _) => _dispatcher.BeginInvoke(() =>
@@ -271,6 +272,7 @@ public sealed partial class AppViewModel
                 }
                 if (startNew)
                 {
+                    foreach (var old in Documents) DeleteTaken(old);
                     Documents.Clear();
                     PageRangeText = "";
                 }
@@ -306,6 +308,7 @@ public sealed partial class AppViewModel
         var inbox = _companion!.Inbox;
         var now = DateTimeOffset.UtcNow;
         var files = await Task.Run(() => inbox.Take(batch.Id, now));
+        _takenPaths.UnionWith(files);
         RefreshPhoneBatches();
         return files;
     }

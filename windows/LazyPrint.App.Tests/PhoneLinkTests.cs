@@ -160,6 +160,19 @@ public sealed class PhoneLinkTests : IDisposable
     }
 
     [Fact]
+    public async Task ATakenFileGoesWhenItsDocumentIsRemoved()
+    {
+        await Send("batch-0001", 0, 1, "a.pdf");
+        Assert.True(await _rig.Model.UsePhoneBatchAsync(startNew: false));
+        string folder = Path.Combine(_data, "Inbox", "batch-0001");
+        Assert.True(File.Exists(Path.Combine(folder, "a.pdf")));
+
+        _rig.Model.RemoveDocument(_rig.Model.Documents[0]);
+
+        Assert.False(File.Exists(Path.Combine(folder, "a.pdf")));
+    }
+
+    [Fact]
     public async Task ABatchWithNoTaskStartsNoneAndLeavesTheSettings()
     {
         _rig.Model.ClearTask();

@@ -132,6 +132,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     public void Shutdown()
     {
         FlushSettings();
+        foreach (var document in Documents) DeleteTaken(document);
         ShutdownCompanion();
         (_networkPrinters as IDisposable)?.Dispose();
     }

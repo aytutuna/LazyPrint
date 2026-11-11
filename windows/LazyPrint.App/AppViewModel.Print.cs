@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using LazyPrint.App.Printing;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
@@ -93,6 +94,31 @@ public sealed partial class AppViewModel
 
     private readonly List<string> _queuedFiles = [];
 
+    /// <summary>Files moved out of the phone inbox that are not open yet, and the file each open document came from.</summary>
+    private readonly HashSet<string> _takenPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConditionalWeakTable<LoadedDocument, string> _takenFiles = new();
+
+    /// <summary>Deletes the file a document was taken from the phone inbox as; any other document has none.</summary>
+    private void DeleteTaken(LoadedDocument document)
+    {
+        if (!_takenFiles.TryGetValue(document, out string? path)) return;
+        _takenFiles.Remove(document);
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Trace.TraceWarning($"Could not delete a file from your phone: {e.Message}");
+        }
+    }
+
+    /// <summary>A PDF is read whole when it opens, so once printed its file can go; a picture is read from its file again for the preview.</summary>
+    private void DeleteTakenPdfs(IEnumerable<LoadedDocument> documents)
+    {
+        foreach (var document in documents.Where(document => document.Kind is DocumentKind.Pdf)) DeleteTaken(document);
+    }
+
     private void QueueFiles(IEnumerable<string> paths)
     {
         _queuedFiles.AddRange(paths);
@@ -153,7 +179,9 @@ public sealed partial class AppViewModel
         {
             try
             {
-                opened.Add(await _loader.LoadAsync(path, token));
+                var document = await _loader.LoadAsync(path, token);
+                opened.Add(document);
+                if (_takenPaths.Remove(path)) _takenFiles.Add(document, path);
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
@@ -183,7 +211,11 @@ public sealed partial class AppViewModel
     {
         if (DocumentsLockedReason is not null) return;
         int at = IndexOfDocument(document);
-        if (at >= 0) Documents.RemoveAt(at);
+        if (at >= 0)
+        {
+            Documents.RemoveAt(at);
+            DeleteTaken(document);
+        }
         if (Documents.Count == 0) PageRangeText = "";
         NotifyAll();
     }
@@ -300,6 +332,7 @@ public sealed partial class AppViewModel
                 return;
             }
             Sent(record, printer);
+            DeleteTakenPdfs(inputs.Documents);
         }
         finally
         {
@@ -518,6 +551,7 @@ public sealed partial class AppViewModel
         if (!await RunPassAsync(run.Job, 1, run.RecordId)) return;
         _manual = null;
         Sent(CurrentJob(run.RecordId)!, run.Job.Printer);
+        DeleteTakenPdfs(run.Inputs.Documents);
         await AddQueuedFilesAsync();
     }
 
