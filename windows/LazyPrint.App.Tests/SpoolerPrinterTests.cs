@@ -162,6 +162,20 @@ public sealed class SpoolerPrinterTests : IDisposable
         Assert.Equal(detail, described.Detail);
     }
 
+    [Theory]
+    [InlineData(PrintJobStatus.Spooling, PrintQueueStatus.Paused, JobState.NeedsUser, IppProblemText.Paused)]
+    [InlineData(PrintJobStatus.None, PrintQueueStatus.Offline, JobState.NeedsUser, IppProblemText.Offline)]
+    [InlineData(PrintJobStatus.Spooling, PrintQueueStatus.PaperOut, JobState.NeedsUser, IppProblemText.OutOfPaper)]
+    [InlineData(PrintJobStatus.Spooling, PrintQueueStatus.TonerLow, JobState.Waiting, null)]
+    [InlineData(PrintJobStatus.Printing, PrintQueueStatus.Paused, JobState.Printing, null)]
+    public void AQueueThatIsPausedOrOfflineHoldsAJobThatIsNotPrinting(PrintJobStatus status, PrintQueueStatus queue, JobState state, string? detail)
+    {
+        var described = SpoolerPrinter.Describe(status, 0, queue);
+
+        Assert.Equal(state, described.State);
+        Assert.Equal(detail, described.Detail);
+    }
+
     [Fact]
     public void TheTicketSaysNoScalingNoBindingAndOnePagePerSheetInPrintSchema()
     {

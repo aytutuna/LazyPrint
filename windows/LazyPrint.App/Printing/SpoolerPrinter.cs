@@ -67,6 +67,7 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
             return;
         }
         var started = DateTime.UtcNow;
+        bool reachedPrinting = false;
         while (DateTime.UtcNow - started < FollowLimit)
         {
             try
@@ -79,12 +80,15 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
                 throw;
             }
             PrintJobStatus status;
+            PrintQueueStatus queueStatus;
             int done;
             try
             {
                 using var info = queue.GetJob(id);
                 status = info.JobStatus;
                 done = info.NumberOfPagesPrinted;
+                queue.Refresh();
+                queueStatus = queue.QueueStatus;
             }
             catch (PrintJobException)
             {
@@ -94,23 +98,33 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
             {
                 break;
             }
-            if ((status & (PrintJobStatus.Deleted | PrintJobStatus.Deleting)) != 0)
-                throw new PrintException(new PrintError.Refused(0, PrintText.JobDeleted));
             if ((status & (PrintJobStatus.Printed | PrintJobStatus.Completed)) != 0) return;
-            progress.Report(Describe(status, done));
+            if ((status & PrintJobStatus.Printing) != 0) reachedPrinting = true;
+            if ((status & (PrintJobStatus.Deleted | PrintJobStatus.Deleting)) != 0)
+            {
+                // The spooler deletes a job it has printed, so only a job that never printed was deleted by someone.
+                if (reachedPrinting) continue;
+                throw new PrintException(new PrintError.Refused(0, PrintText.JobDeleted));
+            }
+            progress.Report(Describe(status, done, queueStatus));
         }
         progress.Report(new JobStatus(JobState.Waiting, 0, null, true));
     }
 
-    /// <summary>What the spooler's job is doing, as the Jobs tab says it: waiting, printing or stuck on something the user can fix.</summary>
-    internal static JobStatus Describe(PrintJobStatus status, int pagesPrinted)
+    /// <summary>
+    /// What the spooler's job is doing, as the Jobs tab says it: waiting, printing or stuck on something the user can fix. A
+    /// paused or offline queue is set on the queue, not on the job, so a job that is not printing also takes the queue's problem.
+    /// </summary>
+    internal static JobStatus Describe(PrintJobStatus status, int pagesPrinted, PrintQueueStatus queue = PrintQueueStatus.None)
     {
         if ((status & PrintJobStatus.Offline) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, IppProblemText.Offline);
         if ((status & PrintJobStatus.PaperOut) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, IppProblemText.OutOfPaper);
         if ((status & (PrintJobStatus.Error | PrintJobStatus.Blocked)) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, IppProblemText.PrinterError);
         if ((status & PrintJobStatus.UserIntervention) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, PrintText.NeedsAttention);
         if ((status & PrintJobStatus.Paused) != 0) return new JobStatus(JobState.NeedsUser, pagesPrinted, PrintText.JobPaused);
-        return (status & PrintJobStatus.Printing) != 0 ? new JobStatus(JobState.Printing, pagesPrinted) : new JobStatus(JobState.Waiting, 0);
+        if ((status & PrintJobStatus.Printing) != 0) return new JobStatus(JobState.Printing, pagesPrinted);
+        var problem = SystemQueueProblems.Describe(PrinterMapping.QueueStates(queue)).FirstOrDefault(p => p.IsError);
+        return problem is null ? new JobStatus(JobState.Waiting, 0) : new JobStatus(JobState.NeedsUser, 0, problem.Title);
     }
 
     private static HashSet<int> JobIds(PrintQueue queue)
