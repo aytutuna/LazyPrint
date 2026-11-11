@@ -357,6 +357,7 @@ final class IppSheetPrinterTests: XCTestCase {
     private func accepting(_ accepting: Bool) -> LoopbackAnswer {
         LoopbackAnswer.ipp(.successfulOk, IppGroup(tag: IppTag.printerAttributes, attributes: [
             IppAttribute("printer-is-accepting-jobs", .boolean(accepting)),
+            IppAttribute(name: "document-format-supported", values: pdfAndRaster.map { IppValue.mimeType($0) }),
         ]))
     }
 
