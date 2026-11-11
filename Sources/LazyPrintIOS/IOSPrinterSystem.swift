@@ -59,9 +59,8 @@ public final class IOSPrinterSystem: PrinterSystem {
     }
 
     /// Shows the system's printer picker; true when the user chose a printer, which is then the one printed to. The
-    /// caller reads the printers again. `source` is the control that asked, in window coordinates, which an iPad's popover
-    /// points at. Throws when the system will not show the picker.
-    public func choose(from source: CGRect = .zero) async throws -> Bool {
+    /// caller reads the printers again. `source` is the view of the control that asked, which an iPad's popover points at. Throws when the system will not show the picker.
+    public func choose(from source: UIView? = nil) async throws -> Bool {
         let picker: UIPrinterPickerController = UIPrinterPickerController(initiallySelectedPrinter: printer)
         let picked: UIPrinter? = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<UIPrinter?, Error>) in
             let once: OneShot<UIPrinter?, Error> = OneShot(continuation)
@@ -70,9 +69,10 @@ public final class IOSPrinterSystem: PrinterSystem {
             }
             // The printers' screen is a sheet, so the picker goes on top of whatever is in front.
             var shown: Bool = false
-            if let anchor = IOSPrinterSystem.topViewController() {
-                let rect: CGRect = source.isEmpty ? anchor.view.bounds : anchor.view.convert(source, from: nil)
-                shown = picker.present(from: rect, in: anchor.view, animated: true, completionHandler: handler)
+            if let source, source.window != nil {
+                shown = picker.present(from: source.bounds, in: source, animated: true, completionHandler: handler)
+            } else if let anchor = IOSPrinterSystem.topViewController() {
+                shown = picker.present(from: anchor.view.bounds, in: anchor.view, animated: true, completionHandler: handler)
             }
             if !shown { shown = picker.present(animated: true, completionHandler: handler) }
             if !shown { once.resume(throwing: PickerRefused()) }
