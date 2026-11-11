@@ -10,7 +10,8 @@ import UIKit
 /// (the printers, the troubleshooter, the two-sided card), the share sheet and Quick Look the file actions ask for, the
 /// certificate question, and the files that come in: from the Add files menu (Files and Photos), from Open In and the share sheet
 /// (`.onOpenURL`), and the one a UI test hands the app at launch (`-openFixture`). A `lazyprint:` URL with `handoff` brings
-/// the files Lazy Scan left in the shared folder; any other only brings the app forward.
+/// the files Lazy Scan left in the shared folder, a `lazyprint://pair?` one opens My computer with that code; any other
+/// only brings the app forward.
 public struct IOSRootView: View {
     @EnvironmentObject private var state: AppState
     @ObservedObject private var fileActions: IOSFileActions
@@ -24,6 +25,8 @@ public struct IOSRootView: View {
     @State private var source: FileSource?
     @State private var showPrinters = false
     @State private var showTroubleshooter = false
+    /// The text of a lazyprint://pair link that was opened, until My computer takes it.
+    @State private var pairingLink: String?
     /// The last files being opened: the next wait for them, so files that arrive one after the other keep their order.
     @State private var opening: Task<Void, Never>?
 
@@ -49,7 +52,7 @@ public struct IOSRootView: View {
         .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
         .sheet(isPresented: $showPrinters) {
-            PrintersScreen(airPrint: airPrint, companion: companion)
+            PrintersScreen(airPrint: airPrint, companion: companion, pairingLink: $pairingLink)
         }
         .sheet(isPresented: $showTroubleshooter) {
             TroubleshooterScreen()
@@ -62,11 +65,15 @@ public struct IOSRootView: View {
         }
         .quickLookPreview($fileActions.previewURL)
         .printCertificateAlert(state)
-        // Files from Open In and the share sheet arrive here, and Lazy Scan's hand-off address; any other lazyprint: URL only
-        // brings the app forward.
+        // Files from Open In and the share sheet arrive here, Lazy Scan's hand-off address and a pairing link; any other
+        // lazyprint: URL only brings the app forward.
         .onOpenURL { (url: URL) in
             if let id = LazyPrintUrl.parseHandoff(url.absoluteString) {
                 receiveHandoff(id)
+            } else if PairingScannerView.isPairingCode(url.absoluteString) {
+                pairingLink = url.absoluteString
+                showJobs = false
+                showPrinters = true
             } else if url.isFileURL {
                 receive([url], delivered: true)
             }
