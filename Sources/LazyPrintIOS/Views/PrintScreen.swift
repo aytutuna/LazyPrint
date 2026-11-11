@@ -531,7 +531,7 @@ struct PrintScreen: View {
             } else if state.isAddingFiles {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("Adding files\u{2026}")
+                    Text("Opening files\u{2026}")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("print.adding")

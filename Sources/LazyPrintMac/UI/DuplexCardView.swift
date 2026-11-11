@@ -3,12 +3,13 @@ import LazyPrintKit
 import SwiftUI
 
 /// The two-sided card: where a job done by hand waits for the stack to go back in the tray, and the one-sheet check that
-/// teaches the app how this printer takes it. Escape only moves to Cancel: the fronts are already printed, and a sheet
-/// that closed on its own would lose the backs. Cancel is the way out, and while a pass runs it stops the pass. Twin of the
-/// Windows overlay.
-struct DuplexSheet: View {
+/// teaches the app how this printer takes it. It sits in the window above the tabs, so the preview and Jobs stay usable
+/// while the stack is turned. Escape only moves to Cancel: the fronts are already printed, and a card that closed on its
+/// own would lose the backs. Cancel is the way out, and while a pass runs it stops the pass. Twin of the Windows overlay.
+struct DuplexCardView: View {
     @EnvironmentObject var state: AppState
     @FocusState private var cancelFocused: Bool
+    @FocusState private var stepFocused: Bool?
 
     var body: some View {
         if let card = state.duplexCard {
@@ -50,11 +51,18 @@ struct DuplexSheet: View {
                 .focused($cancelFocused)
             }
         }
-        .padding(20)
-        .frame(width: 480)
-        .interactiveDismissDisabled()
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bar)
         .onExitCommand { cancelFocused = true }
-        .printCertificateAlert(state)
+        .onAppear { arrived(card) }
+        .onChange(of: card.step) { _, _ in arrived(card) }
+    }
+
+    /// The card is not a sheet, so it is said aloud and the step's main button takes the keyboard.
+    private func arrived(_ card: DuplexCard) {
+        AccessibilityNotification.Announcement(state.duplexTitle + ". " + card.text).post()
+        Task { @MainActor in stepFocused = true }
     }
 
     @ViewBuilder
@@ -64,13 +72,16 @@ struct DuplexSheet: View {
             Button("Check with one sheet") { Task { await state.checkDuplex() } }
                 .help("Prints a numbered sheet to learn how this printer takes the stack back")
             Button(ManualDuplexText.backsTitle) { Task { await state.printBacks() } }
-                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .focused($stepFocused, equals: true)
         case .checkBack:
             Button("Print the back") { Task { await state.printCheckBack() } }
-                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .focused($stepFocused, equals: true)
         case .checkAnswer:
             ForEach([DuplexCheckAnswer.bothOnOneSide, .oppositeEdges, .sameEdge], id: \.self) { answer in
                 Button(ManualDuplexText.answer(answer)) { state.answerDuplexCheck(answer) }
+                    .focused($stepFocused, equals: answer == .bothOnOneSide ? true : nil)
             }
         }
     }

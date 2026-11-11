@@ -124,6 +124,14 @@ struct InspectorView: View {
                     Text("Fill").tag(Scaling.fill)
                 }
                 .labelsHidden()
+                if state.settings.scaling == .actualSize || state.settings.scaling == .shrinkToFit {
+                    Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
+                        Text("\(state.settings.scale) %")
+                    }
+                    .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1)
+                    .accessibilityLabel("Scale")
+                    .accessibilityValue("\(state.settings.scale) %")
+                }
             }
         }
     }

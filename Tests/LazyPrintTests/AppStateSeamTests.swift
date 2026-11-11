@@ -1137,6 +1137,8 @@ final class AppStateSeamTests: XCTestCase {
 
         await rig.state.whileAddingFiles {
             XCTAssertTrue(rig.state.isAddingFiles)
+            XCTAssertEqual(rig.state.printDisabledReason, "Opening files\u{2026}")
+            XCTAssertEqual(rig.state.statusAccessible, "Opening files\u{2026}")
             await rig.state.whileAddingFiles {}
             XCTAssertTrue(rig.state.isAddingFiles)
         }
@@ -1835,5 +1837,24 @@ final class AppStateSeamTests: XCTestCase {
         await rig.state.perform(.clearStuckJobs, for: check)
 
         XCTAssertEqual(rig.spooler.cleared, [])
+    }
+
+    @MainActor
+    func test_holdAccess_tiesEachTokenToADocumentWithNone() async throws {
+        let rig = try makeRig()
+        let file = try writePDF(named: "a.pdf", pages: 1, in: rig.folder)
+        await rig.state.addFiles([file])
+        await rig.state.addFiles([file])
+        let url = rig.state.documents[0].url
+        let first = ScopedAccess(url: url)
+        let second = ScopedAccess(url: url)
+
+        rig.state.holdAccess([first])
+        XCTAssertTrue(rig.state.documents[0].access === first)
+        XCTAssertNil(rig.state.documents[1].access)
+
+        rig.state.holdAccess([second])
+        XCTAssertTrue(rig.state.documents[0].access === first)
+        XCTAssertTrue(rig.state.documents[1].access === second)
     }
 }

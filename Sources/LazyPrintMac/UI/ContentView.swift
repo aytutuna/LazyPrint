@@ -4,9 +4,21 @@ import LazyPrintKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum ContentTab: Hashable {
+enum ContentTab: String, Hashable {
     case print
     case jobs
+}
+
+/// Files and phone batches that came while a job ran, taken once it has ended. Kept outside the window, which can be closed
+/// and reopened meanwhile.
+@MainActor
+enum PendingOpens {
+    enum Item {
+        case files([URL], refused: [(name: String, reason: String)])
+        case batch(String, startNew: Bool)
+    }
+
+    static var items: [Item] = []
 }
 
 struct ContentView: View {
@@ -22,11 +34,16 @@ struct ContentView: View {
     @State private var addPrinterAfterTroubleshooter = false
     /// Files are dragged over the window: it says where they go.
     @State private var dropTargeted = false
+    @State private var queuedBatch: String?
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
     @State private var opening: Task<Void, Never>?
 
-    init(tab: ContentTab = .print) {
-        _tab = State(initialValue: tab)
+    static let tabKey = "selectedTab"
+
+    /// A tab given here wins over the one kept from the last run.
+    init(tab: ContentTab? = nil) {
+        let kept = UserDefaults.standard.string(forKey: ContentView.tabKey).flatMap(ContentTab.init(rawValue:))
+        _tab = State(initialValue: tab ?? kept ?? .print)
     }
 
     var body: some View {
@@ -38,6 +55,10 @@ struct ContentView: View {
             // newer macOS and push the sidebar under the traffic-light buttons.
             VStack(spacing: 0) {
                 bars
+                if state.duplexCard != nil {
+                    DuplexCardView()
+                    Divider()
+                }
                 HStack {
                     Picker("View", selection: $tab) {
                         Text("Print").tag(ContentTab.print)
@@ -65,14 +86,13 @@ struct ContentView: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            guard !state.isBusy else { return false }
-            return take(urls)
+            take(urls)
         } isTargeted: { targeted in
             dropTargeted = targeted
         }
         .overlay {
-            if dropTargeted && !state.isBusy {
-                Text("Drop to add to the print")
+            if dropTargeted {
+                Text(state.isBusy ? "Drop to add when the job ends" : "Drop to add to the print")
                     .font(.title2.weight(.semibold))
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
@@ -81,7 +101,7 @@ struct ContentView: View {
             }
         }
         // Below this the layout cannot stay usable.
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(minWidth: 760, minHeight: 520)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { _ = take(urls) }
         }
@@ -103,12 +123,8 @@ struct ContentView: View {
                 .environmentObject(state)
                 .environmentObject(host)
         }
-        .sheet(isPresented: Binding(get: { state.duplexCard != nil }, set: { _ in })) {
-            DuplexSheet()
-                .environmentObject(state)
-        }
         .printCertificateAlert(state)
-        .focusedSceneValue(\.sheetOpen, showTroubleshooter || showAddPrinter || showPhone || state.duplexCard != nil)
+        .focusedSceneValue(\.sheetOpen, showTroubleshooter || showAddPrinter || showPhone)
         // Files from Open With, the Dock icon and `open` arrive here, and lazyprint:open?file=... from Lazy Scan.
         .onOpenURL { url in
             if url.isFileURL {
@@ -122,7 +138,19 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .addFilesRequested)) { _ in
             if !state.isBusy { showImporter = true }
         }
-        .onAppear { state.phoneWindowRequested = { showPhone = true } }
+        .onChange(of: state.isBusy) { _, busy in
+            if !busy { takeQueued() }
+        }
+        .onChange(of: tab) { _, tab in
+            UserDefaults.standard.set(tab.rawValue, forKey: ContentView.tabKey)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tabRequested)) { note in
+            if let raw = note.object as? String, let requested = ContentTab(rawValue: raw) { tab = requested }
+        }
+        .onAppear {
+            state.phoneWindowRequested = { showPhone = true }
+            if !state.isBusy { takeQueued() }
+        }
         // A problem with the cloud folder is also said here, where it is seen without the phone sheet open.
         .onChange(of: host.syncFolderProblem) { _, problem in
             state.reportSyncProblem(problem)
@@ -185,7 +213,8 @@ struct ContentView: View {
             Divider()
         }
         if let batch = state.phoneBatches.first {
-            PhoneBarView(batch: batch, busy: state.isBusy,
+            PhoneBarView(batch: batch,
+                         queued: queuedBatch == batch.id,
                          add: { usePhoneBatch(batch.id, startNew: false) },
                          startNew: { usePhoneBatch(batch.id, startNew: true) },
                          dismiss: { state.dismissBatch(batch.id) })
@@ -194,6 +223,19 @@ struct ContentView: View {
     }
 
     // MARK: Files and tasks
+
+    /// Takes what came while a job ran, in the order it came.
+    private func takeQueued() {
+        let waiting = PendingOpens.items
+        PendingOpens.items = []
+        queuedBatch = nil
+        for item in waiting {
+            switch item {
+            case .files(let urls, let refused): _ = take(urls, refused: refused)
+            case .batch(let id, let startNew): usePhoneBatch(id, startNew: startNew)
+            }
+        }
+    }
 
     /// The files a lazyprint: URL asks to add: absolute paths only, as `LazyPrintUrl` parses them.
     static func files(in url: URL) -> [URL] {
@@ -220,10 +262,17 @@ struct ContentView: View {
 
     /// Takes the files of the oldest batch from a phone into the job, or into a new one, and shows the print tab.
     private func usePhoneBatch(_ id: String, startNew: Bool) {
+        if state.isBusy {
+            PendingOpens.items.append(.batch(id, startNew: startNew))
+            queuedBatch = id
+            return
+        }
         let before = opening
         opening = Task {
-            await before?.value
-            await state.takeBatch(id, startNew: startNew)
+            await state.whileAddingFiles {
+                await before?.value
+                await state.takeBatch(id, startNew: startNew)
+            }
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print
@@ -254,13 +303,19 @@ struct ContentView: View {
             if !notAdded.isEmpty { state.reportNotAdded(notAdded) }
             return false
         }
-        // Files from the file importer are scoped to this app; the access is kept for as long as the app runs, since the
-        // documents read them again when the sheets are drawn.
-        for file in files { _ = file.startAccessingSecurityScopedResource() }
+        if state.isBusy {
+            PendingOpens.items.append(.files(urls, refused: refused))
+            return true
+        }
+        // Files from the file importer are scoped to this app; each document keeps the access for as long as it lives.
+        let started = files.filter { $0.startAccessingSecurityScopedResource() }.map { ScopedAccess(url: $0) }
         let before = opening
         opening = Task {
-            await before?.value
-            await state.addFiles(files, alsoNotAdded: refused)
+            await state.whileAddingFiles {
+                await before?.value
+                await state.addFiles(files, alsoNotAdded: refused)
+            }
+            state.holdAccess(started)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print

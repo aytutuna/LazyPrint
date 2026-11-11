@@ -8,6 +8,8 @@ public struct OpenedDocument: @unchecked Sendable {
     public var url: URL
     public var source: Source
     public let drawing = DrawingLock()
+    /// The security-scoped access the file was opened under; it stops when the last copy of the document is gone.
+    public var access: ScopedAccess?
 
     public enum Source {
         case pdf(CGPDFDocument)
@@ -31,5 +33,18 @@ public final class DrawingLock: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return try body()
+    }
+}
+
+/// Security-scoped access to a file already started; it is stopped when this is released.
+public final class ScopedAccess: @unchecked Sendable {
+    let url: URL
+
+    public init(url: URL) {
+        self.url = url
+    }
+
+    deinit {
+        url.stopAccessingSecurityScopedResource()
     }
 }

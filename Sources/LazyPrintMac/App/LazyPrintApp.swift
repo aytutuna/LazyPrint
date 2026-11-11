@@ -11,6 +11,7 @@ public struct LazyPrintApp: App {
     public init() {
         // No tabs: each would be another window over the same state.
         NSWindow.allowsAutomaticWindowTabbing = false
+        CupsPrinter.removeStaleFiles()
         // Made here, so the state is there before any URL arrives.
         let host = MacCompanionHosting(options: MacCompanionHosting.standardOptions())
         _state = StateObject(wrappedValue: AppState.makeForMac(companion: host))
@@ -40,6 +41,8 @@ public struct LazyPrintApp: App {
 extension Notification.Name {
     /// File > Add Files: the window opens its panel.
     static let addFilesRequested = Notification.Name("LazyPrintAddFilesRequested")
+    /// View > Print, Jobs: the window shows the tab whose raw value is the notification's object.
+    static let tabRequested = Notification.Name("LazyPrintTabRequested")
 }
 
 extension FocusedValues {
@@ -68,6 +71,15 @@ private struct PrintCommands: Commands {
             }
             .keyboardShortcut("o")
             .disabled(state.isBusy || sheetOpen == true)
+        }
+        CommandGroup(after: .toolbar) {
+            Button("Print") { NotificationCenter.default.post(name: .tabRequested, object: ContentTab.print.rawValue) }
+                .keyboardShortcut("1")
+            Button("Jobs") { NotificationCenter.default.post(name: .tabRequested, object: ContentTab.jobs.rawValue) }
+                .keyboardShortcut("2")
+        }
+        CommandGroup(replacing: .help) {
+            Link("Lazy Print Help", destination: URL(string: "https://alazy.app/print/")!)
         }
         CommandGroup(replacing: .printItem) {
             Button("Print\u{2026}") { Task { await state.print() } }

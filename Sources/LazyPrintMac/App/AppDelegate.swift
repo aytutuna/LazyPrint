@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import Combine
 import LazyPrintKit
 
 /// The app's delegate (`LazyPrintApp`'s `@NSApplicationDelegateAdaptor`): Quit asks first while a job is going out or a
@@ -8,7 +9,24 @@ import LazyPrintKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Set when the window appears.
-    weak var state: AppState?
+    weak var state: AppState? {
+        didSet { watchPhoneBatches() }
+    }
+    private var batchWatch: AnyCancellable?
+
+    // The bar that announces a batch is in the window, which may be closed while the phone link runs on.
+    private func watchPhoneBatches() {
+        batchWatch = state?.$phoneBatches
+            .map { $0.map(\.id) }
+            .removeDuplicates()
+            .scan(([String](), [String]())) { ($0.1, $1) }
+            .sink { (old, new) in
+                guard new.contains(where: { !old.contains($0) }) else { return }
+                if !NSApp.windows.contains(where: { $0.isVisible }) {
+                    _ = NSApp.requestUserAttention(.informationalRequest)
+                }
+            }
+    }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let state else { return .terminateNow }
@@ -43,7 +61,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
+    // Closing the window leaves the app, and the phone link, running; a Dock click opens the window again.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         true
     }
 }
