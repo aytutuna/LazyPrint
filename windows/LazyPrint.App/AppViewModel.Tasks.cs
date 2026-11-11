@@ -64,8 +64,8 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>
-    /// The document task is two-sided only for a printer that can turn the sheet. Picked before the printer was read (files
-    /// opened at launch), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
+    /// The document task is two-sided only for a printer that can turn the sheet. Picked before the printer was read (the task
+    /// a fresh install starts in), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
     /// user changes the sides.
     /// </summary>
     private void ChooseSidesAgain()

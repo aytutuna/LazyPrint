@@ -30,9 +30,8 @@ extension AppState {
 
     /// Adds the files of the batch to the job, or to a new job when `startNew` (the documents and the page range
     /// are cleared first, once at least one file has opened: when none does, the job stays as it was). A file that
-    /// cannot be read or moved is reported and the others still go in. The document task starts when none is, once a file
-    /// has opened, so a job left as it was keeps its settings too. Nothing happens while a job runs or another
-    /// batch is being taken.
+    /// cannot be read or moved is reported and the others still go in. The task and the settings stay as they are.
+    /// Nothing happens while a job runs or another batch is being taken.
     public func takeBatch(_ id: String, startNew: Bool) async {
         guard !isBusy, !takingBatch else { return }
         takingBatch = true

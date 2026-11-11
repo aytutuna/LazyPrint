@@ -100,5 +100,5 @@ In this order.
 8. Age ratings: answer the questionnaire as in the table above.
 9. Packages: upload the `.msixupload`. Give the `runFullTrust` reason above when asked.
 10. Store listing: English. Paste the texts, upload the screenshots with their captions and the three logos from `Listing/`.
-11. Notes for certification: "No account is needed. Add any PDF or picture with Add files. The demo printer in the printer list works without a printer."
+11. Notes for certification: "No account is needed. Add any PDF or picture with Add files. To try it without a printer, select Demo Printer in the printer list first."
 12. Submit. When it is certified, add the Store link to `site/index.html` and drop the "Not released yet" line.
