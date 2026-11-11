@@ -179,6 +179,33 @@ public class PdfSheetWriterTests
     }
 
     [Fact]
+    public async Task AnAnnotationOnAPageIsDrawn()
+    {
+        var document = await Open("annotated.pdf");
+        var side = Side(false, Place(0, document.Pages[0], new LayoutRect(0, 0, 612, 792)));
+
+        var at = Read(Write(document, side));
+
+        AssertColor(Pixels.Red, at(200, 292), "the annotation");
+        AssertColor(Pixels.White, at(400, 292), "beside it");
+    }
+
+    [Fact]
+    public async Task APagePlacedAgainIsCopiedOnce()
+    {
+        var document = await Open("red-letter.pdf");
+        var side = Side(false, Place(0, document.Pages[0], new LayoutRect(0, 0, 612, 792)));
+        using var writer = new PdfSheetWriter([document], _loader, _loader);
+        for (int i = 0; i < 5; i++) writer.AddSide(side, Letter, 150);
+
+        var pdf = Encoding.Latin1.GetString(writer.Save());
+
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(pdf, @"/Subtypes*/Form"));
+        using var saved = PdfiumDocument.Open(Encoding.Latin1.GetBytes(pdf))!;
+        Assert.Equal(5, saved.PageCount);
+    }
+
+    [Fact]
     public async Task NothingIsDrawnOutsideThePrintableArea()
     {
         var document = await Open("mixed.pdf");

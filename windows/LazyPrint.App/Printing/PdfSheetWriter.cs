@@ -29,6 +29,9 @@ public sealed class PdfSheetWriter : IDisposable
     private readonly IPageRenderer _pages;
     private readonly Dictionary<int, PdfiumDocument?> _sources = [];
     private readonly Dictionary<bool, IntPtr> _fonts = [];
+    // One form per page and crop, whatever the times it is placed, so what a page uses is copied into the output once.
+    private readonly Dictionary<(int Document, int Index, LayoutRect? Crop), IntPtr> _forms = [];
+    private readonly HashSet<(int Document, int Index)> _flattened = [];
     private readonly IntPtr _output;
     private int _count;
 
@@ -92,6 +95,7 @@ public sealed class PdfSheetWriter : IDisposable
         _sources.Clear();
         lock (Pdfium.Gate)
         {
+            foreach (var form in _forms.Values) if (form != IntPtr.Zero) Pdfium.FPDF_CloseXObject(form);
             foreach (var font in _fonts.Values) Pdfium.FPDFFont_Close(font);
             Pdfium.FPDF_CloseDocument(_output);
         }
@@ -165,26 +169,32 @@ public sealed class PdfSheetWriter : IDisposable
         matrix.Scale(width / shown.Width, height / shown.Height);
         matrix.Append(onto);
 
-        var sourcePage = Pdfium.FPDF_LoadPage(source.Handle, index);
-        if (placement.Crop is not null)
+        var key = (placement.Page.Document, index, placement.Crop);
+        if (!_forms.TryGetValue(key, out var xobject))
         {
-            var back = toShown;
-            back.Invert();
-            var a = back.Transform(shown.TopLeft);
-            var b = back.Transform(shown.BottomRight);
-            Pdfium.FPDFPage_SetCropBox(sourcePage, (float)Math.Max(box.Left, Math.Min(a.X, b.X)), (float)Math.Max(box.Bottom, Math.Min(a.Y, b.Y)),
-                                       (float)Math.Min(box.Right, Math.Max(a.X, b.X)), (float)Math.Min(box.Top, Math.Max(a.Y, b.Y)));
+            var sourcePage = Pdfium.FPDF_LoadPage(source.Handle, index);
+            // Only a page's content and resources are taken over, so its annotations and filled form fields are drawn into it first.
+            if (_flattened.Add((key.Document, index))) Pdfium.FPDFPage_Flatten(sourcePage, Pdfium.FlatPrint);
+            if (placement.Crop is not null)
+            {
+                var back = toShown;
+                back.Invert();
+                var a = back.Transform(shown.TopLeft);
+                var b = back.Transform(shown.BottomRight);
+                Pdfium.FPDFPage_SetCropBox(sourcePage, (float)Math.Max(box.Left, Math.Min(a.X, b.X)), (float)Math.Max(box.Bottom, Math.Min(a.Y, b.Y)),
+                                           (float)Math.Min(box.Right, Math.Max(a.X, b.X)), (float)Math.Min(box.Top, Math.Max(a.Y, b.Y)));
+            }
+            xobject = Pdfium.FPDF_NewXObjectFromPage(_output, source.Handle, index);
+            if (placement.Crop is not null)
+            {
+                Pdfium.FPDFPage_SetCropBox(sourcePage, (float)box.Left, (float)box.Bottom, (float)box.Right, (float)box.Top);
+            }
+            Pdfium.FPDF_ClosePage(sourcePage);
+            _forms[key] = xobject;
         }
-        var xobject = Pdfium.FPDF_NewXObjectFromPage(_output, source.Handle, index);
-        if (placement.Crop is not null)
-        {
-            Pdfium.FPDFPage_SetCropBox(sourcePage, (float)box.Left, (float)box.Bottom, (float)box.Right, (float)box.Top);
-        }
-        Pdfium.FPDF_ClosePage(sourcePage);
         if (xobject == IntPtr.Zero) return false;
 
         var form = Pdfium.FPDF_NewFormObjectFromXObject(xobject);
-        Pdfium.FPDF_CloseXObject(xobject);
         if (form == IntPtr.Zero) return false;
         Transform(form, matrix);
         Pdfium.FPDFPage_InsertObject(page, form);

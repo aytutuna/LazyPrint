@@ -60,6 +60,9 @@ internal static class Pdfium
     [DllImport(Dll)] public static extern void FPDFPage_InsertClipPath(IntPtr page, IntPtr clipPath);
     [DllImport(Dll)] public static extern int FPDF_SaveAsCopy(IntPtr document, ref FileWrite file, uint flags);
 
+    /// <summary>FLAT_PRINT: draws the annotations and form fields a print shows into the page's content.</summary>
+    public const int FlatPrint = 1;
+    [DllImport(Dll)] public static extern int FPDFPage_Flatten(IntPtr page, int flag);
     [DllImport(Dll)] public static extern IntPtr FPDF_NewXObjectFromPage(IntPtr destination, IntPtr source, int index);
     [DllImport(Dll)] public static extern void FPDF_CloseXObject(IntPtr xobject);
     [DllImport(Dll)] public static extern IntPtr FPDF_NewFormObjectFromXObject(IntPtr xobject);
