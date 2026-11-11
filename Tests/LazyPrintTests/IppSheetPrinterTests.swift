@@ -30,6 +30,10 @@ final class IppSheetPrinterTests: XCTestCase {
             throw PrintError.unreadable("not used")
         }
 
+        func load(_ url: URL, password: String) throws -> OpenedDocument {
+            throw PrintError.unreadable("not used")
+        }
+
         func originalFile(_ document: OpenedDocument) -> URL? { url }
     }
 

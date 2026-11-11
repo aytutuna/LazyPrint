@@ -101,7 +101,7 @@ struct FileSources: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
+            .fileImporter(isPresented: shown(.files), allowedContentTypes: [.pdf, .image, .plainText], allowsMultipleSelection: true) { (result: Result<[URL], Error>) in
                 switch result {
                 case .success(let urls):
                     pick(urls)

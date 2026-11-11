@@ -25,7 +25,7 @@ struct DocumentStrip: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(state.isBusy)
-                .help("Add PDFs and pictures")
+                .help("Add PDFs, pictures and text")
             }
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 10) {

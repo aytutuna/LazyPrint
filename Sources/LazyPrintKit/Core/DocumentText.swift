@@ -5,9 +5,11 @@ import Foundation
 public enum DocumentText {
     public static let lockedPdf = "This PDF is locked. Open it in a PDF app and print it from there."
 
-    public static let notSupported = "Lazy Print prints PDFs and pictures. Save it as a PDF first."
+    public static let notSupported = "Lazy Print prints PDFs, pictures and plain text. Save it as a PDF first."
 
     public static let unreadable = "Lazy Print can't read this file."
+
+    public static let noText = "This file has no text."
 
     public static let noPages = "This PDF has no pages."
 }

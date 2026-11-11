@@ -1046,8 +1046,8 @@ final class AppStateSeamTests: XCTestCase {
     @MainActor
     func test_addFiles_aFileThatCannotBeReadIsReportedAndTheOthersGoIn() async throws {
         let rig = try makeRig()
-        let bad = rig.folder.appendingPathComponent("notes.txt")
-        try Data("not a document".utf8).write(to: bad)
+        let bad = rig.folder.appendingPathComponent("report.docx")
+        try Data([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]).write(to: bad)
         await rig.state.addFiles([bad, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)])
 
         XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["b.pdf"])
@@ -1057,8 +1057,8 @@ final class AppStateSeamTests: XCTestCase {
     @MainActor
     func test_addFiles_filesTheCallerCouldNotTryAreReportedWithTheOnesThatFail() async throws {
         let rig = try makeRig()
-        let bad = rig.folder.appendingPathComponent("notes.txt")
-        try Data("not a document".utf8).write(to: bad)
+        let bad = rig.folder.appendingPathComponent("report.docx")
+        try Data([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]).write(to: bad)
         await rig.state.addFiles([bad, try writePDF(named: "b.pdf", pages: 1, in: rig.folder)],
                                  alsoNotAdded: [(name: "gone.pdf", reason: "Not from here.")])
 
@@ -1066,7 +1066,7 @@ final class AppStateSeamTests: XCTestCase {
         let lines = try XCTUnwrap(rig.state.error?.detail).components(separatedBy: "\n")
         XCTAssertEqual(lines.count, 2)
         XCTAssertEqual(lines[0], "gone.pdf: Not from here.")
-        XCTAssertTrue(lines[1].hasPrefix("notes.txt: "))
+        XCTAssertTrue(lines[1].hasPrefix("report.docx: "))
     }
 
     @MainActor

@@ -149,7 +149,7 @@ struct PrintView: View {
                 Label("Add files\u{2026}", systemImage: "plus")
             }
             .padding(.top, 4)
-            Text("Or drop PDFs and pictures anywhere in the window.")
+            Text("Or drop PDFs, pictures and text files anywhere in the window.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

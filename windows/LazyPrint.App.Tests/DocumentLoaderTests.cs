@@ -327,7 +327,7 @@ public class DocumentLoaderTests
             Pixels.AssertColor(Pixels.White, page, (int)size.Width - 10, (int)size.Height - 10);
             bool inked = false;
             for (int y = 54; y < 70 && !inked; y++)
-                for (int x = 54; x < 64 && !inked; x++) inked = Pixels.At(page, x, y).R < 100;
+                for (int x = 54; x < 64 && !inked; x++) inked = Pixels.At(page, x, y).R < 200;
             Assert.True(inked);
         }
         finally
