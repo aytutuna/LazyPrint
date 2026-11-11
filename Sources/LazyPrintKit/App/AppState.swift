@@ -550,7 +550,7 @@ public final class AppState: ObservableObject {
         guard !documents.isEmpty else { return nil }
         var range = pageRangeIndexes()
         if range == nil && !pageRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            // Half-typed ("1-"): the preview stays on the last range that parsed, and only the field shows the problem.
+            // Half-typed ("1-x", "9" past the end): the preview stays on the last range that parsed, and only the field shows the problem.
             range = lastValidRange
         } else {
             lastValidRange = range

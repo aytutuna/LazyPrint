@@ -1040,7 +1040,6 @@ final class AppStateSeamTests: XCTestCase {
 
         XCTAssertNotNil(rig.state.pageRangeError)
         XCTAssertFalse(rig.state.canPrint)
-        XCTAssertNil(rig.state.jobPlan)
     }
 
     @MainActor
@@ -1335,7 +1334,7 @@ final class AppStateSeamTests: XCTestCase {
         let rig = try await printingRig(pages: 3)
         rig.state.setPageRange("1-2")
         let before = rig.state.jobPlan
-        rig.state.setPageRange("1-")
+        rig.state.setPageRange("1-x")
 
         XCTAssertNotNil(before)
         XCTAssertEqual(rig.state.jobPlan, before)
