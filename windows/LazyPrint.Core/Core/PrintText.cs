@@ -21,6 +21,10 @@ public static class PrintText
     /// <summary>A job the printer holds or has not started: "Waiting for HP LaserJet".</summary>
     public static string WaitingFor(string printerName) => $"Waiting for {printerName}";
 
+    public const string QueuePaused = "Queue paused";
+    public const string NeedsSignIn = "Needs sign-in";
+    public const string JobHeld = "Job held";
+
     public const string LoadBacks = "Load the backs";
 
     /// <summary>The iPhone stopped a job because the system took back the app's time in the background.</summary>

@@ -16,6 +16,7 @@ final class PrintTextTests: XCTestCase {
 
     func test_waiting_namesThePrinter() {
         XCTAssertEqual(PrintText.waiting(for: "HP LaserJet"), "Waiting for HP LaserJet")
+        XCTAssertEqual([PrintText.queuePaused, PrintText.needsSignIn, PrintText.jobHeld], ["Queue paused", "Needs sign-in", "Job held"])
     }
 
     func test_sent_countsTheSheets() {

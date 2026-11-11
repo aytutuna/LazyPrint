@@ -20,6 +20,7 @@ public class PrintTextTests
     public void Waiting_NamesThePrinter()
     {
         Assert.Equal("Waiting for HP LaserJet", PrintText.WaitingFor("HP LaserJet"));
+        Assert.Equal(["Queue paused", "Needs sign-in", "Job held"], [PrintText.QueuePaused, PrintText.NeedsSignIn, PrintText.JobHeld]);
     }
 
     [Fact]

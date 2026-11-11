@@ -110,11 +110,15 @@ public final class CupsPrinter: SheetPrinter {
         IppProblems.describe(reasons: reasons, message: nil, reachable: true).first
     }
 
-    /// "Waiting for HP LaserJet", with the first reason the job or the printer gives that a person can act on.
+    /// The first reason the job or the printer gives that a person can act on ("Out of paper", "Needs sign-in"), else
+    /// "Waiting for HP LaserJet". CUPS holds a job with reasons that are not errors, so those are named here.
     private static func waiting(for printer: String, _ answer: Answer) -> String {
-        let text = PrintText.waiting(for: printer)
-        guard let reason = problem(answer.reasons + answer.printerReasons), reason.isError else { return text }
-        return text + ": " + reason.title
+        let reasons = answer.reasons + answer.printerReasons
+        if let reason = problem(reasons), reason.isError { return reason.title }
+        if reasons.contains(where: { $0.hasSuffix("held-for-authentication") }) { return PrintText.needsSignIn }
+        if reasons.contains("printer-stopped") || reasons.contains("paused") { return PrintText.queuePaused }
+        if reasons.contains("job-hold-until-specified") { return PrintText.jobHeld }
+        return PrintText.waiting(for: printer)
     }
 
     private static func stopped(_ reasons: [String]) -> Error {
@@ -137,7 +141,7 @@ public final class CupsPrinter: SheetPrinter {
     }
 
     private struct Answer: Sendable {
-        /// The scheduler no longer knows the job: it finished and was let go of.
+        /// The scheduler no longer knows the job.
         var gone = false
         var state: Int?
         var reasons: [String] = []

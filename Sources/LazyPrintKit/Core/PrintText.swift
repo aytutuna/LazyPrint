@@ -24,6 +24,10 @@ public enum PrintText {
         "Waiting for \(printerName)"
     }
 
+    public static let queuePaused = "Queue paused"
+    public static let needsSignIn = "Needs sign-in"
+    public static let jobHeld = "Job held"
+
     public static let loadBacks = "Load the backs"
 
     /// The iPhone stopped a job because the system took back the app's time in the background.
