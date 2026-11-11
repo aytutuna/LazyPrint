@@ -599,6 +599,25 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.capabilities?.name, "Network Printer")
     }
 
+    @MainActor
+    func test_aPrinterIsPrintedToAtTheAddressThatAnsweredItsRead() async throws {
+        let rig = try makeRig()
+        rig.network.found = [IppService(id: "n", instanceName: "Network Printer", secure: false, hostName: nil,
+                                        addresses: ["192.168.1.30", "192.168.1.31"], port: 631,
+                                        textAttributes: ["rp=ipp/print", "ty=Network Printer", "UUID=\(hpUuid)"])]
+        rig.state.startNetwork()
+        await rig.state.refreshPrinters()
+        XCTAssertEqual(rig.state.printers[0].ippEndpoint?.addresses.first?.host, "192.168.1.30")
+
+        let second = try PrinterAddress.parse("192.168.1.31")
+        rig.network.answers["Network Printer"] = AddressCheck(address: second, capabilities: PrinterCapabilities(),
+                                                              certificate: nil, error: nil)
+        await rig.state.refreshNetworkStatus()
+
+        XCTAssertEqual(rig.state.printers[0].ippEndpoint?.addresses.first, second)
+        XCTAssertEqual(rig.state.printers[0].ippEndpoint?.addresses.count, 2)
+    }
+
     // MARK: A certificate
 
     private func changedCertificate() -> IppCertificateError {

@@ -225,9 +225,16 @@ public sealed partial class AppViewModel
             Supplies = Demo.Supplies(),
         };
 
-    /// <summary>A printer with a network address as its printer last said (<see cref="PrinterMerge.Refresh"/>); as it is until asked.</summary>
-    private PrinterInfo WithNetworkState(PrinterInfo info) =>
-        info.IppEndpoint is not null && _ippReads.TryGetValue(info.Id, out var read) ? PrinterMerge.Refresh(info, read.Capabilities) : info;
+    /// <summary>
+    /// A printer with a network address as its printer last said (<see cref="PrinterMerge.Refresh"/>); as it is until asked.
+    /// The address that answered is the one jobs go to.
+    /// </summary>
+    private PrinterInfo WithNetworkState(PrinterInfo info)
+    {
+        if (info.IppEndpoint is not { } endpoint || !_ippReads.TryGetValue(info.Id, out var read)) return info;
+        var refreshed = PrinterMerge.Refresh(info, read.Capabilities);
+        return read.Capabilities is null ? refreshed : refreshed with { IppEndpoint = endpoint.Preferring(read.Address) };
+    }
 
     /// <summary>The demo printer's switch for two-sided; the tasks that need it see the change at once.</summary>
     public async Task SetDemoDuplexAsync(bool on)

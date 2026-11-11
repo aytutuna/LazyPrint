@@ -222,6 +222,22 @@ public class IppDiscoveryTests
     }
 
     [Fact]
+    public void AnEndpointCanTryOneOfItsAddressesFirst()
+    {
+        var endpoint = Assert.Single(IppEndpoint.Choose([Service("HP M479 (A1B2C3)", secure: false, ["192.168.1.20", "192.168.1.21"], HpTxt)]));
+        var second = endpoint.Addresses[1];
+        var preferred = endpoint.Preferring(second);
+        Assert.Equal(second, preferred.Addresses[0]);
+        Assert.Equal(endpoint.Addresses.Count, preferred.Addresses.Count);
+        Assert.Same(endpoint, endpoint.Preferring(endpoint.Addresses[0]));
+        Assert.Same(endpoint, endpoint.Preferring(PrinterAddress.Parse("192.168.1.99")));
+        Assert.NotEqual(Printer(endpoint), Printer(preferred));
+    }
+
+    private static PrinterInfo Printer(IppEndpoint endpoint) =>
+        new("ipp:x", "HP", null, null, PrinterRoute.Ipp, endpoint, false, PrinterState.Idle, [], []);
+
+    [Fact]
     public void EndpointsKeepTheResourcePathPortAndZonedAddresses()
     {
         var endpoint = Assert.Single(IppEndpoint.Choose(

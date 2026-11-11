@@ -57,6 +57,14 @@ public struct IppEndpoint: Equatable, Sendable {
     /// The printer UUID from the TXT record, as advertised; nil when there is none.
     public var uuid: String? { txt.uuid }
 
+    /// The endpoint with `address` tried first; as it is when the address is not one of its own.
+    public func preferring(_ address: PrinterAddress) -> IppEndpoint {
+        guard addresses.first != address, addresses.contains(address) else { return self }
+        var endpoint = self
+        endpoint.addresses = [address] + addresses.filter { $0 != address }
+        return endpoint
+    }
+
     /// One service with its TXT record read.
     private struct Entry {
         let service: IppService

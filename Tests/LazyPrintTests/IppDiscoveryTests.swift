@@ -226,6 +226,18 @@ final class IppDiscoveryTests: XCTestCase {
         ])
     }
 
+    func testAnEndpointCanTryOneOfItsAddressesFirst() throws {
+        let endpoint = try XCTUnwrap(IppEndpoint.choose([
+            service("HP M479 (A1B2C3)", secure: false, ["192.168.1.20", "192.168.1.21"], try hpTxt()),
+        ]).first)
+        let second = endpoint.addresses[1]
+        let preferred = endpoint.preferring(second)
+        XCTAssertEqual(preferred.addresses.first, second)
+        XCTAssertEqual(preferred.addresses.count, endpoint.addresses.count)
+        XCTAssertEqual(endpoint.preferring(endpoint.addresses[0]), endpoint)
+        XCTAssertEqual(endpoint.preferring(try PrinterAddress.parse("192.168.1.99")), endpoint)
+    }
+
     func testEndpointsKeepTheResourcePathPortAndZonedAddresses() throws {
         let endpoints = IppEndpoint.choose([
             service("Canon", secure: false, ["fe80::5%7"], ["rp=/printers/Canon", "ty=Canon MF743C"], port: 8631, host: nil),

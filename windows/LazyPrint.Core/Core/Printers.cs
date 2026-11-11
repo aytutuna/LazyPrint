@@ -54,7 +54,8 @@ public sealed record PrinterInfo(
 {
     public bool Equals(PrinterInfo? other) =>
         other is not null && Id == other.Id && Name == other.Name && Model == other.Model && Address == other.Address
-        && Route == other.Route && IppEndpoint?.Key == other.IppEndpoint?.Key && IsDefault == other.IsDefault
+        && Route == other.Route && IppEndpoint?.Key == other.IppEndpoint?.Key
+        && Equals(IppEndpoint?.Addresses[0], other.IppEndpoint?.Addresses[0]) && IsDefault == other.IsDefault
         && State == other.State && Problems.SequenceEqual(other.Problems) && Supplies.SequenceEqual(other.Supplies)
         && Queue == other.Queue;
 

@@ -69,9 +69,12 @@ extension AppState {
     }
 
     /// A printer with a network address as its printer last said (`PrinterMerge.refresh`); as it is until asked.
+    /// The address that answered is the one jobs go to.
     private func withNetworkState(_ info: PrinterInfo) -> PrinterInfo {
-        guard info.ippEndpoint != nil, let read = ippReads[info.id] else { return info }
-        return PrinterMerge.refresh(info, with: read.capabilities)
+        guard let endpoint = info.ippEndpoint, let read = ippReads[info.id] else { return info }
+        var refreshed = PrinterMerge.refresh(info, with: read.capabilities)
+        if read.capabilities != nil { refreshed.ippEndpoint = endpoint.preferring(read.address) }
+        return refreshed
     }
 
     // MARK: Capabilities

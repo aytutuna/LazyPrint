@@ -43,6 +43,20 @@ public sealed class IppEndpoint
     /// <summary>The printer UUID from the TXT record, as advertised; null when there is none.</summary>
     public string? Uuid => Txt.Uuid;
 
+    /// <summary>The endpoint with <paramref name="address"/> tried first; as it is when the address is not one of its own.</summary>
+    public IppEndpoint Preferring(PrinterAddress address)
+    {
+        if (Addresses[0].Equals(address) || !Addresses.Contains(address)) return this;
+        return new IppEndpoint
+        {
+            Key = Key,
+            Name = Name,
+            Txt = Txt,
+            Addresses = [address, .. Addresses.Where(a => !a.Equals(address))],
+            InstanceNames = InstanceNames,
+        };
+    }
+
     /// <summary>
     /// Groups services by printer (TXT UUID; services without one by instance name, which the
     /// _ipp and _ipps instances of one printer share) and orders each printer's addresses:
