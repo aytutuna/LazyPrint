@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -14,8 +16,11 @@ namespace LazyPrint.App.Services;
 /// </summary>
 public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFiles
 {
-    /// <summary>The pictures the picker offers; HEIC opens only where Windows has the extension for it.</summary>
-    public static readonly string[] PictureExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".heic", ".heif"];
+    /// <summary>The pictures the picker offers; HEIC and WebP open only where Windows has the extension for them.</summary>
+    public static readonly string[] PictureExtensions = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".heic", ".heif", ".webp"];
+
+    /// <summary>Files that are printed as plain text.</summary>
+    public static readonly string[] TextExtensions = [".txt", ".text", ".md", ".markdown", ".csv"];
 
     private const double PointsPerDip = 72.0 / 96;
     /// <summary>The density a picture is sized by when it states none worth believing (below 72 dpi).</summary>
@@ -30,7 +35,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     {
         string name = Path.GetFileName(path);
         string extension = Path.GetExtension(path).ToLowerInvariant();
-        bool named = extension == ".pdf" || PictureExtensions.Contains(extension);
+        bool named = extension == ".pdf" || PictureExtensions.Contains(extension) || TextExtensions.Contains(extension);
 
         Source source;
         LoadedDocument document;
@@ -45,6 +50,10 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 document = new LoadedDocument(name, new DocumentKind.Pdf(pdf.Protected), pdf.PageSizes);
                 _files.Add(document, bytes);
             }
+            else if (TextExtensions.Contains(extension))
+            {
+                (source, document) = await OpenTextAsync(path, name, token);
+            }
             else
             {
                 PictureSource picture;
@@ -52,13 +61,17 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 {
                     picture = await Task.Run(() => PictureSource.Open(path), token);
                 }
-                catch (Exception e) when (LacksHeifCodec(extension, e))
+                catch (Exception e) when (LacksCodec(extension, e) is not null)
                 {
-                    throw new InvalidOperationException(DocumentText.NeedsHeif, e);
+                    throw new InvalidOperationException(LacksCodec(extension, e), e);
                 }
                 catch (Exception e) when (!named && e is not OperationCanceledException)
                 {
-                    throw new InvalidOperationException(DocumentText.NotSupported, e);
+                    // Not a picture either: a file with no name that says so may still be text.
+                    if (!await Task.Run(() => LooksLikeText(path), token)) throw new InvalidOperationException(DocumentText.NotSupported, e);
+                    var text = await OpenTextAsync(path, name, token);
+                    _sources.Add(text.Document, text.Source);
+                    return text.Document;
                 }
                 source = picture;
                 document = new LoadedDocument(name, new DocumentKind.Photo(), picture.Sizes);
@@ -73,14 +86,49 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         return document;
     }
 
-    /// <summary>A HEIC or HEIF file that WIC has no decoder for (WINCODEC_ERR_COMPONENTNOTFOUND): the Store's extension is missing.</summary>
-    internal static bool LacksHeifCodec(string extension, Exception e)
+    private static async Task<(Source Source, LoadedDocument Document)> OpenTextAsync(string path, string name, CancellationToken token)
     {
-        if (extension is not (".heic" or ".heif")) return false;
+        byte[] bytes = await File.ReadAllBytesAsync(path, token);
+        var size = PaperSizes.Points(PaperSizes.DefaultForRegion(RegionInfo.CurrentRegion.TwoLetterISORegionName))!.Value;
+        var pages = TextPages.Paginate(TextPages.Decode(bytes, SystemCodePage()), size);
+        if (pages.Count == 0) throw new InvalidOperationException(DocumentText.NoText);
+        // The page is the usual paper where the user lives: the printer's paper is not known yet, and the page is fitted to it
+        // later. Nothing of it goes to a printer as it is.
+        return (new TextSource(pages, size), new LoadedDocument(name, new DocumentKind.Imposed(), [.. pages.Select(_ => size)]));
+    }
+
+    private static Encoding SystemCodePage()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.ANSICodePage);
+    }
+
+    /// <summary>No NUL byte in the first 1024: not a PDF or a picture, but it could be read as text.</summary>
+    private static bool LooksLikeText(string path)
+    {
+        using var stream = OpenShared(path);
+        var start = new byte[1024];
+        int read = stream.ReadAtLeast(start, start.Length, throwOnEndOfStream: false);
+        return read > 0 && start.AsSpan(0, read).IndexOf((byte)0) < 0;
+    }
+
+    /// <summary>
+    /// The sentence for a HEIC, HEIF or WebP file that WIC has no decoder for (WINCODEC_ERR_COMPONENTNOTFOUND): the Store's
+    /// extension is missing. Null for any other failure.
+    /// </summary>
+    internal static string? LacksCodec(string extension, Exception e)
+    {
+        string? needs = extension switch
+        {
+            ".heic" or ".heif" => DocumentText.NeedsHeif,
+            ".webp" => DocumentText.NeedsWebP,
+            _ => null,
+        };
+        if (needs is null) return null;
         // WPF wraps the COMException in a NotSupportedException.
         for (var x = e; x is not null; x = x.InnerException)
-            if (x.HResult == unchecked((int)0x88982F50)) return true;
-        return false;
+            if (x.HResult == unchecked((int)0x88982F50)) return needs;
+        return null;
     }
 
     public BitmapSource Render(LoadedDocument document, int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
@@ -200,6 +248,37 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             var frame = BitmapDecoder.Create(copy, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad).Frames[0];
             frame.Freeze();
             return frame;
+        }
+    }
+
+    private sealed class TextSource(IReadOnlyList<IReadOnlyList<string>> pages, LayoutSize size) : Source
+    {
+        private static readonly Typeface Face = new("Courier New");
+
+        public override BitmapSource Render(int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
+        {
+            var shown = crop ?? new LayoutRect(0, 0, size.Width, size.Height);
+            var visual = new DrawingVisual();
+            using (var context = visual.RenderOpen())
+            {
+                // Drawn in points, then scaled to the pixels asked for.
+                context.PushTransform(new ScaleTransform(pixelWidth / shown.Width, pixelHeight / shown.Height));
+                context.PushTransform(new TranslateTransform(-shown.X, -shown.Y));
+                context.DrawRectangle(Brushes.White, null, new Rect(0, 0, size.Width, size.Height));
+                for (int i = 0; i < pages[page].Count; i++)
+                {
+                    if (pages[page][i].Length == 0) continue;
+                    var text = new FormattedText(pages[page][i], CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face,
+                                                 TextPages.FontSize, Brushes.Black, 1.0);
+                    context.DrawText(text, new Point(TextPages.Margin, TextPages.Margin + i * TextPages.LineHeight));
+                }
+                context.Pop();
+                context.Pop();
+            }
+            var bitmap = new RenderTargetBitmap(pixelWidth, pixelHeight, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(visual);
+            bitmap.Freeze();
+            return bitmap;
         }
     }
 

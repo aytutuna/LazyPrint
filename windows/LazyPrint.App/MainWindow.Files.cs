@@ -11,13 +11,14 @@ namespace LazyPrint.App;
 // window. The view model opens them and says in the error bar which it could not.
 public partial class MainWindow
 {
-    /// <summary>The picker's filter: PDFs and pictures together first, then each alone, then every file.</summary>
+    /// <summary>The picker's filter: PDFs, pictures and text together first, then each alone, then every file.</summary>
     private static string FileFilter
     {
         get
         {
             var pictures = string.Join(";", DocumentLoader.PictureExtensions.Select(e => "*" + e));
-            return $"PDFs and pictures|*.pdf;{pictures}|PDFs|*.pdf|Pictures|{pictures}|All files (*.*)|*.*";
+            var text = string.Join(";", DocumentLoader.TextExtensions.Select(e => "*" + e));
+            return $"PDFs, pictures and text|*.pdf;{pictures};{text}|PDFs|*.pdf|Pictures|{pictures}|Text|{text}|All files (*.*)|*.*";
         }
     }
 

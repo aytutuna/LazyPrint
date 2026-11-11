@@ -32,6 +32,8 @@ public sealed class FileAssociationTests : IDisposable
         Assert.Contains((@"Applications\LazyPrint.exe\SupportedTypes", ".pdf", ""), entries);
         Assert.Contains((@"Applications\LazyPrint.exe\SupportedTypes", ".heic", ""), entries);
         Assert.Contains((@"Applications\LazyPrint.exe\SupportedTypes", ".heif", ""), entries);
+        Assert.Contains((@"Applications\LazyPrint.exe\SupportedTypes", ".webp", ""), entries);
+        Assert.Contains((@".txt\OpenWithProgids", "LazyPrint.File", ""), entries);
         Assert.Contains((@".pdf\OpenWithProgids", "LazyPrint.File", ""), entries);
         Assert.Contains((@".tiff\OpenWithProgids", "LazyPrint.File", ""), entries);
         Assert.DoesNotContain(entries, e => e.Key.StartsWith('.') && !e.Key.EndsWith(@"\OpenWithProgids"));

@@ -208,7 +208,7 @@ public partial class MainWindow
         int pages = ViewModel.PageCount;
         DocumentStripLabel.Text = $"{documents.Count} document{(documents.Count == 1 ? "" : "s")} · {pages} page{(pages == 1 ? "" : "s")}";
         AddFilesButton.IsEnabled = EmptyAddFilesButton.IsEnabled = ViewModel.DocumentsLockedReason is null;
-        AddFilesButton.ToolTip = ViewModel.DocumentsLockedReason ?? "Add PDFs and pictures (Ctrl+O)";
+        AddFilesButton.ToolTip = ViewModel.DocumentsLockedReason ?? "Add PDFs, pictures and text (Ctrl+O)";
         SchedulePreview();
     }
 

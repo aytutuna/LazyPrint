@@ -230,9 +230,9 @@ public class DocumentLoaderTests
     [Fact]
     public async Task AFileOfAnotherKindIsRefused()
     {
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Open("notes.txt"));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Open("report.docx"));
 
-        Assert.Equal("Lazy Print prints PDFs and pictures. Save it as a PDF first.", error.Message);
+        Assert.Equal("Lazy Print prints PDFs, pictures and plain text. Save it as a PDF first.", error.Message);
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public class DocumentLoaderTests
     public async Task AFileWithNoNameAndNoContentWeKnowIsRefused()
     {
         string path = Path.Combine(Path.GetTempPath(), "lazyprint-" + Guid.NewGuid().ToString("N"));
-        File.Copy(DocumentFixtures.PathOf("notes.txt"), path);
+        File.Copy(DocumentFixtures.PathOf("report.docx"), path);
         try
         {
             var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(path, CancellationToken.None));
@@ -293,15 +293,105 @@ public class DocumentLoaderTests
     }
 
     [Theory]
-    [InlineData(".heic", 0x88982F50, true)]
-    [InlineData(".heif", 0x88982F50, true)]
-    [InlineData(".heic", 0x88982F61, false)]
-    [InlineData(".png", 0x88982F50, false)]
-    public void OnlyAMissingDecoderForHeifAsksForTheExtension(string extension, uint code, bool asks)
+    [InlineData(".heic", 0x88982F50, DocumentText.NeedsHeif)]
+    [InlineData(".heif", 0x88982F50, DocumentText.NeedsHeif)]
+    [InlineData(".webp", 0x88982F50, DocumentText.NeedsWebP)]
+    [InlineData(".heic", 0x88982F61, null)]
+    [InlineData(".png", 0x88982F50, null)]
+    public void OnlyAMissingDecoderAsksForTheExtension(string extension, uint code, string? asks)
     {
         var error = new NotSupportedException("", new System.Runtime.InteropServices.COMException("", unchecked((int)code)));
 
-        Assert.Equal(asks, DocumentLoader.LacksHeifCodec(extension, error));
+        Assert.Equal(asks, DocumentLoader.LacksCodec(extension, error));
+    }
+
+    private static string WriteText(string name, byte[] bytes)
+    {
+        string path = Path.Combine(Path.GetTempPath(), "lazyprint-" + Guid.NewGuid().ToString("N") + name);
+        File.WriteAllBytes(path, bytes);
+        return path;
+    }
+
+    [Fact]
+    public async Task ATextFileIsPagesOfLinesDrawnInBlack()
+    {
+        string path = WriteText(".txt", "X\n"u8.ToArray());
+        try
+        {
+            var document = await _loader.LoadAsync(path, CancellationToken.None);
+
+            Assert.Equal(new DocumentKind.Imposed(), document.Kind);
+            var size = Assert.Single(document.Pages);
+            Assert.True(size.Width is 612 or (> 595 and < 596));
+            var page = await StaWork.Run(() => _loader.Render(document, 0, null, (int)size.Width, (int)size.Height));
+            Pixels.AssertColor(Pixels.White, page, (int)size.Width - 10, (int)size.Height - 10);
+            bool inked = false;
+            for (int y = 54; y < 70 && !inked; y++)
+                for (int x = 54; x < 64 && !inked; x++) inked = Pixels.At(page, x, y).R < 100;
+            Assert.True(inked);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ATextFileWithNoNameIsTextToo()
+    {
+        string path = WriteText("", "one\r\ntwo\r\n"u8.ToArray());
+        try
+        {
+            var document = await _loader.LoadAsync(path, CancellationToken.None);
+
+            Assert.Equal(new DocumentKind.Imposed(), document.Kind);
+            Assert.Single(document.Pages);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ATextFileWithNothingInItIsRefused()
+    {
+        string path = WriteText(".txt", "  \r\n"u8.ToArray());
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(path, CancellationToken.None));
+
+            Assert.Equal(DocumentText.NoText, error.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AWebPOpensOrAsksForTheExtension()
+    {
+        // The smallest lossless WebP (1 x 1).
+        string path = WriteText(".webp", Convert.FromBase64String("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="));
+        try
+        {
+            try
+            {
+                var document = await _loader.LoadAsync(path, CancellationToken.None);
+
+                Assert.Equal(new DocumentKind.Photo(), document.Kind);
+                Assert.Single(document.Pages);
+            }
+            catch (InvalidOperationException e)
+            {
+                Assert.Equal(DocumentText.NeedsWebP, e.Message);
+            }
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

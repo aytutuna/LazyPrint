@@ -291,7 +291,7 @@
                                         <TextBlock Text="{x:Static local:ShortText.AddFiles}" Style="{StaticResource EmptyStateBodyStyle}" />
                                         <Button x:Name="EmptyAddFilesButton" Style="{StaticResource SubtleButtonStyle}"
                                                 local:Icon.Glyph="&#xE710;" Content="Add _files…" HorizontalAlignment="Center"
-                                                Margin="0,16,0,0" ToolTip="Add PDFs and pictures (Ctrl+O)" Click="AddFiles_Click" />
+                                                Margin="0,16,0,0" ToolTip="Add PDFs, pictures and text (Ctrl+O)" Click="AddFiles_Click" />
                                         <TextBlock Text="{x:Static local:ShortText.DropHint}" Style="{StaticResource CaptionText}"
                                                    TextAlignment="Center" TextWrapping="Wrap" Margin="0,2,0,0" />
                                     </StackPanel>
@@ -341,7 +341,7 @@
                                 <StackPanel>
                                     <DockPanel Margin="2,0,0,6">
                                         <Button DockPanel.Dock="Right" x:Name="AddFilesButton" Style="{StaticResource SubtleButtonStyle}"
-                                                local:Icon.Glyph="&#xE710;" Content="Add _files…" ToolTip="Add PDFs and pictures (Ctrl+O)"
+                                                local:Icon.Glyph="&#xE710;" Content="Add _files…" ToolTip="Add PDFs, pictures and text (Ctrl+O)"
                                                 Click="AddFiles_Click" />
                                         <TextBlock x:Name="DocumentStripLabel" Style="{StaticResource CaptionText}" TextWrapping="NoWrap"
                                                    VerticalAlignment="Center" />
