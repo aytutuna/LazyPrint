@@ -116,6 +116,12 @@ public sealed partial class AppViewModel
         }
         return InAddingTurnAsync(async token =>
         {
+            // A job may have begun while this load waited for its turn.
+            if (DocumentsLockedReason is not null)
+            {
+                QueueFiles(paths);
+                return;
+            }
             var (opened, failed) = await OpenFilesAsync(paths, token);
             foreach (var document in opened) Documents.Add(document);
             if (failed.Count > 0) ReportNotAdded(failed);
@@ -152,7 +158,7 @@ public sealed partial class AppViewModel
     private void QueueFiles(IEnumerable<string> paths)
     {
         _queuedFiles.AddRange(paths);
-        ShowNotice(PrintText.FilesQueuedTitle, PrintText.FilesQueued);
+        ShowNotice(ShortText.FilesQueuedTitle, ShortText.FilesQueued);
     }
 
     /// <summary>Adds the files that came while the job was going, once nothing holds the documents any more.</summary>
@@ -161,6 +167,7 @@ public sealed partial class AppViewModel
         if (_queuedFiles.Count == 0 || DocumentsLockedReason is not null) return;
         string[] paths = [.. _queuedFiles];
         _queuedFiles.Clear();
+        if (ErrorTitle == ShortText.FilesQueuedTitle) DismissError();
         await AddFilesAsync(paths);
     }
 
@@ -487,7 +494,7 @@ public sealed partial class AppViewModel
     /// <summary>The test page goes straight to the printer in use.</summary>
     public async Task PrintTestPageAsync()
     {
-        if (SelectedPrinter is not { } printer || IsBusy || _manual is not null) return;
+        if (SelectedPrinter is not { } printer || IsBusy || IsAddingFiles || _manual is not null) return;
         var caps = SelectedCapabilities;
         var area = PrintJobs.Area(PaperSizes.Parse(Settings.PaperId), caps, false);
         var info = new TestPageInfo(printer.Name, printer.Model ?? caps?.MakeAndModel ?? "", printer.Address ?? "", DateTime.Now.ToString("g"));
@@ -516,7 +523,7 @@ public sealed partial class AppViewModel
     /// <summary>The Jobs tab's Print again: the job is planned once more from what it was made of, with what is known of the printer now.</summary>
     public async Task PrintAgainAsync(string id)
     {
-        if (IsBusy || _manual is not null) return;
+        if (IsBusy || IsAddingFiles || _manual is not null) return;
         if (!_again.TryGetValue(id, out var again))
         {
             ShowNotice("Print again", "This job is too old to print again. Add its files again.");
