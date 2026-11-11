@@ -28,6 +28,7 @@ public sealed partial class AppViewModel
 
     /// <summary>The pass that ended last was handed over without the printer saying it printed.</summary>
     private bool _unconfirmed;
+    private bool _spooled;
 
     /// <summary>What a job was made from, so Print again can make it once more.</summary>
     private sealed record JobInputs(PrinterInfo Printer, PrinterCapabilities? Capabilities, PrintSettings Settings, PrintTask? Task,
@@ -220,6 +221,9 @@ public sealed partial class AppViewModel
 
     public bool CanPrint => PrintDisabledReason is null;
 
+    /// <summary>The job being followed is in the system's print queue, which keeps it when the app closes.</summary>
+    public bool JobIsInSpooler => _job is not null && _spooled;
+
     /// <summary>The worst problem of the printer in use (paused, offline, out of paper); Print still works, as the queue takes the job.</summary>
     public string? PrinterTrouble => SelectedPrinter?.Problems.FirstOrDefault(p => p.IsError)?.Title;
 
@@ -268,7 +272,7 @@ public sealed partial class AppViewModel
 
     private void Sent(JobRecord record, PrinterInfo printer)
     {
-        SetJob(record.Id, JobState.Done, null);
+        SetJob(record.Id, JobState.Done, _unconfirmed ? PrintText.SentStatus : null);
         _statusOverride = _unconfirmed ? PrintText.SentStatus : PrintText.Printed;
         SentMessage = PrintText.Sent(record.Sheets, printer.Name, record.Copies);
         _lastFailure = null;
@@ -287,6 +291,7 @@ public sealed partial class AppViewModel
         _passEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _jobRunning = recordId;
         _unconfirmed = false;
+        _spooled = false;
         IsBusy = true;
         SetJob(recordId, JobState.Sending, null);
         _statusOverride = PrintText.Printing(1, sides);
@@ -298,6 +303,7 @@ public sealed partial class AppViewModel
                 if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
                 SetJob(recordId, status.State, status.Detail);
                 _unconfirmed = status.Unconfirmed;
+                if (printer.Route == PrinterRoute.System && status.State != JobState.Sending) _spooled = true;
                 _statusOverride = status.State == JobState.NeedsUser && status.Detail is { } detail
                     ? detail
                     : PrintText.Printing(Math.Min(status.SidesDone + 1, sides), sides);
