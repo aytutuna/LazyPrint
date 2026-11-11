@@ -37,6 +37,8 @@ The product is "Lazy Print" in text, `LazyPrint` in code. Lazy Scan's identifier
 
 Pure functions over sizes; nothing here reads a file or draws. `PaperSize` is Lazy Scan's (`Core/PaperSize.swift`, `PaperSize.cs`) with its regional default; `PrintCopies` and the ruler page (`PrintCalibration`) come from Lazy Scan's `PrintLayout` unchanged.
 
+Trays and paper types are the printer's own lists: `MediaChoices.sources` / `types` (`Sources` / `Types` in C#) are `media-source-supported` and `media-type-supported` without "auto" (CUPS `media-source` and `media-type`, which PPD queues fill from InputSlot and MediaType; on Windows the driver's `InputBin` and `PageMediaType`, named as the keywords: Cassette "tray-1", AutoSheetFeeder "main", Manual "manual"; Plain and Stationery "stationery", Photographic "photographic", PhotographicGlossy "photographic-glossy", EnvelopePlain "envelope-plain", Label "labels", CardStock "cardstock", and so on). A printer that lists none (AirPrint on the iPhone) has no Tray and Paper type rows; otherwise each is a picker with Automatic first, `PrintSettings.mediaSource` / `mediaType` being the keyword or "auto". A choice the printer in use does not list is not sent. IPP sends the choice as `media-type` and `media-source` members of the job's `media-col`, in place of the database entry's own, when `media-col-supported` lists them (or lists nothing); a sheet with no database entry but a type or tray is sent as a media-col of its size, margins and those, not as `media`. A photo task left on Automatic asks for the printer's photo paper (`MediaChoices.photoType`: photographic, then glossy, semi-gloss, satin, matte, high gloss, then any "photographic-"), and for none when it lists no photo type. Windows sets `InputBin` and `PageMediaType` in the print ticket when the driver lists them. Labels are `MediaChoices.sourceLabel` / `typeLabel` ("Main tray", "Tray 2", "Manual feed", "Plain", "Glossy photo", "Card stock"; an unknown keyword is shown as words).
+
 Any size a printer lists can be chosen, so `PrintSettings.paperId` is a `PaperSize` raw value or a PWG self-describing media name (`PaperSizes.pointsOf` / `PointsOf` gives its portrait size in points; "auto" and anything unreadable give none). `PaperSizes.pwgSize` reads `iso_a3_297x420mm`, `na_letter_8.5x11in`, `om_small-photo_100x150mm` (width x height in `mm` or `in`, decimals allowed, either order, portrait out; the `custom_min_` and `custom_max_` names are not sizes); `mediaSize` also reads CUPS and PPD names ("A4", "Letter", "EnvDL", "a4.Borderless", "Custom.612x792", "w612h792"). A size the printer lists and no case names is stored as `custom_sheet_<w>x<h>mm`, millimetres to 0.1. `PaperSizes.listed(printer)` is the printer's sizes, each once, from `media-col-database`, `media-col-ready`, `media-supported` and `media-ready`; `choices(printer, chosenId, region)` is what a picker shows: Automatic, those sizes (the region's usual one first, then by area; Letter, A4, Legal, A5, A6, B5 (JIS), ID card, 4 x 6 and 5 x 7 when the printer lists none), and "Custom size" when the printer takes a range, with the entry that is chosen. A chosen size the printer does not list is its own entry, or "Custom size" when the range takes it; a size typed in is always "Custom size". Common sizes are named ("A3", "B4", "B5", "Tabloid", "8 × 10 in", "Envelope #10", "Envelope DL", "Envelope C5"), the rest show as "100 × 200 mm" (inches in the regions that use Letter). The range is `PrinterCapabilities.customPaper` (`media-size-supported` with a range; on Windows, a driver entry with no size, taken as 2 to 19 in).
 
 ```swift
@@ -346,6 +348,8 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var scaling: Scaling = .shrinkToFit
     public var scale: Int = 100
     public var paperId: String = "auto"         // a PaperSize raw value or a PWG media name ("iso_a3_297x420mm", "custom_sheet_100x200mm"); auto = what the printer has loaded, else the regional default
+    public var mediaSource: String = "auto"     // a media-source keyword the printer lists ("main", "tray-2", "manual"); auto = the printer picks
+    public var mediaType: String = "auto"       // a media-type keyword the printer lists ("stationery", "photographic-glossy"); auto = the printer picks
     public var photoSizeId: String = "4x6"
     public var photoFill: Bool = true
     public var cutMarks: Bool = true
@@ -356,10 +360,12 @@ public struct PrinterPrefs: Codable, Equatable, Sendable {
     public var sides: Sides?
     public var color: ColorChoice?
     public var quality: QualityChoice?
+    public var mediaSource: String?
+    public var mediaType: String?
 }
 ```
 
-Both files follow Global rule 5. Each printer remembers its own paper, two-sided, color and quality: choosing a printer brings back the ones last used with it (`PrinterPrefs.apply` / `ApplyTo`; a printer never used keeps the current values), and changing one while a printer is in use keeps it for that printer (`remembering` / `Remembering`). Copies, range and layout stay with the task. `printers.json` maps `PrinterInfo.id` to `PrinterPrefs`; ids are stable across runs: a system queue is always `system:` and its name, whether or not its IPP twin answered this time; a printer only on the network is `ipp:` and its UUID (`ipp:name:` and its instance name without one); the demo printer is `demo`.
+Both files follow Global rule 5. Each printer remembers its own paper, tray, paper type, two-sided, color and quality: choosing a printer brings back the ones last used with it (`PrinterPrefs.apply` / `ApplyTo`; a printer never used keeps the current values), and changing one while a printer is in use keeps it for that printer (`remembering` / `Remembering`). Copies, range and layout stay with the task. `printers.json` maps `PrinterInfo.id` to `PrinterPrefs`; ids are stable across runs: a system queue is always `system:` and its name, whether or not its IPP twin answered this time; a printer only on the network is `ipp:` and its UUID (`ipp:name:` and its instance name without one); the demo printer is `demo`.
 
 ### Core/Printers (the printer list)
 

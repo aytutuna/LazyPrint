@@ -157,6 +157,12 @@ struct InspectorView: View {
                 if papers.selected == PaperSizes.customId { CustomPaperFields() }
                 if let note = rules.paperNote { self.note(note) }
             }
+            mediaField("Tray", ids: MediaChoices.sources(state.capabilities), label: MediaChoices.sourceLabel, selection: Binding(
+                get: { MediaChoices.sources(state.capabilities).contains(state.settings.mediaSource) ? state.settings.mediaSource : MediaChoices.auto },
+                set: { state.settings.mediaSource = $0 }))
+            mediaField("Paper type", ids: MediaChoices.types(state.capabilities), label: MediaChoices.typeLabel, selection: Binding(
+                get: { MediaChoices.types(state.capabilities).contains(state.settings.mediaType) ? state.settings.mediaType : MediaChoices.auto },
+                set: { state.settings.mediaType = $0 }))
             field("Quality") {
                 Picker("Quality", selection: Binding(
                     get: { rules.qualityEnabled ? state.settings.quality : QualityChoice.normal },
@@ -202,6 +208,22 @@ struct InspectorView: View {
     }
 
     // MARK: Parts
+
+    /// A picker of what the printer lists, with Automatic first; the row is left out when it lists none.
+    @ViewBuilder
+    private func mediaField(_ title: String, ids: [String], label: @escaping (String) -> String, selection: Binding<String>) -> some View {
+        if !ids.isEmpty {
+            field(title) {
+                Picker(title, selection: selection) {
+                    Text("Automatic").tag(MediaChoices.auto)
+                    ForEach(ids, id: \.self) { id in
+                        Text(label(id)).tag(id)
+                    }
+                }
+                .labelsHidden()
+            }
+        }
+    }
 
     private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {

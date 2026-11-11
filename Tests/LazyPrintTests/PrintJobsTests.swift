@@ -390,4 +390,63 @@ final class PrintJobsTests: XCTestCase {
         let job = makePlan([doc(1)], makeSettings { $0.paperId = "iso_a3_297x420mm" }, nil)
         XCTAssertEqual(job.plan.area.paper.width, 297 * 72 / 25.4, accuracy: 0.1)
     }
+
+    private func withMedia(_ basis: PrinterCapabilities, types: [String]) -> PrinterCapabilities {
+        var caps = PrinterCapabilities()
+        caps.sidesSupported = basis.sidesSupported
+        caps.copiesSupported = basis.copiesSupported
+        caps.mediaColDatabase = basis.mediaColDatabase
+        caps.mediaColReady = basis.mediaColReady
+        caps.mediaColSupported = ["media-size", "media-top-margin", "media-type", "media-source"]
+        caps.mediaTypeSupported = types
+        caps.mediaSourceSupported = ["main", "tray-2"]
+        return caps
+    }
+
+    private func keyword(_ ticket: IppJobTicket, _ name: String) throws -> String {
+        let members = try XCTUnwrap(ticket.media.entry)
+        let member = try XCTUnwrap(members.first { $0.name == name })
+        guard case .keyword(let value) = member.values[0] else { return "" }
+        return value
+    }
+
+    func test_ticket_theTypeAndTrayGoInTheMediaCol_inPlaceOfTheEntrys() throws {
+        let caps = withMedia(hp, types: ["stationery", "labels"])
+        let settings = makeSettings { $0.paperId = "letter"; $0.mediaType = "labels"; $0.mediaSource = "tray-2" }
+        let ticket = PrintJobs.ticket(makePlan([doc(1)], settings, caps), settings: settings, format: "application/pdf", printer: caps, name: "x")
+        XCTAssertEqual(try keyword(ticket, "media-type"), "labels")
+        XCTAssertEqual(try keyword(ticket, "media-source"), "tray-2")
+        XCTAssertTrue(try XCTUnwrap(ticket.media.entry).contains { $0.name == "media-size" })
+    }
+
+    func test_ticket_aSheetWithNoEntryIsSentAsAMediaColWhenATypeIsAsked() throws {
+        var caps = PrinterCapabilities()
+        caps.mediaColSupported = ["media-size", "media-type"]
+        caps.mediaTypeSupported = ["stationery", "cardstock"]
+        let settings = makeSettings { $0.mediaType = "cardstock" }
+        let ticket = PrintJobs.ticket(makePlan([doc(1)], settings, caps), settings: settings, format: "application/pdf", printer: caps, name: "x")
+        XCTAssertEqual(try XCTUnwrap(ticket.media.entry).map { $0.name }, ["media-size", "media-type"])
+
+        let none = makeSettings()
+        XCTAssertNil(PrintJobs.ticket(makePlan([doc(1)], none, caps), settings: none, format: "application/pdf", printer: caps, name: "x").media.entry)
+    }
+
+    func test_ticket_aTypeTheMediaColDoesNotTake_isLeftOut() {
+        var caps = PrinterCapabilities()
+        caps.mediaColDatabase = hp.mediaColDatabase
+        caps.mediaColSupported = ["media-size"]
+        caps.mediaTypeSupported = ["labels"]
+        let settings = makeSettings { $0.paperId = "letter"; $0.mediaType = "labels" }
+        let ticket = PrintJobs.ticket(makePlan([doc(1)], settings, caps), settings: settings, format: "application/pdf", printer: caps, name: "x")
+        let sent = (ticket.media.entry ?? []).contains { $0.values.first == .keyword("labels") }
+        XCTAssertFalse(sent)
+    }
+
+    func test_ticket_aPhotoTaskAsksForThePhotoType() throws {
+        let caps = withMedia(epson, types: ["stationery", "photographic-glossy"])
+        let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
+        let settings = makeSettings { $0.taskId = "photos" }
+        let ticket = PrintJobs.ticket(makePlan([photo], settings, caps, task: .photos), settings: settings, format: "image/jpeg", printer: caps, name: "x")
+        XCTAssertEqual(try keyword(ticket, "media-type"), "photographic-glossy")
+    }
 }

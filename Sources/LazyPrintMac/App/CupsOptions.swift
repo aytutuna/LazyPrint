@@ -8,8 +8,9 @@ import LazyPrintKit
 enum CupsOptions {
     /// `copies` is what the queue makes (JobPlan.copiesInJob); `media` is the PWG or PPD name of the paper's closest size
     /// in the queue. `duplexPass` is a pass of a two-sided job done by hand: it prints one side whatever `sides` says.
+    /// `source` and `type` are the tray and paper type the queue lists (InputSlot and MediaType of its PPD), when chosen.
     static func forJob(sides: Sides, copies: Int, collate: Bool, color: ColorChoice, quality: QualityChoice,
-                       media: String?, duplexPass: Bool) -> [String: String] {
+                       media: String?, duplexPass: Bool, source: String? = nil, type: String? = nil) -> [String: String] {
         var options = [
             "document-format": "application/pdf",
             "orientation-requested": "3",
@@ -28,6 +29,8 @@ enum CupsOptions {
                 ? "separate-documents-collated-copies" : "separate-documents-uncollated-copies"
         }
         if let media { options["media"] = media }
+        if let source { options["media-source"] = source }
+        if let type { options["media-type"] = type }
         return options
     }
 }

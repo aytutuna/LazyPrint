@@ -134,6 +134,10 @@ struct OptionsSheet: View {
                    options: papers.options.map { (paper: PaperOption) -> (String, String) in (paper.label, paper.id) },
                    reason: rules.paperNote, id: "print.paper")
             if papers.selected == PaperSizes.customId { CustomPaperFields() }
+            mediaChoice("Tray", ids: MediaChoices.sources(state.capabilities), label: MediaChoices.sourceLabel, current: state.settings.mediaSource,
+                        set: { (id: String) in state.settings.mediaSource = id }, id: "print.tray")
+            mediaChoice("Paper type", ids: MediaChoices.types(state.capabilities), label: MediaChoices.typeLabel,
+                        current: state.settings.mediaType, set: { (id: String) in state.settings.mediaType = id }, id: "print.paperType")
             Choice(title: "Quality", selection: Binding(
                 get: { rules.qualityEnabled ? state.settings.quality : QualityChoice.normal },
                 set: { (quality: QualityChoice) in state.settings.quality = quality }),
@@ -144,6 +148,19 @@ struct OptionsSheet: View {
                 set: { (color: ColorChoice) in state.settings.color = color }),
                    options: [("Color", ColorChoice.color), ("Gray", ColorChoice.gray)],
                    segmented: true, enabled: rules.colorEnabled, reason: rules.colorReason, id: "print.color")
+        }
+    }
+
+    /// A menu of what the printer lists, with Automatic first; left out when it lists none (AirPrint lists nothing).
+    @ViewBuilder
+    private func mediaChoice(_ title: String, ids: [String], label: (String) -> String, current: String,
+                             set: @escaping (String) -> Void, id: String) -> some View {
+        if !ids.isEmpty {
+            Choice(title: title, selection: Binding(
+                get: { ids.contains(current) ? current : MediaChoices.auto },
+                set: set),
+                   options: [("Automatic", MediaChoices.auto)] + ids.map { (item: String) -> (String, String) in (label(item), item) },
+                   id: id)
         }
     }
 

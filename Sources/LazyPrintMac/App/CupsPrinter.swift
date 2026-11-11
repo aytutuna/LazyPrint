@@ -54,7 +54,9 @@ public final class CupsPrinter: SheetPrinter {
 
         let options = CupsOptions.forJob(sides: job.plan.plan.duplex ? .longEdge : .oneSided, copies: job.plan.copiesInJob,
                                          collate: job.settings.collate, color: job.settings.color,
-                                         quality: job.settings.quality, media: prepared.media, duplexPass: job.plan.manualDuplex)
+                                         quality: job.settings.quality, media: prepared.media, duplexPass: job.plan.manualDuplex,
+                                         source: MediaChoices.source(job.settings, job.capabilities),
+                                         type: MediaChoices.type(job.settings, job.capabilities))
         progress(JobStatus(state: .sending, sidesDone: 0))
         let sent = await Self.submit(file, queue: queue, title: job.name, options: options)
         guard sent.id > 0 else { throw PrintError.refused(status: UInt16(truncatingIfNeeded: sent.status), detail: sent.message) }

@@ -154,7 +154,7 @@ public enum PrintJobs {
                             copies: job.copiesInJob,
                             sides: sides,
                             colorMode: mode,
-                            media: media(sheet, printer),
+                            media: media(sheet, printer, type: MediaChoices.type(settings, printer), source: MediaChoices.source(settings, printer)),
                             quality: printer?.printQualitySupported.contains(quality) == true ? quality : nil,
                             scaling: printScaling(settings.scaling, printer: printer, asIs: asIs),
                             collatedCopies: collated)
@@ -175,15 +175,26 @@ public enum PrintJobs {
         return wanted.first { listed.contains($0) }
     }
 
-    /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name.
-    private static func media(_ area: PrintableArea, _ printer: PrinterCapabilities?) -> IppMediaChoice {
+    /// The printer's database entry for the sheet, else a media-col of the sheet's size and margins, else its name. The type
+    /// and tray, when asked for, go in the media-col in place of the entry's own.
+    private static func media(_ area: PrintableArea, _ printer: PrinterCapabilities?, type: String?, source: String?) -> IppMediaChoice {
         let name = mediaName(area.paper)
-        let borderless = area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
-        if let entry = printer?.match(area.paper, borderless: borderless) {
-            return IppMediaChoice(entry: entry.attributes, name: name)
+        let supported = printer?.mediaColSupported ?? []
+        func chosen(_ members: [IppAttribute]) -> [IppAttribute] {
+            var members: [IppAttribute] = members
+            for (member, keyword) in [("media-type", type), ("media-source", source)] {
+                guard let keyword, supported.isEmpty || supported.contains(member) else { continue }
+                members.removeAll { (attribute: IppAttribute) -> Bool in attribute.name == member }
+                members.append(IppAttribute(member, .keyword(keyword)))
+            }
+            return members
         }
 
-        let supported = printer?.mediaColSupported ?? []
+        let borderless = area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
+        if let entry = printer?.match(area.paper, borderless: borderless) {
+            return IppMediaChoice(entry: entry.attributes.isEmpty ? entry.attributes : chosen(entry.attributes), name: name)
+        }
+
         func hundredths(_ points: Double) -> IppValue {
             .integer(Int32((points * 2540 / 72).rounded(.toNearestOrEven)))
         }
@@ -194,6 +205,7 @@ public enum PrintJobs {
         for (margin, points) in margins where supported.contains(margin) {
             members.append(IppAttribute(margin, hundredths(points)))
         }
+        members = chosen(members)
         return IppMediaChoice(entry: members.count > 1 ? members : nil, name: name)
     }
 

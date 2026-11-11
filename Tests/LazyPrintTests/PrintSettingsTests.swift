@@ -175,6 +175,23 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(other.pagesPerSheet, 1)
     }
 
+    func test_printers_keepTheTrayAndPaperType() {
+        var settings = PrintSettings()
+        settings.mediaSource = "tray-2"
+        settings.mediaType = "photographic-glossy"
+        let prefs = PrinterPrefs().remembering(settings)
+        var other = PrintSettings()
+        prefs.apply(to: &other)
+        XCTAssertEqual(other.mediaSource, "tray-2")
+        XCTAssertEqual(other.mediaType, "photographic-glossy")
+
+        var untouched = PrintSettings()
+        untouched.mediaSource = "manual"
+        PrinterPrefs().apply(to: &untouched)
+        XCTAssertEqual(untouched.mediaSource, "manual")
+        XCTAssertEqual(PrintSettings().mediaType, "auto")
+    }
+
     func test_printers_unreadable_areMovedAside_andEmpty() throws {
         try write("[1, 2", to: printersURL)
         XCTAssertTrue(SettingsStore.loadPrinters(in: directory).isEmpty)
