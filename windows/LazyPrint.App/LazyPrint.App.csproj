@@ -21,7 +21,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The pairing QR (Services/ZXingQrEncoder.cs); the only third-party code in the app. -->
+    <!-- PDFium: the job as a vector PDF (Printing/PdfSheetWriter.cs). Its native pdfium.dll is copied for each runtime. -->
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="159.0.8152" />
+    <!-- The pairing QR (Services/ZXingQrEncoder.cs). -->
     <PackageReference Include="ZXing.Net" Version="[0.16.11]" />
   </ItemGroup>
 

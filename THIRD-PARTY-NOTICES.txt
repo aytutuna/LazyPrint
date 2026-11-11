@@ -57,6 +57,19 @@ ZXing.Net 0.16.11 (zxing.dll)
     Apache License 2.0, in full below. The app uses it only to draw the
     pairing QR code and makes no connections with it.
 
+PDFium 159.0.8152 (pdfium.dll, x64 and arm64)
+    Copyright 2014 The PDFium Authors. Apache License 2.0, in full below.
+    Built by Benoit Blanchon, from https://github.com/bblanchon/pdfium-binaries
+    (the bblanchon.PDFium.Win32 package, also Apache License 2.0). It lays out
+    the pages of a job as a PDF and draws PDF pages for printing.
+    The library has code from other projects built in: FreeType, Little CMS,
+    libjpeg-turbo, OpenJPEG, zlib, ICU, Abseil and Anti-Grain Geometry. Their
+    licences are the third_party notices of PDFium
+    (https://pdfium.googlesource.com/pdfium/+/main/third_party/) and of the
+    package. FreeType asks for this credit:
+    "Portions of this software are copyright (c) The FreeType Project
+    (www.freetype.org). All rights reserved."
+
 
 2. Licence texts
 
