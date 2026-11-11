@@ -284,7 +284,13 @@ public final class CompanionServer: @unchecked Sendable {
             try await link.receive(maxLength: maxLength, timeout: idle)
         }
         let response = await router.handle(CompanionRequest(head: head, body: body, remote: remote))
-        try await write(response, to: link)
+        do {
+            try await write(response, to: link)
+        } catch {
+            response.written?(false)
+            throw error
+        }
+        response.written?(true)
         // Leave the client its whole send when it is small, so closing does not cut off the answer.
         let limit: TimeInterval = options.discardTimeout
         let cutOff: Task<Void, Never> = Task {

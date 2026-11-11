@@ -18,6 +18,8 @@ public sealed class CompanionRouterTests : IDisposable
     private readonly CompanionInbox _inbox;
     private readonly CompanionRouter _router;
     private PairingSession? _pairing;
+    // What the server reports once it has tried to write a response.
+    private bool _delivered = true;
 
     public CompanionRouterTests()
     {
@@ -55,8 +57,10 @@ public sealed class CompanionRouterTests : IDisposable
         if (length is not null) list.Add(new("Content-Length", length.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         var head = new HttpRequestHead(method, target, list, length, false);
         var stream = new MemoryStream(body ?? []);
-        return await _router.HandleAsync(new CompanionRequest(head, new CompanionRequestBody(stream, length ?? 0), from ?? Phone),
-                                         CancellationToken.None);
+        var response = await _router.HandleAsync(new CompanionRequest(head, new CompanionRequestBody(stream, length ?? 0), from ?? Phone),
+                                                 CancellationToken.None);
+        response.Written?.Invoke(_delivered);
+        return response;
     }
 
     private async Task<string> PairPhone(string id = "phone-0001")
@@ -102,6 +106,20 @@ public sealed class CompanionRouterTests : IDisposable
         var again = await Send("POST", CompanionProtocol.PairPath, Json(new PairRequest(_pairing.Token, "phone-0002", "Other", "ios", "1.0")));
         Assert.Equal(403, again.Status);
         Assert.Equal(CompanionErrorCode.TokenUsed, CompanionError.FromJson(again.Body)!.Code);
+    }
+
+    [Fact]
+    public async Task Pair_ForgetsAPhoneThatNeverGotItsSecret()
+    {
+        _pairing = new PairingSession(_now);
+        int paired = 0;
+        _router.DevicePaired += (_, _) => paired++;
+        _delivered = false;
+        var response = await Send("POST", CompanionProtocol.PairPath, Json(new PairRequest(_pairing.Token, "phone-0001", "P", "ios", "1")));
+        Assert.Equal(200, response.Status);
+        Assert.Empty(_devices.Devices);
+        Assert.Equal(0, paired);
+        Assert.Equal(0, _router.AwaitingApproval);
     }
 
     [Fact]

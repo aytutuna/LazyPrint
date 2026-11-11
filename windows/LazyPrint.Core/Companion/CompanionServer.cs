@@ -371,7 +371,16 @@ public sealed class CompanionServer : IAsyncDisposable
             System.Diagnostics.Trace.TraceError($"A companion request failed: {e}");
             response = CompanionResponse.Error(500, CompanionError.ServerError);
         }
-        await WriteAsync(idle, response, stop).ConfigureAwait(false);
+        bool written = false;
+        try
+        {
+            await WriteAsync(idle, response, stop).ConfigureAwait(false);
+            written = true;
+        }
+        finally
+        {
+            response.Written?.Invoke(written);
+        }
         // Leave the client its whole send when it is small, so closing does not cut off the answer.
         using var discard = CancellationTokenSource.CreateLinkedTokenSource(stop);
         discard.CancelAfter(_options.DiscardTimeout);
