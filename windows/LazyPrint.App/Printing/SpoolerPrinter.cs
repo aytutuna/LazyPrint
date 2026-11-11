@@ -61,7 +61,16 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
     /// </summary>
     private static async Task FollowAsync(PrintQueue queue, HashSet<int> before, string name, IProgress<JobStatus> progress, CancellationToken token)
     {
-        if (Find(queue, before, name) is not { } id)
+        int? found;
+        try
+        {
+            found = Find(queue, before, name);
+        }
+        catch (PrintSystemException)
+        {
+            found = null;
+        }
+        if (found is not { } id)
         {
             progress.Report(new JobStatus(JobState.Waiting, 0, null, true));
             return;
@@ -159,7 +168,9 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
         try
         {
             using var info = queue.GetJob(id);
-            if ((info.JobStatus & PrintJobStatus.Printing) != 0)
+            const PrintJobStatus stuck = PrintJobStatus.Error | PrintJobStatus.Offline | PrintJobStatus.PaperOut | PrintJobStatus.Paused
+                                         | PrintJobStatus.UserIntervention | PrintJobStatus.Blocked;
+            if ((info.JobStatus & PrintJobStatus.Printing) != 0 && (info.JobStatus & stuck) == 0)
                 progress.Report(new JobStatus(JobState.Canceled, info.NumberOfPagesPrinted, PrintText.AlreadyAtPrinter));
             else info.Cancel();
         }
