@@ -33,7 +33,7 @@ func stateColor(_ state: PrinterState) -> Color {
 /// the demo printer says it is no hardware.
 struct PrinterLabel: View {
     let printer: PrinterInfo
-    /// Just the name and the ink, for the button at the top of Print.
+    /// Just the name and the ink, for the button at the top of Print; the demo printer still says it is no hardware.
     var slim = false
 
     var body: some View {
@@ -45,7 +45,7 @@ struct PrinterLabel: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(printer.name)
                     .lineLimit(2)
-                if printer.route == .demo && !slim {
+                if printer.route == .demo {
                     Text("Demo (no hardware)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
