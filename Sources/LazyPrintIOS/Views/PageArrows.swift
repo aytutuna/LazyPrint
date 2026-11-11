@@ -16,21 +16,21 @@ struct PageArrows: UIViewRepresentable {
     func updateUIView(_ arrows: ArrowsView, context: Context) {
         arrows.turn = turn
         arrows.back.isHidden = !canGoBack
-        arrows.next.isHidden = !canGoOn
+        arrows.forward.isHidden = !canGoOn
     }
 }
 
 final class ArrowsView: UIView {
     let back = ArrowsView.button("chevron.left", label: "Previous page", id: "print.previous")
-    let next = ArrowsView.button("chevron.right", label: "Next page", id: "print.next")
+    let forward = ArrowsView.button("chevron.right", label: "Next page", id: "print.next")
     var turn: (Int) -> Void = { _ in }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         back.addAction(UIAction { [weak self] _ in self?.turn(-1) }, for: .primaryActionTriggered)
-        next.addAction(UIAction { [weak self] _ in self?.turn(1) }, for: .primaryActionTriggered)
+        forward.addAction(UIAction { [weak self] _ in self?.turn(1) }, for: .primaryActionTriggered)
         addSubview(back)
-        addSubview(next)
+        addSubview(forward)
     }
 
     @available(*, unavailable)
@@ -42,7 +42,7 @@ final class ArrowsView: UIView {
         super.layoutSubviews()
         let size: CGFloat = 44
         back.frame = CGRect(x: 8, y: bounds.midY - size / 2, width: size, height: size)
-        next.frame = CGRect(x: bounds.width - 8 - size, y: bounds.midY - size / 2, width: size, height: size)
+        forward.frame = CGRect(x: bounds.width - 8 - size, y: bounds.midY - size / 2, width: size, height: size)
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
