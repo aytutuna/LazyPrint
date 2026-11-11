@@ -272,7 +272,7 @@ public sealed partial class AppViewModel
                 }
                 if (startNew)
                 {
-                    foreach (var old in Documents) DeleteTaken(old);
+                    foreach (var old in Documents) DropTaken(old);
                     Documents.Clear();
                     PageRangeText = "";
                 }

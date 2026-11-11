@@ -133,6 +133,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     {
         FlushSettings();
         foreach (var document in Documents) DeleteTaken(document);
+        foreach (var document in _heldTaken) DeleteTaken(document);
         ShutdownCompanion();
         (_networkPrinters as IDisposable)?.Dispose();
     }

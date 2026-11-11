@@ -53,11 +53,41 @@ public sealed partial class AppViewModel
     /// <summary>Jobs that can be printed again; each keeps its documents open, so the oldest are let go of.</summary>
     private const int KeptAgain = 10;
 
-    private void KeepAgain(string id, Func<Task> again)
+    private readonly Dictionary<string, IReadOnlyList<LoadedDocument>> _againDocuments = [];
+
+    /// <summary>Taken pictures that were removed while a job that can be printed again still draws them from their files.</summary>
+    private readonly List<LoadedDocument> _heldTaken = [];
+
+    private void KeepAgain(string id, Func<Task> again, IReadOnlyList<LoadedDocument>? documents = null)
     {
         _again[id] = again;
+        if (documents is not null) _againDocuments[id] = documents;
         _againOrder.Enqueue(id);
-        while (_againOrder.Count > KeptAgain) _again.Remove(_againOrder.Dequeue());
+        while (_againOrder.Count > KeptAgain)
+        {
+            string old = _againOrder.Dequeue();
+            _again.Remove(old);
+            _againDocuments.Remove(old);
+        }
+        ReleaseHeldTaken();
+    }
+
+    private void ReleaseHeldTaken()
+    {
+        foreach (var document in _heldTaken.ToArray())
+        {
+            if (_againDocuments.Values.Any(documents => documents.Any(kept => ReferenceEquals(kept, document)))) continue;
+            _heldTaken.Remove(document);
+            DeleteTaken(document);
+        }
+    }
+
+    /// <summary>A removed document's taken file goes now, or once the last job that can print it again is let go of.</summary>
+    private void DropTaken(LoadedDocument document)
+    {
+        if (!_takenFiles.TryGetValue(document, out _)) return;
+        _heldTaken.Add(document);
+        ReleaseHeldTaken();
     }
 
     /// <summary>The pages of all documents, which the page range counts along.</summary>
@@ -214,7 +244,7 @@ public sealed partial class AppViewModel
         if (at >= 0)
         {
             Documents.RemoveAt(at);
-            DeleteTaken(document);
+            DropTaken(document);
         }
         if (Documents.Count == 0) PageRangeText = "";
         NotifyAll();
@@ -318,7 +348,7 @@ public sealed partial class AppViewModel
         var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Task, inputs.Settings),
                                 FrameMarksOf(inputs.Task, inputs.Settings));
         var record = Record(job);
-        KeepAgain(id, () => PrintDocumentsAsync(inputs));
+        KeepAgain(id, () => PrintDocumentsAsync(inputs), inputs.Documents);
 
         try
         {
