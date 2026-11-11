@@ -21,6 +21,8 @@ public enum PrintText {
 
     public static let loadBacks = "Load the backs"
 
+    public static let finishTwoSided = "Finish the two-sided job first"
+
     /// The iPhone stopped a job because the system took back the app's time in the background.
     public static let backgroundExpired = "Lazy Print ran out of time in the background. Print again to finish."
 

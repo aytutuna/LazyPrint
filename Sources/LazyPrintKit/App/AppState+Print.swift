@@ -22,7 +22,7 @@ extension AppState {
     /// Why Print is greyed out; nil when it can run.
     public var printDisabledReason: String? {
         if isBusy { return "Printing\u{2026}" }
-        if manual != nil { return "Finish the two-sided job first" }
+        if manual != nil { return PrintText.finishTwoSided }
         if selectedPrinter == nil { return PrintText.noPrinterReason }
         if documents.isEmpty { return "Add files to print" }
         return pageRangeError
