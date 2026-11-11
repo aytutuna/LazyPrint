@@ -88,6 +88,7 @@ final class PaperScroll: UIScrollView, UIScrollViewDelegate {
         addGestureRecognizer(twice)
         let once = UITapGestureRecognizer(target: self, action: #selector(tappedOnce))
         once.cancelsTouchesInView = false
+        once.delegate = TapAlongside.shared
         once.require(toFail: twice)
         addGestureRecognizer(once)
     }
@@ -143,6 +144,17 @@ final class PaperScroll: UIScrollView, UIScrollViewDelegate {
             zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height),
                  animated: true)
         }
+    }
+}
+
+/// Lets a tap that only wakes the arrows up be seen along with the arrows' own: on its own it would win the tap and the
+/// button under the finger would never fire.
+final class TapAlongside: NSObject, UIGestureRecognizerDelegate {
+    static let shared = TapAlongside()
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }
 

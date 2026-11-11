@@ -49,6 +49,7 @@ struct PageDecksView: UIViewControllerRepresentable {
                                                                       action: #selector(Coordinator.pinched(_:))))
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped))
         tap.cancelsTouchesInView = false
+        tap.delegate = TapAlongside.shared
         controller.view.addGestureRecognizer(tap)
         return controller
     }
