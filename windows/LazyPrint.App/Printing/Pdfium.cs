@@ -49,6 +49,7 @@ internal static class Pdfium
     [DllImport(Dll)] public static extern int FPDFBitmap_FillRect(IntPtr bitmap, int left, int top, int width, int height, uint color);
     [DllImport(Dll)] public static extern void FPDFBitmap_Destroy(IntPtr bitmap);
     [DllImport(Dll)] public static extern void FPDF_RenderPageBitmap(IntPtr bitmap, IntPtr page, int startX, int startY, int sizeX, int sizeY, int rotate, int flags);
+    [DllImport(Dll)] public static extern void FPDF_RenderPage(IntPtr dc, IntPtr page, int startX, int startY, int sizeX, int sizeY, int rotate, int flags);
 
     [DllImport(Dll)] public static extern IntPtr FPDF_CreateNewDocument();
     [DllImport(Dll)] public static extern IntPtr FPDFPage_New(IntPtr document, int index, double width, double height);

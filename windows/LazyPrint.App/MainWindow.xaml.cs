@@ -30,7 +30,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         var demo = new DemoPrinterState();
-        var sheets = new RoutingSheetPrinter(new SpoolerPrinter(_loader), new IppSheetPrinter(_loader, _loader), new DemoPrinter(_loader, demo));
+        var sheets = new RoutingSheetPrinter(new SpoolerPrinter(_loader, _loader), new IppSheetPrinter(_loader, _loader), new DemoPrinter(_loader, demo));
         ViewModel = new AppViewModel(new WindowsPrinters(), _loader, sheets, new WindowsSystemDiagnostics(), demo: demo,
                                      network: new NetworkPrinters(), logDirectory: AppViewModel.DefaultLogDirectory);
         ViewModel.ConfirmCertificate = ConfirmCertificate;
