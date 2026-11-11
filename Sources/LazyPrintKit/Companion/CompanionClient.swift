@@ -222,6 +222,18 @@ public final class CompanionClient: @unchecked Sendable {
         return response
     }
 
+    /// `send(packageId:data:)` with the package read from `file` as it goes out, never all in memory.
+    public func send(packageId: String, file: URL) async throws -> InboxResponse {
+        let size = (try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.intValue ?? 0
+        let timeout = CompanionClient.uploadTimeout(bytes: size)
+        let headers = ["Expect": "100-continue"]
+        let (body, _) = try await perform("PUT", CompanionProtocol.inboxPrefix + packageId, file: file, size: size,
+                                          contentType: CompanionProtocol.packageContentType, headers: headers,
+                                          timeout: timeout)
+        guard let response = InboxResponse.fromJSON(body) else { throw CompanionClientError.badResponse }
+        return response
+    }
+
     /// `DELETE /v1/devices/self`: the desktop forgets this phone.
     public func unpair() async throws {
         _ = try await perform("DELETE", CompanionProtocol.deviceSelfPath)
@@ -235,8 +247,8 @@ public final class CompanionClient: @unchecked Sendable {
     /// before reading it all, closing on the rest (if CFNetwork did not wait for 100 Continue), so a
     /// bodiless `hello` asks there: 401 is `.unauthorized`, an answer sends the upload once more (the
     /// inbox is idempotent per package id), no answer leaves it `.unreachable`.
-    private func perform(_ method: String, _ path: String, body: Data? = nil, contentType: String? = nil,
-                         headers: [String: String] = [:],
+    private func perform(_ method: String, _ path: String, body: Data? = nil, file: URL? = nil, size: Int = 0,
+                         contentType: String? = nil, headers: [String: String] = [:],
                          timeout: TimeInterval = CompanionClient.requestTimeout) async throws -> (Data, HTTPURLResponse) {
         var retry = method != "POST"
         var asked = false
@@ -249,8 +261,9 @@ public final class CompanionClient: @unchecked Sendable {
                 retry = false
             }
             do {
-                let answer = try await exchange(method, path, at: target, body: body, contentType: contentType,
-                                                headers: headers, timeout: timeout, authenticated: true)
+                let answer = try await exchange(method, path, at: target, body: body, file: file, size: size,
+                                                contentType: contentType, headers: headers, timeout: timeout,
+                                                authenticated: true)
                 try CompanionClient.check(answer.0, answer.1)
                 return answer
             } catch CompanionClientError.unreachable(let error) {
@@ -260,7 +273,7 @@ public final class CompanionClient: @unchecked Sendable {
                     if try await answersHello(at: target) { continue }
                 }
                 forget(target)
-                let unsent = body == nil || (error as? URLError)?.code == .cannotConnectToHost
+                let unsent = (body == nil && file == nil) || (error as? URLError)?.code == .cannotConnectToHost
                 guard retry, unsent else { throw CompanionClientError.unreachable(error) }
                 retry = false
             }
@@ -315,8 +328,8 @@ public final class CompanionClient: @unchecked Sendable {
     /// One request and its answer, whatever its status. A transport failure is `.unreachable`, or
     /// `.wrongCertificate` when the certificate was refused.
     private func exchange(_ method: String, _ path: String, at address: String, body: Data? = nil,
-                          contentType: String? = nil, headers: [String: String] = [:], timeout: TimeInterval,
-                          authenticated: Bool) async throws -> (Data, HTTPURLResponse) {
+                          file: URL? = nil, size: Int = 0, contentType: String? = nil,
+                          headers: [String: String] = [:], timeout: TimeInterval, authenticated: Bool) async throws -> (Data, HTTPURLResponse) {
         guard let url = CompanionClient.url(address, port: desktop.port, path: path) else {
             throw CompanionClientError.unreachable(URLError(.badURL))
         }
@@ -340,8 +353,19 @@ public final class CompanionClient: @unchecked Sendable {
                 request.setValue(contentType, forHTTPHeaderField: "Content-Type")
             }
         }
+        if file != nil {
+            request.setValue(String(size), forHTTPHeaderField: "Content-Length")
+            if let contentType = contentType {
+                request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+            }
+        }
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response): (Data, URLResponse)
+            if let file = file {
+                (data, response) = try await session.upload(for: request, fromFile: file)
+            } else {
+                (data, response) = try await session.data(for: request)
+            }
             guard let http = response as? HTTPURLResponse else {
                 throw CompanionClientError.unreachable(URLError(.badServerResponse))
             }
