@@ -219,14 +219,22 @@ public sealed class IppClient(PrinterAddress address, HttpMessageHandler handler
     private static async Task LimitBody(HttpResponseMessage response, CancellationToken token)
     {
         if (response.Content.Headers.ContentLength > MaxResponse) throw Failure(new PrintError.BadResponse());
-        await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         var body = new MemoryStream();
-        var chunk = new byte[81920];
-        int read;
-        while ((read = await stream.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
+        try
         {
-            if (body.Length + read > MaxResponse) throw Failure(new PrintError.BadResponse());
-            body.Write(chunk, 0, read);
+            await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+            var chunk = new byte[81920];
+            int read;
+            while ((read = await stream.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
+            {
+                if (body.Length + read > MaxResponse) throw Failure(new PrintError.BadResponse());
+                body.Write(chunk, 0, read);
+            }
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException)
+        {
+            // A reply cut off mid-body is the connection dropping, as it was before the body was read here.
+            throw new HttpRequestException(HttpRequestError.ResponseEnded, e.Message, e);
         }
         response.Content = new ByteArrayContent(body.ToArray());
     }

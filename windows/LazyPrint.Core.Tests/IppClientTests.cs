@@ -470,6 +470,26 @@ public sealed class IppClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ARepliedBodyOverEightMebibytesWithNoLengthIsABadResponse()
+    {
+        using var printer = new LoopbackIppPrinter();
+        printer.Script(new LoopbackAnswer(200, new byte[8 * 1024 * 1024 + 1], Chunked: true));
+        using var client = Client(printer);
+        var error = await Assert.ThrowsAsync<PrintException>(() => client.CapabilitiesAsync());
+        Assert.Equal(new PrintError.BadResponse(), error.Error);
+    }
+
+    [Fact]
+    public async Task AnAnswerCutBeforeItsPromisedLengthIsUnreachable()
+    {
+        using var printer = new LoopbackIppPrinter();
+        printer.Script(new LoopbackAnswer(200, new byte[100], ClaimedLength: 500));
+        using var client = Client(printer);
+        var error = await Assert.ThrowsAsync<PrintException>(() => client.CapabilitiesAsync());
+        Assert.IsType<PrintError.Unreachable>(error.Error);
+    }
+
+    [Fact]
     public async Task APrinterThatIsNotThereIsUnreachable()
     {
         var printer = new LoopbackIppPrinter();

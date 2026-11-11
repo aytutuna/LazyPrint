@@ -287,6 +287,7 @@ public final class IppClient: @unchecked Sendable {
         } else {
             request.httpBody = head
             let (bytes, response) = try await session.bytes(for: request)
+            guard response.expectedContentLength <= Int64(IppClient.maxResponse) else { throw PrintError.badResponse }
             var data = Data()
             for try await byte in bytes {
                 data.append(byte)

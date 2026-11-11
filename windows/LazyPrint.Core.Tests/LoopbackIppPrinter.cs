@@ -25,8 +25,12 @@ internal sealed record LoopbackRequest(string Method, string Path, IReadOnlyDict
     public byte[] Document => Body[IppMessage.Decode(Body).DocumentOffset..];
 }
 
-/// <summary>What the printer answers: an HTTP status and body, after an optional wait.</summary>
-internal sealed record LoopbackAnswer(int Status, byte[] Body, TimeSpan Delay = default, string? RetryAfter = null)
+/// <summary>
+/// What the printer answers: an HTTP status and body, after an optional wait. <paramref name="Chunked"/> sends the body
+/// with no Content-Length; <paramref name="ClaimedLength"/> promises more than the body holds, then closes the connection.
+/// </summary>
+internal sealed record LoopbackAnswer(int Status, byte[] Body, TimeSpan Delay = default, string? RetryAfter = null,
+                                      bool Chunked = false, int? ClaimedLength = null)
 {
     /// <summary>An IPP response with the usual operation attributes, then <paramref name="groups"/>.</summary>
     public static LoopbackAnswer Ipp(IppStatus status, params IppGroup[] groups) => Ipp((ushort)status, groups);
@@ -164,6 +168,7 @@ internal sealed class LoopbackIppPrinter : IDisposable
                 LoopbackAnswer answer = UpgradeRequired && !tls ? LoopbackAnswer.Http(426) : AnswerFor(request);
                 if (answer.Delay > TimeSpan.Zero) await Task.Delay(answer.Delay, _stop.Token);
                 await WriteAnswerAsync(stream, answer);
+                if (answer.ClaimedLength > answer.Body.Length) break;
             }
         }
         catch (Exception)
@@ -229,11 +234,21 @@ internal sealed class LoopbackIppPrinter : IDisposable
 
     private static async Task WriteAnswerAsync(Stream stream, LoopbackAnswer answer)
     {
-        var head = new StringBuilder($"HTTP/1.1 {answer.Status} Status\r\nContent-Type: application/ipp\r\nContent-Length: {answer.Body.Length}\r\n");
+        string framing = answer.Chunked ? "Transfer-Encoding: chunked" : $"Content-Length: {answer.ClaimedLength ?? answer.Body.Length}";
+        var head = new StringBuilder($"HTTP/1.1 {answer.Status} Status\r\nContent-Type: application/ipp\r\n{framing}\r\n");
         if (answer.RetryAfter is { } after) head.Append($"Retry-After: {after}\r\n");
         head.Append("\r\n");
         await stream.WriteAsync(Encoding.ASCII.GetBytes(head.ToString()));
-        await stream.WriteAsync(answer.Body);
+        if (answer.Chunked)
+        {
+            await stream.WriteAsync(Encoding.ASCII.GetBytes($"{answer.Body.Length:x}\r\n"));
+            await stream.WriteAsync(answer.Body);
+            await stream.WriteAsync(Encoding.ASCII.GetBytes("\r\n0\r\n\r\n"));
+        }
+        else
+        {
+            await stream.WriteAsync(answer.Body);
+        }
         await stream.FlushAsync();
     }
 
