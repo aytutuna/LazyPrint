@@ -62,11 +62,14 @@ public struct JobStatus: Equatable, Sendable {
     public var state: JobState
     public var sidesDone: Int
     public var detail: String?
+    /// False once the printer has the job and Cancel could no longer take it back (AirPrint).
+    public var cancelable: Bool
 
-    public init(state: JobState, sidesDone: Int, detail: String? = nil) {
+    public init(state: JobState, sidesDone: Int, detail: String? = nil, cancelable: Bool = true) {
         self.state = state
         self.sidesDone = sidesDone
         self.detail = detail
+        self.cancelable = cancelable
     }
 }
 

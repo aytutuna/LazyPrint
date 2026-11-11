@@ -274,6 +274,8 @@ public enum PrintJobs {
         case .a6?: return "iso_a6_105x148mm"
         case .b5Jis?: return "jis_b5_182x257mm"
         case .idCard?: return "iso_id-1_53.98x85.6mm"
+        case .photo4x6?: return "na_index-4x6_4x6in"
+        case .photo5x7?: return "na_5x7_5x7in"
         default:
             let width = Int((paper.width * 25.4 / 72).rounded(.toNearestOrEven))
             let height = Int((paper.height * 25.4 / 72).rounded(.toNearestOrEven))

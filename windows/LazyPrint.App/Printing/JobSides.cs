@@ -30,6 +30,11 @@ internal static class JobSides
             .Select((side, i) => new DrawnSide(side, job.Items?[i].Items ?? CutMarks(job, side), sent.Marked.Contains(i), job.Items?[i].Turned ?? false))
             .ToList();
         int repeats = Repeats(job);
-        return repeats == 1 ? once : [.. Enumerable.Repeat(once, repeats).SelectMany(sides => sides)];
+        if (repeats == 1) return once;
+        if (job.Settings.Collate) return [.. Enumerable.Repeat(once, repeats).SelectMany(sides => sides)];
+        // Not collated: each sheet comes out its copies in a row, a two-sided sheet as its front and back.
+        int group = job.Plan.Plan.Duplex && !job.Plan.ManualDuplex ? 2 : 1;
+        return [.. Enumerable.Range(0, (once.Count + group - 1) / group)
+            .SelectMany(g => Enumerable.Repeat(once.Skip(g * group).Take(group).ToList(), repeats).SelectMany(sides => sides))];
     }
 }

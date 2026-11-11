@@ -444,7 +444,9 @@ public sealed partial class AppViewModel
                     ? detail
                     : status.State == JobState.Waiting
                         ? PrintText.WaitingFor(job.Printer.Name, status.Detail)
-                        : PrintText.Printing(Math.Min(sidesDone + 1, sides), sides);
+                        : status.State == JobState.Preparing
+                            ? PrintText.Preparing(Math.Min(sidesDone + 1, sides), sides)
+                            : PrintText.Printing(Math.Min(sidesDone + 1, sides), sides);
                 NotifyAll();
             });
             await SendAsync(job, pass, progress, cancellation.Token);

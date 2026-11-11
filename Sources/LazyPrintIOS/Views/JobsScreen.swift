@@ -72,7 +72,7 @@ private struct JobRow: View {
                 .foregroundStyle(.secondary)
             if running || finished || state.demoFolder(of: record) != nil {
                 HStack(spacing: 16) {
-                    if running {
+                    if running && state.canCancelJob {
                         Button {
                             state.cancelJob(record.id)
                         } label: {

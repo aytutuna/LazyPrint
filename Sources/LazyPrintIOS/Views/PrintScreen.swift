@@ -176,18 +176,17 @@ struct PrintScreen: View {
         .accessibilityIdentifier("print.task")
     }
 
-    /// The current task is the checked item; one that cannot be started says why under its title.
+    /// The current task is the checked item, and picking it again applies its settings again. Under the title goes what the
+    /// task does, or why it cannot be started.
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability: TaskAvailability = state.availability(of: definition.task)
-        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (on: Bool) in
-            if on { pickTask(definition.task) }
+        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (_: Bool) in
+            pickTask(definition.task)
         })
         return Toggle(isOn: isCurrent) {
             Label {
                 Text(definition.title)
-                if let reason = availability.reason, !availability.isAvailable {
-                    Text(reason)
-                }
+                Text(availability.reason.flatMap { availability.isAvailable ? nil : $0 } ?? definition.subtitle)
             } icon: {
                 Image(systemName: TaskSymbols.systemImage(definition.iconKey))
             }
@@ -493,7 +492,7 @@ struct PrintScreen: View {
 
     /// What differs from the defaults, so a setting is never out of sight.
     private var optionsSummary: String {
-        let s: PrintSettings = state.settings
+        let s: PrintSettings = OptionsSheet.used(state.settings, capabilities: state.capabilities)
         var parts: [String] = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
         if state.task == .photos || state.task == .photoSheet { parts.append(InspectorSections.photosSummary(s)) }
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
@@ -526,8 +525,10 @@ struct PrintScreen: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("print.status")
-                    Button("Cancel") { state.cancelJob() }
-                        .accessibilityIdentifier("print.cancel")
+                    if state.canCancelJob {
+                        Button("Cancel") { state.cancelJob() }
+                            .accessibilityIdentifier("print.cancel")
+                    }
                 }
             } else if state.isAddingFiles {
                 HStack(spacing: 12) {
@@ -541,6 +542,7 @@ struct PrintScreen: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .readableWidth()
         .frame(maxWidth: .infinity)
         .background(.bar)
     }

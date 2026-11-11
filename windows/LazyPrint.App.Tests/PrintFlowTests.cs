@@ -546,6 +546,37 @@ public sealed class PrintFlowTests
     }
 
     [Fact]
+    public void NotCollatedCopiesComeOutEachSheetInARow()
+    {
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => { s.Copies = 3; s.Collate = false; }), 2);
+        var sent = job.Plan.Passes[0].Sides;
+
+        Assert.Equal([sent[0], sent[0], sent[0], sent[1], sent[1], sent[1]], JobSides.Of(job, 0).Select(d => d.Side));
+    }
+
+    [Fact]
+    public void NotCollatedTwoSidedCopiesKeepAFrontAndItsBackTogether()
+    {
+        var caps = new PrinterCapabilities { SidesSupported = ["one-sided", "two-sided-long-edge"], CopiesSupported = (1, 1) };
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => { s.Copies = 2; s.Collate = false; s.Sides = Sides.LongEdge; }), 4, caps: caps);
+        var sent = job.Plan.Passes[0].Sides;
+
+        Assert.Equal([sent[0], sent[1], sent[0], sent[1], sent[2], sent[3], sent[2], sent[3]], JobSides.Of(job, 0).Select(d => d.Side));
+    }
+
+    [Fact]
+    public void NotCollatedCopiesOfAPassDoneByHandRepeatEachSide()
+    {
+        var caps = new PrinterCapabilities { SidesSupported = ["one-sided"], CopiesSupported = (1, 1) };
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => { s.Copies = 2; s.Collate = false; s.Sides = Sides.LongEdge; }), 4, caps: caps,
+                                    prefs: new PrinterPrefs { PaperPath = new PaperPath { TurnStackOver = false, Checked = true } });
+        var sent = job.Plan.Passes[1].Sides;
+
+        Assert.True(job.Plan.ManualDuplex);
+        Assert.Equal([sent[0], sent[0], sent[1], sent[1]], JobSides.Of(job, 1).Select(d => d.Side));
+    }
+
+    [Fact]
     public async Task APrinterRowIsUpdatedInPlace()
     {
         using var rig = new Rig(demo: true);

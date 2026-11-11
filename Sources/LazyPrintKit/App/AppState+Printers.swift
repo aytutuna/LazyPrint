@@ -12,9 +12,22 @@ extension AppState {
     /// printer is used only when it is the one chosen, so a machine with no printer has none in use. A chosen printer
     /// that has gone away is not used.
     public var selectedPrinter: PrinterInfo? {
-        printers.first(where: { $0.id == settings.printerId })
+        if missingPrinter != nil { return nil }
+        return printers.first(where: { $0.id == settings.printerId })
             ?? printers.first(where: { $0.isDefault })
             ?? printers.first(where: { $0.route != .demo })
+    }
+
+    /// The chosen printer on the iPhone when it is not listed, as the name to show: Bonjour has not found it yet, or it is
+    /// gone. It stays the chosen one, with no other printer taking its place, until it is found or another is picked.
+    var missingPrinter: String? {
+        guard platform == .ios, let id = settings.printerId, !printers.contains(where: { $0.id == id }) else { return nil }
+        return Self.queue(of: id) ?? settings.printerName ?? "your printer"
+    }
+
+    /// "Looking for X" until the search has run its time, then "X was not found".
+    public var missingPrinterMessage: String? {
+        missingPrinter.map { printerSearchOver ? PrintText.printerNotFound($0) : PrintText.lookingFor($0) }
     }
 
     /// A printer other than the demo printer is listed; without one the sidebar offers the troubleshooter.
@@ -113,9 +126,20 @@ extension AppState {
         // A printer that gave no answer is asked again: it may have been asleep, or gone out of range during the read.
         // The Mac's system holds off a while after a miss, so a slow queue is not read every five seconds.
         if read != nil { capabilitiesAsked.insert(printer.id) }
-        if let read { capabilitiesById[printer.id] = read }
+        if var read {
+            if let listed = ippReads[printer.id]?.capabilities { Self.useListedPapers(&read, from: listed, platform: platform) }
+            capabilitiesById[printer.id] = read
+        }
         syncCapabilities()
         replan()
+    }
+
+    /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists.
+    @discardableResult
+    static func useListedPapers(_ own: inout PrinterCapabilities, from ipp: PrinterCapabilities, platform: AppPlatform) -> Bool {
+        guard platform == .ios, !ipp.mediaColDatabase.isEmpty, own.mediaColDatabase != ipp.mediaColDatabase else { return false }
+        own.mediaColDatabase = ipp.mediaColDatabase
+        return true
     }
 
     /// The queue's name for a printer printed to through the system.
@@ -142,6 +166,7 @@ extension AppState {
     public func selectPrinter(_ id: String) async {
         guard settings.printerId != id else { return }
         settings.printerId = id
+        settings.printerName = printers.first(where: { $0.id == id })?.name
         statusOverride = nil
         syncCapabilities()
         await loadCapabilities()
@@ -206,7 +231,9 @@ extension AppState {
             if row.route == .ipp {
                 capabilitiesById[id] = capabilities
                 capabilitiesAsked.insert(id)
-            } else if capabilitiesById[id] == nil {
+            } else if var own = capabilitiesById[id] {
+                if Self.useListedPapers(&own, from: capabilities, platform: platform) { capabilitiesById[id] = own }
+            } else {
                 capabilitiesById[id] = capabilities
             }
         }

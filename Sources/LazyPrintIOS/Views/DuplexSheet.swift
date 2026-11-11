@@ -56,6 +56,7 @@ struct DuplexSheet: View {
                     .buttonStyle(.bordered)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
+                    .disabled(state.isBusy && !state.canCancelJob)
                     .accessibilityIdentifier("duplex.cancel")
                 }
             }

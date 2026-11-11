@@ -21,14 +21,20 @@ public final class IOSAirPrintPrinter: SheetPrinter {
         try await check(job)
 
         let file: URL = FileManager.default.temporaryDirectory.appendingPathComponent("lp-" + UUID().uuidString.lowercased() + ".pdf")
-        defer { try? FileManager.default.removeItem(at: file) }
         let sides: [RenderedSide] = JobSides.of(job, pass: pass)
         progress(JobStatus(state: .preparing, sidesDone: 0))
-        try SheetRenderer(documents: job.documents).writePDF(sides, area: job.plan.plan.area, to: file)
-        try Task.checkCancellation()
+        do {
+            try SheetRenderer(documents: job.documents).writePDF(sides, area: job.plan.plan.area, to: file) { (done: Int) -> Void in
+                progress(JobStatus(state: .preparing, sidesDone: done))
+            }
+            try Task.checkCancellation()
+        } catch {
+            try? FileManager.default.removeItem(at: file)
+            throw error
+        }
 
-        progress(JobStatus(state: .sending, sidesDone: 0))
-        try await send(file, job: job)
+        progress(JobStatus(state: .sending, sidesDone: sides.count, cancelable: false))
+        try await send(file: file, job: job)
         progress(JobStatus(state: .done, sidesDone: sides.count))
     }
 
@@ -43,12 +49,14 @@ public final class IOSAirPrintPrinter: SheetPrinter {
     }
 
     @MainActor
-    private func send(_ file: URL, job: SheetJob) async throws {
-        try Task.checkCancellation()
-        guard let printer: UIPrinter = system.printer else { throw PrintError.noPrinter }
+    private func send(file: URL, job: SheetJob) async throws {
+        // From here the renderer owns the file and removes it when the system lets the renderer go.
         guard let renderer: IOSPrintRenderer = IOSPrintRenderer(file: file) else {
+            try? FileManager.default.removeItem(at: file)
             throw PrintError.unreadable("The pages could not be prepared for printing.")
         }
+        try Task.checkCancellation()
+        guard let printer: UIPrinter = system.printer else { throw PrintError.noPrinter }
         let chooser: PaperChooser = PaperChooser(pageSize: IOSAirPrintPrinter.pageSize(of: job))
         let controller: UIPrintInteractionController = UIPrintInteractionController.shared
         controller.printInfo = IOSAirPrintPrinter.printInfo(for: job)
@@ -121,7 +129,13 @@ public final class IOSAirPrintPrinter: SheetPrinter {
     }
 
     static func outputType(for job: SheetJob) -> UIPrintInfo.OutputType {
-        job.settings.color == .gray ? UIPrintInfo.OutputType.grayscale : UIPrintInfo.OutputType.general
+        // Photo output is what lets the printer print to the edge, which a photo job planned without margins counts on.
+        let gray: Bool = job.settings.color == .gray
+        if job.settings.taskId == PrintTask.photos.rawValue,
+           job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0) {
+            return gray ? UIPrintInfo.OutputType.photoGrayscale : UIPrintInfo.OutputType.photo
+        }
+        return gray ? UIPrintInfo.OutputType.grayscale : UIPrintInfo.OutputType.general
     }
 
     @MainActor
@@ -155,14 +169,19 @@ private final class PaperChooser: NSObject, UIPrintInteractionControllerDelegate
 /// Nothing is scaled to fit: the Kit already placed each page on a sheet the size of the paper.
 final class IOSPrintRenderer: UIPrintPageRenderer {
     private let pdf: CGPDFDocument
+    private let file: URL
 
-    /// The pages are read at once and kept in memory: the file is removed when the pass ends, which can be before the
-    /// system has drawn the last page of a job that was cancelled.
+    /// The pages are read from the file as they are drawn, so a big job is not held in memory. The file is removed when
+    /// the renderer goes, which is after the system has drawn the last page, even of a job that was cancelled.
     init?(file: URL) {
-        guard let data: Data = try? Data(contentsOf: file), let provider: CGDataProvider = CGDataProvider(data: data as CFData),
-              let pdf: CGPDFDocument = CGPDFDocument(provider) else { return nil }
+        guard let pdf: CGPDFDocument = CGPDFDocument(file as CFURL) else { return nil }
         self.pdf = pdf
+        self.file = file
         super.init()
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: file)
     }
 
     override var numberOfPages: Int { pdf.numberOfPages }

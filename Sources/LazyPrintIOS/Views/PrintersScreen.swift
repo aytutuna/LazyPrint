@@ -124,7 +124,7 @@ struct PrinterButton: View {
                 if let printer = state.selectedPrinter {
                     PrinterLabel(printer: printer)
                 } else {
-                    Label("No printer", systemImage: "printer")
+                    Label(state.missingPrinterMessage ?? "No printer", systemImage: "printer")
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 4)
                 }
@@ -164,6 +164,8 @@ struct PrintersScreen: View {
     @State private var closeWhenAnswered = false
     /// Why the AirPrint picker did not open.
     @State private var pickerProblem: String?
+    /// The AirPrint row's own view, which the system's picker comes out of on an iPad.
+    @State private var pickerAnchor: UIView?
 
     var body: some View {
         NavigationStack {
@@ -203,6 +205,7 @@ struct PrintersScreen: View {
                             Task { await choose(airPrint) }
                         }
                         .accessibilityIdentifier("printers.airprint")
+                        .background(AnchorView(view: $pickerAnchor))
                         if let pickerProblem {
                             Text(pickerProblem)
                                 .font(.caption)
@@ -340,7 +343,7 @@ struct PrintersScreen: View {
         pickerProblem = nil
         let picked: Bool
         do {
-            picked = try await airPrint.choose()
+            picked = try await airPrint.choose(from: pickerAnchor)
         } catch {
             pickerProblem = error.localizedDescription
             return
@@ -350,5 +353,19 @@ struct PrintersScreen: View {
         await state.selectPrinter("system:" + airPrint.queueName)
         finish()
     }
+}
+
+/// Hands back the UIView behind a row, since a rectangle from SwiftUI's global space is not the window's inside a sheet.
+private struct AnchorView: UIViewRepresentable {
+    @Binding var view: UIView?
+
+    func makeUIView(context: Context) -> UIView {
+        let made: UIView = UIView()
+        made.isUserInteractionEnabled = false
+        DispatchQueue.main.async { view = made }
+        return made
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }
 #endif

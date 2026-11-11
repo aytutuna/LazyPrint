@@ -242,14 +242,15 @@ final class IOSPrinterSystemTests: XCTestCase {
     func test_papers_areTheRegionsUsualOneThenTheOther() {
         let letter = [21590, 27940]
         let a4 = [21000, 29700]
+        let rest = [[10160, 15240], [12700, 17780], [21590, 35560]]
 
         for region in ["US", "CA", "MX", "us"] {
             let papers = IOSPrinterSystem.papers(region: region)
-            XCTAssertEqual(papers.map { [$0.width, $0.height] }, [letter, a4], region)
+            XCTAssertEqual(papers.map { [$0.width, $0.height] }, [letter, a4] + rest, region)
         }
         for region in ["DE", "TR", "GB", nil] {
             let papers = IOSPrinterSystem.papers(region: region)
-            XCTAssertEqual(papers.map { [$0.width, $0.height] }, [a4, letter], region ?? "nil")
+            XCTAssertEqual(papers.map { [$0.width, $0.height] }, [a4, letter] + rest, region ?? "nil")
         }
     }
 

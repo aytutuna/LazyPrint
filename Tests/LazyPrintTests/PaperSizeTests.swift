@@ -11,7 +11,7 @@ final class PaperSizeTests: XCTestCase {
     }
 
     func test_rawValues_areTheStoredNames() {
-        XCTAssertEqual(PaperSize.allCases.map(\.rawValue), ["auto", "letter", "legal", "executive", "a4", "a5", "a6", "b5Jis", "idCard"])
+        XCTAssertEqual(PaperSize.allCases.map(\.rawValue), ["auto", "letter", "legal", "executive", "a4", "a5", "a6", "b5Jis", "idCard", "photo4x6", "photo5x7"])
     }
 
     func test_persistedEnums_areStoredAsTheirRawValues() {

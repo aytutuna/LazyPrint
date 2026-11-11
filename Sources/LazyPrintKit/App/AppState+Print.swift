@@ -24,6 +24,7 @@ extension AppState {
         if isBusy { return "Printing\u{2026}" }
         if isAddingFiles { return "Opening files\u{2026}" }
         if manual != nil { return PrintText.finishTwoSided }
+        if let missing = missingPrinterMessage { return missing }
         if selectedPrinter == nil { return PrintText.noPrinterReason }
         if documents.isEmpty { return "Add files to print" }
         return pageRangeError
@@ -135,6 +136,7 @@ extension AppState {
         jobTasks[recordId] = nil
         runningRecord = nil
         isBusy = false
+        canCancelJob = true
         if job.printer.route == .demo { rebuildPrinters() }
         return done
     }
@@ -188,11 +190,14 @@ extension AppState {
             return
         }
         guard runningRecord == recordId else { return }
+        canCancelJob = status.cancelable
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
             statusOverride = detail
         } else if status.state == .waiting {
             statusOverride = PrintText.waiting(for: printer, reason: status.detail)
+        } else if status.state == .preparing {
+            statusOverride = PrintText.preparing(min(status.sidesDone + 1, sides), of: sides)
         } else {
             statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)
         }

@@ -6,6 +6,15 @@ public enum PrintText {
     /// Why a task cannot be started: no printer is set up.
     public static let noPrinterReason = "Needs a printer"
 
+    /// The chosen printer on the iPhone, before and after the search for it has run its time.
+    public static func lookingFor(_ printerName: String) -> String {
+        "Looking for \(printerName)\u{2026}"
+    }
+
+    public static func printerNotFound(_ printerName: String) -> String {
+        "\(printerName) was not found"
+    }
+
     public static let needsLazyScanReason = "Needs Lazy Scan"
 
     public static let noPrinterMessage = "No printer is set up. Add a printer, then try again."
@@ -80,6 +89,11 @@ public enum PrintText {
     /// The printer says it takes no jobs, so nothing is sent.
     public static func notAcceptingJobs(_ printerName: String) -> String {
         "\(printerName) is not accepting jobs. Check that it is on and not paused."
+    }
+
+    /// "Preparing 2 of 5": sheet 2 of 5 is being drawn.
+    public static func preparing(_ sheet: Int, of sheets: Int) -> String {
+        "Preparing \(sheet) of \(sheets)"
     }
 
     /// A note about a job, added after the status sentence: "2 blank pages added".

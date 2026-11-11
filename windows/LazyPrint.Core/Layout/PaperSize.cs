@@ -20,6 +20,8 @@ public enum PaperSize
     B5Jis,
     /// <summary>An ID-1 card (credit card, most ID cards and driving licences), 85.6 × 54 mm.</summary>
     IdCard,
+    Photo4x6,
+    Photo5x7,
 }
 
 /// <summary>Dimensions of the paper sizes and where they apply.</summary>
@@ -55,6 +57,8 @@ public static class PaperSizes
         PaperSize.A6 => "a6",
         PaperSize.B5Jis => "b5Jis",
         PaperSize.IdCard => "idCard",
+        PaperSize.Photo4x6 => "photo4x6",
+        PaperSize.Photo5x7 => "photo5x7",
         _ => throw new ArgumentOutOfRangeException(nameof(size), size, null),
     };
 
@@ -128,6 +132,8 @@ public static class PaperSizes
         PaperSize.A6 => "A6",
         PaperSize.B5Jis => "B5 (JIS)",
         PaperSize.IdCard => "ID card",
+        PaperSize.Photo4x6 => "4 × 6 in",
+        PaperSize.Photo5x7 => "5 × 7 in",
         _ => size.ToString(),
     };
 
@@ -143,6 +149,7 @@ public static class PaperSizes
         PaperSize.A6 => "105 × 148 mm",
         PaperSize.B5Jis => "182 × 257 mm",
         PaperSize.IdCard => "85.6 × 54 mm",
+        PaperSize.Photo4x6 or PaperSize.Photo5x7 => "Photo paper",
         _ => "",
     };
 
@@ -156,6 +163,8 @@ public static class PaperSizes
         PaperSize.A6 => new LayoutSize(4.1339, 5.8268),
         PaperSize.B5Jis => new LayoutSize(7.1654, 10.1181),
         PaperSize.IdCard => new LayoutSize(2.125, 3.370),
+        PaperSize.Photo4x6 => new LayoutSize(4, 6),
+        PaperSize.Photo5x7 => new LayoutSize(5, 7),
         _ => null,
     };
 }

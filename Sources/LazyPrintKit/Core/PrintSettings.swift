@@ -20,6 +20,8 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var taskId: String?
     /// The printer's id; nil is the system's default printer.
     public var printerId: String?
+    /// The name of that printer, for the iPhone to show while the printer has not been found again.
+    public var printerName: String?
     /// 1 to 99 (`PrintCopies.clamp`). Not saved: each launch starts at 1.
     public var copies = 1
     public var collate = true
@@ -42,7 +44,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case taskId, printerId, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
+        case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
         case pageBorders, scaling, scale, paperId, photoSizeId, photoFill, cutMarks
     }
 }
@@ -52,6 +54,7 @@ extension PrintSettings {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         taskId = c.decodeLenient(forKey: .taskId, default: taskId)
         printerId = c.decodeLenient(forKey: .printerId, default: printerId)
+        printerName = c.decodeLenient(forKey: .printerName, default: printerName)
         collate = c.decodeLenient(forKey: .collate, default: collate)
         color = c.decodeLenient(forKey: .color, default: color)
         quality = c.decodeLenient(forKey: .quality, default: quality)
