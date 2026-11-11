@@ -50,6 +50,23 @@ public sealed record PrintSettings
 public sealed record PrinterPrefs
 {
     public PaperPath PaperPath { get; set; } = new();
+    /// <summary>What was last used with this printer; null until it was used, which leaves the current choice alone.</summary>
+    public string? PaperId { get; set; }
+    public Sides? Sides { get; set; }
+    public ColorChoice? Color { get; set; }
+    public QualityChoice? Quality { get; set; }
+
+    /// <summary>Brings back the paper, sides, color and quality last used with the printer; copies, range and layout stay.</summary>
+    public void ApplyTo(PrintSettings settings)
+    {
+        settings.PaperId = PaperId ?? settings.PaperId;
+        settings.Sides = Sides ?? settings.Sides;
+        settings.Color = Color ?? settings.Color;
+        settings.Quality = Quality ?? settings.Quality;
+    }
+
+    public PrinterPrefs Remembering(PrintSettings settings) =>
+        this with { PaperId = settings.PaperId, Sides = settings.Sides, Color = settings.Color, Quality = settings.Quality };
 }
 
 public static class SettingsStore

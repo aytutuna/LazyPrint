@@ -110,6 +110,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
             _statusOverride = null;
             SentMessage = null;
         }
+        RememberForPrinter();
         _settingsSaveTimer?.Stop();
         _settingsSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         var snapshot = Settings with { };

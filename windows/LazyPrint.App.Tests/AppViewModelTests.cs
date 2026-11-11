@@ -410,6 +410,44 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task EachPrinterBringsBackItsOwnPaperSidesColorAndQuality()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Queue.Add(Rig.Queue("Brother"));
+        await rig.Model.RefreshPrintersAsync();
+
+        rig.Model.Settings.PaperId = "a5";
+        rig.Model.Settings.Color = ColorChoice.Gray;
+        rig.Model.Settings.Quality = QualityChoice.Best;
+        rig.Model.Settings.Copies = 3;
+        rig.Model.SettingsEdited();
+
+        // A printer never used keeps what is in front of the user, and then remembers it too.
+        await rig.Model.SelectPrinterAsync("system:Brother");
+        Assert.Equal("a5", rig.Model.Settings.PaperId);
+        rig.Model.Settings.PaperId = "legal";
+        rig.Model.Settings.Color = ColorChoice.Color;
+        rig.Model.SettingsEdited();
+
+        await rig.Model.SelectPrinterAsync("system:HP LaserJet");
+        Assert.Equal("a5", rig.Model.Settings.PaperId);
+        Assert.Equal(ColorChoice.Gray, rig.Model.Settings.Color);
+        Assert.Equal(3, rig.Model.Settings.Copies);
+
+        await rig.Model.SelectPrinterAsync("system:Brother");
+        Assert.Equal("legal", rig.Model.Settings.PaperId);
+        Assert.Equal(ColorChoice.Color, rig.Model.Settings.Color);
+        Assert.Equal(QualityChoice.Best, rig.Model.Settings.Quality);
+
+        // They are kept across a restart.
+        var next = rig.Open();
+        await next.RefreshPrintersAsync();
+        await next.SelectPrinterAsync("system:HP LaserJet");
+        Assert.Equal("a5", next.Settings.PaperId);
+    }
+
+    [Fact]
     public void ACopyCountIsKeptInRange()
     {
         using var rig = new Rig();

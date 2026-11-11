@@ -307,6 +307,11 @@ public sealed partial class AppViewModel
     {
         if (Settings.PrinterId == id) return;
         Settings.PrinterId = id;
+        if (_prefs.TryGetValue(id, out var prefs))
+        {
+            prefs.ApplyTo(Settings);
+            if (prefs.Sides is not null) _sidesPickedBlind = null;
+        }
         _statusOverride = null;
         _capabilityFailed.Remove(id);
         await LoadCapabilitiesAsync();
@@ -317,6 +322,17 @@ public sealed partial class AppViewModel
             await ReviewCertificateAsync(network);
         }
         SettingsEdited();
+    }
+
+    /// <summary>Keeps the paper, sides, color and quality for the printer in use, so choosing it again brings them back.</summary>
+    private void RememberForPrinter()
+    {
+        if (SelectedPrinter is not { } printer) return;
+        var prefs = PrefsOf(printer);
+        var remembered = prefs.Remembering(Settings);
+        if (remembered == prefs) return;
+        _prefs[printer.Id] = remembered;
+        SettingsStore.SavePrinters(_prefs, _directory);
     }
 
     // MARK: Network printers

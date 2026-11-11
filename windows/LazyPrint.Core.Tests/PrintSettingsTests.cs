@@ -144,6 +144,37 @@ public sealed class PrintSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Printers_KeepWhatWasLastUsed_AndOldFilesLoadWithoutIt()
+    {
+        var used = new PrinterPrefs { PaperId = "a5", Sides = Sides.LongEdge, Color = ColorChoice.Gray, Quality = QualityChoice.Draft };
+        SettingsStore.SavePrinters(new Dictionary<string, PrinterPrefs> { ["system:Office"] = used }, _directory);
+        Assert.Equal(used, SettingsStore.LoadPrinters(_directory)["system:Office"]);
+
+        File.WriteAllText(Printers, """{"system:Old": {"paperPath": {"turnBacks": true}}, "system:Bad": {"paperId": 4, "sides": "sideways"}}""");
+        var loaded = SettingsStore.LoadPrinters(_directory);
+        Assert.Null(loaded["system:Old"].PaperId);
+        Assert.Null(loaded["system:Old"].Sides);
+        Assert.Equal(new PrinterPrefs(), loaded["system:Bad"]);
+    }
+
+    [Fact]
+    public void Printers_ApplyOnlyWhatTheyRemember_AndRememberOnlyThoseFour()
+    {
+        var settings = new PrintSettings { PaperId = "legal", Sides = Sides.ShortEdge, Copies = 4, PagesPerSheet = 2 };
+        new PrinterPrefs().ApplyTo(settings);
+        Assert.Equal("legal", settings.PaperId);
+        Assert.Equal(Sides.ShortEdge, settings.Sides);
+
+        var prefs = new PrinterPrefs().Remembering(settings);
+        var other = new PrintSettings { Copies = 1, PagesPerSheet = 1 };
+        prefs.ApplyTo(other);
+        Assert.Equal("legal", other.PaperId);
+        Assert.Equal(Sides.ShortEdge, other.Sides);
+        Assert.Equal(1, other.Copies);
+        Assert.Equal(1, other.PagesPerSheet);
+    }
+
+    [Fact]
     public void Printers_Unreadable_AreMovedAside_AndEmpty()
     {
         File.WriteAllText(Printers, "[1, 2");
