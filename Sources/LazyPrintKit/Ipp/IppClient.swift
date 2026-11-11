@@ -153,8 +153,16 @@ public final class IppClient: @unchecked Sendable {
         if let validator, validator.hasPendingFirstUse, address.secure {
             _ = try await capabilities()
         }
-        let response = try await roundTrip(document: document) { uri, id in
+        var ticket = ticket
+        var response = try await roundTrip(document: document) { uri, id in
             IppRequests.printJob(printerUri: uri, userName: self.userName, ticket: ticket, requestId: id)
+        }
+        // A printer that refuses media-col is asked once more for the paper by its name.
+        if response.code == IppStatus.clientErrorAttributesOrValuesNotSupported.rawValue, ticket.media.entry != nil {
+            ticket.media.entry = nil
+            response = try await roundTrip(document: document) { uri, id in
+                IppRequests.printJob(printerUri: uri, userName: self.userName, ticket: ticket, requestId: id)
+            }
         }
         try IppClient.succeeded(response)
         guard let job = IppJob.from(response) else { throw PrintError.badResponse }

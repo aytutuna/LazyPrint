@@ -132,6 +132,32 @@ final class IppClientTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path)) // the spool is the caller's to delete
     }
 
+    func test_aPrinterThatRefusesMediaCol_isAskedOnceMoreWithTheMediaName() async throws {
+        let printer = try await startPrinter()
+        printer.script(.ipp(.clientErrorAttributesOrValuesNotSupported))
+        let client = try makeClient(printer)
+        var rich = ticket
+        rich.media = IppMediaChoice(entry: [IppAttribute("media-type", .keyword("stationery"))], name: "na_letter_8.5x11in")
+        let job = try await client.print(try document(), ticket: rich)
+
+        XCTAssertEqual(job.id, 42)
+        XCTAssertEqual(printer.requests.count, 2)
+        let uri = try printer.address().printerUri
+        let first = IppRequests.printJob(printerUri: uri, userName: user, ticket: rich, requestId: 1).encoded()
+        let second = IppRequests.printJob(printerUri: uri, userName: user, ticket: ticket, requestId: 2).encoded()
+        XCTAssertEqual(Data(printer.requests[0].body.prefix(first.count)), first)
+        XCTAssertEqual(Data(printer.requests[1].body.prefix(second.count)), second)
+    }
+
+    func test_aRefusedPrintJobWithoutMediaCol_isNotAskedAgain() async throws {
+        let printer = try await startPrinter()
+        printer.script(.ipp(.clientErrorAttributesOrValuesNotSupported))
+        let client = try makeClient(printer)
+        let error = await thrown { try await client.print(try document(), ticket: ticket) }
+        XCTAssertNotNil(error)
+        XCTAssertEqual(printer.requests.count, 1)
+    }
+
     func test_printJob_leavesNoBodyFileBehind() async throws {
         let printer = try await startPrinter()
         let client = try makeClient(printer)
