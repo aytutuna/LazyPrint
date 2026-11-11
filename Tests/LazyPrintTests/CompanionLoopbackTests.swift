@@ -205,6 +205,7 @@ final class CompanionLoopbackTests: XCTestCase {
         router.onPackageReceived = { package, _ in received.value.append(package) }
         var options: CompanionServerOptions = CompanionServerOptions()
         options.discardTimeout = 1
+        options.bodyTimeout = 2
         let server = CompanionServer(identity: serverIdentity, router: router, limiter: limiter, options: options,
                                      clock: { clock.now })
         self.server = server
@@ -464,6 +465,24 @@ final class CompanionLoopbackTests: XCTestCase {
         let (status, _) = try await raw("POST /v1/pair HTTP/1.1\r\nHost: x\r\nContent-Length: 8192\r\n\r\n", body: Data(count: 1))
         XCTAssertEqual(status, 403)
         XCTAssertLessThan(Date().timeIntervalSince(started), 8)
+    }
+
+    func testPairBody_ThatTricklesPastTheBodyTimeout_IsCutOff() async throws {
+        _ = try openPairing()
+        let connection: RawConnection = RawConnection(port: port, tls: true)
+        defer { connection.cancel() }
+        let opened = await connection.open()
+        XCTAssertTrue(opened)
+        await connection.send(Data("POST /v1/pair HTTP/1.1\r\nHost: x\r\nContent-Length: 200\r\n\r\n{".utf8))
+        let started: Date = Date()
+        // Each byte comes inside the idle timeout, but the body as a whole does not.
+        for _ in 0..<20 {
+            try await Task.sleep(nanoseconds: 500_000_000)
+            await connection.send(Data(" ".utf8))
+        }
+        let answer = await connection.receive(timeout: 10)
+        XCTAssertTrue(answer.isEmpty)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 15)
     }
 
     // Only the refusal: a Mac has no 127.0.0.2 to come from, so the C# test also shows another address getting in.

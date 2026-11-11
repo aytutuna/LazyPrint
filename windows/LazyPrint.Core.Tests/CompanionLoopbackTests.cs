@@ -148,7 +148,7 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
             Clock = () => _now,
             DesktopName = "TEST-PC",
             PreferredPort = 0,
-            Server = new CompanionServerOptions { DiscardTimeout = TimeSpan.FromSeconds(1) },
+            Server = new CompanionServerOptions { DiscardTimeout = TimeSpan.FromSeconds(1), BodyTimeout = TimeSpan.FromSeconds(2) },
         });
         _service.PackageReceived += (_, e) => _received.Enqueue(e);
         _service.Router.ApprovePairing = (_, _) => Task.FromResult(true);
@@ -397,6 +397,37 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
         var started = DateTime.UtcNow;
         var (status, _) = await Raw(code.Port, "POST /v1/pair HTTP/1.1\r\nHost: x\r\nContent-Length: 8192\r\n\r\n", new byte[1]);
         Assert.Equal(403, status);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(8));
+    }
+
+    [Fact]
+    public async Task PairBody_ThatTricklesPastTheBodyTimeout_IsCutOff()
+    {
+        var code = await _service.OpenPairingAsync();
+        Assert.NotNull(code);
+        using var tcp = new TcpClient();
+        await tcp.ConnectAsync(IPAddress.Loopback, code.Port);
+        await using var tls = new SslStream(tcp.GetStream(), false, (_, _, _, _) => true);
+        await tls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = "localhost" });
+        await tls.WriteAsync(Encoding.ASCII.GetBytes("POST /v1/pair HTTP/1.1\r\nHost: x\r\nContent-Length: 200\r\n\r\n{"));
+        var started = DateTime.UtcNow;
+        var buffer = new byte[1024];
+        int read;
+        try
+        {
+            // Each byte comes inside the idle timeout, but the body as a whole does not.
+            for (int i = 0; i < 20; i++)
+            {
+                await Task.Delay(500);
+                await tls.WriteAsync(new byte[] { (byte)' ' });
+            }
+            read = await tls.ReadAsync(buffer).AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (IOException)
+        {
+            read = 0;
+        }
+        Assert.Equal(0, read);
         Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(8));
     }
 

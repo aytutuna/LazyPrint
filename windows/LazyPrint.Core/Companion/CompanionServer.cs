@@ -19,6 +19,11 @@ public sealed record CompanionServerOptions
     public TimeSpan HeadTimeout { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>How long a body may stall between two reads, and a response between two writes.</summary>
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>How long a small body (pairing, control) may take in all, from its first read.</summary>
+    public TimeSpan BodyTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    /// <summary>An upload's body must average <see cref="MinUploadBytesPerSecond"/> once this long has passed.</summary>
+    public TimeSpan UploadGrace { get; init; } = TimeSpan.FromSeconds(10);
+    public long MinUploadBytesPerSecond { get; init; } = 16 * 1024;
     /// <summary>A refused request's unread body is read and dropped up to this size before closing.</summary>
     public long MaxDiscardBytes { get; init; } = 1024 * 1024;
     /// <summary>The whole time that dropping may take, however slowly the client sends.</summary>
@@ -357,8 +362,9 @@ public sealed class CompanionServer : IAsyncDisposable
         }
 
         var idle = new IdleStream(tls, _options.IdleTimeout);
+        var timed = new BodyGuard(idle, head.ContentLength is <= CompanionProtocol.MaxJsonBodyBytes, _options);
         var body = new CompanionRequestBody(
-            idle, head.ContentLength ?? 0, buffer.AsMemory(parsed.Consumed, filled - parsed.Consumed),
+            timed, head.ContentLength ?? 0, buffer.AsMemory(parsed.Consumed, filled - parsed.Consumed),
             head.ExpectsContinue ? token => idle.WriteAsync(CompanionHttp.ContinueResponse.ToArray(), token).AsTask() : null);
         CompanionResponse response;
         try
@@ -395,6 +401,58 @@ public sealed class CompanionServer : IAsyncDisposable
             await stream.WriteAsync(response.Body, stop).ConfigureAwait(false);
         }
         await stream.FlushAsync(stop).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The connection as the body's source: a small body has <see cref="CompanionServerOptions.BodyTimeout"/> in all, a
+    /// large one must keep up <see cref="CompanionServerOptions.MinUploadBytesPerSecond"/> after the grace time. Either
+    /// ends the connection. Reads only.
+    /// </summary>
+    private sealed class BodyGuard(Stream inner, bool small, CompanionServerOptions options) : Stream
+    {
+        private long? _started;
+        private long _bytes;
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            long now = Environment.TickCount64;
+            long started = _started ??= now;
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (small)
+            {
+                var left = options.BodyTimeout - TimeSpan.FromMilliseconds(now - started);
+                limit.CancelAfter(left > TimeSpan.Zero ? left : TimeSpan.Zero);
+            }
+            int read = await inner.ReadAsync(buffer, limit.Token).ConfigureAwait(false);
+            _bytes += read;
+            var elapsed = TimeSpan.FromMilliseconds(Environment.TickCount64 - started);
+            if (!small && elapsed > options.UploadGrace
+                && _bytes < options.MinUploadBytesPerSecond * (elapsed - options.UploadGrace).TotalSeconds)
+            {
+                throw new IOException("The upload is too slow.");
+            }
+            return read;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
     }
 
     /// <summary>The connection, with each read and write given at most the idle timeout.</summary>
