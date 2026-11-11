@@ -113,7 +113,13 @@ struct OptionsSheet: View {
                        id: "print.orientation")
             }
             Toggle("Booklet", isOn: $state.settings.booklet)
+                .disabled(!rules.bookletEnabled)
                 .accessibilityIdentifier("print.booklet")
+            Choice(title: "Poster", selection: Binding(
+                get: { (2...4).contains(state.settings.poster) ? state.settings.poster : 0 },
+                set: { (count: Int) in state.settings.poster = count }),
+                   options: [("Off", 0), ("2 \u{00D7} 2 sheets", 2), ("3 \u{00D7} 3 sheets", 3), ("4 \u{00D7} 4 sheets", 4)],
+                   enabled: rules.posterEnabled, reason: rules.posterReason, id: "print.poster")
             if rules.showRightToLeft {
                 Toggle("Right to left", isOn: $state.settings.rightToLeft)
                     .accessibilityIdentifier("print.rightToLeft")
@@ -126,12 +132,25 @@ struct OptionsSheet: View {
                 get: { rules.scalingLimited && state.settings.scaling != .fill ? Scaling.fit : state.settings.scaling },
                 set: { (scaling: Scaling) in state.settings.scaling = scaling }),
                    options: rules.scalingLimited ? [("Fit to page", Scaling.fit), ("Fill", Scaling.fill)] : Self.scalings,
-                   reason: rules.scalingReason, id: "print.scaling")
+                   enabled: !rules.poster, reason: rules.scalingReason, id: "print.scaling")
             Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                 LabeledContent("Scale", value: "\(state.settings.scale) %")
             }
             .disabled(rules.scalingLimited || state.settings.scaling == .fit || state.settings.scaling == .fill)
             .accessibilityIdentifier("print.scale")
+            Choice(title: "Margins", selection: Binding(
+                get: { state.settings.margin },
+                set: { (margin: MarginChoice) in state.settings.margin = margin }),
+                   options: [("None", MarginChoice.none), ("Small, 6 mm", MarginChoice.small), ("Normal, 12 mm", MarginChoice.normal),
+                             ("Custom", MarginChoice.custom)],
+                   enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
+            if state.settings.margin == .custom {
+                Stepper(value: $state.settings.marginMm, in: 0...MarginChoices.maxMillimetres) {
+                    LabeledContent("Margin", value: "\(state.settings.marginMm) mm")
+                }
+                .disabled(!rules.marginEnabled)
+                .accessibilityIdentifier("print.marginMm")
+            }
         }
     }
 
@@ -216,6 +235,12 @@ struct OptionsSheet: View {
         var showRightToLeft = false
         var showBorders = false
         var showOrientation = true
+        var poster = false
+        var bookletEnabled = true
+        var posterEnabled = true
+        var posterReason: String?
+        var marginEnabled = true
+        var marginReason: String?
         var showPhotos = false
         var photoSizeEnabled = false
         var photoSizeReason: String?
@@ -235,18 +260,27 @@ struct OptionsSheet: View {
             let grayOnly: Bool = OptionsSheet.grayOnly(capabilities)
             let noQuality: Bool = OptionsSheet.noQuality(capabilities)
 
+            let poster: Bool = (2...4).contains(s.poster)
+            let margins: Bool = Imposition.keepsMargin(PrintJobs.layoutOptions(s, task: task))
+
             showCollate = s.copies > 1
             showSides = !photos
-            sidesEnabled = !s.booklet
-            sidesReason = s.booklet ? "Booklets are two-sided" : nil
+            sidesEnabled = !s.booklet && !poster
+            sidesReason = poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
             sidesNote = twoSided && !photos && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
             showLayout = task != .photos
-            pagesPerSideEnabled = !s.booklet
-            pagesPerSideReason = s.booklet ? "Set by Booklet" : nil
-            showRightToLeft = s.booklet || s.pagesPerSheet > 1
-            showBorders = !s.booklet && s.pagesPerSheet > 1
+            pagesPerSideEnabled = !s.booklet && !poster
+            pagesPerSideReason = poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
+            showRightToLeft = !poster && (s.booklet || s.pagesPerSheet > 1)
+            showBorders = !poster && !s.booklet && s.pagesPerSheet > 1
             showOrientation = !s.booklet
-            scalingLimited = s.booklet || s.pagesPerSheet > 1
+            self.poster = poster
+            bookletEnabled = !poster
+            posterEnabled = poster || (!s.booklet && s.pagesPerSheet == 1)
+            posterReason = posterEnabled ? nil : "Needs one page per side"
+            marginEnabled = margins
+            marginReason = margins ? nil : "Not used at actual size or fill"
+            scalingLimited = s.booklet || s.pagesPerSheet > 1 || poster
             scalingReason = scalingLimited ? "Pages are fitted to their spaces" : nil
             showPhotos = photos
             photoSizeEnabled = task == .photos
