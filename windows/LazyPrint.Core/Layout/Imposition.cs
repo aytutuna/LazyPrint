@@ -42,7 +42,7 @@ public static class Imposition
         int perSide = portraitRows * portraitColumns;
         int perSheet = duplex ? 2 * perSide : perSide;
         bool turnBacks = options.Sides == Sides.ShortEdge;
-        bool landscape = perSide > 1 && pages.Count > 0 && ChooseLandscape(pages[0].Size, options.PagesPerSheet, area);
+        bool landscape = perSide > 1 && pages.Count > 0 && ChooseLandscape(pages[0].Size, options, area);
         var (rows, columns) = Grid(options.PagesPerSheet, landscape);
         var scaling = perSide > 1 && options.Scaling != Scaling.Fill ? Scaling.Fit : options.Scaling;
         bool borders = options.PageBorders && perSide > 1;
@@ -54,7 +54,7 @@ public static class Imposition
             {
                 if (perSide == 1)
                 {
-                    placements.Add(Alone(page, area, scaling, options.Scale, notes));
+                    placements.Add(Alone(page, area, scaling, options.Scale, options.Orientation, notes));
                     continue;
                 }
                 int index = placements.Count, row = index / columns, column = index % columns;
@@ -126,10 +126,14 @@ public static class Imposition
         return landscape ? (fewer, more) : (more, fewer);
     }
 
-    /// <summary>One page on its side: landscape pages get the landscape view.</summary>
-    private static Placement Alone(SourcePage page, PrintableArea area, Scaling scaling, int scale, Notes notes)
+    /// <summary>
+    /// One page on its side: with automatic orientation landscape pages get the landscape view. A page of the other shape
+    /// than a forced orientation is not turned; it is sized in the sheet as it is.
+    /// </summary>
+    private static Placement Alone(SourcePage page, PrintableArea area, Scaling scaling, int scale, SheetOrientation orientation,
+                                   Notes notes)
     {
-        bool landscape = page.Size.Width > page.Size.Height;
+        bool landscape = orientation == SheetOrientation.Automatic ? page.Size.Width > page.Size.Height : orientation == SheetOrientation.Landscape;
         var cell = ViewPrintable(area, landscape);
         double factor = scaling is Scaling.ShrinkToFit or Scaling.ActualSize ? Math.Clamp(scale, 10, 400) / 100.0 : 1;
         var sized = new LayoutSize(page.Size.Width * factor, page.Size.Height * factor);
@@ -158,9 +162,11 @@ public static class Imposition
         return new Placement(page, frame, ((landscape ? 3 : 0) + (turned ? 3 : 0)) % 4, shown.Crop);
     }
 
-    /// <summary>The first page decides the grid's reading view for the whole job.</summary>
-    private static bool ChooseLandscape(LayoutSize first, int pagesPerSheet, PrintableArea area)
+    /// <summary>A forced orientation is the grid's reading view; otherwise the first page decides it for the whole job.</summary>
+    private static bool ChooseLandscape(LayoutSize first, LayoutOptions options, PrintableArea area)
     {
+        if (options.Orientation != SheetOrientation.Automatic) return options.Orientation == SheetOrientation.Landscape;
+        int pagesPerSheet = options.PagesPerSheet;
         var (rows, columns) = Grid(pagesPerSheet, false);
         var (portraitScale, portraitTurn) = BestFit(first, CellAt(ViewPrintable(area, false), rows, columns, 0, 0));
         (rows, columns) = Grid(pagesPerSheet, true);

@@ -104,4 +104,14 @@ public class InspectorSectionsTests
         Assert.Equal("Whole page · Fill · Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "page" }));
         Assert.Equal("6x8 · Fill · Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "6x8" }));
     }
+
+    [Fact]
+    public void Summaries_NamePageOrderAndOrientation()
+    {
+        var s = new PrintSettings { PageSelection = PageSelection.Odd, ReverseOrder = true, Orientation = SheetOrientation.Landscape };
+        Assert.Equal("Odd pages · Reverse order", InspectorSections.PagesSummary(s));
+        Assert.Equal("Landscape", InspectorSections.LayoutSummary(s));
+        Assert.Equal("Even pages", InspectorSections.PagesSummary(new PrintSettings { PageSelection = PageSelection.Even }));
+        Assert.Equal("Booklet", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, Orientation = SheetOrientation.Landscape }));
+    }
 }

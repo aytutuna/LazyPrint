@@ -114,6 +114,14 @@ public enum Sides: String, Codable, CaseIterable, Sendable {
     case shortEdge
 }
 
+/// How the sheet is turned. Automatic gives each page the orientation it has; the others make every sheet portrait or landscape.
+/// Stored as the case name.
+public enum SheetOrientation: String, Codable, CaseIterable, Sendable {
+    case automatic
+    case portrait
+    case landscape
+}
+
 /// What `Imposition.plan` is asked for.
 public struct LayoutOptions: Equatable, Sendable {
     /// 1, 2, 4, 6, 9 or 16; any other number is 1.
@@ -129,9 +137,12 @@ public struct LayoutOptions: Equatable, Sendable {
     /// The size of a page alone on its side, in percent of its own; `scaling` still keeps it inside the printable area
     /// when it shrinks to fit. Cells of several pages, booklets and fit or fill ignore it.
     public var scale: Int
+    /// The orientation of the sheets. A booklet is always a landscape spread and ignores it.
+    public var orientation: SheetOrientation
 
     public init(pagesPerSheet: Int = 1, booklet: Bool = false, rightToLeft: Bool = false,
-                scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100) {
+                scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100,
+                orientation: SheetOrientation = .automatic) {
         self.pagesPerSheet = pagesPerSheet
         self.booklet = booklet
         self.rightToLeft = rightToLeft
@@ -139,6 +150,7 @@ public struct LayoutOptions: Equatable, Sendable {
         self.sides = sides
         self.pageBorders = pageBorders
         self.scale = scale
+        self.orientation = orientation
     }
 }
 

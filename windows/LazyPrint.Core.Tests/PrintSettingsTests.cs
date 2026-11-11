@@ -40,6 +40,9 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.False(s.RightToLeft);
         Assert.False(s.PageBorders);
         Assert.Equal(Scaling.ShrinkToFit, s.Scaling);
+        Assert.Equal(SheetOrientation.Automatic, s.Orientation);
+        Assert.Equal(PageSelection.All, s.PageSelection);
+        Assert.False(s.ReverseOrder);
         Assert.Equal("auto", s.PaperId);
         Assert.Equal("4x6", s.PhotoSizeId);
         Assert.True(s.PhotoFill);
@@ -53,7 +56,7 @@ public sealed class PrintSettingsTests : IDisposable
         {
             TaskId = "booklet", PrinterId = "ipp:4509a320", Copies = 3, Collate = false, Color = ColorChoice.Gray,
             Quality = QualityChoice.Best, Sides = Sides.ShortEdge, PagesPerSheet = 4, Booklet = true, RightToLeft = true,
-            PageBorders = true, Scaling = Scaling.Fill, PaperId = "a4", PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
+            PageBorders = true, Scaling = Scaling.Fill, Orientation = SheetOrientation.Landscape, PaperId = "a4", PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
         };
         SettingsStore.Save(s, _directory);
         Assert.Equal(s with { Copies = 1 }, SettingsStore.Load(_directory));
@@ -150,5 +153,16 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Empty(SettingsStore.LoadPrinters(_directory));
         Assert.False(File.Exists(Printers));
         Assert.Single(Directory.GetFiles(_directory), path => Path.GetFileName(path).StartsWith("printers.unreadable-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Orientation_IsSaved_ButPageSelectionAndReverseAreForOneJob()
+    {
+        SettingsStore.Save(new PrintSettings { Orientation = SheetOrientation.Portrait, PageSelection = PageSelection.Odd, ReverseOrder = true }, _directory);
+        string json = File.ReadAllText(Settings);
+        Assert.Contains("\"orientation\": \"portrait\"", json);
+        Assert.DoesNotContain("pageSelection", json);
+        Assert.DoesNotContain("reverseOrder", json);
+        Assert.Equal(new PrintSettings { Orientation = SheetOrientation.Portrait }, SettingsStore.Load(_directory));
     }
 }

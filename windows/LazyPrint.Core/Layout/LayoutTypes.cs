@@ -63,6 +63,17 @@ public enum Sides
     ShortEdge,
 }
 
+/// <summary>
+/// How the sheet is turned. Automatic gives each page the orientation it has; the others make every sheet portrait or landscape.
+/// Stored as the camelCase name.
+/// </summary>
+public enum SheetOrientation
+{
+    Automatic,
+    Portrait,
+    Landscape,
+}
+
 /// <summary>What <see cref="Imposition.Plan"/> is asked for.</summary>
 public sealed record LayoutOptions
 {
@@ -81,6 +92,8 @@ public sealed record LayoutOptions
     /// area when it shrinks to fit. Cells of several pages, booklets and fit or fill ignore it.
     /// </summary>
     public int Scale { get; init; } = 100;
+    /// <summary>The orientation of the sheets. A booklet is always a landscape spread and ignores it.</summary>
+    public SheetOrientation Orientation { get; init; } = SheetOrientation.Automatic;
 }
 
 /// <summary>Where one page goes on a sheet side.</summary>

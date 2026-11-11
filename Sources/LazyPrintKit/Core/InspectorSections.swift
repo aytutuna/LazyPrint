@@ -56,6 +56,8 @@ public enum InspectorSections {
         let copies = PrintCopies.clamp(s.copies)
         if copies > 1 { parts.append("\(copies) copies") }
         if copies > 1 && !s.collate { parts.append("Not collated") }
+        if s.pageSelection != .all { parts.append(s.pageSelection == .odd ? "Odd pages" : "Even pages") }
+        if s.reverseOrder { parts.append("Reverse order") }
         if s.sides == .shortEdge {
             parts.append("Two-sided, short edge")
         } else if s.sides == .longEdge {
@@ -72,6 +74,7 @@ public enum InspectorSections {
         } else if s.pagesPerSheet > 1 {
             parts.append("\(s.pagesPerSheet) per side")
         }
+        if !s.booklet && s.orientation != .automatic { parts.append(s.orientation == .portrait ? "Portrait" : "Landscape") }
         if !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
         if (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
         if !s.booklet && s.pagesPerSheet == 1 && s.scale != 100 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {

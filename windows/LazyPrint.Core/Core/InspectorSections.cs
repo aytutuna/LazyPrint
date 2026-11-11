@@ -54,6 +54,8 @@ public static class InspectorSections
         int copies = PrintCopies.Clamp(s.Copies);
         if (copies > 1) parts.Add($"{copies} copies");
         if (copies > 1 && !s.Collate) parts.Add("Not collated");
+        if (s.PageSelection != PageSelection.All) parts.Add(s.PageSelection == PageSelection.Odd ? "Odd pages" : "Even pages");
+        if (s.ReverseOrder) parts.Add("Reverse order");
         if (s.Sides == Sides.ShortEdge) parts.Add("Two-sided, short edge");
         else if (s.Sides == Sides.LongEdge) parts.Add("Two-sided");
         return Join(parts);
@@ -65,6 +67,7 @@ public static class InspectorSections
         var parts = new List<string>();
         if (s.Booklet) parts.Add("Booklet");
         else if (s.PagesPerSheet > 1) parts.Add($"{s.PagesPerSheet} per side");
+        if (!s.Booklet && s.Orientation != SheetOrientation.Automatic) parts.Add(s.Orientation == SheetOrientation.Portrait ? "Portrait" : "Landscape");
         if (!s.Booklet && s.PagesPerSheet > 1 && s.PageBorders) parts.Add("Borders");
         if ((s.Booklet || s.PagesPerSheet > 1) && s.RightToLeft) parts.Add("Right to left");
         if (!s.Booklet && s.PagesPerSheet == 1 && s.Scale != 100 && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize)

@@ -39,6 +39,12 @@ public sealed record PrintSettings
     public Scaling Scaling { get; set; } = Scaling.ShrinkToFit;
     /// <summary>Percent, 10 to 400 (<see cref="LayoutOptions.Scale"/>).</summary>
     public int Scale { get; set; } = 100;
+    public SheetOrientation Orientation { get; set; } = SheetOrientation.Automatic;
+    /// <summary>Odd or even pages only, and the reverse order: asked for one job at a time, so not saved (<see cref="PagePicker"/>).</summary>
+    [JsonIgnore]
+    public PageSelection PageSelection { get; set; } = PageSelection.All;
+    [JsonIgnore]
+    public bool ReverseOrder { get; set; }
     /// <summary>A <see cref="PaperSize"/> raw value; "auto" is what the printer has loaded, else the regional default.</summary>
     public string PaperId { get; set; } = "auto";
     public string PhotoSizeId { get; set; } = "4x6";

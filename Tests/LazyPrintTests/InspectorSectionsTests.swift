@@ -104,4 +104,12 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "page" }), "Whole page \u{00B7} Fill \u{00B7} Cut marks")
         XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "6x8" }), "6x8 \u{00B7} Fill \u{00B7} Cut marks")
     }
+
+    func test_summaries_namePageOrderAndOrientation() {
+        let s = settings { $0.pageSelection = .odd; $0.reverseOrder = true; $0.orientation = .landscape }
+        XCTAssertEqual(InspectorSections.pagesSummary(s), "Odd pages \u{00B7} Reverse order")
+        XCTAssertEqual(InspectorSections.layoutSummary(s), "Landscape")
+        XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.pageSelection = .even }), "Even pages")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.orientation = .landscape }), "Booklet")
+    }
 }

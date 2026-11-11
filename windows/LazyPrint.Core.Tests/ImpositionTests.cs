@@ -502,4 +502,68 @@ public class ImpositionTests
         Assert.True(Front(plan).Borders);
         Assert.True(Back(plan).Borders);
     }
+
+    // MARK: - Orientation
+
+    [Fact]
+    public void Plan_ForcedPortrait_KeepsALandscapePageUprightAndSizedToFit()
+    {
+        var plan = Plan([Page(0, 792, 612)], new LayoutOptions { Orientation = SheetOrientation.Portrait });
+        var placement = Assert.Single(Front(plan).Placements);
+        double height = 612 * 612 / 792.0;
+        AssertRect(0, (792 - height) / 2, 612, height, placement.Frame);
+        Assert.Equal(0, placement.Turns);
+    }
+
+    [Fact]
+    public void Plan_ForcedLandscape_TurnsAPortraitPageOntoALandscapeSheet()
+    {
+        var plan = Plan([Page(0, 612, 792)], new LayoutOptions { Orientation = SheetOrientation.Landscape });
+        var placement = Assert.Single(Front(plan).Placements);
+        double width = 612 * 612 / 792.0;
+        AssertRect(0, (792 - width) / 2, 612, width, placement.Frame);
+        Assert.Equal(3, placement.Turns);
+    }
+
+    [Fact]
+    public void Plan_ForcedLandscape_KeepsALandscapePageAsAutomaticDoes()
+    {
+        var page = Page(0, 792, 612);
+        Assert.Equal(Plan([page], new LayoutOptions()), Plan([page], new LayoutOptions { Orientation = SheetOrientation.Landscape }));
+    }
+
+    [Fact]
+    public void Plan_AutomaticOrientation_IsDecidedPageByPage()
+    {
+        var plan = Plan([Page(0, 612, 792), Page(1, 792, 612)], new LayoutOptions { Orientation = SheetOrientation.Automatic });
+        Assert.Equal(0, Front(plan, 0).Placements[0].Turns);
+        Assert.Equal(3, Front(plan, 1).Placements[0].Turns);
+    }
+
+    [Fact]
+    public void Plan_ForcedLandscape_ChoosesTheLandscapeViewOfAGrid()
+    {
+        var pages = new List<SourcePage> { Page(0, 792, 612), Page(1, 792, 612) };
+        var placements = Front(Plan(pages, new LayoutOptions { PagesPerSheet = 2, Orientation = SheetOrientation.Landscape })).Placements;
+        // Left to right in the landscape view; the pages are turned in their 396 x 612 cells, as large as that makes them.
+        double height = 792 * 396 / 612.0;
+        AssertRect((612 - height) / 2, 396, height, 396, placements[0].Frame);
+        Assert.Equal(2, placements[0].Turns);
+    }
+
+    [Fact]
+    public void Plan_ForcedPortrait_ChoosesThePortraitViewOfAGrid()
+    {
+        var placements = Front(Plan(Portrait(2), new LayoutOptions { PagesPerSheet = 2, Orientation = SheetOrientation.Portrait })).Placements;
+        // Two 612 x 396 cells stacked; a portrait page is larger turned in one.
+        Assert.Equal(0, placements[0].Frame.Y);
+        Assert.Equal(396, placements[1].Frame.Y);
+    }
+
+    [Fact]
+    public void Plan_BookletIgnoresOrientation()
+    {
+        var automatic = Plan(Portrait(4), new LayoutOptions { Booklet = true });
+        Assert.Equal(automatic, Plan(Portrait(4), new LayoutOptions { Booklet = true, Orientation = SheetOrientation.Portrait }));
+    }
 }

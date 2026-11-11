@@ -36,7 +36,7 @@ public enum Imposition {
         let perSide = portraitGrid.rows * portraitGrid.columns
         let perSheet = duplex ? 2 * perSide : perSide
         let turnBacks = options.sides == .shortEdge
-        let landscape = perSide > 1 && !pages.isEmpty && chooseLandscape(pages[0].size, pagesPerSheet: options.pagesPerSheet, area: area)
+        let landscape = perSide > 1 && !pages.isEmpty && chooseLandscape(pages[0].size, options: options, area: area)
         let (rows, columns) = grid(options.pagesPerSheet, landscape: landscape)
         let scaling: Scaling = perSide > 1 && options.scaling != .fill ? .fit : options.scaling
         let borders = options.pageBorders && perSide > 1
@@ -45,7 +45,7 @@ public enum Imposition {
             var placements: [Placement] = []
             for page in sidePages {
                 if perSide == 1 {
-                    placements.append(alone(page, area: area, scaling: scaling, scale: options.scale, notes: notes))
+                    placements.append(alone(page, area: area, scaling: scaling, scale: options.scale, orientation: options.orientation, notes: notes))
                     continue
                 }
                 let index = placements.count
@@ -122,9 +122,11 @@ public enum Imposition {
         return landscape ? (counts.fewer, counts.more) : (counts.more, counts.fewer)
     }
 
-    /// One page on its side: landscape pages get the landscape view.
-    private static func alone(_ page: SourcePage, area: PrintableArea, scaling: Scaling, scale: Int, notes: Notes) -> Placement {
-        let landscape = page.size.width > page.size.height
+    /// One page on its side: with automatic orientation landscape pages get the landscape view. A page of the other shape
+    /// than a forced orientation is not turned; it is sized in the sheet as it is.
+    private static func alone(_ page: SourcePage, area: PrintableArea, scaling: Scaling, scale: Int, orientation: SheetOrientation,
+                              notes: Notes) -> Placement {
+        let landscape = orientation == .automatic ? page.size.width > page.size.height : orientation == .landscape
         let cell = viewPrintable(area, landscape: landscape)
         let factor = scaling == .shrinkToFit || scaling == .actualSize ? Double(max(10, min(400, scale))) / 100 : 1
         let sized = LayoutSize(width: page.size.width * factor, height: page.size.height * factor)
@@ -150,8 +152,10 @@ public enum Imposition {
         return Placement(page: page, frame: frame, turns: ((landscape ? 3 : 0) + (turned ? 3 : 0)) % 4, crop: shown.crop)
     }
 
-    /// The first page decides the grid's reading view for the whole job.
-    private static func chooseLandscape(_ first: LayoutSize, pagesPerSheet: Int, area: PrintableArea) -> Bool {
+    /// A forced orientation is the grid's reading view; otherwise the first page decides it for the whole job.
+    private static func chooseLandscape(_ first: LayoutSize, options: LayoutOptions, area: PrintableArea) -> Bool {
+        if options.orientation != .automatic { return options.orientation == .landscape }
+        let pagesPerSheet = options.pagesPerSheet
         let tall = grid(pagesPerSheet, landscape: false)
         let wide = grid(pagesPerSheet, landscape: true)
         let portrait = bestFit(first, cell: cellAt(viewPrintable(area, landscape: false), rows: tall.rows, columns: tall.columns, row: 0, column: 0))

@@ -83,7 +83,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 var settings = job.Settings;
                 bool ascending = placed.Count > 0 && placed.Select((page, i) => page.Document == 0 && page.Index == placed[0].Index + i).All(ok => ok);
                 bool whole = placed.Count == document.Pages.Count;
-                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet
+                bool plain = settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
                     && (settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit
                     || settings.Scaling == Scaling.ActualSize && caps.PrintScalingSupported.Contains("none"));
                 if (!ascending || !plain || !whole && !caps.PageRangesSupported) return null;

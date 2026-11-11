@@ -414,4 +414,44 @@ public class PrintJobsTests
         Assert.Equal(record, record with { State = JobState.Waiting });
         Assert.NotEqual(record, record with { State = JobState.Done });
     }
+
+    // MARK: - Page order and orientation
+
+    private static List<int> Fronts(JobPlan job) =>
+        [.. job.Plan.Sheets.SelectMany(s => s.Front.Placements).Select(p => p.Page.Index)];
+
+    [Fact]
+    public void Plan_OddPages_AreCutFromTheRangeBeforeTheLayout()
+    {
+        var odd = Plan([Doc(5)], Settings(s => s.PageSelection = PageSelection.Odd), Hp);
+        Assert.Equal([0, 2, 4], Fronts(odd));
+        var evenInRange = Plan([Doc(6)], Settings(s => s.PageSelection = PageSelection.Even), Hp, range: [1, 2, 3, 4]);
+        Assert.Equal([1, 3], Fronts(evenInRange));
+    }
+
+    [Fact]
+    public void Plan_ReverseOrder_PrintsTheLastPageFirst()
+    {
+        var job = Plan([Doc(3)], Settings(s => s.ReverseOrder = true), Hp);
+        Assert.Equal([2, 1, 0], Fronts(job));
+        Assert.Equal([2, 0], Fronts(Plan([Doc(3)], Settings(s => { s.ReverseOrder = true; s.PageSelection = PageSelection.Odd; }), Hp)));
+    }
+
+    [Fact]
+    public void Plan_OddPagesTwoSidedByHand_AreMadeIntoFrontsAndBacksFromWhatIsLeft()
+    {
+        var job = Plan([Doc(5)], Settings(s => { s.PageSelection = PageSelection.Odd; s.Sides = Sides.LongEdge; }), Plain);
+        Assert.True(job.ManualDuplex);
+        // Pages 1, 3 and 5 make two sheets: 1 over 3, and 5 over a blank back.
+        Assert.Equal([0, 4], job.Passes[0].Sides.Select(side => side.Placements[0].Page.Index));
+        Assert.Equal(2, job.Passes[1].Sides[0].Placements[0].Page.Index);
+        Assert.Empty(job.Passes[1].Sides[1].Placements);
+    }
+
+    [Fact]
+    public void LayoutOptions_CarryTheOrientation()
+    {
+        Assert.Equal(SheetOrientation.Landscape,
+            PrintJobs.LayoutOptions(Settings(s => s.Orientation = SheetOrientation.Landscape), PrintTask.Document).Orientation);
+    }
 }

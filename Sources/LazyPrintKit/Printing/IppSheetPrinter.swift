@@ -101,7 +101,7 @@ public final class IppSheetPrinter: SheetPrinter {
                   placed.enumerated().allSatisfy({ $0.element.document == 0 && $0.element.index == first + $0.offset }) else { return nil }
             let whole = placed.count == document.pages.count
             let settings = job.settings
-            let plain = settings.pagesPerSheet == 1 && !settings.booklet
+            let plain = settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
                 && (settings.scaling == .fit || settings.scaling == .shrinkToFit
                     || settings.scaling == .actualSize && caps.printScalingSupported.contains("none"))
             guard plain, whole || caps.pageRangesSupported else { return nil }

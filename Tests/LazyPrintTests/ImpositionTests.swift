@@ -445,4 +445,54 @@ final class ImpositionTests: XCTestCase {
         XCTAssertTrue(frontSide(plan).borders)
         XCTAssertTrue(backSide(plan).borders)
     }
+
+    // MARK: - Orientation
+
+    func test_plan_forcedPortrait_keepsALandscapePageUprightAndSizedToFit() throws {
+        let plan = makePlan([makePage(0, 792, 612)], LayoutOptions(orientation: .portrait))
+        let placement = try onlyElement(frontSide(plan).placements)
+        let height = 612 * 612 / 792.0
+        assertLayoutRect(0, (792 - height) / 2, 612, height, placement.frame)
+        XCTAssertEqual(placement.turns, 0)
+    }
+
+    func test_plan_forcedLandscape_turnsAPortraitPageOntoALandscapeSheet() throws {
+        let plan = makePlan([makePage(0, 612, 792)], LayoutOptions(orientation: .landscape))
+        let placement = try onlyElement(frontSide(plan).placements)
+        let width = 612 * 612 / 792.0
+        assertLayoutRect(0, (792 - width) / 2, 612, width, placement.frame)
+        XCTAssertEqual(placement.turns, 3)
+    }
+
+    func test_plan_forcedLandscape_keepsALandscapePageAsAutomaticDoes() {
+        let page = makePage(0, 792, 612)
+        XCTAssertEqual(makePlan([page], LayoutOptions(orientation: .landscape)), makePlan([page]))
+    }
+
+    func test_plan_automaticOrientation_isDecidedPageByPage() {
+        let plan = makePlan([makePage(0, 612, 792), makePage(1, 792, 612)], LayoutOptions(orientation: .automatic))
+        XCTAssertEqual(frontSide(plan, 0).placements[0].turns, 0)
+        XCTAssertEqual(frontSide(plan, 1).placements[0].turns, 3)
+    }
+
+    func test_plan_forcedLandscape_choosesTheLandscapeViewOfAGrid() {
+        let pages = [makePage(0, 792, 612), makePage(1, 792, 612)]
+        let placements = frontSide(makePlan(pages, LayoutOptions(pagesPerSheet: 2, orientation: .landscape))).placements
+        // Left to right in the landscape view; the pages are turned in their 396 x 612 cells, as large as that makes them.
+        let height = 792 * 396 / 612.0
+        assertLayoutRect((612 - height) / 2, 396, height, 396, placements[0].frame)
+        XCTAssertEqual(placements[0].turns, 2)
+    }
+
+    func test_plan_forcedPortrait_choosesThePortraitViewOfAGrid() {
+        let placements = frontSide(makePlan(portraitPages(2), LayoutOptions(pagesPerSheet: 2, orientation: .portrait))).placements
+        // Two 612 x 396 cells stacked; a portrait page is larger turned in one.
+        XCTAssertEqual(placements[0].frame.y, 0)
+        XCTAssertEqual(placements[1].frame.y, 396)
+    }
+
+    func test_plan_bookletIgnoresOrientation() {
+        XCTAssertEqual(makePlan(portraitPages(4), LayoutOptions(booklet: true)),
+                       makePlan(portraitPages(4), LayoutOptions(booklet: true, orientation: .portrait)))
+    }
 }
