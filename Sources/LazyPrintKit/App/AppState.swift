@@ -483,6 +483,7 @@ public final class AppState: ObservableObject {
     public func remove(at index: Int) {
         guard !isBusy, documents.indices.contains(index) else { return }
         documents.remove(at: index)
+        if documents.isEmpty { pageRange = "" }
         replan()
     }
 

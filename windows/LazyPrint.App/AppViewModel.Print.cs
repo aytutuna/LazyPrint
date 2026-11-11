@@ -108,6 +108,7 @@ public sealed partial class AppViewModel
         if (IsBusy) return;
         int at = IndexOfDocument(document);
         if (at >= 0) Documents.RemoveAt(at);
+        if (Documents.Count == 0) PageRangeText = "";
         NotifyAll();
     }
 

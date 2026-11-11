@@ -55,6 +55,24 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public async Task ThePageRangeGoesWithTheLastDocumentOnly()
+    {
+        using var rig = new Rig();
+        rig.Loader.Pages = [new LayoutSize(612, 792), new LayoutSize(612, 792)];
+        await rig.Model.AddFilesAsync(["a.pdf", "b.pdf"]);
+        rig.Model.SetPageRange("1-3");
+
+        rig.Model.RemoveDocument(rig.Model.Documents[0]);
+        Assert.Equal("1-3", rig.Model.PageRangeText);
+
+        rig.Model.RemoveDocument(rig.Model.Documents[0]);
+        Assert.Equal("", rig.Model.PageRangeText);
+        await rig.Model.AddFilesAsync(["c.pdf"]);
+        Assert.Equal(2, rig.Model.PageCount);
+        Assert.Null(rig.Model.PageRangeError);
+    }
+
+    [Fact]
     public async Task ARemovedDocumentTakesItsPagesOutOfThePlan()
     {
         using var rig = new Rig();

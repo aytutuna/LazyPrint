@@ -1113,6 +1113,23 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_thePageRange_goesWithTheLastDocumentOnly() async throws {
+        let rig = try makeRig()
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 2, in: rig.folder),
+                                  try writePDF(named: "b.pdf", pages: 2, in: rig.folder)])
+        rig.state.setPageRange("1-3")
+
+        rig.state.remove(at: 0)
+        XCTAssertEqual(rig.state.pageRange, "1-3")
+
+        rig.state.remove(at: 0)
+        XCTAssertEqual(rig.state.pageRange, "")
+        await rig.state.addFiles([try writePDF(named: "c.pdf", pages: 1, in: rig.folder)])
+        XCTAssertEqual(rig.state.pageCount, 1)
+        XCTAssertNil(rig.state.pageRangeError)
+    }
+
+    @MainActor
     func test_addingFiles_isSetUntilTheLastWorkIsDone() async throws {
         let rig = try makeRig()
         XCTAssertFalse(rig.state.isAddingFiles)
