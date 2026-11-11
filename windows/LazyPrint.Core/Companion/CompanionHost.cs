@@ -151,7 +151,7 @@ public sealed class CompanionHost : IAsyncDisposable
     }
 
     /// <summary>Checks the networks and what is wanted, then starts, moves or stops the server and the advertisements.</summary>
-    public async Task RefreshAsync(bool restart = false)
+    public async Task RefreshAsync(bool restart = false, bool retry = true)
     {
         await _refresh.WaitAsync().ConfigureAwait(false);
         try
@@ -174,6 +174,16 @@ public sealed class CompanionHost : IAsyncDisposable
                 await StopServerAsync().ConfigureAwait(false);
                 error = Start(addresses);
                 if (error is not null) state = CompanionListenState.Failed;
+            }
+            else if (retry && _server.FailedEndpoints.Count > 0)
+            {
+                _server.RetryFailed();
+            }
+            if (state == CompanionListenState.Listening && _server is { FailedEndpoints.Count: > 0 } unbound)
+            {
+                // Every listener is gone, or only some are: either way the status says what is real.
+                error = $"Windows did not let Lazy Print listen on {string.Join(", ", unbound.FailedEndpoints.Select(f => f.Address))}.";
+                if (unbound.LocalEndpoints.Count == 0) state = CompanionListenState.Failed;
             }
             UpdateAdvertisements(state == CompanionListenState.Listening ? states : []);
             var status = new CompanionHostStatus(state, states, _server?.LocalEndpoints ?? [], error);
@@ -202,6 +212,18 @@ public sealed class CompanionHost : IAsyncDisposable
         finally
         {
             _refresh.Release();
+        }
+    }
+
+    private async void Listener_Failed(object? sender, EventArgs e)
+    {
+        try
+        {
+            await RefreshAsync(retry: false).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            System.Diagnostics.Trace.TraceError($"Could not follow a listener failure: {error}");
         }
     }
 
@@ -240,6 +262,7 @@ public sealed class CompanionHost : IAsyncDisposable
             try
             {
                 var bound = server.Start([.. addresses.Select(a => new IPEndPoint(a.Address, port))]);
+                server.ListenerFailed += Listener_Failed;
                 _server = server;
                 _listening = addresses;
                 _lastPort = bound[0].Port;
@@ -260,6 +283,7 @@ public sealed class CompanionHost : IAsyncDisposable
         {
             _server = null;
             _listening = [];
+            server.ListenerFailed -= Listener_Failed;
             await server.StopAsync().ConfigureAwait(false);
         }
     }
@@ -268,6 +292,7 @@ public sealed class CompanionHost : IAsyncDisposable
     private void UpdateAdvertisements(IReadOnlyList<CompanionNetworkState> states)
     {
         var wanted = new Dictionary<int, DnsSdRegistration>();
+        var bound = (_server?.LocalEndpoints ?? []).Select(e => e.Address).ToHashSet();
         int port = _server?.LocalEndpoints.FirstOrDefault()?.Port ?? 0;
         if (port > 0)
         {
@@ -277,6 +302,7 @@ public sealed class CompanionHost : IAsyncDisposable
             foreach (var adapter in states.Where(s => s.Trust != NetworkTrust.NotTrusted).SelectMany(s => s.Network.Interfaces))
             {
                 if (untrusted.Contains(adapter.AdapterId) || adapter.Index <= 0 || wanted.ContainsKey(adapter.Index)) continue;
+                if (!adapter.Addresses.Any(a => bound.Contains(a.Address))) continue;
                 var ipv4 = adapter.Addresses.Select(a => a.Address).FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
                 wanted[adapter.Index] = new DnsSdRegistration(
                     _options.InstanceName, _options.HostName, port, adapter.Index, ipv4,

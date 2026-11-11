@@ -680,4 +680,24 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
         string text = Encoding.UTF8.GetString(answer.ToArray());
         return (int.Parse(text.Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture), text);
     }
+
+    [Fact]
+    public async Task Server_KeepsServingOnTheAddressesThatBound_AndBindsTheOthersLater()
+    {
+        using var blocker = new TcpListener(IPAddress.Parse("127.0.0.1"), 0);
+        blocker.Server.ExclusiveAddressUse = true;
+        blocker.Start();
+        int port = ((IPEndPoint)blocker.LocalEndpoint).Port;
+        var router = new CompanionRouter(new PairedDeviceStore(Path.Combine(_directory, "Router")),
+                                         new CompanionInbox(Path.Combine(_directory, "RouterInbox")), new CompanionRateLimiter(), () => _now);
+        await using var server = new CompanionServer(_certificate, router, new CompanionRateLimiter());
+        var bound = server.Start([new IPEndPoint(IPAddress.Parse("127.0.0.1"), port), new IPEndPoint(IPAddress.Parse("127.0.0.2"), port)]);
+        Assert.Equal(IPAddress.Parse("127.0.0.2"), Assert.Single(bound).Address);
+        Assert.Equal(IPAddress.Parse("127.0.0.1"), Assert.Single(server.FailedEndpoints).Address);
+        Assert.False(server.RetryFailed());
+        blocker.Stop();
+        Assert.True(server.RetryFailed());
+        Assert.Equal(2, server.LocalEndpoints.Count);
+        Assert.Empty(server.FailedEndpoints);
+    }
 }
