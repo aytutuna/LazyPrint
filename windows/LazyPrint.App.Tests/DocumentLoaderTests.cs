@@ -176,6 +176,57 @@ public class DocumentLoaderTests
         Pixels.AssertColor(Pixels.Red, _loader.Render(document, 0, null, 61, 79), 30, 40);
     }
 
+    /// <summary>A 40 x 20 picture of one color to a frame, in a temp file that is deleted with the test.</summary>
+    private static string WritePicture(BitmapEncoder encoder, string extension, params (byte R, byte G, byte B)[] colors)
+    {
+        foreach (var (r, g, b) in colors)
+        {
+            var pixels = new byte[40 * 20 * 4];
+            for (int i = 0; i < pixels.Length; i += 4) (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = (b, g, r, 255);
+            var bitmap = BitmapSource.Create(40, 20, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, pixels, 40 * 4);
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        }
+        string path = Path.Combine(Path.GetTempPath(), "lazyprint-" + Guid.NewGuid().ToString("N") + extension);
+        using (var stream = File.Create(path)) encoder.Save(stream);
+        return path;
+    }
+
+    [Fact]
+    public async Task ATiffWithSeveralFramesIsAPageToAFrame()
+    {
+        string path = WritePicture(new TiffBitmapEncoder(), ".tiff", Pixels.Red, Pixels.Blue);
+        try
+        {
+            var document = await _loader.LoadAsync(path, CancellationToken.None);
+
+            Assert.Equal(2, document.Pages.Count);
+            AssertSize(document.Pages[0], document.Pages[1]);
+            Pixels.AssertColor(Pixels.Red, _loader.Render(document, 0, null, 40, 20), 20, 10);
+            Pixels.AssertColor(Pixels.Blue, _loader.Render(document, 1, null, 40, 20), 20, 10);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AGifWithSeveralFramesIsItsFirstFrame()
+    {
+        string path = WritePicture(new GifBitmapEncoder(), ".gif", Pixels.Red, Pixels.Blue);
+        try
+        {
+            var document = await _loader.LoadAsync(path, CancellationToken.None);
+
+            Assert.Single(document.Pages);
+            Pixels.AssertColor(Pixels.Red, _loader.Render(document, 0, null, 40, 20), 20, 10);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task AFileOfAnotherKindIsRefused()
     {

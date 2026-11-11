@@ -135,8 +135,10 @@ public struct SheetRenderer {
                     drawPDF(page, crop: placement.crop, width: width, height: height, in: context)
                 }
             case .picture(let source):
-                if placement.page.index == 0, let size = document.loaded.pages.first {
-                    drawPicture(source, size: size, crop: placement.crop, width: width, height: height, imageDpi: imageDpi, in: context)
+                let index = placement.page.index
+                if document.loaded.pages.indices.contains(index) {
+                    drawPicture(source, index: index, size: document.loaded.pages[index], crop: placement.crop, width: width,
+                                height: height, imageDpi: imageDpi, in: context)
                 }
             }
             context.restoreGState()
@@ -172,21 +174,21 @@ public struct SheetRenderer {
         context.drawPDFPage(page)
     }
 
-    private func drawPicture(_ source: CGImageSource, size: LayoutSize, crop: LayoutRect?, width: Double, height: Double,
+    private func drawPicture(_ source: CGImageSource, index: Int, size: LayoutSize, crop: LayoutRect?, width: Double, height: Double,
                              imageDpi: Double, in context: CGContext) {
         let shown = crop ?? LayoutRect(x: 0, y: 0, width: size.width, height: size.height)
         guard shown.width > 0, shown.height > 0 else { return }
         let scaleX = width / shown.width, scaleY = height / shown.height
         // The whole page is decoded at the size it has on the sheet, so a crop is not soft.
         let longSide = max(size.width * scaleX, size.height * scaleY) * imageDpi / 72
-        guard let image = Self.decode(source, longSide: longSide) else { return }
+        guard let image = Self.decode(source, index: index, longSide: longSide) else { return }
         context.draw(image, in: CGRect(x: -width / 2 - shown.x * scaleX, y: height / 2 + shown.y * scaleY - size.height * scaleY,
                                        width: size.width * scaleX, height: size.height * scaleY))
     }
 
-    /// Frame 0, upright by its orientation tag, at most `longSide` pixels on the longer side and never larger than itself.
-    private static func decode(_ source: CGImageSource, longSide: Double) -> CGImage? {
-        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    /// A frame, upright by its orientation tag, at most `longSide` pixels on the longer side and never larger than itself.
+    private static func decode(_ source: CGImageSource, index: Int, longSide: Double) -> CGImage? {
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
         let own = max((properties?[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? 0,
                       (properties?[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? 0)
         let wanted = max(1, Int(longSide.rounded(.up)))
@@ -195,7 +197,7 @@ public struct SheetRenderer {
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: own > 0 ? min(wanted, own) : wanted,
         ]
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        return CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary)
     }
 
     // MARK: Borders, items and the dot

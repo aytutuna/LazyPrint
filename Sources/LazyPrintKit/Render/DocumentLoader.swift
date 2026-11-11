@@ -65,17 +65,23 @@ public final class DocumentLoader: DocumentLoading {
 
     private func loadPicture(_ url: URL) throws -> OpenedDocument {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              CGImageSourceGetType(source) != nil, CGImageSourceGetCount(source) > 0,
-              let size = Self.size(of: source) else {
+              let type = CGImageSourceGetType(source), CGImageSourceGetCount(source) > 0 else {
             throw PrintError.unreadable(DocumentText.notSupported)
         }
-        let loaded = LoadedDocument(name: url.lastPathComponent, kind: .photo, pages: [size])
+        // A TIFF is a page to a frame (faxes and scans); any other picture is its first frame.
+        let frames = (type as String) == UTType.tiff.identifier ? CGImageSourceGetCount(source) : 1
+        var pages: [LayoutSize] = []
+        for index in 0..<frames {
+            guard let size = Self.size(of: source, at: index) else { throw PrintError.unreadable(DocumentText.notSupported) }
+            pages.append(size)
+        }
+        let loaded = LoadedDocument(name: url.lastPathComponent, kind: .photo, pages: pages)
         return OpenedDocument(loaded: loaded, url: url, source: .picture(source))
     }
 
-    /// The first frame as it is shown, in points: by its own density when that is 72 or more, else as 300 dpi.
-    private static func size(of source: CGImageSource) -> LayoutSize? {
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+    /// A frame as it is shown, in points: by its own density when that is 72 or more, else as 300 dpi.
+    private static func size(of source: CGImageSource, at index: Int) -> LayoutSize? {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
               let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
               let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
               width > 0, height > 0 else { return nil }
@@ -85,11 +91,11 @@ public final class DocumentLoader: DocumentLoading {
         }
         let stored = LayoutSize(width: width * 72 / dpi(kCGImagePropertyDPIWidth), height: height * 72 / dpi(kCGImagePropertyDPIHeight))
         // Orientations 5 to 8 turn the picture a quarter.
-        return orientation(of: source) >= 5 ? LayoutSize(width: stored.height, height: stored.width) : stored
+        return orientation(of: source, at: index) >= 5 ? LayoutSize(width: stored.height, height: stored.width) : stored
     }
 
-    private static func orientation(of source: CGImageSource) -> Int {
-        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    private static func orientation(of source: CGImageSource, at index: Int = 0) -> Int {
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
         return (properties?[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
     }
 }

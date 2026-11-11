@@ -21,10 +21,10 @@ final class DocumentLoaderTests: XCTestCase {
     }
 
     /// The page drawn alone to fill a sheet of its own shown size, the way the loader's document is drawn for a job.
-    private func drawn(_ document: OpenedDocument, crop: LayoutRect? = nil, width: Double, height: Double,
+    private func drawn(_ document: OpenedDocument, page: Int = 0, crop: LayoutRect? = nil, width: Double, height: Double,
                        dpi: Double = 72) throws -> SheetBitmap {
         let area = PrintableArea(paper: LayoutSize(width: width, height: height), margins: LayoutInsets(top: 0, left: 0, bottom: 0, right: 0))
-        let placement = Placement(page: SourcePage(document: 0, index: 0, size: document.loaded.pages[0]),
+        let placement = Placement(page: SourcePage(document: 0, index: page, size: document.loaded.pages[page]),
                                   frame: LayoutRect(x: 0, y: 0, width: width, height: height), turns: 0, crop: crop)
         let side = RenderedSide(side: SheetSide(placements: [placement], borders: false))
         return try SheetRenderer(documents: [document]).bitmap(side, area: area, dpi: dpi, gray: false)
@@ -152,13 +152,24 @@ final class DocumentLoaderTests: XCTestCase {
         Pixels.assertColor(Pixels.red, red, 37, 37)
     }
 
-    func test_picture_withSeveralFrames_isItsFirstFrame() throws {
-        let url = try writePicture(.tiff, ext: "tiff", colors: [Pixels.red, Pixels.blue])
+    func test_gif_withSeveralFrames_isItsFirstFrame() throws {
+        let url = try writePicture(.gif, ext: "gif", colors: [Pixels.red, Pixels.blue])
 
         let document = try loader.load(url)
 
         XCTAssertEqual(document.loaded.pages.count, 1)
         Pixels.assertColor(Pixels.red, try drawn(document, width: 40, height: 20), 20, 10)
+    }
+
+    func test_tiff_withSeveralFrames_isAPageToAFrame() throws {
+        let url = try writePicture(.tiff, ext: "tiff", colors: [Pixels.red, Pixels.blue])
+
+        let document = try loader.load(url)
+
+        XCTAssertEqual(document.loaded.pages.count, 2)
+        assertSize(document.loaded.pages[0], document.loaded.pages[1])
+        Pixels.assertColor(Pixels.red, try drawn(document, width: 40, height: 20), 20, 10)
+        Pixels.assertColor(Pixels.blue, try drawn(document, page: 1, width: 40, height: 20), 20, 10)
     }
 
     func test_picture_thatIsNotWhatItsNameSays_isRefused() throws {

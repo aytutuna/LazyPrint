@@ -57,7 +57,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                     throw new InvalidOperationException(DocumentText.NotSupported, e);
                 }
                 source = picture;
-                document = new LoadedDocument(name, new DocumentKind.Photo(), [picture.Size]);
+                document = new LoadedDocument(name, new DocumentKind.Photo(), picture.Sizes);
                 if (extension is ".jpg" or ".jpeg" && picture.Upright) _jpegs.Add(document, path);
             }
         }
@@ -192,50 +192,60 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     private sealed class PictureSource : Source
     {
         private readonly string _path;
-        private readonly int _orientation;
-        private readonly int _width, _height;
+        private readonly Frame[] _frames;
 
-        /// <summary>At its density, in points, upright.</summary>
-        public LayoutSize Size { get; }
+        /// <summary>One frame of the file: its orientation tag, its pixels as stored and its size at its density, in points, upright.</summary>
+        private readonly record struct Frame(int Orientation, int Width, int Height, LayoutSize Size);
+
+        /// <summary>Each page at its density, in points, upright: a TIFF has one to a frame, any other picture its first frame only.</summary>
+        public IReadOnlyList<LayoutSize> Sizes { get; }
 
         /// <summary>The picture needs no turning by its orientation tag, so a printer can take the file as it is.</summary>
-        public bool Upright => _orientation <= 1;
+        public bool Upright => _frames[0].Orientation <= 1;
 
-        private PictureSource(string path, int orientation, int width, int height, LayoutSize size)
+        private PictureSource(string path, Frame[] frames)
         {
-            (_path, _orientation, _width, _height, Size) = (path, orientation, width, height, size);
+            (_path, _frames) = (path, frames);
+            Sizes = [.. frames.Select(frame => frame.Size)];
         }
 
         public static PictureSource Open(string path)
         {
             using var stream = OpenShared(path);
-            var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.None).Frames[0];
-            int orientation = ReadOrientation(frame);
-            bool sideways = orientation >= 5;
-            // Sized by the density the file states when that is believable, else as if it were 300 dpi.
-            double dpiX = frame.DpiX >= LowestDpi ? frame.DpiX : AssumedDpi, dpiY = frame.DpiY >= LowestDpi ? frame.DpiY : AssumedDpi;
-            double width = frame.PixelWidth * 72 / dpiX, height = frame.PixelHeight * 72 / dpiY;
-            var size = sideways ? new LayoutSize(height, width) : new LayoutSize(width, height);
-            return new PictureSource(path, orientation, frame.PixelWidth, frame.PixelHeight, size);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.None);
+            int count = decoder is TiffBitmapDecoder ? decoder.Frames.Count : 1;
+            var frames = new Frame[count];
+            for (int i = 0; i < count; i++)
+            {
+                var frame = decoder.Frames[i];
+                int orientation = ReadOrientation(frame);
+                // Sized by the density the file states when that is believable, else as if it were 300 dpi.
+                double dpiX = frame.DpiX >= LowestDpi ? frame.DpiX : AssumedDpi, dpiY = frame.DpiY >= LowestDpi ? frame.DpiY : AssumedDpi;
+                double width = frame.PixelWidth * 72 / dpiX, height = frame.PixelHeight * 72 / dpiY;
+                var size = orientation >= 5 ? new LayoutSize(height, width) : new LayoutSize(width, height);
+                frames[i] = new Frame(orientation, frame.PixelWidth, frame.PixelHeight, size);
+            }
+            return new PictureSource(path, frames);
         }
 
         public override BitmapSource Render(int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
         {
-            int shownWidth = _orientation >= 5 ? _height : _width;
+            var (orientation, width, height, size) = _frames[page];
+            int shownWidth = orientation >= 5 ? height : width;
             BitmapSource upright;
-            if (crop is null && pixelWidth * 2 <= shownWidth)
+            if (page == 0 && crop is null && pixelWidth * 2 <= shownWidth)
             {
                 // At most half its size: the decoder makes the small version, not a full-size picture to shrink.
-                upright = Orient(DecodeScaled(pixelWidth), _orientation);
+                upright = Orient(DecodeScaled(pixelWidth, orientation), orientation);
             }
             else
             {
                 using var stream = OpenShared(_path);
-                var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
-                upright = Orient(frame, _orientation);
+                var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[page];
+                upright = Orient(frame, orientation);
                 if (crop is { } c)
                 {
-                    double scaleX = upright.PixelWidth / Size.Width, scaleY = upright.PixelHeight / Size.Height;
+                    double scaleX = upright.PixelWidth / size.Width, scaleY = upright.PixelHeight / size.Height;
                     var area = new Int32Rect(
                         Math.Clamp((int)Math.Round(c.X * scaleX), 0, upright.PixelWidth - 1),
                         Math.Clamp((int)Math.Round(c.Y * scaleY), 0, upright.PixelHeight - 1), 1, 1);
@@ -257,7 +267,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         }
 
         /// <summary>The picture decoded at <paramref name="width"/> pixels across, as shown (upright).</summary>
-        private BitmapSource DecodeScaled(int width)
+        private BitmapSource DecodeScaled(int width, int orientation)
         {
             using var stream = OpenShared(_path);
             var image = new BitmapImage();
@@ -265,7 +275,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             image.CacheOption = BitmapCacheOption.OnLoad;
             image.StreamSource = stream;
             // The decoder works on the picture as stored: for a sideways one the shown width is the stored height.
-            if (_orientation >= 5) image.DecodePixelHeight = Math.Max(1, width);
+            if (orientation >= 5) image.DecodePixelHeight = Math.Max(1, width);
             else image.DecodePixelWidth = Math.Max(1, width);
             image.EndInit();
             image.Freeze();
