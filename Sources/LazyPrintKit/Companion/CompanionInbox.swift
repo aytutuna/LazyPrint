@@ -456,7 +456,10 @@ public final class CompanionInbox: @unchecked Sendable {
             }
         }
         if count >= CompanionInbox.maxWaitingFiles || bytes > CompanionInbox.maxWaitingBytes { throw CompanionInboxError.full }
-        if let free = freeSpace(directory), free - length < CompanionInbox.minFreeBytes { throw CompanionInboxError.full }
+        // The inbox folder is made with the first phone's folder; the volume is asked about it before then too.
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let underWay = reserved.values.reduce(Int64(0)) { $0 + $1.bytes }
+        if let free = freeSpace(directory), free - underWay - length < CompanionInbox.minFreeBytes { throw CompanionInboxError.full }
         reserved[deviceId] = (files: held.files + 1, bytes: held.bytes + length)
     }
 

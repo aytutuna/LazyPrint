@@ -274,7 +274,8 @@ public sealed class SyncFolderWatcher : IDisposable
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // Tried again on the next poll.
+            // Tried again after RetryTime, so a full inbox does not have the file read and decrypted every poll.
+            _failed[name] = _clock();
         }
         finally
         {

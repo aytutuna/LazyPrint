@@ -61,7 +61,6 @@ public sealed class CompanionInbox
     public const long MaxWaitingBytes = 2L * 1024 * 1024 * 1024;
     public const string FullMessage = "This computer has too many files from your phone waiting. Add or dismiss them on the computer first.";
     public const long MinFreeBytes = 1L * 1024 * 1024 * 1024;
-    public const string DiskFullMessage = "This computer is low on disk space. Free some up and send again.";
     public static readonly TimeSpan BatchGrace = TimeSpan.FromSeconds(30);
 
     // The longest name a taken file gets, so that " (2)" and so on still fit in 255 bytes.
@@ -401,7 +400,8 @@ public sealed class CompanionInbox
                 }
             }
             if (files >= MaxWaitingFiles || bytes > MaxWaitingBytes) throw new CompanionInboxFullException(FullMessage);
-            if (FreeSpace(_directory) - length < MinFreeBytes) throw new CompanionInboxFullException(DiskFullMessage);
+            long underWay = _reserved.Values.Sum(r => r.Bytes);
+            if (FreeSpace(_directory) - underWay - length < MinFreeBytes) throw new CompanionInboxFullException(FullMessage);
             _reserved[deviceId] = (reserved.Files + 1, reserved.Bytes + length);
         }
     }

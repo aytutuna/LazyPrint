@@ -186,9 +186,8 @@ public final class SyncFolderWatcher: @unchecked Sendable {
         }
         // The first bytes tell a file that is no package, so a junk file is never read whole. Reading an
         // evicted file downloads it; until it is here, the next poll tries again.
-        guard let handle = try? FileHandle(forReadingFrom: url),
-              let start = try? handle.read(upToCount: SyncPackage.magic.count + SyncPackage.headerByteCount)
-        else { return }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return }
+        let start = ((try? handle.read(upToCount: SyncPackage.magic.count + SyncPackage.headerByteCount)).flatMap { $0 }) ?? Data()
         try? handle.close()
         do {
             try SyncPackage.checkHeader(start, length: size)
@@ -266,7 +265,8 @@ public final class SyncFolderWatcher: @unchecked Sendable {
         } catch let error as PrintPackageError {
             report(name, error.message)
         } catch {
-            // Tried again on the next poll.
+            // Tried again after retryTime, so a full inbox does not have the file read and decrypted every poll.
+            failed[name] = clock()
         }
     }
 
