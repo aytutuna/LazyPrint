@@ -17,6 +17,7 @@ public static class PrintText
     public static string LostContactTitle(string printerName) => $"Lost contact with {printerName}";
 
     public const string Printed = "Printed";
+    public const string Canceling = "Canceling…";
 
     public const string LoadBacks = "Load the backs";
 

@@ -23,6 +23,7 @@ public enum DuplexStep
 public sealed partial class AppViewModel
 {
     private CancellationTokenSource? _job;
+    private bool _canceling;
     private TaskCompletionSource? _passEnded;
     private string? _jobRunning;
 
@@ -281,6 +282,7 @@ public sealed partial class AppViewModel
         using var cancellation = _job = new CancellationTokenSource();
         _passEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _jobRunning = recordId;
+        _canceling = false;
         IsBusy = true;
         SetJob(recordId, JobState.Sending, null);
         _statusOverride = PrintText.Printing(1, sides);
@@ -289,6 +291,7 @@ public sealed partial class AppViewModel
         {
             var progress = new Progress<JobStatus>(status =>
             {
+                if (_canceling) return;
                 if (CurrentJob(recordId) is not { State: JobState.Preparing or JobState.Sending or JobState.Waiting or JobState.Printing or JobState.NeedsUser }) return;
                 SetJob(recordId, status.State, status.Detail);
                 if (status.State == JobState.Done) return;
@@ -373,13 +376,24 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>
-    public void CancelJob() => _job?.Cancel();
+    public void CancelJob() => StopJob();
+
+    /// <summary>The printer is asked to cancel in the background; until it answers the job says so instead of printing.</summary>
+    private void StopJob()
+    {
+        if (_job is null || _canceling) return;
+        _canceling = true;
+        _job.Cancel();
+        if (_jobRunning is { } id && CurrentJob(id) is { } record) SetJob(id, record.State, PrintText.Canceling);
+        _statusOverride = PrintText.Canceling;
+        NotifyAll();
+    }
 
     /// <summary>Stops the job being printed and returns once its pass has ended, so closing the app does not leave it in the queue. False when there was no job to stop.</summary>
     public async Task<bool> CancelJobAndWaitAsync()
     {
         if (_job is null || _passEnded is not { } ended) return false;
-        _job.Cancel();
+        StopJob();
         await ended.Task;
         return true;
     }
@@ -387,7 +401,7 @@ public sealed partial class AppViewModel
     /// <summary>The Jobs tab's Cancel for a job still going.</summary>
     public void CancelJob(string id)
     {
-        if (_jobRunning == id) _job?.Cancel();
+        if (_jobRunning == id) StopJob();
         else if (_manual?.RecordId == id) CancelManualDuplex();
     }
 

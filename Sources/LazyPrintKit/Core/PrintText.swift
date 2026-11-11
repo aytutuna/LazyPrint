@@ -18,6 +18,7 @@ public enum PrintText {
     }
 
     public static let printed = "Printed"
+    public static let canceling = "Canceling…"
 
     public static let loadBacks = "Load the backs"
 
