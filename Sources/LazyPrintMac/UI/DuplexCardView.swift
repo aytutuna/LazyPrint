@@ -63,10 +63,10 @@ struct DuplexCardView: View {
             Button("Check with one sheet") { Task { await state.checkDuplex() } }
                 .help("Prints a numbered sheet to learn how this printer takes the stack back")
             Button(ManualDuplexText.backsTitle) { Task { await state.printBacks() } }
-                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
         case .checkBack:
             Button("Print the back") { Task { await state.printCheckBack() } }
-                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
         case .checkAnswer:
             ForEach([DuplexCheckAnswer.bothOnOneSide, .oppositeEdges, .sameEdge], id: \.self) { answer in
                 Button(ManualDuplexText.answer(answer)) { state.answerDuplexCheck(answer) }
