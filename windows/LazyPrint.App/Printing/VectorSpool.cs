@@ -10,7 +10,7 @@ namespace LazyPrint.App.Printing;
 /// </summary>
 internal static class VectorSpool
 {
-    private const int PhysicalWidth = 110, PhysicalHeight = 111, PhysicalOffsetX = 112, PhysicalOffsetY = 113;
+    private const int LogPixelsX = 88, LogPixelsY = 90, PhysicalOffsetX = 112, PhysicalOffsetY = 113;
     // FPDF_ANNOT and FPDF_PRINTING.
     private const int RenderFlags = 0x01 | 0x800;
 
@@ -35,11 +35,12 @@ internal static class VectorSpool
     [DllImport("gdi32")] private static extern int GetDeviceCaps(IntPtr dc, int index);
 
     /// <summary>
-    /// Where the paper lies on the device context, whose origin is the corner of the printable area: the paper's size in
-    /// device pixels, shifted back by the printer's unprintable margins.
+    /// Where a sheet of <paramref name="width"/> by <paramref name="height"/> points lies on the device context, whose origin
+    /// is the corner of the printable area: its size in device pixels at the printer's resolution, shifted back by the
+    /// printer's unprintable margins. The sheet keeps its size whatever paper the driver picked.
     /// </summary>
-    internal static (int X, int Y, int Width, int Height) PaperRect(int physicalWidth, int physicalHeight, int offsetX, int offsetY) =>
-        (-offsetX, -offsetY, physicalWidth, physicalHeight);
+    internal static (int X, int Y, int Width, int Height) PaperRect(double width, double height, int dpiX, int dpiY, int offsetX, int offsetY) =>
+        (-offsetX, -offsetY, (int)Math.Round(width * dpiX / 72), (int)Math.Round(height * dpiY / 72));
 
     /// <summary>
     /// Sends every page of <paramref name="pdf"/> to the printer as a job of its own and returns the spooler's id for it.
@@ -66,16 +67,23 @@ internal static class VectorSpool
             if (id <= 0) throw new Win32Exception(Marshal.GetLastWin32Error());
             try
             {
-                var rect = PaperRect(GetDeviceCaps(dc, PhysicalWidth), GetDeviceCaps(dc, PhysicalHeight),
-                                     GetDeviceCaps(dc, PhysicalOffsetX), GetDeviceCaps(dc, PhysicalOffsetY));
                 for (int i = 0; i < document.PageCount; i++)
                 {
                     token.ThrowIfCancellationRequested();
+                    var (width, height) = document.PageSize(i);
+                    var rect = PaperRect(width, height, GetDeviceCaps(dc, LogPixelsX), GetDeviceCaps(dc, LogPixelsY),
+                                         GetDeviceCaps(dc, PhysicalOffsetX), GetDeviceCaps(dc, PhysicalOffsetY));
                     if (StartPage(dc) <= 0) throw new Win32Exception(Marshal.GetLastWin32Error());
                     lock (Pdfium.Gate)
                     {
                         var page = Pdfium.FPDF_LoadPage(document.Handle, i);
-                        try { Pdfium.FPDF_RenderPage(dc, page, rect.X, rect.Y, rect.Width, rect.Height, 0, RenderFlags); }
+                        try
+                        {
+                            if (Pdfium.FPDF_RenderPage(dc, page, rect.X, rect.Y, rect.Width, rect.Height, 0, RenderFlags) == 0)
+                            {
+                                throw new InvalidOperationException("PDFium could not draw the page.");
+                            }
+                        }
                         finally { Pdfium.FPDF_ClosePage(page); }
                     }
                     if (EndPage(dc) <= 0) throw new Win32Exception(Marshal.GetLastWin32Error());
