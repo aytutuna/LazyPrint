@@ -44,7 +44,7 @@ struct InspectorView: View {
         InspectorSection(id: InspectorSections.printer, icon: "printer", summary: "") {
             Picker("Printer", selection: Binding(
                 get: { state.selectedPrinter?.id ?? "" },
-                set: { id in Task { await state.selectPrinter(id) } })) {
+                set: { id in if !id.isEmpty { Task { await state.selectPrinter(id) } } })) {
                 if state.selectedPrinter == nil {
                     Text("No printer").tag("")
                 }

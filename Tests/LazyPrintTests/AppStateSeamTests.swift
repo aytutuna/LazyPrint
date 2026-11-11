@@ -340,6 +340,23 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_demoPrinter_isUsedOnlyWhenItIsChosen() async throws {
+        let rig = try makeRig()
+        await rig.state.refreshPrinters()
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 3, in: rig.folder)])
+
+        XCTAssertEqual(rig.state.printers.map { $0.id }, ["demo"])
+        XCTAssertNil(rig.state.selectedPrinter)
+        XCTAssertEqual(rig.state.printDisabledReason, PrintText.noPrinterReason)
+
+        await rig.state.selectPrinter("demo")
+
+        XCTAssertEqual(rig.state.selectedPrinter?.id, "demo")
+        XCTAssertNotNil(rig.state.capabilities)
+        XCTAssertTrue(rig.state.canPrint)
+    }
+
+    @MainActor
     func test_theDefaultPrinter_isUsedUntilOneIsChosen() async throws {
         let rig = try makeRig()
         rig.spooler.listed = [Rig.queue("HP LaserJet"), Rig.queue("Brother", isDefault: true)]
