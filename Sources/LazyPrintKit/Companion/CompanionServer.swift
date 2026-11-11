@@ -287,12 +287,22 @@ public final class CompanionServer: @unchecked Sendable {
         let pace = BodyPace(small: (head.contentLength ?? 0) <= Int64(CompanionProtocol.maxJsonBodyBytes), options: options)
         let body = CompanionRequestBody(length: head.contentLength ?? 0, prefix: Data(buffer.dropFirst(parsed.consumed)),
                                         sendContinue: sendContinue) { (maxLength: Int) in
-            let wait: TimeInterval = try pace.timeToRead()
-            let chunk: Data = try await link.receive(maxLength: maxLength, timeout: wait)
-            try pace.record(chunk.count)
-            return chunk
+            do {
+                let wait: TimeInterval = try pace.timeToRead()
+                let chunk: Data = try await link.receive(maxLength: maxLength, timeout: wait)
+                try pace.record(chunk.count)
+                return chunk
+            } catch {
+                link.cancel()
+                throw error
+            }
         }
         let response = await router.handle(CompanionRequest(head: head, body: body, remote: remote))
+        // A send into a closed connection still completes once; a phone that already hung up never gets the secret.
+        if response.written != nil, await link.peerClosed() {
+            response.written?(false)
+            return
+        }
         do {
             try await write(response, to: link)
         } catch {
@@ -473,6 +483,24 @@ private final class CompanionLink: @unchecked Sendable {
                 }
             }
         }
+    }
+
+    /// True when the peer has closed its side; anything it sent meanwhile is dropped.
+    func peerClosed() async -> Bool {
+        let connection: NWConnection = self.connection
+        let queue: DispatchQueue = self.queue
+        return (try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+            let once: Once<Bool> = Once(continuation)
+            let timer: DispatchWorkItem = DispatchWorkItem {
+                once.resume(.success(false))
+            }
+            queue.asyncAfter(deadline: .now() + 0.05, execute: timer)
+            connection.receive(minimumIncompleteLength: 0, maximumLength: 1) {
+                (_: Data?, _: NWConnection.ContentContext?, isComplete: Bool, error: NWError?) in
+                timer.cancel()
+                once.resume(.success(isComplete || error != nil))
+            }
+        }) ?? false
     }
 
     func send(_ data: Data, timeout: TimeInterval) async throws {
