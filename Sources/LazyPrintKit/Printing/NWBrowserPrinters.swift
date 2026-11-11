@@ -740,7 +740,8 @@ final class DnssdResolve: ResolveHandle {
         guard let unmanaged = retained else { return }
         var ref: DNSServiceRef?
         let protocols: DNSServiceProtocol = DNSServiceProtocol(kDNSServiceProtocol_IPv4 | kDNSServiceProtocol_IPv6)
-        let started: DNSServiceErrorType = DNSServiceGetAddrInfo(&ref, 0, interfaceIndex, protocols, target,
+        // Interface 0: the addresses on every interface, not only the one the service answered on, as Windows lists them.
+        let started: DNSServiceErrorType = DNSServiceGetAddrInfo(&ref, 0, 0, protocols, target,
                                                                  addressReply, unmanaged.toOpaque())
         guard Int(started) == kDNSServiceErr_NoError, let lookup = ref else {
             finish(DnssdResolve.outcome(started, doing: "address lookup"))
