@@ -50,6 +50,16 @@ public sealed class DocumentListTests
     }
 
     [Fact]
+    public void FoldersAreNamedInTheErrorBarWithWhyTheyWereNotTaken()
+    {
+        using var rig = new Rig();
+        rig.Model.ReportFolders([@"C:\Docs\Taxes", @"C:\Docs\Trip"]);
+
+        Assert.Equal("Not added", rig.Model.ErrorTitle);
+        Assert.Equal($"Taxes: {DocumentText.NotSupported}\nTrip: {DocumentText.NotSupported}", rig.Model.ErrorMessage);
+    }
+
+    [Fact]
     public async Task EqualDocumentsAreToldApartByReference()
     {
         using var rig = new Rig();

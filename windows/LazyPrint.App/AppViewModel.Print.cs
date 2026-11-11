@@ -117,6 +117,10 @@ public sealed partial class AppViewModel
         return (opened, failed);
     }
 
+    /// <summary>A drop or paste of nothing but folders: each is named in the error bar with why it was not taken.</summary>
+    public void ReportFolders(IEnumerable<string> folders) =>
+        ReportNotAdded(folders.Select(folder => (Path.GetFileName(folder), DocumentText.NotSupported)).ToList());
+
     /// <summary>Puts the files that were not added in the error bar, one to a line; a long list is cut after a few.</summary>
     private void ReportNotAdded(IReadOnlyList<(string Name, string Reason)> failed)
     {

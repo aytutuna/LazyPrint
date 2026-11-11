@@ -80,13 +80,14 @@ public partial class MainWindow
         {
             // Another program holding the clipboard makes the read throw.
             if (!Clipboard.ContainsFileDropList()) return false;
-            paths = ExistingFiles(Clipboard.GetFileDropList().Cast<string>());
+            var listed = Clipboard.GetFileDropList().Cast<string>().ToList();
+            paths = ExistingFiles(listed);
+            if (paths is null) return ReportFolders(listed);
         }
         catch (ExternalException)
         {
             return false;
         }
-        if (paths is null) return false;
         _ = TakeFilesAsync(paths);
         return true;
     }
@@ -96,6 +97,15 @@ public partial class MainWindow
     {
         if (ViewModel.IsBusy || (e.AllowedEffects & DragDropEffects.Copy) == 0) return null;
         return e.Data.GetData(DataFormats.FileDrop) is string[] paths ? ExistingFiles(paths) : null;
+    }
+
+    /// <summary>Says so when what was dropped or pasted, with no file in it, held folders; true when it did.</summary>
+    private bool ReportFolders(IEnumerable<string> paths)
+    {
+        var folders = paths.Where(Directory.Exists).ToList();
+        if (folders.Count == 0) return false;
+        ViewModel.ReportFolders(folders);
+        return true;
     }
 
     /// <summary>Folders are left; any file is taken, and the loader says why one is not a PDF or a picture.</summary>
@@ -126,6 +136,7 @@ public partial class MainWindow
         if (DroppedFiles(e) is not { } paths)
         {
             e.Effects = DragDropEffects.None;
+            if (!ViewModel.IsBusy && e.Data.GetData(DataFormats.FileDrop) is string[] dropped) ReportFolders(dropped);
             return;
         }
         // A copy: the source keeps its files. Let the drag finish in the other app before the files are opened.
