@@ -55,6 +55,15 @@ public sealed class InspectorStateTests
     }
 
     [Fact]
+    public void FillStaysChangeableUnderSeveralPagesPerSide()
+    {
+        var state = For(new PrintSettings { PagesPerSheet = 4, Scaling = Scaling.Fill });
+
+        Assert.True(state.ScalingEnabled);
+        Assert.Null(state.ScalingReason);
+    }
+
+    [Fact]
     public void TheScaleShowsForActualSizeAndShrinkToFitOfOnePagePerSide()
     {
         Assert.True(For(new PrintSettings { Scaling = Scaling.ActualSize }).ShowScale);
