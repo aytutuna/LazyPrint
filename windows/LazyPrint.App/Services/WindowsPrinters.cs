@@ -100,7 +100,7 @@ internal static class PrinterMapping
     private static readonly (InputBin Bin, string Id)[] Trays =
         [(InputBin.AutoSheetFeeder, "main"), (InputBin.Cassette, "tray-1"), (InputBin.Manual, "manual")];
 
-    private static readonly (PageMediaType Type, string Id)[] PaperTypes =
+    private static readonly (PageMediaType Type, string Id)[] PaperTypeIds =
     [
         (PageMediaType.Plain, "stationery"), (PageMediaType.Stationery, "stationery"), (PageMediaType.Bond, "bond"),
         (PageMediaType.Photographic, "photographic"), (PageMediaType.PhotographicGlossy, "photographic-glossy"),
@@ -117,9 +117,12 @@ internal static class PrinterMapping
     public static InputBin? Tray(string id) => Array.Find(Trays, t => t.Id == id) is { Id: not null } found ? found.Bin : null;
 
     /// <summary>A paper type as the keyword a printer's media-type-supported would use; null for the driver's own choice and types with no keyword.</summary>
-    public static string? TypeId(PageMediaType type) => Array.Find(PaperTypes, t => t.Type == type).Id;
+    public static string? TypeId(PageMediaType type) => Array.Find(PaperTypeIds, t => t.Type == type).Id;
 
-    public static PageMediaType? PaperType(string id) => Array.Find(PaperTypes, t => t.Id == id) is { Id: not null } found ? found.Type : null;
+    /// <summary>Every paper type that is the keyword: a driver may list Stationery and not Plain, both "stationery".</summary>
+    public static IEnumerable<PageMediaType> PaperTypes(string id) => Array.FindAll(PaperTypeIds, t => t.Id == id).Select(t => t.Type);
+
+    public static PageMediaType? PaperType(string id) => Array.Find(PaperTypeIds, t => t.Id == id) is { Id: not null } found ? found.Type : null;
 
     /// <summary>What a driver lists, as the capabilities the layout and the job read.</summary>
     public static PrinterCapabilities Capabilities(

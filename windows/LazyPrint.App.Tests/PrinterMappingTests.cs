@@ -201,6 +201,13 @@ public sealed class PrinterMappingTests
     }
 
     [Fact]
+    public void PlainAndStationeryAreBothStationery()
+    {
+        Assert.Equal([PageMediaType.Plain, PageMediaType.Stationery], PrinterMapping.PaperTypes("stationery"));
+        Assert.Empty(PrinterMapping.PaperTypes("no-such-type"));
+    }
+
+    [Fact]
     public void ADriverWithoutDuplexPrintsOneSide()
     {
         Assert.Equal(["one-sided"], Caps().SidesSupported);

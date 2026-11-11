@@ -235,8 +235,8 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
         {
             ticket.InputBin = bin;
         }
-        if (MediaChoices.Type(settings, job.Capabilities) is { } type && PrinterMapping.PaperType(type) is { } paperType
-            && Lists(caps?.PageMediaTypeCapability, paperType))
+        if (MediaChoices.Type(settings, job.Capabilities) is { } type
+            && PrinterMapping.PaperTypes(type).Where(t => Lists(caps?.PageMediaTypeCapability, t)).Cast<PageMediaType?>().FirstOrDefault() is { } paperType)
         {
             ticket.PageMediaType = paperType;
         }
