@@ -385,9 +385,12 @@ extension AppState {
         var settings = saved.settings
         settings.pageSelection = saved.pageSelection ?? .all
         settings.reverseOrder = saved.reverseOrder ?? false
-        let inputs = JobInputs(printer: printer, capabilities: knownCapabilities(of: printer), settings: settings,
-                               task: PrintTask.tryParse(saved.taskId), documents: opened, range: saved.range,
-                               name: opened[0].loaded.name)
+        let capabilities = knownCapabilities(of: printer)
+        let paper = PrintJobs.sheet(settings.paperId, capabilities)
+        let laid = opened.map { loader.relaid($0, on: paper) ?? $0 }
+        let inputs = JobInputs(printer: printer, capabilities: capabilities, settings: settings,
+                               task: PrintTask.tryParse(saved.taskId), documents: laid, range: saved.range,
+                               name: laid[0].loaded.name)
         let id = UUID().uuidString
         let job = sheetJob(inputs, id: id)
         guard job.plan.manualDuplex else {

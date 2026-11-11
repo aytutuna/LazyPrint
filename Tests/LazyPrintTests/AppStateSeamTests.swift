@@ -1807,6 +1807,31 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_backsWaiting_ofATextDocument_areLaidOutOnThePaperOfTheFronts() async throws {
+        let rig = try makeRig(platform: .ios)
+        rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]
+        rig.spooler.capable["Test Printer"] = Rig.capabilities(duplex: false)
+        await rig.state.refreshPrinters()
+        rig.state.settings.paperId = "a5"
+        rig.state.settings.sides = .longEdge
+        let notes = rig.folder.appendingPathComponent("Notes.txt")
+        try Data((1...200).map { "line \($0)" }.joined(separator: "\n").utf8).write(to: notes)
+        await rig.state.addFiles([notes])
+        await rig.state.print()
+
+        let next = rig.open()
+        await next.refreshPrinters()
+        await next.restoreBacks()
+        await next.printBacks()
+
+        let a5 = try XCTUnwrap(PaperSizes.pointsOf("a5"))
+        let fronts = rig.sheets.passes[0].job.documents[0].loaded.pages
+        let backs = rig.sheets.passes[1].job.documents[0].loaded.pages
+        XCTAssertTrue(fronts.allSatisfy { $0 == a5 })
+        XCTAssertEqual(backs, fronts)
+    }
+
+    @MainActor
     func test_backsWaiting_keepTheReverseOrderAndPageSelectionAcrossARestore() async throws {
         let rig = try makeRig(platform: .ios)
         rig.spooler.listed = [Rig.queue("Test Printer", isDefault: true)]
