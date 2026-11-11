@@ -11,6 +11,7 @@ public struct LazyPrintApp: App {
     public init() {
         // No tabs: each would be another window over the same state.
         NSWindow.allowsAutomaticWindowTabbing = false
+        CupsPrinter.removeStaleFiles()
         // Made here, so the state is there before any URL arrives.
         let host = MacCompanionHosting(options: MacCompanionHosting.standardOptions())
         _state = StateObject(wrappedValue: AppState.makeForMac(companion: host))

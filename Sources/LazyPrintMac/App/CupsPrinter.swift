@@ -21,6 +21,19 @@ public final class CupsPrinter: SheetPrinter {
         self.poll = pollInterval
     }
 
+    /// What a run that was killed mid-job left in the temporary folder. A day's grace, since another copy may be printing.
+    static func removeStaleFiles() {
+        let folder = FileManager.default.temporaryDirectory
+        let cutoff = Date().addingTimeInterval(-86400)
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        for file in files where file.lastPathComponent.hasPrefix("lp-") && file.pathExtension == "pdf" {
+            if let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+               modified < cutoff {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
+
     public func print(_ job: SheetJob, pass: Int, progress: @Sendable (JobStatus) -> Void) async throws {
         let queue = String(job.printer.id.dropFirst("system:".count))
         let area = job.plan.plan.area
