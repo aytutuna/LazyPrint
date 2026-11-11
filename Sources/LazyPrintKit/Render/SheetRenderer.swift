@@ -77,17 +77,20 @@ public struct SheetRenderer {
         context.restoreGState()
     }
 
-    /// A PDF with one page per side, each page the paper's size in points, written to `url` as it is drawn.
-    public func writePDF(_ sides: [RenderedSide], area: PrintableArea, imageDpi: Double = 300, to url: URL) throws {
+    /// A PDF with one page per side, each page the paper's size in points, written to `url` as it is drawn. `onPage` is
+    /// told how many pages are written, after each.
+    public func writePDF(_ sides: [RenderedSide], area: PrintableArea, imageDpi: Double = 300, to url: URL,
+                         onPage: ((Int) -> Void)? = nil) throws {
         var box = CGRect(x: 0, y: 0, width: area.paper.width, height: area.paper.height)
         guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { throw Self.cannotDraw }
-        for side in sides {
+        for (i, side) in sides.enumerated() {
             try Task.checkCancellation()
             autoreleasepool {
                 context.beginPDFPage(nil)
                 draw(side, area: area, imageDpi: imageDpi, in: context)
                 context.endPDFPage()
             }
+            onPage?(i + 1)
         }
         context.closePDF()
     }

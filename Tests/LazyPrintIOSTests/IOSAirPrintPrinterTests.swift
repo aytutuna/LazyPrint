@@ -79,15 +79,17 @@ final class IOSAirPrintPrinterTests: XCTestCase {
         XCTAssertEqual(renderer.numberOfPages, 3)
     }
 
-    func test_theRenderer_doesNotNeedTheFileOnceItIsMade() throws {
+    func test_theRenderer_removesTheFileWhenItGoes() throws {
         let job = makeJob(sheets: 2)
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("IOSAirPrintPrinterTests-\(UUID().uuidString).pdf")
         try SheetRenderer(documents: []).writePDF(JobSides.of(job, pass: 0), area: job.plan.plan.area, to: file)
-        let renderer = try XCTUnwrap(IOSPrintRenderer(file: file))
+        var renderer: IOSPrintRenderer? = try XCTUnwrap(IOSPrintRenderer(file: file))
+        XCTAssertEqual(renderer?.numberOfPages, 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
 
-        try FileManager.default.removeItem(at: file)
+        renderer = nil
 
-        XCTAssertEqual(renderer.numberOfPages, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
     func test_theRenderer_refusesAFileThatIsNotAPDF() throws {

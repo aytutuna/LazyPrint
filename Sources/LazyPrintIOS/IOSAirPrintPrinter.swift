@@ -21,14 +21,26 @@ public final class IOSAirPrintPrinter: SheetPrinter {
         try await check(job)
 
         let file: URL = FileManager.default.temporaryDirectory.appendingPathComponent("lp-" + UUID().uuidString.lowercased() + ".pdf")
-        defer { try? FileManager.default.removeItem(at: file) }
         let sides: [RenderedSide] = JobSides.of(job, pass: pass)
         progress(JobStatus(state: .preparing, sidesDone: 0))
-        try SheetRenderer(documents: job.documents).writePDF(sides, area: job.plan.plan.area, to: file)
+        // From here the renderer owns the file and removes it when the system lets the renderer go.
+        let renderer: IOSPrintRenderer
+        do {
+            try SheetRenderer(documents: job.documents).writePDF(sides, area: job.plan.plan.area, to: file) { (done: Int) -> Void in
+                progress(JobStatus(state: .preparing, sidesDone: done))
+            }
+            guard let made: IOSPrintRenderer = IOSPrintRenderer(file: file) else {
+                throw PrintError.unreadable("The pages could not be prepared for printing.")
+            }
+            renderer = made
+        } catch {
+            try? FileManager.default.removeItem(at: file)
+            throw error
+        }
         try Task.checkCancellation()
 
         progress(JobStatus(state: .sending, sidesDone: 0, cancelable: false))
-        try await send(file, job: job)
+        try await send(renderer, job: job)
         progress(JobStatus(state: .done, sidesDone: sides.count))
     }
 
@@ -43,12 +55,9 @@ public final class IOSAirPrintPrinter: SheetPrinter {
     }
 
     @MainActor
-    private func send(_ file: URL, job: SheetJob) async throws {
+    private func send(_ renderer: IOSPrintRenderer, job: SheetJob) async throws {
         try Task.checkCancellation()
         guard let printer: UIPrinter = system.printer else { throw PrintError.noPrinter }
-        guard let renderer: IOSPrintRenderer = IOSPrintRenderer(file: file) else {
-            throw PrintError.unreadable("The pages could not be prepared for printing.")
-        }
         let chooser: PaperChooser = PaperChooser(pageSize: IOSAirPrintPrinter.pageSize(of: job))
         let controller: UIPrintInteractionController = UIPrintInteractionController.shared
         controller.printInfo = IOSAirPrintPrinter.printInfo(for: job)
@@ -121,7 +130,12 @@ public final class IOSAirPrintPrinter: SheetPrinter {
     }
 
     static func outputType(for job: SheetJob) -> UIPrintInfo.OutputType {
-        job.settings.color == .gray ? UIPrintInfo.OutputType.grayscale : UIPrintInfo.OutputType.general
+        // Photo output is what lets the printer print to the edge, which a job planned without margins counts on.
+        let gray: Bool = job.settings.color == .gray
+        if job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0) {
+            return gray ? UIPrintInfo.OutputType.photoGrayscale : UIPrintInfo.OutputType.photo
+        }
+        return gray ? UIPrintInfo.OutputType.grayscale : UIPrintInfo.OutputType.general
     }
 
     @MainActor

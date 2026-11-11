@@ -352,8 +352,10 @@ final class SheetRendererTests: XCTestCase {
         let url = tempURL("pdf")
         let a4 = PrintableArea(paper: LayoutSize(width: 595.28, height: 841.89), margins: LayoutInsets(top: 0, left: 0, bottom: 0, right: 0))
 
-        try SheetRenderer(documents: [document]).writePDF(sides, area: a4, to: url)
+        var pagesDone = [Int]()
+        try SheetRenderer(documents: [document]).writePDF(sides, area: a4, to: url) { pagesDone.append($0) }
 
+        XCTAssertEqual(pagesDone, [1, 2, 3])
         let written = try XCTUnwrap(CGPDFDocument(url as CFURL))
         XCTAssertEqual(written.numberOfPages, 3)
         for number in 1...3 {
