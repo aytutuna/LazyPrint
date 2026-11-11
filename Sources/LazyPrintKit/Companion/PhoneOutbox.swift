@@ -129,15 +129,20 @@ public final class PhoneOutbox: @unchecked Sendable {
         defer { lock.unlock() }
         guard file.items.count < PhoneOutbox.maxItems else { throw PhoneOutboxError.full }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let package = try PrintPackage.make(name: name, contentType: contentType, batch: batch, index: index, count: count,
-                                            from: from, bytes: Data(contentsOf: source, options: .mappedIfSafe))
         var item = PhoneOutboxItem()
         item.id = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         item.fileName = item.id + "." + PrintPackage.fileExtension
         item.name = name
         item.desktopId = desktopId
         item.created = now
-        try package.write(to: directory.appendingPathComponent(item.fileName), options: .atomic)
+        let target = directory.appendingPathComponent(item.fileName)
+        do {
+            try PrintPackage.write(file: source, to: target, name: name, contentType: contentType, batch: batch, index: index,
+                                   count: count, from: from)
+        } catch {
+            try? FileManager.default.removeItem(at: target)
+            throw error
+        }
         file.items.append(item)
         StoreFiles.write(file, to: url)
         return item
