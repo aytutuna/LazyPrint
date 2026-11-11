@@ -122,9 +122,13 @@ struct TroubleshooterScreen: View {
     }
 
     private func run(_ action: TroubleshootAction, _ check: TroubleshootCheck) async {
+        if action == .printTestPage, let block = state.testPageBlock {
+            footer = block
+            return
+        }
         let before: Int = state.errorsShown
         await state.perform(action, for: check)
-        footer = state.errorDetail(since: before)
+        footer = state.errorDetail(since: before) ?? (action == .printTestPage ? state.sentMessage : nil)
     }
 
     private func refresh() async {

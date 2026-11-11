@@ -323,7 +323,7 @@ public partial class TroubleshooterWindow : Window
                     ShowStatus("Wait for the job to finish.");
                     break;
                 }
-                if (_viewModel.SelectedPrinter is null)
+                if (_viewModel.SelectedPrinter is null or { Route: PrinterRoute.Demo })
                 {
                     ShowStatus("Choose a printer first.");
                     break;

@@ -206,6 +206,13 @@ extension AppState {
         return true
     }
 
+    /// Why the troubleshooter's test page cannot be printed now, nil when it can.
+    public var testPageBlock: String? {
+        if isBusy || hasBacksWaiting { return "Wait for the job to finish." }
+        if selectedPrinter == nil || selectedPrinter?.route == .demo { return "Choose a printer first." }
+        return nil
+    }
+
     /// The test page goes straight to the printer in use.
     public func printTestPage() async {
         guard let printer = selectedPrinter, !isBusy, manual == nil else { return }
