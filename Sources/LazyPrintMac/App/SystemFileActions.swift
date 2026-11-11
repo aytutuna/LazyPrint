@@ -60,7 +60,25 @@ public final class SystemFileActions: FileActionService {
         }
     }
 
+    public func lazyPDFInstalled() -> Bool {
+        Self.lazyPDFLocation() != nil
+    }
+
+    // Like Lazy PDF's own hand-off to Lazy Print: the file goes through NSWorkspace, which passes the sandbox grant with it.
+    public func openInLazyPDF(_ url: URL) throws {
+        guard let app = Self.lazyPDFLocation() else { throw PrintError.unreadable("Lazy PDF is not installed.") }
+        NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration(),
+                                completionHandler: nil)
+    }
+
     // MARK: Pure
+
+    /// Where Lazy PDF is, by its bundle id; a copy left in the Trash is still known to LaunchServices.
+    private static func lazyPDFLocation() -> URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.lazypdf.lazypdf").flatMap {
+            $0.path.contains("/.Trash/") ? nil : $0
+        }
+    }
 
     /// What Lazy Scan registers: the scheme alone, so opening it brings the app forward.
     nonisolated static var lazyScanURL: URL { URL(string: "lazyscan:")! }

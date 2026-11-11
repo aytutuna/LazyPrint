@@ -52,6 +52,7 @@ public struct IOSRootView: View {
         // Outside the panel's dimming, so what a job in the panel says can be read and acted on.
         .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
+        .environment(\.openRecent, { (file: RecentFile) in receive([state.recentURL(file)]) })
         .onDrop(of: [.pdf, .image, .plainText], isTargeted: nil, perform: drop)
         .background {
             // The shortcut needs a button in the view tree; this one is never seen or tapped.
@@ -157,6 +158,7 @@ public struct IOSRootView: View {
                 inbox.discardDelivered(urls, failed: received.failed)
             }
             await open(received.copies, notAdded: received.failed)
+            if !delivered { state.remember(urls) }
         }
     }
 

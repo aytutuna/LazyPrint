@@ -75,7 +75,7 @@ struct ContentView: View {
                 Divider()
                 switch tab {
                 case .print:
-                    PrintView(addFiles: { showImporter = true }, pickTask: { task in
+                    PrintView(addFiles: { showImporter = true }, openRecent: { url in _ = take([url]) }, pickTask: { task in
                         Task { await start(task) }
                     })
                 case .jobs:
@@ -317,6 +317,7 @@ struct ContentView: View {
                 await state.addFiles(files, alsoNotAdded: refused)
             }
             state.holdAccess(started)
+            state.remember(files)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print

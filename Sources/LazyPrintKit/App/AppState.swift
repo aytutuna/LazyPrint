@@ -125,6 +125,8 @@ public final class AppState: ObservableObject {
             drawingSides.removeAll()
         }
     }
+    /// The files opened last, newest first (AppState+Files.swift).
+    @Published public internal(set) var recentFiles: [RecentFile] = []
     /// The page range as typed ("1-3, 5"); empty is every page.
     @Published public internal(set) var pageRange = ""
     /// The sheets the settings make of the documents; nil with nothing to print or a page range that does not parse.
@@ -222,6 +224,9 @@ public final class AppState: ObservableObject {
     var refreshAgain = false
     var statusReading = false
     var lazyScanInstalled = false
+    var lazyPDFInstalled = false
+    /// The files documents were opened from by `addFiles`, which the phone's files are not (AppState+Files.swift).
+    var userFiles: Set<URL> = []
     var systemState = (spooler: ServiceStatus.unknown, network: NetworkStatus.unknown)
     var lastFailure: PrinterFailure?
     /// The sides the document task chose when it started without knowing the printer (`startTask`), kept as the task
@@ -339,10 +344,12 @@ public final class AppState: ObservableObject {
         }
         if saved == nil { sidesPickedBlind = initial.sides }
         self.lazyScanInstalled = self.fileActions.lazyScanInstalled()
+        self.lazyPDFInstalled = self.fileActions.lazyPDFInstalled()
         self.companionHost.onChange = { [weak self] in
             self?.refreshPhoneBatches()
         }
         refreshPhoneBatches()
+        refreshRecent()
         if platform == .ios && initial.printerId != nil {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
@@ -356,6 +363,7 @@ public final class AppState: ObservableObject {
         }
         lifecycle?.observeDidBecomeActive { [weak self] in
             guard let self, self.isActive else { return }
+            self.lazyPDFInstalled = self.fileActions.lazyPDFInstalled()
             Task { await self.refreshPrinters() }
         }
     }
@@ -463,6 +471,7 @@ public final class AppState: ObservableObject {
         var locked: [URL] = []
         let (opened, failed) = await openFiles(urls, locked: { locked.append($0) })
         documents.append(contentsOf: opened)
+        userFiles.formUnion(opened.map { $0.url })
         let notAdded = alsoNotAdded + failed
         if !notAdded.isEmpty { reportNotAdded(notAdded) }
         replan()
@@ -676,7 +685,7 @@ public final class AppState: ObservableObject {
         while drawnSides.count > limit { drawnSides.removeFirst() }
     }
 
-    private func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {
+    func renderedSide(of plan: JobPlan, at index: Int) -> RenderedSide? {
         var sides = [SheetSide]()
         for sheet in plan.plan.sheets {
             sides.append(sheet.front)

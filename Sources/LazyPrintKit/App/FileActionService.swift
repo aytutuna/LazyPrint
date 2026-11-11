@@ -12,6 +12,18 @@ public protocol FileActionService: AnyObject {
     /// Lazy Scan is installed (it has registered the lazyscan: scheme).
     func lazyScanInstalled() -> Bool
     func openLazyScan() throws
+    /// Lazy PDF is installed. Only the Mac's can tell.
+    func lazyPDFInstalled() -> Bool
+    /// Opens the PDF in Lazy PDF for editing.
+    func openInLazyPDF(_ url: URL) throws
+}
+
+extension FileActionService {
+    public func lazyPDFInstalled() -> Bool { false }
+
+    public func openInLazyPDF(_ url: URL) throws {
+        throw PrintError.unreadable("Lazy PDF cannot be opened here.")
+    }
 }
 
 /// The file actions of an `AppState` whose app shell passed none: every action is refused.
