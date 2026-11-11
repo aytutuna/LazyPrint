@@ -413,8 +413,7 @@ final class AppStateSeamTests: XCTestCase {
         let rig = try makeRig()
         rig.state.settings.paperId = "letter"
         let notes = rig.folder.appendingPathComponent("Notes.txt")
-        try Data((1...200).map { "line \($0)" }.joined(separator: "
-").utf8).write(to: notes)
+        try Data((1...200).map { "line \($0)" }.joined(separator: "\n").utf8).write(to: notes)
         await rig.state.addFiles([notes, try writePDF(named: "a.pdf", pages: 2, in: rig.folder)])
         let onLetter = rig.state.documents[0].loaded.pages
         XCTAssertEqual(onLetter[0], PaperSizes.pointsOf("letter"))
