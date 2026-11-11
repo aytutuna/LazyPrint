@@ -19,6 +19,18 @@ public enum PrintText {
 
     public static let printed = "Printed"
 
+    /// The Windows spooler took the job and stopped telling how it went.
+    public static let sentStatus = "Sent"
+
+    public static let jobPaused = "Job paused"
+
+    public static let needsAttention = "Needs attention at the printer"
+
+    public static let jobDeleted = "The job was deleted from the print queue."
+
+    /// Cancel on a job the printer already has.
+    public static let alreadyAtPrinter = "Already at the printer, so it will finish"
+
     public static let loadBacks = "Load the backs"
 
     /// The iPhone stopped a job because the system took back the app's time in the background.
