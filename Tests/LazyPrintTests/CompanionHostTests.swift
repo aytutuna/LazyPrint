@@ -332,7 +332,8 @@ final class CompanionHostTests: XCTestCase {
         XCTAssertTrue(service.snapshot().pairingOpen)
         answer.value = true
         _ = try await pairing.value
-        XCTAssertFalse(service.awaitingApproval)
+        // The router settles the request once the server has written the answer, which the phone can read first.
+        try await waitUntil { !service.awaitingApproval }
         XCTAssertEqual(service.devices.count, 1)
         XCTAssertEqual(service.status.state, .listening)
     }
