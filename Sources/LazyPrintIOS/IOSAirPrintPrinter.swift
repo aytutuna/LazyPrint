@@ -23,24 +23,18 @@ public final class IOSAirPrintPrinter: SheetPrinter {
         let file: URL = FileManager.default.temporaryDirectory.appendingPathComponent("lp-" + UUID().uuidString.lowercased() + ".pdf")
         let sides: [RenderedSide] = JobSides.of(job, pass: pass)
         progress(JobStatus(state: .preparing, sidesDone: 0))
-        // From here the renderer owns the file and removes it when the system lets the renderer go.
-        let renderer: IOSPrintRenderer
         do {
             try SheetRenderer(documents: job.documents).writePDF(sides, area: job.plan.plan.area, to: file) { (done: Int) -> Void in
                 progress(JobStatus(state: .preparing, sidesDone: done))
             }
-            guard let made: IOSPrintRenderer = IOSPrintRenderer(file: file) else {
-                throw PrintError.unreadable("The pages could not be prepared for printing.")
-            }
-            renderer = made
+            try Task.checkCancellation()
         } catch {
             try? FileManager.default.removeItem(at: file)
             throw error
         }
-        try Task.checkCancellation()
 
         progress(JobStatus(state: .sending, sidesDone: sides.count, cancelable: false))
-        try await send(renderer, job: job)
+        try await send(file: file, job: job)
         progress(JobStatus(state: .done, sidesDone: sides.count))
     }
 
@@ -55,7 +49,12 @@ public final class IOSAirPrintPrinter: SheetPrinter {
     }
 
     @MainActor
-    private func send(_ renderer: IOSPrintRenderer, job: SheetJob) async throws {
+    private func send(file: URL, job: SheetJob) async throws {
+        // From here the renderer owns the file and removes it when the system lets the renderer go.
+        guard let renderer: IOSPrintRenderer = IOSPrintRenderer(file: file) else {
+            try? FileManager.default.removeItem(at: file)
+            throw PrintError.unreadable("The pages could not be prepared for printing.")
+        }
         try Task.checkCancellation()
         guard let printer: UIPrinter = system.printer else { throw PrintError.noPrinter }
         let chooser: PaperChooser = PaperChooser(pageSize: IOSAirPrintPrinter.pageSize(of: job))
