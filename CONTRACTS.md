@@ -137,7 +137,7 @@ public enum PhotoLayout {
 
 ### Layout/PageRange
 
-`PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
+`PageRange.parse("1-3, 5, 8-", pageCount:) -> Result<[Int], PageRangeError>` (C#: `PageRangeResult` with `Pages` and `Error`) (0-based indices, in the order typed, repeats kept; separators are commas, semicolons or spaces, a range takes a hyphen, en dash or em dash, "3-" runs to the last page and "5-2" gives 5, 4, 3, 2); errors name the problem ("Page 9 is past the end (8 pages)", "Type pages like 1-3, 5").
 
 ### Layout/ManualDuplex (two-sided on a printer that prints one side)
 
