@@ -27,6 +27,7 @@ extension AppState {
         if let missing = missingPrinterMessage { return missing }
         if selectedPrinter == nil { return PrintText.noPrinterReason }
         if documents.isEmpty { return "Add files to print" }
+        if let plan = jobPlan, plan.plan.sheets.isEmpty { return PrintText.noPagesReason }
         return pageRangeError
     }
 
@@ -359,6 +360,7 @@ extension AppState {
         }
         let inputs = run.inputs
         PendingBacks(printerId: run.job.printer.id, settings: inputs.settings, taskId: inputs.task?.rawValue, range: inputs.range,
+                     pageSelection: inputs.settings.pageSelection, reverseOrder: inputs.settings.reverseOrder,
                      paths: inputs.documents.map { $0.url.path }).save(in: files.settingsDirectory)
     }
 
@@ -380,7 +382,10 @@ extension AppState {
             return
         }
         guard manual == nil, !isBusy else { return }
-        let inputs = JobInputs(printer: printer, capabilities: knownCapabilities(of: printer), settings: saved.settings,
+        var settings = saved.settings
+        settings.pageSelection = saved.pageSelection ?? .all
+        settings.reverseOrder = saved.reverseOrder ?? false
+        let inputs = JobInputs(printer: printer, capabilities: knownCapabilities(of: printer), settings: settings,
                                task: PrintTask.tryParse(saved.taskId), documents: opened, range: saved.range,
                                name: opened[0].loaded.name)
         let id = UUID().uuidString
