@@ -332,6 +332,32 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertEqual(loopback.requests.count, 4)
     }
 
+    func test_aPrinterThatKeepsAskingForASignInAfterTheJobWasSent_isNotReportedAsLostContact() async throws {
+        loopback.script(
+            LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)),
+            LoopbackAnswer.http(401), LoopbackAnswer.http(401), LoopbackAnswer.http(401))
+        do {
+            try await printer().print(try job(pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+            XCTFail("The job should have been given up on")
+        } catch {
+            XCTAssertEqual(error as? PrintError, .needsSignIn)
+        }
+    }
+
+    func test_aJob_goesToTheAddressThatAnsweredTheRead() async throws {
+        let refusing = try PrinterAddress.parse("ipp://127.0.0.1:1")
+        let endpoint = IppEndpoint(key: "name:test", name: "Test Printer", txt: IppTxtRecord.parse([]),
+                                   addresses: [refusing, try loopback.address()]).preferring(try loopback.address())
+        var row = PrintFixtures.printer(.ipp)
+        row.ippEndpoint = endpoint
+        let sheets = IppSheetPrinter(documents: nil, trust: IppTrustStore(directory: folder), userName: "tester", pollInterval: 0.01)
+        try await sheets.print(PrintFixtures.job(PrintFixtures.letter(), document: try openLetterPDF(pages: 1), printer: row,
+                                                 capabilities: plain(pdfAndRaster)), pass: 0) { _ in }
+
+        XCTAssertEqual(sent(.printJob).count, 1)
+        XCTAssertFalse(sent(.getJobAttributes).isEmpty)
+    }
+
     func test_cancelling_asksThePrinterToCancelTheJob() async throws {
         loopback.script(LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)))
         loopback.scriptEach(Array(repeating: LoopbackAnswer.ipp(.successfulOk, LoopbackAnswer.job(42, 3)), count: 200))

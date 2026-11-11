@@ -262,6 +262,33 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
+    public async Task APrinterThatKeepsAskingForASignInAfterTheJobWasSentIsNotReportedAsLostContact()
+    {
+        _loopback.Script(
+            LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)),
+            LoopbackAnswer.Http(401), LoopbackAnswer.Http(401), LoopbackAnswer.Http(401));
+        var error = await Assert.ThrowsAsync<PrintException>(
+            () => Printer().PrintAsync(Job(_ => { }, pages: 1), 0, new Reports<JobStatus>(), CancellationToken.None));
+
+        Assert.IsType<PrintError.NeedsSignIn>(error.Error);
+    }
+
+    [Fact]
+    public async Task AJobGoesToTheAddressThatAnsweredTheRead()
+    {
+        var refusing = PrinterAddress.Parse("ipp://127.0.0.1:1");
+        var endpoint = new IppEndpoint { Key = "name:test", Name = "Test Printer", Txt = IppTxtRecord.Parse([]), Addresses = [refusing, _loopback.Address()] }
+            .Preferring(_loopback.Address());
+        var printer = PrintFixtures.Printer(PrinterRoute.Ipp) with { IppEndpoint = endpoint };
+        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, printer, IppFixtures.Capabilities("hp-laserjet"));
+        await new IppSheetPrinter(new SolidPages(), pollInterval: TimeSpan.FromMilliseconds(10))
+            .PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        Assert.Single(Sent(IppOperation.PrintJob));
+        Assert.NotEmpty(Sent(IppOperation.GetJobAttributes));
+    }
+
+    [Fact]
     public async Task CancellingAsksThePrinterToCancelTheJob()
     {
         _loopback.Script(LoopbackAnswer.Ipp(IppStatus.SuccessfulOk, LoopbackAnswer.Job(42, 3)));
