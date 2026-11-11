@@ -52,6 +52,10 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 {
                     picture = await Task.Run(() => PictureSource.Open(path), token);
                 }
+                catch (Exception e) when (LacksHeifCodec(extension, e))
+                {
+                    throw new InvalidOperationException(DocumentText.NeedsHeif, e);
+                }
                 catch (Exception e) when (!named && e is not OperationCanceledException)
                 {
                     throw new InvalidOperationException(DocumentText.NotSupported, e);
@@ -68,6 +72,10 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         _sources.Add(document, source);
         return document;
     }
+
+    /// <summary>A HEIC or HEIF file that WIC has no decoder for (WINCODEC_ERR_COMPONENTNOTFOUND): the Store's extension is missing.</summary>
+    internal static bool LacksHeifCodec(string extension, Exception e) =>
+        extension is ".heic" or ".heif" && e.HResult == unchecked((int)0x88982F50);
 
     public BitmapSource Render(LoadedDocument document, int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
     {
