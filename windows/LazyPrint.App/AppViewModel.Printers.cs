@@ -389,9 +389,9 @@ public sealed partial class AppViewModel
                     var check = await network.CheckAsync(address, null, timeout.Token);
                     if (check.Capabilities is { } capabilities) return (printer.Id, Capabilities: capabilities);
                 }
-                catch (OperationCanceledException)
+                catch (Exception)
                 {
-                    // No answer in time; the next path is tried.
+                    // No answer in time, or none that makes sense; the next path is tried.
                 }
             }
             return (printer.Id, Capabilities: (PrinterCapabilities?)null);
