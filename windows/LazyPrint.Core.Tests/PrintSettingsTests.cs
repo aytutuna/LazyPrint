@@ -56,7 +56,7 @@ public sealed class PrintSettingsTests : IDisposable
             PageBorders = true, Scaling = Scaling.Fill, PaperId = "a4", PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
         };
         SettingsStore.Save(s, _directory);
-        Assert.Equal(s, SettingsStore.Load(_directory));
+        Assert.Equal(s with { Copies = 1 }, SettingsStore.Load(_directory));
     }
 
     [Fact]
@@ -83,9 +83,9 @@ public sealed class PrintSettingsTests : IDisposable
     {
         File.WriteAllText(Settings, """{"copies": 7, "sides": "longEdge", "unknownKey": [1, 2]}""");
         var s = SettingsStore.Load(_directory)!;
-        Assert.Equal(7, s.Copies);
+        Assert.Equal(1, s.Copies);
         Assert.Equal(Sides.LongEdge, s.Sides);
-        Assert.Equal(new PrintSettings { Copies = 7, Sides = Sides.LongEdge }, s);
+        Assert.Equal(new PrintSettings { Sides = Sides.LongEdge }, s);
     }
 
     [Fact]

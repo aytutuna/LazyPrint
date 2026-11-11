@@ -42,7 +42,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case taskId, printerId, copies, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
+        case taskId, printerId, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
         case pageBorders, scaling, scale, paperId, photoSizeId, photoFill, cutMarks
     }
 }
@@ -52,7 +52,6 @@ extension PrintSettings {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         taskId = c.decodeLenient(forKey: .taskId, default: taskId)
         printerId = c.decodeLenient(forKey: .printerId, default: printerId)
-        copies = c.decodeLenient(forKey: .copies, default: copies)
         collate = c.decodeLenient(forKey: .collate, default: collate)
         color = c.decodeLenient(forKey: .color, default: color)
         quality = c.decodeLenient(forKey: .quality, default: quality)

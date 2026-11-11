@@ -328,7 +328,7 @@ public enum QualityChoice: String, Codable, CaseIterable, Sendable { case normal
 public struct PrintSettings: Codable, Equatable, Sendable {
     public var taskId: String? = nil            // the PrintTask raw value, kept as a string so a newer task survives
     public var printerId: String? = nil         // PrinterInfo.id; nil = the system's default printer
-    public var copies: Int = 1                  // 1...99 (PrintCopies.clamp)
+    public var copies: Int = 1                  // 1...99 (PrintCopies.clamp); not saved, each launch starts at 1
     public var collate: Bool = true
     public var color: ColorChoice = .color
     public var quality: QualityChoice = .normal

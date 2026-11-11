@@ -66,6 +66,7 @@ final class PrintSettingsTests: XCTestCase {
         s.photoFill = false
         s.cutMarks = false
         SettingsStore.save(s, in: directory)
+        s.copies = 1
         XCTAssertEqual(SettingsStore.load(in: directory), s)
     }
 
@@ -91,10 +92,9 @@ final class PrintSettingsTests: XCTestCase {
     func test_settings_fromAnOlderVersion_keepTheirValuesAndDefaultTheRest() throws {
         try write(#"{"copies": 7, "sides": "longEdge", "unknownKey": [1, 2]}"#, to: settingsURL)
         let s = try XCTUnwrap(SettingsStore.load(in: directory))
-        XCTAssertEqual(s.copies, 7)
+        XCTAssertEqual(s.copies, 1)
         XCTAssertEqual(s.sides, .longEdge)
         var expected = PrintSettings()
-        expected.copies = 7
         expected.sides = .longEdge
         XCTAssertEqual(s, expected)
     }
