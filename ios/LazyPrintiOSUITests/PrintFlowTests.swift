@@ -90,15 +90,16 @@ final class PrintFlowTests: XCTestCase {
         let position: XCUIElement = app.staticTexts["preview.position"]
         let first: String = position.label
 
-        // From the outer edge of each deck, since a two-sided job shows two and the curl takes a page by its free edge.
+        // From the outer edge of each deck, since a two-sided job shows two and the curl takes a page by its free edge;
+        // low down, clear of the arrows.
         let stage: XCUIElement = app.item("preview.stage")
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
-            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8))
+            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8)),
                    withVelocity: .fast, thenHoldForDuration: 0)
         app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
 
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
-            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)),
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8))
+            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8)),
                    withVelocity: .fast, thenHoldForDuration: 0)
         app.waitUntil(position, "label == '\(first)'", "A swipe to the right turns back")
     }
@@ -114,9 +115,9 @@ final class PrintFlowTests: XCTestCase {
         let stage: XCUIElement = app.item("preview.stage")
         app.waitUntil(stage, "isHittable == true", "The page after the rotation")
         Thread.sleep(forTimeInterval: 1)
-        // On the right deck, near its free edge.
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
-            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
+        // On the right deck, near its free edge and below the arrow.
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8))
+            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8)),
                    withVelocity: .fast, thenHoldForDuration: 0)
 
         app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
