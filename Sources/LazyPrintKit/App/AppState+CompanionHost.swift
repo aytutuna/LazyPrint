@@ -54,7 +54,6 @@ extension AppState {
             documents = []
             pageRange = ""
         }
-        if task == nil { await startTask(.document) }
         documents.append(contentsOf: opened)
         replan()
         if !failed.isEmpty {

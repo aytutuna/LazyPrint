@@ -263,7 +263,6 @@ public sealed partial class AppViewModel
                 Documents.Clear();
                 PageRangeText = "";
             }
-            if (SelectedTask is null) await StartTaskAsync(PrintTask.Document);
             foreach (var document in opened) Documents.Add(document);
             if (failed.Count > 0) ReportNotAdded(failed);
             else if (missed > 0) ReportMissed(batch, missed);

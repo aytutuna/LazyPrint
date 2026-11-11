@@ -238,8 +238,8 @@ struct ContentView: View {
         if state.documents.isEmpty { showImporter = true }
     }
 
-    /// Opens the files and shows the print tab. Files that come before any task was picked start the plain document task,
-    /// so there is something to lay them out by. Folders are left; any file is taken, and the loader says why one is not a
+    /// Opens the files and shows the print tab. Files that come with no task are added with the settings as they are.
+    /// Folders are left; any file is taken, and the loader says why one is not a
     /// PDF or a picture.
     private func take(_ urls: [URL], refused: [(name: String, reason: String)] = []) -> Bool {
         let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
@@ -254,7 +254,6 @@ struct ContentView: View {
         let before = opening
         opening = Task {
             await before?.value
-            if state.task == nil { await state.startTask(.document) }
             await state.addFiles(files, alsoNotAdded: refused)
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }

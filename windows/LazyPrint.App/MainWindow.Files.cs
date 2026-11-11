@@ -39,12 +39,10 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Opens the files and shows the print screen. Files that come before any task was picked start the plain document task,
-    /// so there is something to lay them out by.
+    /// Opens the files and shows the print screen. Files that come with no task are added with the settings as they are.
     /// </summary>
     private async Task TakeFilesAsync(IReadOnlyList<string> paths)
     {
-        if (ViewModel.SelectedTask is null) await ViewModel.StartTaskAsync(PrintTask.Document);
         await ViewModel.AddFilesAsync(paths);
         if (ViewModel.Documents.Count > 0) ShowPrintTab();
     }

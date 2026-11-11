@@ -162,6 +162,25 @@ final class AppStateCompanionHostTests: XCTestCase {
     }
 
     @MainActor
+    func test_takeBatch_withNoTask_startsNoneAndLeavesTheSettings() async throws {
+        let host = SeamHosting()
+        let state = try makeState(host)
+        let folder = try tempFolder()
+        state.settings.pagesPerSheet = 2
+        state.settings.sides = .longEdge
+        host.stored = [whole("batch-0001")]
+        host.files["batch-0001"] = [try writePDF(named: "Sent.pdf", pages: 1, in: folder)]
+        host.onChange?()
+
+        await state.takeBatch("batch-0001", startNew: false)
+
+        XCTAssertEqual(state.documents.map { $0.url.lastPathComponent }, ["Sent.pdf"])
+        XCTAssertNil(state.task)
+        XCTAssertEqual(state.settings.pagesPerSheet, 2)
+        XCTAssertEqual(state.settings.sides, .longEdge)
+    }
+
+    @MainActor
     func test_takeBatch_asANewJob_clearsTheJobFirst() async throws {
         let host = SeamHosting()
         let state = try makeState(host)

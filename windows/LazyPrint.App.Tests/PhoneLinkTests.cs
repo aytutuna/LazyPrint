@@ -153,9 +153,24 @@ public sealed class PhoneLinkTests : IDisposable
         Assert.True(await _rig.Model.UsePhoneBatchAsync(startNew: false));
 
         Assert.Equal(["first.pdf", "a.pdf", "b.pdf"], _rig.Model.Documents.Select(d => d.Name));
-        Assert.Equal(PrintTask.Document, _rig.Model.SelectedTask);
+        Assert.Null(_rig.Model.SelectedTask);
         Assert.Null(_rig.Model.PhoneBatchMessage);
         Assert.Empty(_rig.Sheets.Passes);
+    }
+
+    [Fact]
+    public async Task ABatchWithNoTaskStartsNoneAndLeavesTheSettings()
+    {
+        _rig.Model.Settings.PagesPerSheet = 2;
+        _rig.Model.Settings.Sides = Sides.LongEdge;
+        await Send("batch-0001", 0, 1, "a.pdf");
+
+        Assert.True(await _rig.Model.UsePhoneBatchAsync(startNew: false));
+
+        Assert.Equal(["a.pdf"], _rig.Model.Documents.Select(d => d.Name));
+        Assert.Null(_rig.Model.SelectedTask);
+        Assert.Equal(2, _rig.Model.Settings.PagesPerSheet);
+        Assert.Equal(Sides.LongEdge, _rig.Model.Settings.Sides);
     }
 
     [Fact]

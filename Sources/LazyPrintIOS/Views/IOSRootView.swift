@@ -165,15 +165,13 @@ public struct IOSRootView: View {
         }
     }
 
-    /// Opens the files and shows the Print screen. Files that come before any task was picked start the plain document
-    /// task, so there is something to lay them out by.
+    /// Opens the files and shows the Print screen. Files that come with no task are added with the settings as they are.
     private func open(_ urls: [URL], notAdded: [String]) async {
         let files: [URL] = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
         if files.isEmpty {
             if !notAdded.isEmpty { state.reportUnreadable(notAdded) }
             return
         }
-        if state.task == nil { await state.startTask(.document) }
         let unreadable: [(name: String, reason: String)] = notAdded.map { (name: String) -> (name: String, reason: String) in
             (name: name, reason: DocumentText.unreadable)
         }
