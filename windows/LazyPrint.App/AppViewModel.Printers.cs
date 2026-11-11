@@ -131,6 +131,12 @@ public sealed partial class AppViewModel
     /// </summary>
     public Func<IppCertificateException, Task<bool>>? ConfirmCertificate { get; set; }
 
+    /// <summary>
+    /// Asks for the password of a locked PDF, given its name and whether the last one was wrong; null is Cancel. Without it a
+    /// locked PDF is refused.
+    /// </summary>
+    public Func<string, bool, Task<string?>>? AskPassword { get; set; }
+
     /// <summary>The printers on the network, for the window that adds one by address; null without them.</summary>
     public INetworkPrinters? Network => _networkPrinters;
 

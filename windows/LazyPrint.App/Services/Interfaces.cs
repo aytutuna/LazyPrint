@@ -21,8 +21,11 @@ public interface IPrinterSystem
 /// <summary>Opens the files a task starts with.</summary>
 public interface IDocumentLoader
 {
-    /// <summary>The file's pages and their sizes. Throws <see cref="PrintException"/> or an exception with the sentence to show.</summary>
-    Task<LoadedDocument> LoadAsync(string path, CancellationToken token);
+    /// <summary>
+    /// The file's pages and their sizes. Throws <see cref="PrintException"/> or an exception with the sentence to show, and
+    /// <see cref="PdfPasswordException"/> for a locked PDF that is opened without its <paramref name="password"/>.
+    /// </summary>
+    Task<LoadedDocument> LoadAsync(string path, CancellationToken token, string? password = null);
 }
 
 /// <summary>What is drawn on a side of a job made of drawing items; <paramref name="Turned"/> draws it upside down, as a manual back is.</summary>
@@ -72,6 +75,9 @@ public interface IOriginalFiles
     /// whose file cannot be read any more. Reads the file, so not for the UI thread.
     /// </summary>
     byte[]? OriginalFile(LoadedDocument document);
+
+    /// <summary>The password a locked PDF was opened with; null for any other document.</summary>
+    string? Password(LoadedDocument document) => null;
 }
 
 /// <summary>What the troubleshooter reads from Windows, and the few things it does there.</summary>

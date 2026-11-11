@@ -26,7 +26,9 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     private readonly ConditionalWeakTable<LoadedDocument, byte[]> _files = new();
     private readonly ConditionalWeakTable<LoadedDocument, string> _jpegs = new();
 
-    public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token)
+    private readonly ConditionalWeakTable<LoadedDocument, string> _passwords = new();
+
+    public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token, string? password = null)
     {
         string name = Path.GetFileName(path);
         string extension = Path.GetExtension(path).ToLowerInvariant();
@@ -40,10 +42,11 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             if (extension == ".pdf" || !named && await Task.Run(() => StartsWithPdf(path), token))
             {
                 byte[] bytes = await File.ReadAllBytesAsync(path, token);
-                var pdf = await PdfSource.OpenAsync(bytes);
+                var pdf = await PdfSource.OpenAsync(bytes, password);
                 source = pdf;
                 document = new LoadedDocument(name, new DocumentKind.Pdf(pdf.Protected), pdf.PageSizes);
                 _files.Add(document, bytes);
+                if (password is not null) _passwords.Add(document, password);
             }
             else
             {
@@ -89,6 +92,8 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         return source.Render(page, crop, pixelWidth, pixelHeight);
     }
 
+    public string? Password(LoadedDocument document) => _passwords.TryGetValue(document, out string? password) ? password : null;
+
     public byte[]? OriginalFile(LoadedDocument document)
     {
         if (_files.TryGetValue(document, out byte[]? bytes)) return bytes;
@@ -129,12 +134,14 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             (_document, _stream, Protected, PageSizes) = (document, stream, encrypted, pageSizes);
         }
 
-        public static async Task<PdfSource> OpenAsync(byte[] bytes)
+        public static async Task<PdfSource> OpenAsync(byte[] bytes, string? password)
         {
             var stream = System.IO.WindowsRuntimeStreamExtensions.AsRandomAccessStream(new MemoryStream(bytes));
             try
             {
-                var document = await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(stream);
+                var document = password is null
+                    ? await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(stream)
+                    : await Windows.Data.Pdf.PdfDocument.LoadFromStreamAsync(stream, password);
                 if (document.PageCount == 0) throw new InvalidOperationException(DocumentText.NoPages);
                 // IsPasswordProtected stays false for an owner password, and a printer may refuse such a file as it is.
                 // The document is free-threaded, so a long file is walked off the UI thread.
@@ -152,8 +159,8 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             catch (Exception e) when (e is not InvalidOperationException)
             {
                 stream.Dispose();
-                // A PDF that wants a password to open says so with ERROR_WRONG_PASSWORD (0x8007052B).
-                if (e.HResult == unchecked((int)0x8007052B)) throw new InvalidOperationException(DocumentText.LockedPdf, e);
+                // A PDF that wants a password to open says so with ERROR_WRONG_PASSWORD (0x8007052B), also for a wrong one.
+                if (e.HResult == unchecked((int)0x8007052B)) throw new PdfPasswordException(password is not null, e);
                 throw;
             }
         }

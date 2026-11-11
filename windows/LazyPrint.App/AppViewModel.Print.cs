@@ -212,6 +212,24 @@ public sealed partial class AppViewModel
         _loading = null;
     }
 
+    /// <summary>Opens the file, asking for its password as often as it takes; null when the user cancels.</summary>
+    private async Task<LoadedDocument?> LoadWithPasswordAsync(string path, CancellationToken token)
+    {
+        string? password = null;
+        while (true)
+        {
+            try
+            {
+                return await _loader.LoadAsync(path, token, password);
+            }
+            catch (PdfPasswordException e) when (AskPassword is { } ask)
+            {
+                password = await ask(Path.GetFileName(path), e.Wrong);
+                if (password is null) return null;
+            }
+        }
+    }
+
     /// <summary>Opens the files without adding them; the ones that cannot be read come back with what was wrong.</summary>
     private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths, CancellationToken token)
     {
@@ -221,7 +239,11 @@ public sealed partial class AppViewModel
         {
             try
             {
-                var document = await _loader.LoadAsync(path, token);
+                if (await LoadWithPasswordAsync(path, token) is not { } document)
+                {
+                    failed.Add((Path.GetFileName(path), ShortText.LockedLeftOut));
+                    continue;
+                }
                 opened.Add(document);
                 if (_takenPaths.Remove(path)) _takenFiles.Add(document, path);
             }

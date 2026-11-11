@@ -107,7 +107,7 @@ public sealed class PdfSheetWriter : IDisposable
         var document = _documents[index];
         if (document.Kind is DocumentKind.Pdf && _files.OriginalFile(document) is { } bytes)
         {
-            source = PdfiumDocument.Open(bytes);
+            source = PdfiumDocument.Open(bytes, _files.Password(document));
         }
         _sources[index] = source;
         return source;

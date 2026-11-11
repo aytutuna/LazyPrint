@@ -34,7 +34,7 @@ internal sealed class FakeLoader : IDocumentLoader
     /// <summary>Holds a file's load until the task is done; a test uses it to make one file slower than another.</summary>
     public Dictionary<string, Task> Holds { get; } = [];
 
-    public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token)
+    public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token, string? password = null)
     {
         if (Holds.TryGetValue(path, out var hold)) await hold.WaitAsync(token);
         return path.Contains(".bad", StringComparison.Ordinal)

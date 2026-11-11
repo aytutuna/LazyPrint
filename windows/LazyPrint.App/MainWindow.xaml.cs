@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         ViewModel = new AppViewModel(new WindowsPrinters(), _loader, sheets, new WindowsSystemDiagnostics(), demo: demo,
                                      network: new NetworkPrinters(), logDirectory: AppViewModel.DefaultLogDirectory);
         ViewModel.ConfirmCertificate = ConfirmCertificate;
+        ViewModel.AskPassword = AskPassword;
         ViewModel.PropertyChanged += (_, _) => Dispatcher.BeginInvoke(RefreshFromViewModel);
 
         PrinterList.ItemsSource = ViewModel.Printers;
@@ -480,6 +481,13 @@ public partial class MainWindow : Window
         var dialog = new CertificateTrustWindow(certificate, CertificateTrustWindow.ConnectAction);
         if (IsVisible) dialog.Owner = this;
         return Task.FromResult(dialog.ShowDialog() == true);
+    }
+
+    private Task<string?> AskPassword(string name, bool wrong)
+    {
+        var dialog = new PasswordWindow(name, wrong);
+        if (IsVisible) dialog.Owner = this;
+        return Task.FromResult(dialog.ShowDialog() == true ? dialog.Password : null);
     }
 
     private void AppearanceButton_Click(object sender, RoutedEventArgs e)
