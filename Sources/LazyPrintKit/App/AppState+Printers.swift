@@ -135,15 +135,13 @@ extension AppState {
     }
 
     /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists, whatever
-    /// they are (the paper picker takes any size), and the range it takes for a custom one.
+    /// they are (the paper picker takes any size). Not its custom range: AirPrint prints on the nearest paper it lists.
     @discardableResult
     static func useListedPapers(_ own: inout PrinterCapabilities, from ipp: PrinterCapabilities, platform: AppPlatform) -> Bool {
         guard platform == .ios, !PaperSizes.listed(ipp).isEmpty else { return false }
-        guard own.mediaColDatabase != ipp.mediaColDatabase || own.mediaSupported != ipp.mediaSupported
-                || own.customPaper != ipp.customPaper else { return false }
+        guard own.mediaColDatabase != ipp.mediaColDatabase || own.mediaSupported != ipp.mediaSupported else { return false }
         own.mediaColDatabase = ipp.mediaColDatabase
         own.mediaSupported = ipp.mediaSupported
-        own.customPaper = ipp.customPaper
         return true
     }
 
