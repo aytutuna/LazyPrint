@@ -87,7 +87,7 @@ public partial class MainWindow
         var documents = ViewModel.Documents.ToList();
         bool marks = ViewModel.DrawsCutMarks;
         bool gray = ViewModel.Settings.Color == ColorChoice.Gray
-            || ViewModel.SelectedCapabilities is { PrintColorModesSupported.Count: > 0 } caps && !caps.PrintColorModesSupported.Contains("color");
+            || ViewModel.SelectedCapabilities is { } caps && caps.PrintColorModesSupported.Contains("monochrome") && !caps.PrintColorModesSupported.Contains("color");
         SyncPreviewBar(plan);
         ShowNotes(plan);
 

@@ -588,7 +588,7 @@ public final class AppState: ObservableObject {
     }
 
     private var grayOnlyPrinter: Bool {
-        capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
+        capabilities.map { $0.printColorModesSupported.contains("monochrome") && !$0.printColorModesSupported.contains("color") } ?? false
     }
 
     private func sideKey(_ index: Int) -> PreviewKey? {
