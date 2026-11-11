@@ -49,6 +49,15 @@ final class IOSAirPrintPrinterTests: XCTestCase {
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: makeJob(color: .color)), .general)
     }
 
+    func test_outputType_isPhotoForAJobWithoutMargins() {
+        var job = makeJob(color: .color)
+        job.plan.plan.area.margins = LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
+
+        XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .photo)
+        job.settings.color = .gray
+        XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .photoGrayscale)
+    }
+
     @MainActor
     func test_theJobsPrintInfo_carriesItsNameAndTheChoices() {
         let info = IOSAirPrintPrinter.printInfo(for: makeJob(duplex: true, color: .gray))

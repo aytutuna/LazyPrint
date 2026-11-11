@@ -17,6 +17,8 @@ public enum PaperSize: String, Codable, CaseIterable, Identifiable, Sendable {
     case b5Jis
     /// An ID-1 card (credit card, most ID cards and driving licences), 85.6 × 54 mm.
     case idCard
+    case photo4x6
+    case photo5x7
 
     public var id: String { rawValue }
 
@@ -32,6 +34,8 @@ public enum PaperSize: String, Codable, CaseIterable, Identifiable, Sendable {
         case .a6: return "A6"
         case .b5Jis: return "B5 (JIS)"
         case .idCard: return "ID card"
+        case .photo4x6: return "4 \u{00D7} 6 in"
+        case .photo5x7: return "5 \u{00D7} 7 in"
         }
     }
 
@@ -47,6 +51,7 @@ public enum PaperSize: String, Codable, CaseIterable, Identifiable, Sendable {
         case .a6: return "105 \u{00D7} 148 mm"
         case .b5Jis: return "182 \u{00D7} 257 mm"
         case .idCard: return "85.6 \u{00D7} 54 mm"
+        case .photo4x6, .photo5x7: return "Photo paper"
         }
     }
 }
@@ -120,6 +125,8 @@ public enum PaperSizes {
         case .a6: return LayoutSize(width: 4.1339, height: 5.8268)
         case .b5Jis: return LayoutSize(width: 7.1654, height: 10.1181)
         case .idCard: return LayoutSize(width: 2.125, height: 3.370)
+        case .photo4x6: return LayoutSize(width: 4, height: 6)
+        case .photo5x7: return LayoutSize(width: 5, height: 7)
         }
     }
 }

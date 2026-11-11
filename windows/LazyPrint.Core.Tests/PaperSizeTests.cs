@@ -21,7 +21,7 @@ public class PaperSizeTests
     [Fact]
     public void RawValues_AreTheStoredNames()
     {
-        Assert.Equal(["auto", "letter", "legal", "executive", "a4", "a5", "a6", "b5Jis", "idCard"], PaperSizes.All.Select(s => s.RawValue()));
+        Assert.Equal(["auto", "letter", "legal", "executive", "a4", "a5", "a6", "b5Jis", "idCard", "photo4x6", "photo5x7"], PaperSizes.All.Select(s => s.RawValue()));
         Assert.Equal(PaperSizes.All.Select(s => s.RawValue()), PaperSizes.All.Select(s => CamelCase(s.ToString())));
     }
 

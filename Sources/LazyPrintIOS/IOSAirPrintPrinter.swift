@@ -155,14 +155,19 @@ private final class PaperChooser: NSObject, UIPrintInteractionControllerDelegate
 /// Nothing is scaled to fit: the Kit already placed each page on a sheet the size of the paper.
 final class IOSPrintRenderer: UIPrintPageRenderer {
     private let pdf: CGPDFDocument
+    private let file: URL
 
-    /// The pages are read at once and kept in memory: the file is removed when the pass ends, which can be before the
-    /// system has drawn the last page of a job that was cancelled.
+    /// The pages are read from the file as they are drawn, so a big job is not held in memory. The file is removed when
+    /// the renderer goes, which is after the system has drawn the last page, even of a job that was cancelled.
     init?(file: URL) {
-        guard let data: Data = try? Data(contentsOf: file), let provider: CGDataProvider = CGDataProvider(data: data as CFData),
-              let pdf: CGPDFDocument = CGPDFDocument(provider) else { return nil }
+        guard let pdf: CGPDFDocument = CGPDFDocument(file as CFURL) else { return nil }
         self.pdf = pdf
+        self.file = file
         super.init()
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: file)
     }
 
     override var numberOfPages: Int { pdf.numberOfPages }

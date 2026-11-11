@@ -240,6 +240,8 @@ public static class PrintJobs
         PaperSize.A6 => "iso_a6_105x148mm",
         PaperSize.B5Jis => "jis_b5_182x257mm",
         PaperSize.IdCard => "iso_id-1_53.98x85.6mm",
+        PaperSize.Photo4x6 => "na_index-4x6_4x6in",
+        PaperSize.Photo5x7 => "na_5x7_5x7in",
         _ => string.Create(CultureInfo.InvariantCulture,
             $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm"),
     };

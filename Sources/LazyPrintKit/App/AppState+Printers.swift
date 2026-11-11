@@ -123,9 +123,20 @@ extension AppState {
         // On the iPhone a printer that gave no answer is asked again: it may have been asleep, or gone out of range during
         // the read. The Mac asks once: cupsCopyDestInfo has no timeout, and runs one at a time.
         if read != nil || platform != .ios { capabilitiesAsked.insert(printer.id) }
-        if let read { capabilitiesById[printer.id] = read }
+        if var read {
+            if let listed = ippReads[printer.id]?.capabilities { Self.useListedPapers(&read, from: listed, platform: platform) }
+            capabilitiesById[printer.id] = read
+        }
         syncCapabilities()
         replan()
+    }
+
+    /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists.
+    @discardableResult
+    static func useListedPapers(_ own: inout PrinterCapabilities, from ipp: PrinterCapabilities, platform: AppPlatform) -> Bool {
+        guard platform == .ios, !ipp.mediaColDatabase.isEmpty, own.mediaColDatabase != ipp.mediaColDatabase else { return false }
+        own.mediaColDatabase = ipp.mediaColDatabase
+        return true
     }
 
     /// The queue's name for a printer printed to through the system.
@@ -216,7 +227,9 @@ extension AppState {
             if row.route == .ipp {
                 capabilitiesById[id] = capabilities
                 capabilitiesAsked.insert(id)
-            } else if capabilitiesById[id] == nil {
+            } else if var own = capabilitiesById[id] {
+                if Self.useListedPapers(&own, from: capabilities, platform: platform) { capabilitiesById[id] = own }
+            } else {
                 capabilitiesById[id] = capabilities
             }
         }
