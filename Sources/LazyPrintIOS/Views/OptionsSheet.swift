@@ -10,6 +10,7 @@ import SwiftUI
 struct OptionsSheet: View {
     @EnvironmentObject private var state: AppState
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var copiesFocused: Bool
 
     private static let perSide: [Int] = [1, 2, 4, 6, 9, 16]
     private static let scalings: [(String, Scaling)] = [("Shrink to fit", .shrinkToFit), ("Fit to page", .fit),
@@ -28,6 +29,10 @@ struct OptionsSheet: View {
             .navigationTitle("Options")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { copiesFocused = false }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .accessibilityIdentifier("options.done")
@@ -50,6 +55,7 @@ struct OptionsSheet: View {
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 56)
+                .focused($copiesFocused)
                 .accessibilityIdentifier("print.copiesField")
                 Stepper("Copies", value: $state.settings.copies, in: 1...PrintCopies.maxCount)
                     .labelsHidden()
