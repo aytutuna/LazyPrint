@@ -22,10 +22,19 @@ public sealed partial class AppViewModel
         List<string> found = [];
         foreach (var file in Recent.Load())
         {
-            if (File.Exists(file.Path)) found.Add(file.Path);
+            // A network path that is offline can block for seconds; it stays in the list unchecked.
+            if (file.Path.StartsWith(@"\\") || File.Exists(file.Path)) found.Add(file.Path);
             else Recent.Remove(file.Path);
         }
         return found;
+    }
+
+    private void RememberOpened(IEnumerable<LoadedDocument> opened)
+    {
+        foreach (var document in opened)
+        {
+            if (_sourcePaths.TryGetValue(document, out string? path)) Recent.Add(path);
+        }
     }
 
     public void ClearRecent()
