@@ -2,8 +2,8 @@
 import AppKit
 import LazyPrintKit
 
-/// The app's delegate (`LazyPrintApp`'s `@NSApplicationDelegateAdaptor`): Quit asks first while a job is going out, since
-/// the sheets still to be drawn are lost with the app. There is no `application(_:open:)`: once the delegate implements it
+/// The app's delegate (`LazyPrintApp`'s `@NSApplicationDelegateAdaptor`): Quit asks first while a job is going out or a
+/// two-sided job waits for its backs, since the sheets still to be drawn are lost with the app. There is no `application(_:open:)`: once the delegate implements it
 /// AppKit sends it every URL and `.onOpenURL` never fires.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {

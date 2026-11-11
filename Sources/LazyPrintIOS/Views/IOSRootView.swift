@@ -140,7 +140,7 @@ public struct IOSRootView: View {
     }
 
     /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice. When a
-    /// file did not copy the folder stays, and the hand-off can be tried again.
+    /// file did not copy the folder stays until the old hand-offs are removed; the files that did copy are in the job.
     private func receiveHandoff(_ id: UUID) {
         let before: Task<Void, Never>? = opening
         opening = Task {
