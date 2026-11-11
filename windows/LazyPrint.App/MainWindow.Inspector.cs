@@ -157,6 +157,8 @@ public partial class MainWindow
         var (width, height) = PaperSizes.Dimensions(size, Region);
         if (!CustomWidthBox.IsKeyboardFocused) CustomWidthBox.Text = width.ToString(CultureInfo.CurrentCulture);
         if (!CustomHeightBox.IsKeyboardFocused) CustomHeightBox.Text = height.ToString(CultureInfo.CurrentCulture);
+        _shownWidth = width.ToString(CultureInfo.CurrentCulture);
+        _shownHeight = height.ToString(CultureInfo.CurrentCulture);
         CustomUnitText.Text = PaperSizes.UsesInches(Region) ? "in" : "mm";
     }
 
@@ -190,6 +192,8 @@ public partial class MainWindow
     private void CustomPaper_Committed(object sender, RoutedEventArgs e)
     {
         if (_updatingUi || !IsLoaded) return;
+        // Tabbing through the boxes must not turn the rounded text on show into the size.
+        if (CustomWidthBox.Text == _shownWidth && CustomHeightBox.Text == _shownHeight) return;
         if (!double.TryParse(CustomWidthBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double width)
             || !double.TryParse(CustomHeightBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double height)
             || width <= 0 || height <= 0)

@@ -264,6 +264,8 @@ private struct CustomPaperFields: View {
     @EnvironmentObject private var state: AppState
     @State private var width = ""
     @State private var height = ""
+    @State private var shownWidth = ""
+    @State private var shownHeight = ""
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -295,9 +297,13 @@ private struct CustomPaperFields: View {
         let (w, h): (Double, Double) = PaperSizes.dimensions(size, region: Locale.current.region?.identifier)
         width = w == w.rounded() ? String(Int(w)) : String(w)
         height = h == h.rounded() ? String(Int(h)) : String(h)
+        shownWidth = width
+        shownHeight = height
     }
 
     private func commit() {
+        // Tabbing through the boxes must not turn the rounded text on show into the size.
+        guard width != shownWidth || height != shownHeight else { return }
         guard let w: Double = Double(width.replacingOccurrences(of: ",", with: ".")),
               let h: Double = Double(height.replacingOccurrences(of: ",", with: ".")), w > 0, h > 0 else {
             load()
