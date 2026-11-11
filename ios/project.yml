@@ -37,6 +37,7 @@ targets:
     dependencies:
       - package: LazyPrint
         product: LazyPrintIOS
+      - target: LazyPrintShare
     settings:
       base:
         PRODUCT_NAME: LazyPrint
@@ -52,6 +53,26 @@ targets:
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  # The share sheet's Lazy Print: leaves what was shared in the App Group for the app to pick up. No package code.
+  LazyPrintShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: LazyPrintShare
+        excludes:
+          - Info.plist
+          - LazyPrintShare.entitlements
+    settings:
+      base:
+        PRODUCT_NAME: LazyPrintShare
+        PRODUCT_BUNDLE_IDENTIFIER: com.lazyprint.lazyprint.share
+        INFOPLIST_FILE: LazyPrintShare/Info.plist
+        CODE_SIGN_ENTITLEMENTS: LazyPrintShare/LazyPrintShare.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
 
   LazyPrintiOSUITests:
     type: bundle.ui-testing

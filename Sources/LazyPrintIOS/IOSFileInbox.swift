@@ -116,7 +116,10 @@ public struct IOSFileInbox: Sendable {
     /// Removes hand-off folders more than a day old: Lazy Scan clears its own side, but a hand-off whose address never
     /// reached the app would stay.
     public static func removeOldHandoffs() {
-        guard let root = handoffRoot() else { return }
+        for root in [handoffRoot(), sharedRoot(), groupFolder(LazyPrintUrl.stagingFolder)].compactMap({ $0 }) { removeOldFolders(in: root) }
+    }
+
+    private static func removeOldFolders(in root: URL) {
         let keys: [URLResourceKey] = [.addedToDirectoryDateKey]
         let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: keys)) ?? []
         let cutoff: Date = Date(timeIntervalSinceNow: -24 * 60 * 60)
@@ -125,6 +128,35 @@ public struct IOSFileInbox: Sendable {
                 try? FileManager.default.removeItem(at: folder)
             }
         }
+    }
+
+    /// The folders the share extension filled in `Shared` of the App Group, oldest first (the extension starts each name with the time); each holds the files of one share.
+    public static func sharedFolders() -> [URL] {
+        guard let root = sharedRoot() else { return [] }
+        let listed: [URL] = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        return listed.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private static func sharedRoot() -> URL? {
+        groupFolder(LazyPrintUrl.sharedFolder)
+    }
+
+    private static func groupFolder(_ name: String) -> URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: LazyPrintUrl.handoffGroup)?
+            .appendingPathComponent(name, isDirectory: true)
+    }
+
+    /// Posted on this process when the share extension has finished a share, so an app already in front takes it too.
+    public static let sharedArrived = Notification.Name("LazyPrintSharedArrived")
+
+    private static let observing: Void = {
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), nil, { (_, _, _, _, _) in
+            NotificationCenter.default.post(name: IOSFileInbox.sharedArrived, object: nil)
+        }, LazyPrintUrl.sharedNotice as CFString, nil, .deliverImmediately)
+    }()
+
+    public static func observeShares() {
+        _ = observing
     }
 
     private static func handoffRoot() -> URL? {

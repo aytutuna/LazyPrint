@@ -11,6 +11,9 @@ public enum LazyPrintUrl {
     public static let scheme = "lazyprint"
     public static let handoffGroup = "group.com.alazy.handoff"
     public static let handoffFolder = "Handoff"
+    public static let sharedFolder = "Shared"
+    public static let stagingFolder = "Staging"
+    public static let sharedNotice = "com.lazyprint.lazyprint.shared"
 
     /// The files `url` asks to add, in order; none for any other address. A path that is not absolute is
     /// dropped. Unknown parameters are ignored.

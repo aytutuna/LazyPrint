@@ -94,7 +94,13 @@ public struct IOSRootView: View {
         // The printers are read, and read again, only while the app is in front.
         .onChange(of: scenePhase, initial: true) { (_: ScenePhase, phase: ScenePhase) in
             state.setActive(phase == .active)
+            if phase == .active { receiveShared() }
         }
+        // In Split View the app is active the whole time, so the extension says when a share is ready.
+        .onReceive(NotificationCenter.default.publisher(for: IOSFileInbox.sharedArrived).receive(on: DispatchQueue.main)) { (_: Notification) in
+            receiveShared()
+        }
+        .onAppear { IOSFileInbox.observeShares() }
         // After time in the background the search may have failed or gone stale, so it starts again. The scene goes
         // background, inactive, active on its way back, so the change of phase cannot tell.
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { (_: Notification) in
@@ -212,6 +218,26 @@ public struct IOSRootView: View {
             }
             if received.failed.isEmpty { IOSFileInbox.removeHandoff(id) }
             await open(received.copies, notAdded: received.failed)
+        }
+    }
+
+    /// Takes what the share extension left in the App Group, one folder per share. A folder is removed once it is read, so
+    /// a file that failed to copy is reported rather than tried again on every return.
+    private func receiveShared() {
+        if IOSFileInbox.sharedFolders().isEmpty { return }
+        let before: Task<Void, Never>? = opening
+        opening = Task {
+            await before?.value
+            _ = await state.$isBusy.values.first { (busy: Bool) -> Bool in !busy }
+            for folder in IOSFileInbox.sharedFolders() {
+                let urls: [URL] = IOSFileActions.files(in: folder)
+                var received: (copies: [URL], failed: [String]) = (copies: [], failed: [])
+                await state.whileAddingFiles {
+                    received = await inbox.receive(urls)
+                }
+                try? FileManager.default.removeItem(at: folder)
+                await open(received.copies, notAdded: received.failed)
+            }
         }
     }
 
@@ -366,8 +392,9 @@ private struct ActivityView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let activityItems: [Any] = items
         let controller: UIActivityViewController = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-        // The demo printer's pictures are shared; saving them to the photo library would need a permission text.
-        controller.excludedActivityTypes = [.saveToCameraRoll]
+        // The demo printer's pictures are shared; saving them to the photo library would need a permission text. Our own
+        // share extension would only put the picture back in the job.
+        controller.excludedActivityTypes = [.saveToCameraRoll, UIActivity.ActivityType("com.lazyprint.lazyprint.share")]
         let done: @MainActor () -> Void = onDone
         controller.completionWithItemsHandler = { (_: UIActivity.ActivityType?, _: Bool, _: [Any]?, _: Error?) -> Void in
             Task { @MainActor in
