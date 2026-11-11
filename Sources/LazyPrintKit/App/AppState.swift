@@ -143,6 +143,8 @@ public final class AppState: ObservableObject {
     @Published public internal(set) var troubleshootChecks: [TroubleshootCheck] = []
     /// A job is being prepared or printed; the settings and the tasks wait.
     @Published public internal(set) var isBusy = false
+    /// A two-sided job done by hand is between its fronts and its backs.
+    public var hasBacksWaiting: Bool { manual != nil }
     /// Files are being copied or downloaded into the app; the Add files menus wait for them.
     @Published public internal(set) var isAddingFiles = false
     private var addingFilesCount = 0

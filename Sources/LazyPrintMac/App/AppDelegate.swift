@@ -11,7 +11,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var state: AppState?
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let state, state.isBusy else { return .terminateNow }
+        guard let state else { return .terminateNow }
+        if !state.isBusy {
+            guard state.hasBacksWaiting else { return .terminateNow }
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "The backs are not printed yet"
+            alert.informativeText = "Quitting now leaves the two-sided job half done."
+            let quit = alert.addButton(withTitle: "Quit")
+            alert.addButton(withTitle: "Cancel")
+            quit.keyEquivalent = ""
+            NSApp.activate(ignoringOtherApps: true)
+            return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Stop it and quit?"
