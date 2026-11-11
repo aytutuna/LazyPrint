@@ -173,7 +173,7 @@ public class PaperSizeTests
     {
         Assert.Equal("a4", PaperSizes.IdFor(PaperSizes.PwgSize("iso_a4_210x297mm")!.Value));
         string a3 = PaperSizes.IdFor(PaperSizes.PwgSize("iso_a3_297x420mm")!.Value);
-        Assert.Equal("custom_sheet_297x420mm", a3);
+        Assert.Equal("listed_sheet_297x420mm", a3);
         Assert.Equal(297 * 72 / 25.4, PaperSizes.PointsOf(a3)!.Value.Width, 0.1);
     }
 
@@ -222,7 +222,7 @@ public class PaperSizeTests
     public void Choices_ListThePrintersSizes_TheRegionsFirst()
     {
         var choices = PaperSizes.Choices(Lists("iso_a3_297x420mm", "na_letter_8.5x11in", "iso_a4_210x297mm", "na_ledger_11x17in"), "auto", "US");
-        Assert.Equal(["auto", "letter", "a4", "custom_sheet_279.4x431.8mm", "custom_sheet_297x420mm"], choices.Options.Select(o => o.Id));
+        Assert.Equal(["auto", "letter", "a4", "listed_sheet_279.4x431.8mm", "listed_sheet_297x420mm"], choices.Options.Select(o => o.Id));
         Assert.Equal(["Automatic", "Letter", "A4", "Tabloid", "A3"], choices.Options.Select(o => o.Label));
         Assert.Equal("11.69 × 16.54 in", choices.Options[^1].Detail);
         Assert.Equal("auto", choices.Selected);
@@ -265,7 +265,11 @@ public class PaperSizeTests
         // A size inside the range that is not listed shows as Custom size.
         Assert.Equal(PaperSizes.CustomId, PaperSizes.Choices(caps, "custom_sheet_100x200mm", "DE").Selected);
         // Outside it, it is an entry of its own.
-        Assert.Equal("custom_sheet_300x400mm", PaperSizes.Choices(caps, "custom_sheet_300x400mm", "DE").Selected);
+        Assert.Equal("listed_sheet_300x400mm", PaperSizes.Choices(caps, "custom_sheet_300x400mm", "DE").Selected);
+        // A size the printer lists keeps its name when a range would take it too.
+        var listedA3 = new PrinterCapabilities { MediaSupported = ["iso_a3_297x420mm"], CustomPaper = Range };
+        string a3 = PaperSizes.IdFor(new LayoutSize(297 * 72 / 25.4, 420 * 72 / 25.4));
+        Assert.Equal(a3, PaperSizes.Choices(listedA3, a3, "DE").Selected);
         // A size typed in stays Custom size even when a listed one has the same size.
         Assert.Equal(PaperSizes.CustomId, PaperSizes.Choices(caps, PaperSizes.CustomSizeId(210, 297, "DE", caps), "DE").Selected);
     }

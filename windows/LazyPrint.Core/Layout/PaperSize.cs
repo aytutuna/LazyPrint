@@ -261,15 +261,16 @@ public static class PaperSizes
     }
 
     /// <summary>The id to keep for a sheet (portrait, in points): the raw value of the named size, else its size in millimetres.</summary>
-    public static string IdFor(LayoutSize points) => Match(points) is { } named ? named.RawValue() : SheetId(points);
+    public static string IdFor(LayoutSize points) => Match(points) is { } named ? named.RawValue() : SheetId(ListedPrefix, points);
 
     private const string TypedPrefix = "custom_sheet_";
+    private const string ListedPrefix = "listed_sheet_";
 
-    /// <summary>A PWG name for a sheet in millimetres. A size typed in is kept under this even when it has a name, so it stays Custom size.</summary>
-    private static string SheetId(LayoutSize points)
+    /// <summary>A PWG name for a sheet in millimetres. A size typed in has its own prefix, so it stays Custom size when it has a name.</summary>
+    private static string SheetId(string prefix, LayoutSize points)
     {
         static string Mm(double value) => Math.Round(value * 25.4 / 72, 1).ToString(CultureInfo.InvariantCulture);
-        return $"{TypedPrefix}{Mm(points.Width)}x{Mm(points.Height)}mm";
+        return $"{prefix}{Mm(points.Width)}x{Mm(points.Height)}mm";
     }
 
     /// <summary>The name people know a sheet by ("Letter", "A3", "Envelope DL"); null for a size without one.</summary>
@@ -311,7 +312,7 @@ public static class PaperSizes
         double unit = UsesInches(regionCode) ? 72 : 72 / 25.4;
         var sheet = new LayoutSize(Math.Min(width, height) * unit, Math.Max(width, height) * unit);
         if (printer?.CustomPaper is { } range) sheet = range.Clamp(sheet);
-        return SheetId(sheet);
+        return SheetId(TypedPrefix, sheet);
     }
 
     /// <summary>The sizes the printer lists, portrait, each once: its database and ready papers and the names in media-supported and media-ready.</summary>

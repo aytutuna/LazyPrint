@@ -138,7 +138,7 @@ final class PaperSizeTests: XCTestCase {
     func test_idFor_keepsNamedSizesAsTheirRawValueAndTheRestInMillimetres() throws {
         XCTAssertEqual(PaperSizes.idFor(try XCTUnwrap(PaperSizes.pwgSize("iso_a4_210x297mm"))), "a4")
         let a3 = PaperSizes.idFor(try XCTUnwrap(PaperSizes.pwgSize("iso_a3_297x420mm")))
-        XCTAssertEqual(a3, "custom_sheet_297x420mm")
+        XCTAssertEqual(a3, "listed_sheet_297x420mm")
         XCTAssertEqual(PaperSizes.pointsOf(a3)?.width ?? 0, 297 * 72 / 25.4, accuracy: 0.1)
     }
 
@@ -184,7 +184,7 @@ final class PaperSizeTests: XCTestCase {
     func test_choices_listThePrintersSizes_theRegionsFirst() {
         let caps = lists("iso_a3_297x420mm", "na_letter_8.5x11in", "iso_a4_210x297mm", "na_ledger_11x17in")
         let choices = PaperSizes.choices(printer: caps, chosen: "auto", region: "US")
-        XCTAssertEqual(choices.options.map(\.id), ["auto", "letter", "a4", "custom_sheet_279.4x431.8mm", "custom_sheet_297x420mm"])
+        XCTAssertEqual(choices.options.map(\.id), ["auto", "letter", "a4", "listed_sheet_279.4x431.8mm", "listed_sheet_297x420mm"])
         XCTAssertEqual(choices.options.map(\.label), ["Automatic", "Letter", "A4", "Tabloid", "A3"])
         XCTAssertEqual(choices.options.last?.detail, "11.69 \u{00D7} 16.54 in")
         XCTAssertEqual(choices.selected, "auto")
@@ -221,7 +221,12 @@ final class PaperSizeTests: XCTestCase {
         // A size inside the range that is not listed shows as Custom size.
         XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: "custom_sheet_100x200mm", region: "DE").selected, PaperSizes.customId)
         // Outside it, it is an entry of its own.
-        XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: "custom_sheet_300x400mm", region: "DE").selected, "custom_sheet_300x400mm")
+        XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: "custom_sheet_300x400mm", region: "DE").selected, "listed_sheet_300x400mm")
+        // A size the printer lists keeps its name when a range would take it too.
+        var listedA3 = lists("iso_a3_297x420mm")
+        listedA3.customPaper = range
+        let a3 = PaperSizes.idFor(LayoutSize(width: 297 * 72 / 25.4, height: 420 * 72 / 25.4))
+        XCTAssertEqual(PaperSizes.choices(printer: listedA3, chosen: a3, region: "DE").selected, a3)
         // A size typed in stays Custom size even when a listed one has the same size.
         let typed = PaperSizes.customSizeId(width: 210, height: 297, region: "DE", printer: caps)
         XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: typed, region: "DE").selected, PaperSizes.customId)

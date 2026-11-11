@@ -156,6 +156,7 @@ extension PaperSizes {
     public static let customId = "custom"
 
     private static let typedPrefix = "custom_sheet_"
+    private static let listedPrefix = "listed_sheet_"
 
     /// The sizes without a case of their own that people know by name, in millimetres.
     private static let otherNames: [(label: String, width: Double, height: Double)] = [
@@ -248,16 +249,16 @@ extension PaperSizes {
 
     /// The id to keep for a sheet (portrait, in points): the raw value of the named size, else its size in millimetres.
     public static func idFor(_ sheet: LayoutSize) -> String {
-        match(sheet)?.rawValue ?? sheetId(sheet)
+        match(sheet)?.rawValue ?? sheetId(listedPrefix, sheet)
     }
 
-    /// A PWG name for a sheet in millimetres. A size typed in is kept under this even when it has a name, so it stays Custom size.
-    private static func sheetId(_ sheet: LayoutSize) -> String {
+    /// A PWG name for a sheet in millimetres. A size typed in has its own prefix, so it stays Custom size when it has a name.
+    private static func sheetId(_ prefix: String, _ sheet: LayoutSize) -> String {
         func mm(_ value: Double) -> String {
             let rounded = (value * 25.4 / 72 * 10).rounded() / 10
             return rounded == rounded.rounded() ? String(Int(rounded)) : String(rounded)
         }
-        return "\(typedPrefix)\(mm(sheet.width))x\(mm(sheet.height))mm"
+        return "\(prefix)\(mm(sheet.width))x\(mm(sheet.height))mm"
     }
 
     /// The name people know a sheet by ("Letter", "A3", "Envelope DL"); nil for a size without one.
@@ -295,7 +296,7 @@ extension PaperSizes {
         let unit = usesInches(regionCode) ? 72.0 : 72 / 25.4
         var sheet = LayoutSize(width: min(width, height) * unit, height: max(width, height) * unit)
         if let range = printer?.customPaper { sheet = range.clamp(sheet) }
-        return sheetId(sheet)
+        return sheetId(typedPrefix, sheet)
     }
 
     private static func same(_ a: LayoutSize, _ b: LayoutSize) -> Bool {
