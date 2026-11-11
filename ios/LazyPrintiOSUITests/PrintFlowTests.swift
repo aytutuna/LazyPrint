@@ -82,14 +82,14 @@ final class PrintFlowTests: XCTestCase {
         let position: XCUIElement = app.staticTexts["preview.position"]
         let first: String = position.label
 
-        // Either side of the spine, since a two-sided job shows two decks.
+        // From the outer edge of each deck, since a two-sided job shows two and the curl takes a page by its free edge.
         let stage: XCUIElement = app.item("preview.stage")
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.56, dy: 0.5))
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
                    withVelocity: .fast, thenHoldForDuration: 0)
         app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
 
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.44, dy: 0.5))
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)),
                    withVelocity: .fast, thenHoldForDuration: 0)
         app.waitUntil(position, "label == '\(first)'", "A swipe to the right turns back")
@@ -106,9 +106,8 @@ final class PrintFlowTests: XCTestCase {
         let stage: XCUIElement = app.item("preview.stage")
         app.waitUntil(stage, "isHittable == true", "The page after the rotation")
         Thread.sleep(forTimeInterval: 1)
-        // On the right deck, just past the spine: a phone on its side shows the paper narrower than the stage, and a plain
-        // swipe starts beside it.
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.56, dy: 0.5))
+        // On the right deck, near its free edge.
+        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)),
                    withVelocity: .fast, thenHoldForDuration: 0)
 
