@@ -20,7 +20,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var taskId: String?
     /// The printer's id; nil is the system's default printer.
     public var printerId: String?
-    /// 1 to 99 (`PrintCopies.clamp`).
+    /// 1 to 99 (`PrintCopies.clamp`). Not saved: each launch starts at 1.
     public var copies = 1
     public var collate = true
     public var color = ColorChoice.color
