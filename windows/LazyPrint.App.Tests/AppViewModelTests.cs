@@ -54,6 +54,25 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task ATextDocumentIsLaidOutOnTheChosenPaper()
+    {
+        using var rig = new Rig();
+        await rig.Model.RefreshPrintersAsync();
+        rig.Model.Settings.PaperId = "letter";
+        await rig.Model.AddFilesAsync(["a.txt", "b.pdf"]);
+        var letter = PaperSizes.PointsOf("letter")!.Value;
+        Assert.Equal(letter, rig.Model.Documents[0].Pages[0]);
+
+        rig.Model.Settings.PaperId = "a5";
+        rig.Model.SettingsEdited();
+
+        var a5 = PaperSizes.PointsOf("a5")!.Value;
+        Assert.Equal(a5, Assert.Single(rig.Model.Documents[0].Pages));
+        Assert.Equal(letter, rig.Model.Documents[1].Pages[0]);
+        Assert.Equal(a5, rig.Model.Plan()!.Plan.Sheets[0].Front.Placements[0].Page.Size);
+    }
+
+    [Fact]
     public async Task TheDefaultPrinterIsUsedUntilOneIsChosen()
     {
         using var rig = new Rig();

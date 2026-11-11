@@ -26,6 +26,12 @@ public interface IDocumentLoader
     /// <see cref="PdfPasswordException"/> for a locked PDF that is opened without its <paramref name="password"/>.
     /// </summary>
     Task<LoadedDocument> LoadAsync(string path, CancellationToken token, string? password = null);
+
+    /// <summary>
+    /// A text document set again on pages of the <paramref name="paper"/> size, which is a new document; null for any other
+    /// document, or a text one that already is that size.
+    /// </summary>
+    LoadedDocument? Relayout(LoadedDocument document, LayoutSize paper) => null;
 }
 
 /// <summary>What is drawn on a side of a job made of drawing items; <paramref name="Turned"/> draws it upside down, as a manual back is.</summary>

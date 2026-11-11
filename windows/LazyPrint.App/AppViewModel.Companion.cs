@@ -292,6 +292,7 @@ public sealed partial class AppViewModel
                     PageRangeText = "";
                 }
                 foreach (var document in opened) Documents.Add(document);
+                RelayoutText();
                 RememberOpened(opened);
                 if (failed.Count > 0) ReportNotAdded(failed);
                 else if (missed > 0) ReportMissed(batch, missed);

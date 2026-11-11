@@ -129,9 +129,32 @@ public sealed partial class AppViewModel
             }
             var (opened, failed) = await OpenFilesAsync(paths, token);
             foreach (var document in opened) Documents.Add(document);
+            RelayoutText();
             RememberOpened(opened);
             if (failed.Count > 0) ReportNotAdded(failed);
         });
+    }
+
+    /// <summary>
+    /// Sets the text documents again on the chosen paper, which is the size of the sheets they are laid out for. A document that
+    /// is set again is a new one in the same place; what is kept by document moves over to it.
+    /// </summary>
+    private void RelayoutText()
+    {
+        if (Documents.Count == 0) return;
+        var paper = PrintJobs.Sheet(Settings.PaperId, SelectedCapabilities);
+        for (int i = 0; i < Documents.Count; i++)
+        {
+            var old = Documents[i];
+            if (_loader.Relayout(old, paper) is not { } laid) continue;
+            if (_sourcePaths.TryGetValue(old, out string? source)) _sourcePaths.Add(laid, source);
+            if (_takenFiles.TryGetValue(old, out string? taken))
+            {
+                _takenFiles.Remove(old);
+                _takenFiles.Add(laid, taken);
+            }
+            Documents[i] = laid;
+        }
     }
 
     private readonly List<string> _queuedFiles = [];

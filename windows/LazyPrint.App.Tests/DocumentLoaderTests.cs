@@ -337,6 +337,30 @@ public class DocumentLoaderTests
     }
 
     [Fact]
+    public async Task ATextFileIsSetAgainOnAnotherPaper()
+    {
+        string path = WriteText(".txt", System.Text.Encoding.ASCII.GetBytes(string.Join("\n", Enumerable.Range(1, 100).Select(i => "line " + i))));
+        try
+        {
+            var document = await _loader.LoadAsync(path, CancellationToken.None);
+            var small = new LayoutSize(300, 400);
+
+            var laid = _loader.Relayout(document, small);
+
+            Assert.NotNull(laid);
+            Assert.True(laid.Pages.Count > document.Pages.Count);
+            Assert.All(laid.Pages, size => Assert.Equal(small, size));
+            Assert.Null(_loader.Relayout(laid, small));
+            var page = await StaWork.Run(() => _loader.Render(laid, 0, null, 300, 400));
+            Assert.Equal(300, page.PixelWidth);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task ATextFileWithNoNameIsTextToo()
     {
         string path = WriteText("", "one\r\ntwo\r\n"u8.ToArray());

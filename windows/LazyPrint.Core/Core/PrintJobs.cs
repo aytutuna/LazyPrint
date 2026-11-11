@@ -218,7 +218,7 @@ public static class PrintJobs
         || (Math.Abs(photo.Width - sheet.Width) <= PaperSizes.FitTolerance && Math.Abs(photo.Height - sheet.Height) <= PaperSizes.FitTolerance);
 
     /// <summary>The paper a job goes on, portrait, in points.</summary>
-    private static LayoutSize Sheet(string paperId, PrinterCapabilities? printer) =>
+    public static LayoutSize Sheet(string paperId, PrinterCapabilities? printer) =>
         (PaperSizes.PointsOf(paperId) ?? Loaded(printer) ?? PaperSizes.Points(UsualPaper()))
         ?? throw new InvalidOperationException("A paper size has points.");
 

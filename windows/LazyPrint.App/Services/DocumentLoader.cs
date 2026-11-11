@@ -32,6 +32,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     private readonly ConditionalWeakTable<LoadedDocument, string> _jpegs = new();
 
     private readonly ConditionalWeakTable<LoadedDocument, string> _passwords = new();
+    private readonly ConditionalWeakTable<LoadedDocument, string> _texts = new();
 
     public async Task<LoadedDocument> LoadAsync(string path, CancellationToken token, string? password = null)
     {
@@ -56,6 +57,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
             else if (TextExtensions.Contains(extension))
             {
                 (source, document) = await OpenTextAsync(path, name, token);
+                _texts.Add(document, ((TextSource)source).Text);
             }
             else
             {
@@ -74,6 +76,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                     if (extension.Length > 0 || !await Task.Run(() => LooksLikeText(path), token)) throw new InvalidOperationException(DocumentText.NotSupported, e);
                     var text = await OpenTextAsync(path, name, token);
                     _sources.Add(text.Document, text.Source);
+                    _texts.Add(text.Document, ((TextSource)text.Source).Text);
                     return text.Document;
                 }
                 source = picture;
@@ -93,11 +96,22 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     {
         byte[] bytes = await File.ReadAllBytesAsync(path, token);
         var size = PaperSizes.Points(PaperSizes.DefaultForRegion(RegionInfo.CurrentRegion.TwoLetterISORegionName))!.Value;
-        var pages = TextPages.Paginate(TextPages.Decode(bytes, SystemCodePage()), size);
+        string text = TextPages.Decode(bytes, SystemCodePage());
+        var pages = TextPages.Paginate(text, size);
         if (pages.Count == 0) throw new InvalidOperationException(DocumentText.NoText);
-        // The page is the usual paper where the user lives: the printer's paper is not known yet, and the page is fitted to it
-        // later. Nothing of it goes to a printer as it is.
-        return (new TextSource(pages, size), new LoadedDocument(name, new DocumentKind.Imposed(), [.. pages.Select(_ => size)]));
+        // The page is the usual paper where the user lives until the chosen paper is known: Relayout sets it again then.
+        // Nothing of it goes to a printer as it is.
+        return (new TextSource(text, pages, size), new LoadedDocument(name, new DocumentKind.Imposed(), [.. pages.Select(_ => size)]));
+    }
+
+    public LoadedDocument? Relayout(LoadedDocument document, LayoutSize paper)
+    {
+        if (!_texts.TryGetValue(document, out string? text) || document.Pages[0] == paper) return null;
+        var pages = TextPages.Paginate(text, paper);
+        var laid = new LoadedDocument(document.Name, document.Kind, [.. pages.Select(_ => paper)]);
+        _sources.Add(laid, new TextSource(text, pages, paper));
+        _texts.Add(laid, text);
+        return laid;
     }
 
     private static Encoding SystemCodePage()
@@ -258,8 +272,10 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
         }
     }
 
-    private sealed class TextSource(IReadOnlyList<IReadOnlyList<string>> pages, LayoutSize size) : Source
+    private sealed class TextSource(string content, IReadOnlyList<IReadOnlyList<string>> pages, LayoutSize size) : Source
     {
+        public string Text { get; } = content;
+
         private static readonly Typeface Face = new("Courier New");
 
         public override BitmapSource Render(int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
