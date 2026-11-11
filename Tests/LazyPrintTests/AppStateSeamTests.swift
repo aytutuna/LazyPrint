@@ -100,6 +100,8 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
     private var failure: Error?
     /// Runs while a pass is being printed; a test holds the job here.
     var hold: (@Sendable (SheetJob, Int) async throws -> Void)?
+    /// What the printer reports as soon as the pass starts.
+    var reports: JobStatus?
 
     var passes: [(job: SheetJob, pass: Int)] {
         lock.lock()
@@ -127,6 +129,7 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
         lock.lock()
         sent.append((job: job, pass: pass))
         lock.unlock()
+        if let reports { progress(reports) }
         if let hold { try await hold(job, pass) }
     }
 }
@@ -437,17 +440,17 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
-    func test_aQueueThatGaveNoCapabilities_isAskedOnceOnTheMac() async throws {
+    func test_aQueueThatGaveNoCapabilities_isAskedAgainOnTheMac() async throws {
         let rig = try makeRig()
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true, .offline)]
         await rig.state.refreshPrinters()
-        await rig.state.refreshPrinters()
+        XCTAssertNil(rig.state.capabilities)
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
         rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
         await rig.state.refreshPrinters()
 
-        XCTAssertEqual(rig.spooler.capabilityReads, 1)
-        XCTAssertNil(rig.state.capabilities)
+        XCTAssertEqual(rig.spooler.capabilityReads, 2)
+        XCTAssertEqual(rig.state.capabilities?.sidesSupported.contains("two-sided-long-edge"), true)
     }
 
     @MainActor
@@ -1297,6 +1300,18 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
         XCTAssertNil(rig.state.error)
         XCTAssertFalse(rig.state.isBusy)
+    }
+
+    @MainActor
+    func test_aWaitingJobWithADetail_showsTheDetailInsteadOfTheCount() async throws {
+        let rig = try await printingRig()
+        rig.sheets.reports = JobStatus(state: .waiting, sidesDone: 0, detail: "Out of paper")
+        rig.sheets.hold = { _, _ in try await Task.sleep(nanoseconds: 60_000_000_000) }
+
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { rig.state.statusOverride == "Waiting for Test Printer: Out of paper" }
+        rig.state.cancelJob(rig.state.jobs[0].id)
+        await printing.value
     }
 
     @MainActor

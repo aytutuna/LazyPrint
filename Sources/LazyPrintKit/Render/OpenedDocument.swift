@@ -1,12 +1,15 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import PDFKit
 
 /// A document opened for drawing, kept beside its LoadedDocument so SourcePage.document indexes both.
 public struct OpenedDocument: @unchecked Sendable {
     public var loaded: LoadedDocument
     public var url: URL
     public var source: Source
+    /// The same PDF in PDFKit, which draws the annotations and filled form fields that `CGContext.drawPDFPage` leaves out.
+    public var annotated: PDFDocument?
     public let drawing = DrawingLock()
     /// The security-scoped access the file was opened under; it stops when the last copy of the document is gone.
     public var access: ScopedAccess?
@@ -16,10 +19,16 @@ public struct OpenedDocument: @unchecked Sendable {
         case picture(CGImageSource)
     }
 
-    public init(loaded: LoadedDocument, url: URL, source: Source) {
+    public init(loaded: LoadedDocument, url: URL, source: Source, annotated: PDFDocument? = nil) {
         self.loaded = loaded
         self.url = url
         self.source = source
+        self.annotated = annotated
+    }
+
+    /// A page of the PDF as PDFKit has it, from 0.
+    public func annotatedPage(_ index: Int) -> PDFPage? {
+        annotated?.page(at: index)
     }
 }
 

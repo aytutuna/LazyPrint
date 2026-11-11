@@ -2,6 +2,7 @@
 import CoreGraphics
 import ImageIO
 import LazyPrintKit
+import PDFKit
 import SwiftUI
 
 /// The documents under the preview, in print order: a thumbnail of the first page, the name and the page count, and the
@@ -132,8 +133,13 @@ private struct Thumbnail: View {
                 let target = CGRect(x: 0, y: 0, width: width, height: height)
                 context.setFillColor(CGColor(gray: 1, alpha: 1))
                 context.fill(target)
-                context.concatenate(page.getDrawingTransform(.cropBox, rect: target, rotate: 0, preserveAspectRatio: true))
-                context.drawPDFPage(page)
+                if let annotated = document.annotatedPage(0) {
+                    context.scaleBy(x: target.width / shown.width, y: target.height / shown.height)
+                    annotated.draw(with: .cropBox, to: context)
+                } else {
+                    context.concatenate(page.getDrawingTransform(.cropBox, rect: target, rotate: 0, preserveAspectRatio: true))
+                    context.drawPDFPage(page)
+                }
                 return context.makeImage()
             }
         }

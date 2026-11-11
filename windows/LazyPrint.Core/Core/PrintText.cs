@@ -31,6 +31,9 @@ public static class PrintText
     /// <summary>Cancel on a job the printer already has.</summary>
     public const string AlreadyAtPrinter = "Already at the printer, so it will finish";
 
+    public const string QueuePaused = "Queue paused";
+    public const string NeedsSignIn = "Needs sign-in";
+
     public const string LoadBacks = "Load the backs";
 
     public const string FinishTwoSided = "Finish the two-sided job first";

@@ -32,6 +32,9 @@ public enum PrintText {
     /// Cancel on a job the printer already has.
     public static let alreadyAtPrinter = "Already at the printer, so it will finish"
 
+    public static let queuePaused = "Queue paused"
+    public static let needsSignIn = "Needs sign-in"
+
     public static let loadBacks = "Load the backs"
 
     public static let finishTwoSided = "Finish the two-sided job first"

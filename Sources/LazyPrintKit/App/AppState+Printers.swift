@@ -31,19 +31,20 @@ extension AppState {
             return
         }
         refreshing = true
-        defer { refreshing = false }
         repeat {
             refreshAgain = false
             queues = await printerSystem.queues()
             printersRead = true
             rebuildPrinters()
-            await loadCapabilities()
-            writeLog()
             // A printer a queue was just matched to has not been asked yet.
             if printers.contains(where: { $0.ippEndpoint != nil && ippReads[$0.id] == nil }) {
                 Task { await self.refreshNetworkStatus(onlyNew: true) }
             }
         } while refreshAgain
+        // Read after the list is free again: a queue that does not answer holds this call for its timeout, not the polls.
+        refreshing = false
+        await loadCapabilities()
+        writeLog()
     }
 
     /// The rows from the queues and the network printers read last, with the demo printer as it is now.
@@ -96,7 +97,9 @@ extension AppState {
 
     /// Reads what the printer in use can do, once; the plan follows when it arrives.
     func loadCapabilities() async {
-        guard let printer = selectedPrinter, !capabilitiesAsked.contains(printer.id) else { return }
+        guard let printer = selectedPrinter, !capabilitiesAsked.contains(printer.id),
+              capabilitiesLoading.insert(printer.id).inserted else { return }
+        defer { capabilitiesLoading.remove(printer.id) }
         var read: PrinterCapabilities?
         switch printer.route {
         case .ipp:
@@ -107,9 +110,9 @@ extension AppState {
         case .system:
             read = await printerSystem.capabilities(ofQueue: Self.queueName(of: printer))
         }
-        // On the iPhone a printer that gave no answer is asked again: it may have been asleep, or gone out of range during
-        // the read. The Mac asks once: cupsCopyDestInfo has no timeout, and runs one at a time.
-        if read != nil || platform != .ios { capabilitiesAsked.insert(printer.id) }
+        // A printer that gave no answer is asked again: it may have been asleep, or gone out of range during the read.
+        // The Mac's system holds off a while after a miss, so a slow queue is not read every five seconds.
+        if read != nil { capabilitiesAsked.insert(printer.id) }
         if let read { capabilitiesById[printer.id] = read }
         syncCapabilities()
         replan()

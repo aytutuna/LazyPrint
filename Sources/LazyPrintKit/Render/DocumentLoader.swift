@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import PDFKit
 import UniformTypeIdentifiers
 
 // Twin of windows/LazyPrint.App/Services/DocumentLoader.cs: opens PDFs and pictures for drawing.
@@ -60,7 +61,9 @@ public final class DocumentLoader: DocumentLoading {
             pages.append(LayoutSize(width: sideways ? box.height : box.width, height: sideways ? box.width : box.height))
         }
         let loaded = LoadedDocument(name: url.lastPathComponent, kind: .pdf(encrypted: encrypted), pages: pages)
-        return OpenedDocument(loaded: loaded, url: url, source: .pdf(pdf))
+        let annotated = PDFDocument(url: url)
+        if annotated?.isLocked == true { _ = annotated?.unlock(withPassword: "") }
+        return OpenedDocument(loaded: loaded, url: url, source: .pdf(pdf), annotated: annotated)
     }
 
     private func loadPicture(_ url: URL) throws -> OpenedDocument {

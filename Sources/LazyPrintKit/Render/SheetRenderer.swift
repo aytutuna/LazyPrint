@@ -2,6 +2,7 @@ import CoreGraphics
 import CoreText
 import Foundation
 import ImageIO
+import PDFKit
 
 // Twin of windows/LazyPrint.App/Printing/SheetRenderer.cs: draws a SheetSide the way every platform does.
 // Layout coordinates are points, top-left; the context is flipped once in `draw`.
@@ -132,7 +133,8 @@ public struct SheetRenderer {
             switch document.source {
             case .pdf(let pdf):
                 if let page = pdf.page(at: placement.page.index + 1) {
-                    drawPDF(page, crop: placement.crop, width: width, height: height, in: context)
+                    drawPDF(page, annotated: document.annotatedPage(placement.page.index), crop: placement.crop, width: width,
+                            height: height, in: context)
                 }
             case .picture(let source):
                 let index = placement.page.index
@@ -146,7 +148,10 @@ public struct SheetRenderer {
     }
 
     /// Built by hand: `getDrawingTransform` never scales up, and a page must fill its frame.
-    private func drawPDF(_ page: CGPDFPage, crop: LayoutRect?, width: Double, height: Double, in context: CGContext) {
+    /// PDFPage.draw(with:to:) puts the page, turned and in the first quadrant, where the hand-built transform does, and
+    /// draws its annotations; the CGPDFPage is the fallback for a file PDFKit would not open.
+    private func drawPDF(_ page: CGPDFPage, annotated: PDFPage?, crop: LayoutRect?, width: Double, height: Double,
+                         in context: CGContext) {
         let box = page.getBoxRect(.cropBox)
         let turn = ((Int(page.rotationAngle) % 360) + 360) % 360
         let sideways = turn == 90 || turn == 270
@@ -164,14 +169,21 @@ public struct SheetRenderer {
         let shown = crop ?? LayoutRect(x: 0, y: 0, width: shownWidth, height: shownHeight)
         guard shown.width > 0, shown.height > 0 else { return }
 
-        let transform = CGAffineTransform(translationX: -box.minX, y: -box.minY)
-            .concatenating(rotation)
+        let placed = annotated == nil
+            ? CGAffineTransform(translationX: -box.minX, y: -box.minY).concatenating(rotation)
+            : CGAffineTransform.identity
+        let transform = placed
             .concatenating(CGAffineTransform(translationX: -shown.x, y: -(shownHeight - shown.y - shown.height)))
             .concatenating(CGAffineTransform(scaleX: width / shown.width, y: height / shown.height))
             .concatenating(CGAffineTransform(translationX: -width / 2, y: -height / 2))
         context.concatenate(transform)
-        context.clip(to: box)
-        context.drawPDFPage(page)
+        if let annotated {
+            context.clip(to: CGRect(x: 0, y: 0, width: shownWidth, height: shownHeight))
+            annotated.draw(with: .cropBox, to: context)
+        } else {
+            context.clip(to: box)
+            context.drawPDFPage(page)
+        }
     }
 
     private func drawPicture(_ source: CGImageSource, index: Int, size: LayoutSize, crop: LayoutRect?, width: Double, height: Double,
