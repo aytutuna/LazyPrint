@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
@@ -69,6 +70,7 @@ public partial class MainWindow : Window
             _ = ViewModel.RefreshPrintersAsync();
             _ = ViewModel.RefreshLazyScanAsync();
         };
+        Closing += MainWindow_Closing;
         Closed += (_, _) =>
         {
             _printerPoll.Stop();
@@ -76,6 +78,34 @@ public partial class MainWindow : Window
             ViewModel.Shutdown();
         };
         SizeChanged += (_, _) => UpdatePane();
+    }
+
+    private bool _closeConfirmed;
+
+    /// <summary>Closing asks first while a job is going out, or while a two-sided job waits for its backs.</summary>
+    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    {
+        if (_closeConfirmed) return;
+        if (ViewModel.IsBusy)
+        {
+            e.Cancel = true;
+            if (MessageBox.Show(this, "A job is still being sent to the printer.", "Stop it and quit?",
+                                MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK)
+                _ = StopJobAndClose();
+        }
+        else if (ViewModel.IsWaitingForBacks)
+        {
+            if (MessageBox.Show(this, "Closing now leaves the two-sided job half done.", "The backs are not printed yet",
+                                MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) != MessageBoxResult.OK)
+                e.Cancel = true;
+        }
+    }
+
+    private async Task StopJobAndClose()
+    {
+        await ViewModel.CancelJobAndWaitAsync();
+        _closeConfirmed = true;
+        Close();
     }
 
     // MARK: - Side pane (full width, or an icon rail in narrow windows)

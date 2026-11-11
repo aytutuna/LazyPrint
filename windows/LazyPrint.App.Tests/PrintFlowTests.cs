@@ -232,6 +232,38 @@ public sealed class PrintFlowTests
     }
 
     [Fact]
+    public async Task CancellingAndWaitingReturnsOnceTheJobHasEnded()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        var started = new TaskCompletionSource();
+        rig.Sheets.While = async (_, _, token) =>
+        {
+            started.SetResult();
+            await Task.Delay(Timeout.Infinite, token);
+        };
+        var printing = rig.Model.PrintAsync();
+        await started.Task;
+        await rig.Model.CancelJobAndWaitAsync();
+
+        Assert.False(rig.Model.IsBusy);
+        Assert.Equal(JobState.Canceled, Assert.Single(rig.Model.Jobs).State);
+        await printing;
+    }
+
+    [Fact]
+    public async Task ATwoSidedJobWaitingForItsBacksIsHalfDone()
+    {
+        using var rig = await ManualRig();
+        Assert.False(rig.Model.IsWaitingForBacks);
+        await rig.Model.PrintAsync();
+        Assert.True(rig.Model.IsWaitingForBacks);
+        rig.Model.CancelManualDuplex();
+        Assert.False(rig.Model.IsWaitingForBacks);
+    }
+
+    [Fact]
     public async Task APrinterThatStopsOnAProblemTitlesTheErrorBarWithIt()
     {
         using var rig = new Rig(demo: true);

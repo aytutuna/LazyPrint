@@ -23,6 +23,7 @@ public enum DuplexStep
 public sealed partial class AppViewModel
 {
     private CancellationTokenSource? _job;
+    private TaskCompletionSource? _passEnded;
     private string? _jobRunning;
 
     /// <summary>What a job was made from, so Print again can make it once more.</summary>
@@ -248,6 +249,7 @@ public sealed partial class AppViewModel
         var printer = job.Printer;
         int sides = Math.Max(1, job.Plan.Passes[pass].Sides.Count * JobSides.Copies(job));
         using var cancellation = _job = new CancellationTokenSource();
+        _passEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _jobRunning = recordId;
         IsBusy = true;
         SetJob(recordId, JobState.Sending, null);
@@ -291,6 +293,7 @@ public sealed partial class AppViewModel
             IsBusy = false;
             if (printer.Route == PrinterRoute.Demo) RebuildPrinters();
             NotifyAll();
+            _passEnded?.TrySetResult();
         }
     }
 
@@ -338,6 +341,14 @@ public sealed partial class AppViewModel
 
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>
     public void CancelJob() => _job?.Cancel();
+
+    /// <summary>Stops the job being printed and returns once its pass has ended, so closing the app does not leave it in the queue.</summary>
+    public async Task CancelJobAndWaitAsync()
+    {
+        if (_job is null || _passEnded is not { } ended) return;
+        _job.Cancel();
+        await ended.Task;
+    }
 
     /// <summary>The Jobs tab's Cancel for a job still going.</summary>
     public void CancelJob(string id)
@@ -390,6 +401,9 @@ public sealed partial class AppViewModel
 
     /// <summary>The step the two-sided card is on; <see cref="DuplexStep.None"/> hides the card.</summary>
     public DuplexStep ManualStep => _manual?.Step ?? DuplexStep.None;
+
+    /// <summary>A two-sided job has printed its fronts and waits for its backs.</summary>
+    public bool IsWaitingForBacks => _manual is not null;
 
     /// <summary>The card's heading.</summary>
     public string ManualTitle => ManualStep == DuplexStep.Reload ? PrintText.LoadBacks : ManualDuplexText.CheckTitle;
