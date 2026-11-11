@@ -211,7 +211,7 @@ final class ScreenshotTests: XCTestCase {
             shot(app, "skipped-14-my-computer")
         }
         guard tapIfThere(app, "companion.forget", for: "15-pair-computer") else { return }
-        guard tapIfThere(app, "companion.forget.confirm", for: "15-pair-computer") else { return }
+        app.confirmButton("companion.forget.confirm", title: "Forget").tap()
         if app.item("companion.pair").waitForExistence(timeout: 10) {
             settle()
             shot(app, "15-pair-computer")

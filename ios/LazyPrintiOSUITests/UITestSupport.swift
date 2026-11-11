@@ -88,6 +88,15 @@ extension XCUIApplication {
         return descendants(matching: .any).matching(NSPredicate(format: "label == %@", title)).firstMatch
     }
 
+    /// The button of a confirmation dialog by its identifier, or failing that by its title among the dialog's own buttons;
+    /// the row that opened it keeps the same title and stays in the tree.
+    @MainActor
+    func confirmButton(_ id: String, title: String) -> XCUIElement {
+        let byId: XCUIElement = item(id)
+        if byId.waitForExistence(timeout: 5) { return byId }
+        return sheets.buttons[title].firstMatch
+    }
+
     /// Picks a task from the Task menu on the Print screen.
     @MainActor
     func pickTask(_ id: String, title: String, file: StaticString = #filePath, line: UInt = #line) {

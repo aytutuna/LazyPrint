@@ -49,7 +49,7 @@ final class CompanionTests: XCTestCase {
         XCTAssertTrue(row.label.contains("Office PC"), row.label)
 
         app.item("printers.computer.forget").tap()
-        app.item("printers.computer.forget.confirm").tap()
+        app.confirmButton("printers.computer.forget.confirm", title: "Forget").tap()
 
         XCTAssertTrue(app.item("printers.computer.pair").waitForExistence(timeout: 30), "Pair with a computer again")
         app.waitUntilGone(row, "The computer is gone")
@@ -70,7 +70,7 @@ final class CompanionTests: XCTestCase {
         XCTAssertFalse(app.item("companion.pair").exists, "Already paired")
 
         app.item("companion.forget").tap()
-        app.item("companion.forget.confirm").tap()
+        app.confirmButton("companion.forget.confirm", title: "Forget").tap()
 
         XCTAssertTrue(app.item("companion.pair").waitForExistence(timeout: 30), "Pairing is offered again")
         app.waitUntilGone(app.item("companion.name"), "The computer is gone")
