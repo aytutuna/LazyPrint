@@ -103,6 +103,7 @@ public final class IppSheetPrinter: SheetPrinter {
             let settings = job.settings
             let plain = settings.poster == 0 && MarginChoices.millimetres(settings.margin, custom: settings.marginMm) == 0
                 && settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
+                && (settings.scale == 100 || settings.scaling == .fit)
                 && (settings.scaling == .fit || settings.scaling == .shrinkToFit
                     || settings.scaling == .actualSize && caps.printScalingSupported.contains("none"))
             guard plain, whole || caps.pageRangesSupported else { return nil }

@@ -226,6 +226,14 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertEqual(try attribute(request, "sides"), "one-sided")
     }
 
+    func test_aScaledPdf_isDrawnHereEvenWhenItIsShrunkToFit() async throws {
+        let (url, bytes) = try original()
+        try await printer(original: url).print(try job({ $0.scaling = .shrinkToFit; $0.scale = 50 }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+
+        let request = try XCTUnwrap(sent(.printJob).first)
+        XCTAssertNotEqual(try request.document(), bytes)
+    }
+
     private func rangeJob(_ range: [Int], caps: PrinterCapabilities) throws -> SheetJob {
         let settings = PrintFixtures.letter { $0.scaling = .actualSize }
         let document = try openLetterPDF(pages: 5)
