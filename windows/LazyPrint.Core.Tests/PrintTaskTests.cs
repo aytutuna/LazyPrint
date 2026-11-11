@@ -141,6 +141,20 @@ public class PrintTaskTests
     }
 
     [Fact]
+    public void Apply_DocumentTasks_PutQualityBackToNormalAndLeaveColor()
+    {
+        var start = new PrintSettings { Quality = QualityChoice.Best, Color = ColorChoice.Gray };
+        foreach (var task in new[] { PrintTask.Document, PrintTask.TwoSided, PrintTask.Booklet, PrintTask.Handouts })
+        {
+            var applied = TaskCatalog.Apply(task, start, null);
+            Assert.Equal(QualityChoice.Normal, applied.Quality);
+            Assert.Equal(ColorChoice.Gray, applied.Color);
+        }
+        var photos = TaskCatalog.Apply(PrintTask.Photos, new PrintSettings(), null);
+        Assert.Equal(QualityChoice.Normal, TaskCatalog.Apply(PrintTask.Document, photos, null).Quality);
+    }
+
+    [Fact]
     public void Apply_Photos_PhotoSheet()
     {
         var start = new PrintSettings { Color = ColorChoice.Gray, PhotoSizeId = "5x7", PhotoFill = false, Booklet = true, CutMarks = false };

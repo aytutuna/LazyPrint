@@ -132,6 +132,17 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertEqual(TaskCatalog.apply(.handouts, to: sheet, printer: nil).scaling, .shrinkToFit)
     }
 
+    func test_apply_documentTasks_putQualityBackToNormalAndLeaveColor() {
+        let start = settings { $0.quality = .best; $0.color = .gray }
+        for task in [PrintTask.document, .twoSided, .booklet, .handouts] {
+            let applied = TaskCatalog.apply(task, to: start, printer: nil)
+            XCTAssertEqual(applied.quality, .normal, "\(task)")
+            XCTAssertEqual(applied.color, .gray, "\(task)")
+        }
+        let photos = TaskCatalog.apply(.photos, to: PrintSettings(), printer: nil)
+        XCTAssertEqual(TaskCatalog.apply(.document, to: photos, printer: nil).quality, .normal)
+    }
+
     func test_apply_photos_photoSheet() {
         let start = settings { $0.color = .gray; $0.photoSizeId = "5x7"; $0.photoFill = false; $0.booklet = true; $0.cutMarks = false }
         let photos = TaskCatalog.apply(.photos, to: start, printer: nil)
