@@ -41,10 +41,20 @@ struct OptionsSheet: View {
 
     private func pagesSection(_ rules: Rules) -> some View {
         Section(InspectorSections.title(InspectorSections.pages)) {
-            Stepper(value: $state.settings.copies, in: 1...PrintCopies.maxCount) {
-                Text("Copies: \(state.settings.copies)")
+            HStack {
+                Text("Copies")
+                Spacer()
+                TextField("Copies", value: Binding(get: { state.settings.copies }, set: { (count: Int) in
+                    state.settings.copies = PrintCopies.clamp(count)
+                }), format: .number)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 56)
+                .accessibilityIdentifier("print.copiesField")
+                Stepper("Copies", value: $state.settings.copies, in: 1...PrintCopies.maxCount)
+                    .labelsHidden()
+                    .accessibilityIdentifier("print.copies")
             }
-            .accessibilityIdentifier("print.copies")
             if rules.showCollate {
                 Toggle("Collate", isOn: $state.settings.collate)
                     .accessibilityIdentifier("print.collate")
