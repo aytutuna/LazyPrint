@@ -22,7 +22,7 @@ extension AppState {
     /// gone. It stays the chosen one, with no other printer taking its place, until it is found or another is picked.
     var missingPrinter: String? {
         guard platform == .ios, let id = settings.printerId, !printers.contains(where: { $0.id == id }) else { return nil }
-        return Self.queue(of: id) ?? "your printer"
+        return Self.queue(of: id) ?? settings.printerName ?? "your printer"
     }
 
     /// "Looking for X" until the search has run its time, then "X was not found".
@@ -163,6 +163,7 @@ extension AppState {
     public func selectPrinter(_ id: String) async {
         guard settings.printerId != id else { return }
         settings.printerId = id
+        settings.printerName = printers.first(where: { $0.id == id })?.name
         statusOverride = nil
         syncCapabilities()
         await loadCapabilities()

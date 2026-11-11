@@ -51,6 +51,7 @@ final class PrintSettingsTests: XCTestCase {
         var s = PrintSettings()
         s.taskId = "booklet"
         s.printerId = "ipp:4509a320"
+        s.printerName = "Office HP"
         s.copies = 3
         s.collate = false
         s.color = .gray
