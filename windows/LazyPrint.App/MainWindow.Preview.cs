@@ -216,6 +216,8 @@ public partial class MainWindow
     private void ApplyZoom()
     {
         if (_previewPaper is not { } paper) return;
+        // A stage that grew past the zoom goes back to fitting, so the sheet is never smaller than the fit.
+        if (_zoom <= FitZoom(paper) * 1.001) _zoom = null;
         double zoom = ZoomOf(paper);
         PreviewImage.Width = Math.Floor(paper.Width * DipsPerPoint * zoom);
         PreviewImage.Height = Math.Floor(paper.Height * DipsPerPoint * zoom);
@@ -236,14 +238,15 @@ public partial class MainWindow
     private void SetZoom(double? zoom, Point? around = null)
     {
         var at = around ?? new Point(PreviewScroller.ViewportWidth / 2, PreviewScroller.ViewportHeight / 2);
-        // Where the point sits on the sheet, as a fraction of it; a sheet that was not scrolling is centred.
-        double x = PreviewScroller.ScrollableWidth > 0 ? (PreviewScroller.HorizontalOffset + at.X) / PreviewScroller.ExtentWidth : 0.5;
-        double y = PreviewScroller.ScrollableHeight > 0 ? (PreviewScroller.VerticalOffset + at.Y) / PreviewScroller.ExtentHeight : 0.5;
+        // Where the point sits on the sheet, as a fraction of it, whether or not the sheet was scrolling.
+        var on = PreviewScroller.TranslatePoint(at, PreviewImage);
+        double x = PreviewImage.ActualWidth > 0 ? Math.Clamp(on.X / PreviewImage.ActualWidth, 0, 1) : 0.5;
+        double y = PreviewImage.ActualHeight > 0 ? Math.Clamp(on.Y / PreviewImage.ActualHeight, 0, 1) : 0.5;
         _zoom = zoom;
         ApplyZoom();
         PreviewScroller.UpdateLayout();
-        PreviewScroller.ScrollToHorizontalOffset(x * PreviewScroller.ExtentWidth - at.X);
-        PreviewScroller.ScrollToVerticalOffset(y * PreviewScroller.ExtentHeight - at.Y);
+        PreviewScroller.ScrollToHorizontalOffset(PreviewImage.Margin.Left + x * PreviewImage.ActualWidth - at.X);
+        PreviewScroller.ScrollToVerticalOffset(PreviewImage.Margin.Top + y * PreviewImage.ActualHeight - at.Y);
         SchedulePreview();
     }
 
