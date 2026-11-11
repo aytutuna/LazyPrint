@@ -24,6 +24,9 @@ struct ContentView: View {
     @State private var dropTargeted = false
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
     @State private var opening: Task<Void, Never>?
+    /// Files and phone batches that came while a job ran; they are taken once it has ended, in the order they came.
+    @State private var queued: [() -> Void] = []
+    @State private var scoped = ScopedFiles()
 
     static let tabKey = "selectedTab"
 
@@ -73,13 +76,12 @@ struct ContentView: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            guard !state.isBusy else { return false }
-            return take(urls)
+            take(urls)
         } isTargeted: { targeted in
             dropTargeted = targeted
         }
         .overlay {
-            if dropTargeted && !state.isBusy {
+            if dropTargeted {
                 Text("Drop to add to the print")
                     .font(.title2.weight(.semibold))
                     .padding(.horizontal, 20)
@@ -125,6 +127,15 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .addFilesRequested)) { _ in
             if !state.isBusy { showImporter = true }
+        }
+        .onChange(of: state.isBusy) { _, busy in
+            guard !busy else { return }
+            let waiting = queued
+            queued = []
+            for work in waiting { work() }
+        }
+        .onChange(of: state.documents.map(\.url)) { _, urls in
+            scoped.release(keeping: urls)
         }
         .onChange(of: tab) { _, tab in
             UserDefaults.standard.set(tab.rawValue, forKey: ContentView.tabKey)
@@ -195,7 +206,7 @@ struct ContentView: View {
             Divider()
         }
         if let batch = state.phoneBatches.first {
-            PhoneBarView(batch: batch, busy: state.isBusy,
+            PhoneBarView(batch: batch,
                          add: { usePhoneBatch(batch.id, startNew: false) },
                          startNew: { usePhoneBatch(batch.id, startNew: true) },
                          dismiss: { state.dismissBatch(batch.id) })
@@ -230,10 +241,16 @@ struct ContentView: View {
 
     /// Takes the files of the oldest batch from a phone into the job, or into a new one, and shows the print tab.
     private func usePhoneBatch(_ id: String, startNew: Bool) {
+        if state.isBusy {
+            queued.append { usePhoneBatch(id, startNew: startNew) }
+            return
+        }
         let before = opening
         opening = Task {
             await before?.value
-            await state.takeBatch(id, startNew: startNew)
+            await state.whileAddingFiles {
+                await state.takeBatch(id, startNew: startNew)
+            }
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print
@@ -264,19 +281,48 @@ struct ContentView: View {
             if !notAdded.isEmpty { state.reportNotAdded(notAdded) }
             return false
         }
-        // Files from the file importer are scoped to this app; the access is kept for as long as the app runs, since the
-        // documents read them again when the sheets are drawn.
-        for file in files { _ = file.startAccessingSecurityScopedResource() }
+        if state.isBusy {
+            queued.append { _ = take(urls, refused: refused) }
+            return true
+        }
+        // Files from the file importer are scoped to this app; the access lasts while a document reads the file.
+        let started = files.filter { $0.startAccessingSecurityScopedResource() }
         let before = opening
         opening = Task {
             await before?.value
-            await state.addFiles(files, alsoNotAdded: refused)
+            await state.whileAddingFiles {
+                await state.addFiles(files, alsoNotAdded: refused)
+            }
+            scoped.keep(started, in: state.documents.map(\.url))
             if !state.documents.isEmpty {
                 if let task = state.task { InspectorView.open(for: task) }
                 tab = .print
             }
         }
         return true
+    }
+}
+
+/// The security-scoped access taken for the files the importer and the drop gave: held while a document of the job reads
+/// the file, stopped when it leaves the job, or at once for a file that did not open.
+final class ScopedFiles {
+    private var held: Set<URL> = []
+
+    func keep(_ started: [URL], in documents: [URL]) {
+        for url in started {
+            if !documents.contains(url) || held.contains(url) {
+                url.stopAccessingSecurityScopedResource()
+            } else {
+                held.insert(url)
+            }
+        }
+    }
+
+    func release(keeping documents: [URL]) {
+        for url in held where !documents.contains(url) {
+            url.stopAccessingSecurityScopedResource()
+            held.remove(url)
+        }
     }
 }
 
