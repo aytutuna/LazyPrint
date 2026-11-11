@@ -1,10 +1,10 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// The share sheet's Lazy Print: copies what was shared into `Shared/<uuid>` of the App Group, where the app picks it up
+/// The share sheet's Lazy Print: copies what was shared into `Shared/<time>-<uuid>` of the App Group, where the app picks it up
 /// the next time it is in front, and says to open the app. An extension cannot open its app, so this only leaves the files.
 final class ShareViewController: UIViewController {
-    private let types: [UTType] = [.pdf, .image, .plainText]
+    private let types: [UTType] = [.pdf, .image]
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -35,8 +35,11 @@ final class ShareViewController: UIViewController {
         guard let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.alazy.handoff") else {
             return 0
         }
-        let folder: URL = group.appendingPathComponent("Shared", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        // The folder names are LazyPrintUrl.sharedFolder, stagingFolder and sharedNotice; the extension cannot import the kit.
+        // The name starts with the time so the app takes shares oldest first. Files are copied into Staging and the folder
+        // is moved to Shared when whole, so the app never reads one half filled.
+        let name: String = "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString)"
+        let folder: URL = group.appendingPathComponent("Staging", isDirectory: true).appendingPathComponent(name, isDirectory: true)
         guard (try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) != nil else { return 0 }
         let providers: [NSItemProvider] = (extensionContext?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
         var added: Int = 0
@@ -44,7 +47,16 @@ final class ShareViewController: UIViewController {
             guard let type = types.first(where: { provider.hasItemConformingToTypeIdentifier($0.identifier) }) else { continue }
             if await copy(provider, type, into: folder) { added += 1 }
         }
-        if added == 0 { try? FileManager.default.removeItem(at: folder) }
+        let shared: URL = group.appendingPathComponent("Shared", isDirectory: true)
+        let moved: Bool = added > 0
+            && (try? FileManager.default.createDirectory(at: shared, withIntermediateDirectories: true)) != nil
+            && (try? FileManager.default.moveItem(at: folder, to: shared.appendingPathComponent(name, isDirectory: true))) != nil
+        if !moved {
+            try? FileManager.default.removeItem(at: folder)
+            return 0
+        }
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                                             CFNotificationName("com.lazyprint.lazyprint.shared" as CFString), nil, nil, true)
         return added
     }
 
