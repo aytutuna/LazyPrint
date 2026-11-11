@@ -38,7 +38,10 @@ final class AppStateCompanionHostTests: XCTestCase {
 
     @MainActor
     private func makeState(_ host: SeamHosting) throws -> AppState {
-        AppState(companion: host, files: AppStateFiles.all(in: try tempFolder()))
+        let state = AppState(companion: host, files: AppStateFiles.all(in: try tempFolder()))
+        // A first run starts in the document task; these tests are about a state that is in none.
+        state.clearTask()
+        return state
     }
 
     @MainActor

@@ -257,7 +257,10 @@ final class AppStateSeamTests: XCTestCase {
 
     @MainActor
     private func makeRig(platform: AppPlatform = .mac, demo: Bool = false) throws -> Rig {
-        Rig(folder: try tempFolder(), platform: platform, demo: demo)
+        let rig = Rig(folder: try tempFolder(), platform: platform, demo: demo)
+        // A first run starts in the document task; most tests are about a state that is in none.
+        rig.state.clearTask()
+        return rig
     }
 
     /// A rig whose one queue prints one side only, with three letter pages added and two-sided asked for: two sheets by hand.
@@ -744,6 +747,25 @@ final class AppStateSeamTests: XCTestCase {
         await rig.state.refreshPrinters()
 
         XCTAssertEqual(rig.state.settings.sides, .longEdge)
+    }
+
+    @MainActor
+    func test_aFirstRun_startsInTheDocumentTaskAndLeavingItIsKept() async throws {
+        let rig = Rig(folder: try tempFolder())
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        rig.spooler.capable["HP LaserJet"] = Rig.capabilities()
+        XCTAssertEqual(rig.state.task, .document)
+        XCTAssertEqual(rig.state.settings.sides, .oneSided)
+
+        await rig.state.refreshPrinters()
+        XCTAssertEqual(rig.state.settings.sides, .longEdge)
+
+        rig.state.clearTask()
+        rig.state.flushSettings()
+        let next = rig.open()
+        XCTAssertFalse(next.isFirstRun)
+        XCTAssertNil(next.task)
+        XCTAssertEqual(next.settings.sides, .longEdge)
     }
 
     @MainActor

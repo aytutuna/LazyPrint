@@ -146,6 +146,7 @@ public sealed class PhoneLinkTests : IDisposable
     [Fact]
     public async Task AddingPutsTheFilesInTheJobAfterTheOthersAndPrintsNothing()
     {
+        _rig.Model.ClearTask();
         await _rig.Model.AddFilesAsync([@"C:\Docs\first.pdf"]);
         await Send("batch-0001", 0, 2, "a.pdf");
         await Send("batch-0001", 1, 2, "b.pdf");
@@ -161,6 +162,7 @@ public sealed class PhoneLinkTests : IDisposable
     [Fact]
     public async Task ABatchWithNoTaskStartsNoneAndLeavesTheSettings()
     {
+        _rig.Model.ClearTask();
         _rig.Model.Settings.PagesPerSheet = 2;
         _rig.Model.Settings.Sides = Sides.LongEdge;
         await Send("batch-0001", 0, 1, "a.pdf");

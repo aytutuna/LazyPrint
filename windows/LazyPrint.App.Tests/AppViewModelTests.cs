@@ -206,6 +206,26 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task AFirstRunStartsInTheDocumentTaskAndLeavingItIsKept()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", isDefault: true));
+        rig.Spooler.Capable["HP LaserJet"] = Rig.Duplex();
+        Assert.Equal(PrintTask.Document, rig.Model.SelectedTask);
+        Assert.Equal(Sides.OneSided, rig.Model.Settings.Sides);
+
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Equal(Sides.LongEdge, rig.Model.Settings.Sides);
+
+        rig.Model.ClearTask();
+        rig.Model.FlushSettings();
+        var next = rig.Open();
+        Assert.False(next.IsFirstRun);
+        Assert.Null(next.SelectedTask);
+        Assert.Equal(Sides.LongEdge, next.Settings.Sides);
+    }
+
+    [Fact]
     public async Task SidesTheUserChangedBeforeThePrinterIsReadAreKept()
     {
         using var rig = new Rig();
@@ -294,6 +314,7 @@ public sealed class AppViewModelTests
         using var rig = new Rig();
         rig.Diagnostics.LazyScan = true;
         var model = rig.Open();
+        model.ClearTask();
         await model.RefreshLazyScanAsync();
 
         Assert.True(model.AvailabilityOf(PrintTask.ScanAndPrint).IsAvailable);
@@ -307,6 +328,7 @@ public sealed class AppViewModelTests
     public async Task AnUnavailableTaskDoesNothing()
     {
         using var rig = new Rig();
+        rig.Model.ClearTask();
         await rig.Model.StartTaskAsync(PrintTask.ScanAndPrint);
 
         Assert.False(rig.Diagnostics.LazyScanOpened);
@@ -317,6 +339,7 @@ public sealed class AppViewModelTests
     public async Task TheTestPagePrintsAtOnceOnThePrinterInUse()
     {
         using var rig = new Rig(demo: true);
+        rig.Model.ClearTask();
         await rig.Model.RefreshPrintersAsync();
         await rig.Model.StartTaskAsync(PrintTask.TestPage);
 
@@ -331,6 +354,7 @@ public sealed class AppViewModelTests
     public async Task APhoneTaskOpensThePhoneWindowAndChangesNothing()
     {
         using var rig = new Rig();
+        rig.Model.ClearTask();
         int opened = 0;
         rig.Model.PhoneWindowRequested += () => opened++;
         await rig.Model.StartTaskAsync(PrintTask.FromPhone);
@@ -414,9 +438,9 @@ public sealed class AppViewModelTests
         await rig.Model.AddFilesAsync(["a.pdf"]);
 
         Assert.True(rig.Model.CanPrint);
-        Assert.Equal("Print 3 sheets", rig.Model.PrintLabel);
-        rig.Model.SetPageRange("1-2");
         Assert.Equal("Print 2 sheets", rig.Model.PrintLabel);
+        rig.Model.SetPageRange("1-2");
+        Assert.Equal("Print 1 sheet", rig.Model.PrintLabel);
     }
 
     [Fact]
@@ -429,9 +453,9 @@ public sealed class AppViewModelTests
         rig.Model.Settings.Copies = 3;
         rig.Model.SettingsEdited();
 
-        Assert.Equal("Print 2 sheets × 3", rig.Model.PrintLabel);
+        Assert.Equal("Print 1 sheet × 3", rig.Model.PrintLabel);
         await rig.Model.PrintAsync();
-        Assert.Equal("Sent 2 sheets × 3 to Demo Printer", rig.Model.SentMessage);
+        Assert.Equal("Sent 1 sheet × 3 to Demo Printer", rig.Model.SentMessage);
     }
 
     [Fact]
@@ -589,6 +613,7 @@ public sealed class AppViewModelTests
     public async Task TheStatusNamesThePrinterThenTheTask()
     {
         using var rig = new Rig(demo: true);
+        rig.Model.ClearTask();
         Assert.Equal("Looking for printers…", rig.Model.StatusMessage);
 
         await rig.Model.RefreshPrintersAsync();

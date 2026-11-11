@@ -88,10 +88,11 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
         _directory = settingsDirectory ?? StoreFiles.DefaultDirectory;
         var saved = SettingsStore.Load(_directory);
         IsFirstRun = saved is null;
-        Settings = saved ?? new PrintSettings();
+        Settings = saved ?? TaskCatalog.Apply(PrintTask.Document, new PrintSettings(), null);
         // The test page, Scan and print and From your phone act at once; none of them is a task the settings stay in.
         SelectedTask = PrintTasks.TryParse(Settings.TaskId) is { } savedTask and not (PrintTask.TestPage or PrintTask.ScanAndPrint or PrintTask.FromPhone)
             ? savedTask : null;
+        if (saved is null) _sidesPickedBlind = Settings.Sides;
         _prefs = SettingsStore.LoadPrinters(_directory);
     }
 

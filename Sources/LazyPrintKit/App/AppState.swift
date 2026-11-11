@@ -300,7 +300,7 @@ public final class AppState: ObservableObject {
 
         let saved = SettingsStore.load(in: files.settingsDirectory)
         self.isFirstRun = saved == nil
-        let initial = saved ?? PrintSettings()
+        let initial = saved ?? TaskCatalog.apply(.document, to: PrintSettings(), printer: nil)
         self.settings = initial
         self.printerPrefs = SettingsStore.loadPrinters(in: files.settingsDirectory)
         self.snapshot = PrinterSnapshot(platform: platform)
@@ -308,6 +308,7 @@ public final class AppState: ObservableObject {
         if let saved = PrintTask.tryParse(initial.taskId), ![.testPage, .scanAndPrint, .fromPhone].contains(saved) {
             self.task = saved
         }
+        if saved == nil { sidesPickedBlind = initial.sides }
         self.lazyScanInstalled = self.fileActions.lazyScanInstalled()
         self.companionHost.onChange = { [weak self] in
             self?.refreshPhoneBatches()
