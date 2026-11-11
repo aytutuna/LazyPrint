@@ -43,6 +43,17 @@ final class PageRangeTests: XCTestCase {
         XCTAssertEqual(pages("1-3", 3), [0, 1, 2])
     }
 
+    func test_parse_otherSeparatorsAndDashes_work() {
+        XCTAssertEqual(pages("1\u{2013}3; 5 7", 8), [0, 1, 2, 4, 6])
+        XCTAssertEqual(pages("1\u{2014}2 6", 8), [0, 1, 5])
+    }
+
+    func test_parse_descendingRange_goesBackwards() {
+        XCTAssertEqual(pages("5-2", 8), [4, 3, 2, 1])
+        XCTAssertEqual(pages("3-1, 7", 8), [2, 1, 0, 6])
+        XCTAssertEqual(message("9-3", 8), "Page 9 is past the end (8 pages)")
+    }
+
     func test_parse_pastTheEnd_namesThePage() {
         let cases: [(text: String, pageCount: Int, message: String)] = [
             ("9", 8, "Page 9 is past the end (8 pages)"),
@@ -57,7 +68,7 @@ final class PageRangeTests: XCTestCase {
     }
 
     func test_parse_notPages_explainsTheFormat() {
-        let texts: [String] = ["", "   ", "abc", "1,,2", "1,", "3-1", "0", "0-2", "-3", "1-2-3", "1.5", "1 2", "99999999999"]
+        let texts: [String] = ["", "   ", "abc", "1,,2", "1,", "0", "0-2", "-3", "1-2-3", "1.5", "1;;2", "99999999999"]
         for text in texts {
             XCTAssertEqual(message(text, 8), "Type pages like 1-3, 5", text)
         }
