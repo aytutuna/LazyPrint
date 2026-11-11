@@ -309,6 +309,19 @@ final class IppClientTests: XCTestCase {
         XCTAssertEqual(printer.requests.map { $0.tls }, [false])
     }
 
+    func test_aPrinterWithoutTls_isNotTriedOverTlsAgain() async throws {
+        let printer = try await startPrinter()
+        let trust = store()
+        let first = try makeClient(printer, secure: true, validator: IppCertificateValidator(store: trust, deviceUuid: nil, deviceName: "Fake MFP"))
+        _ = try await first.capabilities()
+        let before = printer.tlsConnections
+        let second = try makeClient(printer, secure: true, validator: IppCertificateValidator(store: trust, deviceUuid: nil, deviceName: "Fake MFP"))
+
+        _ = try await second.capabilities()
+        XCTAssertEqual(printer.tlsConnections, before)
+        XCTAssertTrue(second.notEncrypted)
+    }
+
     func test_aRefusedCertificate_isNeverFollowedByPlainIpp() async throws {
         let identity = try LoopbackIdentity.load()
         let printer = try await startPrinter(identity: identity)
