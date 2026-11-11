@@ -223,7 +223,15 @@ public sealed partial class AppViewModel
             {
                 var document = await _loader.LoadAsync(path, token);
                 opened.Add(document);
-                if (_takenPaths.Remove(path)) _takenFiles.Add(document, path);
+                if (_takenPaths.Remove(path))
+                {
+                    _takenFiles.Add(document, path);
+                }
+                else
+                {
+                    _sourcePaths.Add(document, path);
+                    Recent.Add(path);
+                }
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {

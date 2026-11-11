@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
 using Microsoft.Win32;
@@ -38,6 +39,31 @@ public partial class MainWindow
         string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if (Directory.Exists(documents)) dialog.InitialDirectory = documents;
         if (dialog.ShowDialog(this) == true) _ = TakeFilesAsync(dialog.FileNames);
+    }
+
+    /// <summary>The Recent button: a menu of the files opened before, and Clear recent. Nothing opens when there are none.</summary>
+    private void Recent_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.DocumentsLockedReason is not null || sender is not Button button) return;
+        var menu = new ContextMenu { PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (string path in ViewModel.RecentPaths())
+        {
+            var item = new MenuItem { Header = Path.GetFileName(path).Replace("_", "__"), ToolTip = path };
+            item.Click += (_, _) => _ = TakeFilesAsync([path]);
+            menu.Items.Add(item);
+        }
+        if (menu.Items.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "No recent files", IsEnabled = false });
+        }
+        else
+        {
+            menu.Items.Add(new Separator());
+            var clear = new MenuItem { Header = "Clear recent" };
+            clear.Click += (_, _) => ViewModel.ClearRecent();
+            menu.Items.Add(clear);
+        }
+        menu.IsOpen = true;
     }
 
     /// <summary>

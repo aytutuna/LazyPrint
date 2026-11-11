@@ -168,21 +168,25 @@ public sealed class WindowsSystemDiagnostics : ISystemDiagnostics
     /// <summary>True when <paramref name="answer"/> says yes within <paramref name="limit"/>; a late or failed answer is no.</summary>
     internal static bool AnsweredYes(Task<bool> answer, TimeSpan limit) => answer.Wait(limit) && answer.Result;
 
-    public bool LazyScanInstalled()
+    public bool LazyScanInstalled() => HasScheme("lazyscan", "Lazy Scan");
+
+    public bool LazyPdfInstalled() => HasScheme("lazypdf", "Lazy PDF");
+
+    private static bool HasScheme(string scheme, string app)
     {
         try
         {
-            using var key = Registry.ClassesRoot.OpenSubKey("lazyscan");
+            using var key = Registry.ClassesRoot.OpenSubKey(scheme);
             if (key is not null) return true;
-            // A Lazy Scan installed from the Store may not show its address under HKCR on every Windows build;
+            // An app installed from the Store may not show its address under HKCR on every Windows build;
             // only the packaged app asks, and it does not wait long for the answer.
             if (!Packaging.IsPackaged) return false;
-            var support = global::Windows.System.Launcher.QueryUriSupportAsync(new Uri("lazyscan:"), global::Windows.System.LaunchQuerySupportType.Uri).AsTask();
+            var support = global::Windows.System.Launcher.QueryUriSupportAsync(new Uri(scheme + ":"), global::Windows.System.LaunchQuerySupportType.Uri).AsTask();
             return AnsweredYes(support.ContinueWith(t => t.Result == global::Windows.System.LaunchQuerySupportStatus.Available), UriQueryLimit);
         }
         catch (Exception e)
         {
-            Trace.TraceWarning($"Could not look for Lazy Scan: {e.Message}");
+            Trace.TraceWarning($"Could not look for {app}: {e.Message}");
             return false;
         }
     }
@@ -190,6 +194,11 @@ public sealed class WindowsSystemDiagnostics : ISystemDiagnostics
     public void OpenLazyScan()
     {
         using var process = Process.Start(new ProcessStartInfo("lazyscan:") { UseShellExecute = true });
+    }
+
+    public void OpenInLazyPdf(string path)
+    {
+        using var process = Process.Start(new ProcessStartInfo("lazypdf://open?file=" + Uri.EscapeDataString(path)) { UseShellExecute = true });
     }
 
     public void OpenFolder(string path)
