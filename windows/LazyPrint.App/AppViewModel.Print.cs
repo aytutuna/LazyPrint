@@ -72,13 +72,41 @@ public sealed partial class AppViewModel
         NotifyAll();
     }
 
-    /// <summary>Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.</summary>
-    public Task AddFilesAsync(IEnumerable<string> paths) => InAddingTurnAsync(async token =>
+    /// <summary>
+    /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
+    /// While a job runs or waits for its backs the files wait, and are added when it ends.
+    /// </summary>
+    public Task AddFilesAsync(IEnumerable<string> paths)
     {
-        var (opened, failed) = await OpenFilesAsync(paths, token);
-        foreach (var document in opened) Documents.Add(document);
-        if (failed.Count > 0) ReportNotAdded(failed);
-    });
+        if (DocumentsLockedReason is not null)
+        {
+            QueueFiles(paths);
+            return Task.CompletedTask;
+        }
+        return InAddingTurnAsync(async token =>
+        {
+            var (opened, failed) = await OpenFilesAsync(paths, token);
+            foreach (var document in opened) Documents.Add(document);
+            if (failed.Count > 0) ReportNotAdded(failed);
+        });
+    }
+
+    private readonly List<string> _queuedFiles = [];
+
+    private void QueueFiles(IEnumerable<string> paths)
+    {
+        _queuedFiles.AddRange(paths);
+        ShowNotice(PrintText.FilesQueuedTitle, PrintText.FilesQueued);
+    }
+
+    /// <summary>Adds the files that came while the job was going, once nothing holds the documents any more.</summary>
+    private async Task AddQueuedFilesAsync()
+    {
+        if (_queuedFiles.Count == 0 || DocumentsLockedReason is not null) return;
+        string[] paths = [.. _queuedFiles];
+        _queuedFiles.Clear();
+        await AddFilesAsync(paths);
+    }
 
     /// <summary>Runs one load of files in its turn; Print waits until none is going. Cancel drops the load, and the ones waiting.</summary>
     private async Task InAddingTurnAsync(Func<CancellationToken, Task> load)
@@ -148,9 +176,12 @@ public sealed partial class AppViewModel
         ShowFailure("Not added", string.Join("\n", lines), null);
     }
 
+    /// <summary>Why the documents cannot be removed or moved; null when they can. The preview is of the job that waits for its backs.</summary>
+    public string? DocumentsLockedReason => IsBusy ? "Printing…" : _manual is not null ? PrintText.FinishTwoSided : null;
+
     public void RemoveDocument(LoadedDocument document)
     {
-        if (IsBusy) return;
+        if (DocumentsLockedReason is not null) return;
         int at = IndexOfDocument(document);
         if (at >= 0) Documents.RemoveAt(at);
         if (Documents.Count == 0) PageRangeText = "";
@@ -169,7 +200,7 @@ public sealed partial class AppViewModel
     public void MoveDocument(LoadedDocument document, int offset)
     {
         int from = IndexOfDocument(document), to = from + offset;
-        if (IsBusy || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
+        if (DocumentsLockedReason is not null || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
         Documents.Move(from, to);
         NotifyAll();
     }
@@ -227,7 +258,7 @@ public sealed partial class AppViewModel
     public string? PrintDisabledReason =>
         IsBusy ? "Printing…"
         : IsAddingFiles ? "Opening files…"
-        : _manual is not null ? "Finish the two-sided job first"
+        : _manual is not null ? PrintText.FinishTwoSided
         : SelectedPrinter is null ? PrintText.NoPrinterReason
         : Documents.Count == 0 ? "Add files to print"
         : PageRangeError is { } error ? error
@@ -257,16 +288,23 @@ public sealed partial class AppViewModel
         var record = Record(job);
         KeepAgain(id, () => PrintDocumentsAsync(inputs));
 
-        if (!await RunPassAsync(job, 0, id)) return;
-        if (plan.ManualDuplex)
+        try
         {
-            _manual = new ManualRun(inputs, job, id);
-            SetJob(id, JobState.NeedsUser, PrintText.LoadBacks);
-            _statusOverride = PrintText.LoadBacks;
-            NotifyAll();
-            return;
+            if (!await RunPassAsync(job, 0, id)) return;
+            if (plan.ManualDuplex)
+            {
+                _manual = new ManualRun(inputs, job, id);
+                SetJob(id, JobState.NeedsUser, PrintText.LoadBacks);
+                _statusOverride = PrintText.LoadBacks;
+                NotifyAll();
+                return;
+            }
+            Sent(record, printer);
         }
-        Sent(record, printer);
+        finally
+        {
+            await AddQueuedFilesAsync();
+        }
     }
 
     /// <summary>A line for the Jobs tab, at its top.</summary>
@@ -370,10 +408,17 @@ public sealed partial class AppViewModel
         var job = SheetJob.OfItems(Guid.NewGuid().ToString("N"), name, printer, capabilities, area, sides);
         var record = Record(job);
         KeepAgain(job.Id, () => PrintItemsAsync(name, printer, capabilities, area, sides, announce));
-        if (!await RunPassAsync(job, 0, job.Id)) return false;
-        if (announce) Sent(record, printer);
-        else SetJob(job.Id, JobState.Done, null);
-        return true;
+        try
+        {
+            if (!await RunPassAsync(job, 0, job.Id)) return false;
+            if (announce) Sent(record, printer);
+            else SetJob(job.Id, JobState.Done, null);
+            return true;
+        }
+        finally
+        {
+            await AddQueuedFilesAsync();
+        }
     }
 
     /// <summary>The test page goes straight to the printer in use.</summary>
@@ -473,6 +518,7 @@ public sealed partial class AppViewModel
         if (!await RunPassAsync(run.Job, 1, run.RecordId)) return;
         _manual = null;
         Sent(CurrentJob(run.RecordId)!, run.Job.Printer);
+        await AddQueuedFilesAsync();
     }
 
     /// <summary>Prints the check sheet's front, a big 1 with an arrow to its top edge.</summary>
@@ -525,5 +571,6 @@ public sealed partial class AppViewModel
         SetJob(run.RecordId, JobState.Canceled, null);
         _statusOverride = null;
         NotifyAll();
+        _ = AddQueuedFilesAsync();
     }
 }

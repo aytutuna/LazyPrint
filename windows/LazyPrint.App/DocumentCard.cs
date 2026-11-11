@@ -24,16 +24,25 @@ public sealed class DocumentCard(LoadedDocument document) : INotifyPropertyChang
 
     public bool CanMoveLater { get; private set; }
 
+    public bool CanRemove { get; private set; }
+
+    public string EarlierTip { get; private set; } = "Move earlier";
+
+    public string RemoveTip { get; private set; } = "Remove (Delete)";
+
+    public string LaterTip { get; private set; } = "Move later";
+
     public void SetThumbnail(ImageSource? thumbnail)
     {
         Thumbnail = thumbnail;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Thumbnail)));
     }
 
-    public void SetPosition(int index, int count)
+    /// <param name="lockedReason">Why the documents cannot change now; null when they can.</param>
+    public void SetPosition(int index, int count, string? lockedReason)
     {
-        (CanMoveEarlier, CanMoveLater) = (index > 0, index < count - 1);
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanMoveEarlier)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanMoveLater)));
+        (CanMoveEarlier, CanMoveLater, CanRemove) = (lockedReason is null && index > 0, lockedReason is null && index < count - 1, lockedReason is null);
+        (EarlierTip, RemoveTip, LaterTip) = (lockedReason ?? "Move earlier", lockedReason ?? "Remove (Delete)", lockedReason ?? "Move later");
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
 }

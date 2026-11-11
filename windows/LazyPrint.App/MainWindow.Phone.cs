@@ -37,7 +37,8 @@ public partial class MainWindow
         bool changed = _phoneBarBatch != batch.Id || PhoneBarMessage.Text != message;
         _phoneBarBatch = batch.Id;
         PhoneBarMessage.Text = message;
-        PhoneBarAddButton.IsEnabled = PhoneBarNewButton.IsEnabled = !ViewModel.IsBusy;
+        PhoneBarAddButton.IsEnabled = true;
+        PhoneBarNewButton.IsEnabled = ViewModel.DocumentsLockedReason is null;
         if (PhoneBar.Visibility != Visibility.Visible || changed)
         {
             PhoneBar.Visibility = Visibility.Visible;

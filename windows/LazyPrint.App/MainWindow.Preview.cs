@@ -191,14 +191,15 @@ public partial class MainWindow
             }
         }
         while (_cards.Count > documents.Count) _cards.RemoveAt(_cards.Count - 1);
-        for (int i = 0; i < _cards.Count; i++) _cards[i].SetPosition(i, _cards.Count);
+        for (int i = 0; i < _cards.Count; i++) _cards[i].SetPosition(i, _cards.Count, ViewModel.DocumentsLockedReason);
 
         bool any = documents.Count > 0;
         DocumentStrip.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         EmptyStage.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         int pages = ViewModel.PageCount;
         DocumentStripLabel.Text = $"{documents.Count} document{(documents.Count == 1 ? "" : "s")} · {pages} page{(pages == 1 ? "" : "s")}";
-        AddFilesButton.IsEnabled = EmptyAddFilesButton.IsEnabled = !ViewModel.IsBusy;
+        AddFilesButton.IsEnabled = EmptyAddFilesButton.IsEnabled = ViewModel.DocumentsLockedReason is null;
+        AddFilesButton.ToolTip = ViewModel.DocumentsLockedReason ?? "Add PDFs and pictures (Ctrl+O)";
         SchedulePreview();
     }
 

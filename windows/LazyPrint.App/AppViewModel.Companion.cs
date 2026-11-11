@@ -241,16 +241,24 @@ public sealed partial class AppViewModel
     /// <summary>
     /// Takes the batch the bar offers into the job, or into a new job when <paramref name="startNew"/> (the documents and
     /// the page range are cleared first, once at least one file has opened: when none does, the job stays as it was). A file
-    /// that cannot be read is reported and the others still go in. False when nothing was added.
+    /// that cannot be read is reported and the others still go in. While a job runs the files are queued, not added to a new job. False when nothing was added.
     /// </summary>
     public async Task<bool> UsePhoneBatchAsync(bool startNew)
     {
-        if (IsBusy || _usingPhoneBatch || PhoneBatch is not { } batch || _companion is null) return false;
+        if (_usingPhoneBatch || PhoneBatch is not { } batch || _companion is null) return false;
+        if (startNew && DocumentsLockedReason is not null) return false;
         _usingPhoneBatch = true;
         try
         {
             var files = await TakePhoneBatchAsync(batch);
             int missed = batch.Arrived - files.Count;
+            if (DocumentsLockedReason is not null)
+            {
+                // A job is running: the files are out of the inbox already, and go in when it ends.
+                if (files.Count > 0) QueueFiles(files);
+                if (missed > 0) ReportMissed(batch, missed);
+                return files.Count > 0;
+            }
             bool added = false;
             await InAddingTurnAsync(async token =>
             {

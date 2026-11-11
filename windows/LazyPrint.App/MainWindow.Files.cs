@@ -26,7 +26,7 @@ public partial class MainWindow
     /// <summary>Asks for files with the picker and takes them.</summary>
     private void AskForFiles()
     {
-        if (ViewModel.IsBusy) return;
+        if (ViewModel.DocumentsLockedReason is not null) return;
         var dialog = new OpenFileDialog
         {
             Title = "Add files",
@@ -63,18 +63,12 @@ public partial class MainWindow
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
         if (paths.Count == 0) return;
-        if (ViewModel.IsBusy)
-        {
-            ViewModel.ShowNotice("Not added", "Wait for the job to finish, then add the files.");
-            return;
-        }
         _ = TakeFilesAsync(paths);
     }
 
     /// <summary>Takes the files on the clipboard as a drop would; false when it holds none.</summary>
     private bool PasteFiles()
     {
-        if (ViewModel.IsBusy) return false;
         string[]? paths;
         try
         {
@@ -95,7 +89,7 @@ public partial class MainWindow
     /// <summary>The files a drag carries, when the window takes them now.</summary>
     private string[]? DroppedFiles(DragEventArgs e)
     {
-        if (ViewModel.IsBusy || (e.AllowedEffects & DragDropEffects.Copy) == 0) return null;
+        if ((e.AllowedEffects & DragDropEffects.Copy) == 0) return null;
         return e.Data.GetData(DataFormats.FileDrop) is string[] paths ? ExistingFiles(paths) : null;
     }
 
@@ -136,7 +130,7 @@ public partial class MainWindow
         if (DroppedFiles(e) is not { } paths)
         {
             e.Effects = DragDropEffects.None;
-            if (!ViewModel.IsBusy && e.Data.GetData(DataFormats.FileDrop) is string[] dropped) ReportFolders(dropped);
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] dropped) ReportFolders(dropped);
             return;
         }
         // A copy: the source keeps its files. Let the drag finish in the other app before the files are opened.

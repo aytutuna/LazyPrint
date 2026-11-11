@@ -380,13 +380,14 @@
                                                             HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,10,0,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Button Style="{StaticResource PageActionButtonStyle}" Content="&#xE76B;"
-                                                                    ToolTip="Move earlier" AutomationProperties.Name="Move earlier"
+                                                                    ToolTip="{Binding EarlierTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Move earlier"
                                                                     IsEnabled="{Binding CanMoveEarlier}" Click="DocumentEarlier_Click" />
                                                             <Button Style="{StaticResource PageActionButtonStyle}" Content="&#xE74D;"
-                                                                    ToolTip="Remove (Delete)" AutomationProperties.Name="Remove"
+                                                                    ToolTip="{Binding RemoveTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Remove"
+                                                                    IsEnabled="{Binding CanRemove}"
                                                                     Click="DocumentRemove_Click" />
                                                             <Button Style="{StaticResource PageActionButtonStyle}" Content="&#xE76C;"
-                                                                    ToolTip="Move later" AutomationProperties.Name="Move later"
+                                                                    ToolTip="{Binding LaterTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Move later"
                                                                     IsEnabled="{Binding CanMoveLater}" Click="DocumentLater_Click" />
                                                         </StackPanel>
                                                     </Border>

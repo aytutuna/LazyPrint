@@ -187,6 +187,62 @@ public sealed class PrintFlowTests
         Assert.Equal("Finish the two-sided job first", rig.Model.PrintDisabledReason);
     }
 
+    [Fact]
+    public async Task TheDocumentsStayAsTheyAreWhileTheBacksWait()
+    {
+        using var rig = await ManualRig();
+        await rig.Model.AddFilesAsync(["b.pdf"]);
+        await rig.Model.PrintAsync();
+        var (first, second) = (rig.Model.Documents[0], rig.Model.Documents[1]);
+
+        rig.Model.RemoveDocument(first);
+        rig.Model.MoveDocument(first, 1);
+        Assert.Equal("Finish the two-sided job first", rig.Model.DocumentsLockedReason);
+        Assert.Equal([first, second], rig.Model.Documents);
+
+        rig.Model.CancelManualDuplex();
+        Assert.Null(rig.Model.DocumentsLockedReason);
+        rig.Model.RemoveDocument(first);
+        Assert.Equal([second], rig.Model.Documents);
+    }
+
+    [Fact]
+    public async Task FilesOpenedWhileAJobRunsWaitAndAreAddedInOrderWhenItEnds()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        var started = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        rig.Sheets.While = async (_, _, _) =>
+        {
+            started.SetResult();
+            await release.Task;
+        };
+        var printing = rig.Model.PrintAsync();
+        await started.Task;
+        await rig.Model.AddFilesAsync(["b.pdf", "c.pdf"]);
+        await rig.Model.AddFilesAsync(["d.pdf"]);
+        Assert.Single(rig.Model.Documents);
+
+        release.SetResult();
+        await printing;
+        Assert.Equal(["a.pdf", "b.pdf", "c.pdf", "d.pdf"], rig.Model.Documents.Select(document => document.Name));
+    }
+
+    [Fact]
+    public async Task FilesOpenedWhileTheBacksWaitAreAddedWhenTheJobIsGivenUp()
+    {
+        using var rig = await ManualRig();
+        await rig.Model.PrintAsync();
+        await rig.Model.AddFilesAsync(["b.pdf"]);
+        Assert.Single(rig.Model.Documents);
+
+        rig.Model.CancelManualDuplex();
+        await Task.Yield();
+        Assert.Equal(["a.pdf", "b.pdf"], rig.Model.Documents.Select(document => document.Name));
+    }
+
     // MARK: Jobs
 
     [Fact]

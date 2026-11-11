@@ -20,6 +20,12 @@ public static class PrintText
 
     public const string LoadBacks = "Load the backs";
 
+    public const string FinishTwoSided = "Finish the two-sided job first";
+
+    public const string FilesQueuedTitle = "Files waiting";
+
+    public const string FilesQueued = "They are added when the job ends.";
+
     /// <summary>The iPhone stopped a job because the system took back the app's time in the background.</summary>
     public const string BackgroundExpired = "Lazy Print ran out of time in the background. Print again to finish.";
 
