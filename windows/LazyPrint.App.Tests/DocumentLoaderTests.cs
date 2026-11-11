@@ -354,6 +354,22 @@ public class DocumentLoaderTests
     }
 
     [Fact]
+    public async Task MarkupWithAnotherExtensionIsNotReadAsText()
+    {
+        string path = WriteText(".rtf", "{\rtf1\ansi hello}"u8.ToArray());
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _loader.LoadAsync(path, CancellationToken.None));
+
+            Assert.Equal(DocumentText.NotSupported, error.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task ATextFileWithNothingInItIsRefused()
     {
         string path = WriteText(".txt", "  \r\n"u8.ToArray());

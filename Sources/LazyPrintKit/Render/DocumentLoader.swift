@@ -35,7 +35,7 @@ public final class DocumentLoader: DocumentLoading {
         do {
             return try loadPicture(url)
         } catch {
-            if Self.looksLikeText(url) { return try loadText(url) }
+            if url.pathExtension.isEmpty, Self.looksLikeText(url) { return try loadText(url) }
             throw error
         }
     }

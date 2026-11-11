@@ -68,7 +68,7 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
                 catch (Exception e) when (!named && e is not OperationCanceledException)
                 {
                     // Not a picture either: a file with no name that says so may still be text.
-                    if (!await Task.Run(() => LooksLikeText(path), token)) throw new InvalidOperationException(DocumentText.NotSupported, e);
+                    if (extension.Length > 0 || !await Task.Run(() => LooksLikeText(path), token)) throw new InvalidOperationException(DocumentText.NotSupported, e);
                     var text = await OpenTextAsync(path, name, token);
                     _sources.Add(text.Document, text.Source);
                     return text.Document;
