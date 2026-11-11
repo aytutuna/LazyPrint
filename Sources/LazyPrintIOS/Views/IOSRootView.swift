@@ -4,6 +4,7 @@ import LazyPrintKit
 import QuickLook
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// The app's window: the Print screen, with Jobs in a panel that slides in from the left. The printer in use is a button at
 /// the top of Print, which opens the printers; the error bar and the bar after a job sit at the bottom. Also the sheets that hang off the state
@@ -51,6 +52,15 @@ public struct IOSRootView: View {
         // Outside the panel's dimming, so what a job in the panel says can be read and acted on.
         .modifier(Bars(showJobs: $showJobs, showTroubleshooter: $showTroubleshooter))
         .modifier(FileSources(source: $source, inbox: inbox, pick: { (urls: [URL]) in receive(urls) }, take: take))
+        .onDrop(of: [.pdf, .image], isTargeted: nil, perform: drop)
+        .background {
+            // The shortcut needs a button in the view tree; this one is never seen or tapped.
+            Button("Add files") { source = .files }
+                .keyboardShortcut("o", modifiers: .command)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .sheet(isPresented: $showPrinters) {
             PrintersScreen(airPrint: airPrint, companion: companion, pairingLink: $pairingLink)
         }
@@ -148,6 +158,37 @@ public struct IOSRootView: View {
             }
             await open(received.copies, notAdded: received.failed)
         }
+    }
+
+    /// Files dropped on the window, taken as data: the file a provider hands over is gone when its callback returns.
+    private func drop(_ providers: [NSItemProvider]) -> Bool {
+        let wanted: [(provider: NSItemProvider, type: UTType)] = providers.compactMap { (provider: NSItemProvider) -> (provider: NSItemProvider, type: UTType)? in
+            provider.registeredContentTypes.first { $0.conforms(to: .pdf) || $0.conforms(to: .image) }.map { (provider: provider, type: $0) }
+        }
+        guard !wanted.isEmpty else { return false }
+        Task {
+            var urls: [URL] = []
+            var failed: [String] = []
+            await state.whileAddingFiles {
+                for item in wanted {
+                    let ext: String = item.type.preferredFilenameExtension ?? "jpg"
+                    var name: String = item.provider.suggestedName ?? "Dropped file"
+                    if !name.lowercased().hasSuffix("." + ext) { name += "." + ext }
+                    let data: Data? = await withCheckedContinuation { (done: CheckedContinuation<Data?, Never>) in
+                        _ = item.provider.loadDataRepresentation(forTypeIdentifier: item.type.identifier) { (data: Data?, _: Error?) in
+                            done.resume(returning: data)
+                        }
+                    }
+                    if let data, let url = try? inbox.receive(data, named: name) {
+                        urls.append(url)
+                    } else {
+                        failed.append(name)
+                    }
+                }
+            }
+            take(urls, failed)
+        }
+        return true
     }
 
     /// Copies the files Lazy Scan handed over into the inbox and clears its folder, so they are not kept twice. When a
