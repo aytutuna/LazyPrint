@@ -19,6 +19,8 @@ struct PageDecksView: UIViewControllerRepresentable {
     let draw: @MainActor (Int) async -> CGImage?
     /// A pinch outward on a page, with the side it was on.
     let zoomIn: (Int) -> Void
+    /// A tap on the paper.
+    let touched: () -> Void
 
     static func spread(of side: Int) -> Int {
         (side + 1) / 2
@@ -45,6 +47,9 @@ struct PageDecksView: UIViewControllerRepresentable {
         }
         controller.view.addGestureRecognizer(UIPinchGestureRecognizer(target: context.coordinator,
                                                                       action: #selector(Coordinator.pinched(_:))))
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped))
+        tap.cancelsTouchesInView = false
+        controller.view.addGestureRecognizer(tap)
         return controller
     }
 
@@ -165,6 +170,10 @@ struct PageDecksView: UIViewControllerRepresentable {
                 view.side = PageDecksView.side(of: page.entry / 2, count: view.count)
             }
             sync(pageViewController)
+        }
+
+        @objc func tapped() {
+            view.touched()
         }
 
         @objc func pinched(_ pinch: UIPinchGestureRecognizer) {

@@ -22,6 +22,8 @@ struct PageFoldView: UIViewRepresentable {
     let paperSize: CGSize
     let zoomOut: (() -> Void)?
     let zoomed: (CGFloat) -> Void
+    /// A tap on the paper.
+    let touched: () -> Void
 
     func makeUIView(context: Context) -> PaperScroll {
         PaperScroll()
@@ -30,6 +32,7 @@ struct PageFoldView: UIViewRepresentable {
     func updateUIView(_ scroll: PaperScroll, context: Context) {
         scroll.zoomOut = zoomOut
         scroll.zoomed = zoomed
+        scroll.touched = touched
         scroll.paperSize = paperSize
         let paper: FoldingPaper = scroll.paper
         let side: Binding<Int> = $side
@@ -46,6 +49,7 @@ final class PaperScroll: UIScrollView, UIScrollViewDelegate {
     let paper = FoldingPaper()
     var zoomOut: (() -> Void)?
     var zoomed: (CGFloat) -> Void = { _ in }
+    var touched: () -> Void = {}
     var paperSize: CGSize = .zero {
         didSet {
             guard paperSize != oldValue else { return }
@@ -82,6 +86,10 @@ final class PaperScroll: UIScrollView, UIScrollViewDelegate {
         let twice = UITapGestureRecognizer(target: self, action: #selector(tappedTwice(_:)))
         twice.numberOfTapsRequired = 2
         addGestureRecognizer(twice)
+        let once = UITapGestureRecognizer(target: self, action: #selector(tappedOnce))
+        once.cancelsTouchesInView = false
+        once.require(toFail: twice)
+        addGestureRecognizer(once)
     }
 
     @available(*, unavailable)
@@ -119,6 +127,10 @@ final class PaperScroll: UIScrollView, UIScrollViewDelegate {
             setZoomScale(1, animated: true)
         }
         zoomed(max(1, scale))
+    }
+
+    @objc private func tappedOnce() {
+        touched()
     }
 
     @objc private func tappedTwice(_ tap: UITapGestureRecognizer) {

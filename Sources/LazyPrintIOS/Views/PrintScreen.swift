@@ -363,7 +363,6 @@ struct PrintScreen: View {
                 .accessibilityIdentifier("preview.stage")
             arrows
         }
-        .simultaneousGesture(TapGesture().onEnded { showArrows() })
         .onAppear { showArrows() }
         .onChange(of: state.previewSide) { showArrows() }
         .onChange(of: wanted, initial: true) { (_: Double, scale: Double) in
@@ -381,7 +380,8 @@ struct PrintScreen: View {
                           zoomIn: { (side: Int) in
                               state.previewSide = side
                               singlePage = true
-                          })
+                          },
+                          touched: showArrows)
                 .frame(width: 2 * paper.width, height: paper.height)
         } else {
             PageFoldView(count: sideCount, sheets: sheets, side: $state.previewSide, image: state.preview,
@@ -392,7 +392,8 @@ struct PrintScreen: View {
                              zoom = 1
                              singlePage = false
                          } : nil,
-                         zoomed: { (scale: CGFloat) in zoom = scale })
+                         zoomed: { (scale: CGFloat) in zoom = scale },
+                         touched: showArrows)
                 // A new page view starts at full size, whatever an old one was zoomed to.
                 .onAppear { zoom = 1 }
         }
