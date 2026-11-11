@@ -242,11 +242,13 @@ struct ContentView: View {
     }
 
     /// Opens the files and shows the print tab. Files that come with no task are added with the settings as they are.
-    /// Folders are left; any file is taken, and the loader says why one is not a
+    /// Folders are left, and said so when they were all there was; any file is taken, and the loader says why one is not a
     /// PDF or a picture.
     private func take(_ urls: [URL], refused: [(name: String, reason: String)] = []) -> Bool {
         let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
         guard !files.isEmpty else {
+            let folders = urls.filter { $0.isFileURL && $0.hasDirectoryPath }
+            if !folders.isEmpty { state.reportUnreadable(folders.map { $0.lastPathComponent }, because: DocumentText.notSupported) }
             // Nothing to add, but what could not be opened is still said.
             if !refused.isEmpty { state.reportUnreadable(refused.map { $0.name }, because: ContentView.addressNotOpened) }
             return false
