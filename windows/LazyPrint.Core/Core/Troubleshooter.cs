@@ -218,7 +218,7 @@ public static class Troubleshooter
                               "Its network settings page or control panel shows the current address. The app "
                               + "tries the address again every minute.")));
         }
-        checks.AddRange(Tips(platform, snapshot.Printers.Count > 0));
+        checks.AddRange(Tips(platform, snapshot.Printers.Any(p => p.Route != PrinterRoute.Demo)));
 
         // A stable sort: problems, warnings, what is fine, tips.
         return [.. checks.Select((check, index) => (check, index))

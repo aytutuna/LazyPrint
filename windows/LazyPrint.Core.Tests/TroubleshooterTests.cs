@@ -199,6 +199,7 @@ public class TroubleshooterTests
     {
         Assert.Equal([TroubleshootAction.PrintTestPage], Check(Diagnose(HealthyWindows()), "testPage").Actions);
         Assert.DoesNotContain(Diagnose(new PrinterSnapshot { Platform = AppPlatform.Windows }), c => c.Id == "testPage");
+        Assert.DoesNotContain(Diagnose(new PrinterSnapshot { Platform = AppPlatform.Windows, Printers = [Demo] }), c => c.Id == "testPage");
     }
 
     [Fact]
@@ -287,7 +288,7 @@ public class TroubleshooterTests
         var snapshot = TroubledPhone();
         var checks = Diagnose(snapshot);
         Assert.Equal(["network", "localNetwork", "lastFailure", "manualHost:192.168.1.50", "networkPrinter", "localNetworkAccess",
-                      "airPrint", "asleep", "wifiDirect", "otherApps", "testPage"], Ids(checks));
+                      "airPrint", "asleep", "wifiDirect", "otherApps"], Ids(checks));
         Assert.Equal("No printer found · 2 problems, 2 warnings", Troubleshooter.Overview(snapshot, checks));
         Assert.Equal(new TroubleshootCheck(
             "localNetwork", CheckStatus.Problem, "Local Network access is off",

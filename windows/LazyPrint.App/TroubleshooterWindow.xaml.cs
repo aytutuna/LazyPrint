@@ -323,6 +323,11 @@ public partial class TroubleshooterWindow : Window
                     ShowStatus("Wait for the job to finish.");
                     break;
                 }
+                if (_viewModel.SelectedPrinter is null)
+                {
+                    ShowStatus("Choose a printer first.");
+                    break;
+                }
                 await _viewModel.PrintTestPageAsync();
                 if (_viewModel.ErrorMessage is { } failure) ShowStatus($"Couldn't print the test page: {failure}");
                 else if (_viewModel.SentMessage is { } sent) ShowStatus(sent);

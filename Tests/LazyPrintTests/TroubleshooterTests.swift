@@ -177,6 +177,7 @@ final class TroubleshooterTests: XCTestCase {
     func test_testPageTip_offersThePageOnlyWhenAPrinterIsListed() {
         XCTAssertEqual(check(Troubleshooter.diagnose(healthyWindows()), "testPage").actions, [.printTestPage])
         XCTAssertFalse(ids(Troubleshooter.diagnose(PrinterSnapshot(platform: .windows))).contains("testPage"))
+        XCTAssertFalse(ids(Troubleshooter.diagnose(PrinterSnapshot(platform: .windows, printers: [demo]))).contains("testPage"))
     }
 
     func test_nothingKnown_onlyTheTips() {
@@ -252,7 +253,7 @@ final class TroubleshooterTests: XCTestCase {
         let snapshot = troubledPhone()
         let checks = Troubleshooter.diagnose(snapshot)
         XCTAssertEqual(ids(checks), ["network", "localNetwork", "lastFailure", "manualHost:192.168.1.50", "networkPrinter",
-                                     "localNetworkAccess", "airPrint", "asleep", "wifiDirect", "otherApps", "testPage"])
+                                     "localNetworkAccess", "airPrint", "asleep", "wifiDirect", "otherApps"])
         XCTAssertEqual(Troubleshooter.overview(snapshot, checks: checks), "No printer found \u{00B7} 2 problems, 2 warnings")
         XCTAssertEqual(check(checks, "localNetwork"), make(
             "localNetwork", .problem, "Local Network access is off",

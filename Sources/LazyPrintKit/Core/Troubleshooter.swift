@@ -252,7 +252,7 @@ public enum Troubleshooter {
                                     + "tries the address again every minute."),
                 actions: [.refresh]))
         }
-        checks.append(contentsOf: tips(platform, canPrint: !snapshot.printers.isEmpty))
+        checks.append(contentsOf: tips(platform, canPrint: snapshot.printers.contains { $0.route != .demo }))
 
         // A stable sort: problems, warnings, what is fine, tips.
         return checks.enumerated()
