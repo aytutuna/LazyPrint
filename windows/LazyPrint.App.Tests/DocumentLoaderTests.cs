@@ -299,7 +299,7 @@ public class DocumentLoaderTests
     [InlineData(".png", 0x88982F50, false)]
     public void OnlyAMissingDecoderForHeifAsksForTheExtension(string extension, uint code, bool asks)
     {
-        var error = new System.Runtime.InteropServices.COMException("", unchecked((int)code));
+        var error = new NotSupportedException("", new System.Runtime.InteropServices.COMException("", unchecked((int)code)));
 
         Assert.Equal(asks, DocumentLoader.LacksHeifCodec(extension, error));
     }

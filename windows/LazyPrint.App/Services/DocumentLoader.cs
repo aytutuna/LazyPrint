@@ -74,8 +74,14 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     }
 
     /// <summary>A HEIC or HEIF file that WIC has no decoder for (WINCODEC_ERR_COMPONENTNOTFOUND): the Store's extension is missing.</summary>
-    internal static bool LacksHeifCodec(string extension, Exception e) =>
-        extension is ".heic" or ".heif" && e.HResult == unchecked((int)0x88982F50);
+    internal static bool LacksHeifCodec(string extension, Exception e)
+    {
+        if (extension is not (".heic" or ".heif")) return false;
+        // WPF wraps the COMException in a NotSupportedException.
+        for (var x = e; x is not null; x = x.InnerException)
+            if (x.HResult == unchecked((int)0x88982F50)) return true;
+        return false;
+    }
 
     public BitmapSource Render(LoadedDocument document, int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
     {
