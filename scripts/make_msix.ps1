@@ -46,6 +46,13 @@ function Invoke-Tool([string] $tool, [string[]] $arguments) {
 
 function New-Package([string] $publish, [string] $arch) {
     if (-not (Test-Path (Join-Path $publish 'LazyPrint.exe'))) { throw "LazyPrint.exe is not in $publish" }
+    # PDFium's native library is copied for the publish's runtime; a package with the other architecture's would not start printing.
+    $pdfium = Join-Path $publish 'pdfium.dll'
+    if (-not (Test-Path $pdfium)) { throw "pdfium.dll is not in $publish" }
+    $header = [IO.File]::ReadAllBytes($pdfium)[0..1023]
+    $machine = [BitConverter]::ToUInt16($header, [BitConverter]::ToInt32($header, 0x3C) + 4)
+    $expected = @{ x64 = 0x8664; arm64 = 0xAA64 }[$arch]
+    if ($machine -ne $expected) { throw "pdfium.dll in $publish is not built for $arch" }
     $stage = Join-Path $work "stage-$arch"
     robocopy $publish $stage /E /XF *.pdb /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }

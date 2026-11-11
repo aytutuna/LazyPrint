@@ -30,10 +30,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         var demo = new DemoPrinterState();
-        var sheets = new RoutingSheetPrinter(new SpoolerPrinter(_loader), new IppSheetPrinter(_loader, _loader), new DemoPrinter(_loader, demo));
+        var sheets = new RoutingSheetPrinter(new SpoolerPrinter(_loader, _loader), new IppSheetPrinter(_loader, _loader), new DemoPrinter(_loader, demo));
         ViewModel = new AppViewModel(new WindowsPrinters(), _loader, sheets, new WindowsSystemDiagnostics(), demo: demo,
                                      network: new NetworkPrinters(), logDirectory: AppViewModel.DefaultLogDirectory);
         ViewModel.ConfirmCertificate = ConfirmCertificate;
+        ViewModel.AskPassword = AskPassword;
         ViewModel.PropertyChanged += (_, _) => Dispatcher.BeginInvoke(RefreshFromViewModel);
 
         PrinterList.ItemsSource = ViewModel.Printers;
@@ -401,6 +402,8 @@ public partial class MainWindow : Window
 
     private async void Print_Click(object sender, RoutedEventArgs e) => await ViewModel.PrintAsync();
 
+    private async void SavePdf_Click(object sender, RoutedEventArgs e) => await SavePdfAsync();
+
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel.IsBusy) ViewModel.CancelJob();
@@ -409,7 +412,7 @@ public partial class MainWindow : Window
 
     // MARK: - Keyboard shortcuts
 
-    /// <summary>Ctrl+O adds files, Ctrl+P prints, Ctrl+V pastes files and Delete removes the focused document. Paste and Delete are left to a text box.</summary>
+    /// <summary>Ctrl+O adds files, Ctrl+P prints, Ctrl+Shift+S saves a PDF, Ctrl+V pastes files and Delete removes the focused document. Paste and Delete are left to a text box.</summary>
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (ViewModel.ManualStep != DuplexStep.None) return;
@@ -434,6 +437,11 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.P && PrintTab.IsSelected && ViewModel.CanPrint)
         {
             _ = ViewModel.PrintAsync();
+            e.Handled = true;
+        }
+        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.S && PrintTab.IsSelected)
+        {
+            _ = SavePdfAsync();
             e.Handled = true;
         }
         else if (ctrl && e.Key == Key.V && !typing)
@@ -473,6 +481,13 @@ public partial class MainWindow : Window
         var dialog = new CertificateTrustWindow(certificate, CertificateTrustWindow.ConnectAction);
         if (IsVisible) dialog.Owner = this;
         return Task.FromResult(dialog.ShowDialog() == true);
+    }
+
+    private Task<string?> AskPassword(string name, bool wrong)
+    {
+        var dialog = new PasswordWindow(name, wrong);
+        if (IsVisible) dialog.Owner = this;
+        return Task.FromResult(dialog.ShowDialog() == true ? dialog.Password : null);
     }
 
     private void AppearanceButton_Click(object sender, RoutedEventArgs e)

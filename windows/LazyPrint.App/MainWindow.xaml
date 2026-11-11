@@ -590,9 +590,18 @@
 
                             <!-- Pinned at the foot: Print says what it does. -->
                             <Border Grid.Row="1" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" Padding="12">
-                                <Button x:Name="PrintButton" Style="{StaticResource AccentIconTextButtonStyle}"
-                                        local:Icon.Glyph="&#xE749;" Content="_Print" MinHeight="36"
-                                        ToolTipService.ShowOnDisabled="True" Click="Print_Click" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="PrintButton" Style="{StaticResource AccentIconTextButtonStyle}"
+                                            local:Icon.Glyph="&#xE749;" Content="_Print" MinHeight="36"
+                                            ToolTipService.ShowOnDisabled="True" Click="Print_Click" />
+                                    <Button x:Name="SavePdfButton" Grid.Column="1" Style="{StaticResource IconTextButtonStyle}"
+                                            local:Icon.Glyph="&#xE74E;" Content="Save as P_DF" MinHeight="36" Margin="8,0,0,0"
+                                            ToolTipService.ShowOnDisabled="True" Click="SavePdf_Click" />
+                                </Grid>
                             </Border>
                         </Grid>
                     </Grid>

@@ -214,6 +214,24 @@ public sealed partial class AppViewModel
         _loading = null;
     }
 
+    /// <summary>Opens the file, asking for its password as often as it takes; null when the user cancels.</summary>
+    private async Task<LoadedDocument?> LoadWithPasswordAsync(string path, CancellationToken token)
+    {
+        string? password = null;
+        while (true)
+        {
+            try
+            {
+                return await _loader.LoadAsync(path, token, password);
+            }
+            catch (PdfPasswordException e) when (AskPassword is { } ask)
+            {
+                password = await ask(Path.GetFileName(path), e.Wrong);
+                if (password is null) return null;
+            }
+        }
+    }
+
     /// <summary>Opens the files without adding them; the ones that cannot be read come back with what was wrong.</summary>
     private async Task<(List<LoadedDocument> Opened, List<(string Name, string Reason)> Failed)> OpenFilesAsync(IEnumerable<string> paths, CancellationToken token)
     {
@@ -223,7 +241,11 @@ public sealed partial class AppViewModel
         {
             try
             {
-                var document = await _loader.LoadAsync(path, token);
+                if (await LoadWithPasswordAsync(path, token) is not { } document)
+                {
+                    failed.Add((Path.GetFileName(path), ShortText.LockedLeftOut));
+                    continue;
+                }
                 opened.Add(document);
                 if (_takenPaths.Remove(path)) _takenFiles.Add(document, path);
             }
@@ -341,6 +363,44 @@ public sealed partial class AppViewModel
         : null;
 
     public bool CanPrint => PrintDisabledReason is null;
+
+    /// <summary>Why the sheets cannot be saved as a PDF; null when they can. No printer is needed.</summary>
+    public string? SavePdfDisabledReason =>
+        IsBusy ? "Printing…"
+        : IsAddingFiles ? "Opening files…"
+        : _manual is not null ? PrintText.FinishTwoSided
+        : Documents.Count == 0 ? "Add files to save"
+        : PageRangeError is { } error ? error
+        : null;
+
+    /// <summary>
+    /// The job the saved PDF is laid out from: the plan of the settings for the selected printer's paper, one copy, no printer
+    /// to send it to. Two-sided sheets stay as front and back, whatever the printer does, since the file is printed elsewhere.
+    /// </summary>
+    public SheetJob? SaveJob()
+    {
+        if (Plan() is null) return null;
+        var settings = Settings with { Copies = 1 };
+        var printer = SelectedPrinter ?? new PrinterInfo("pdf", "PDF file", null, null, PrinterRoute.Demo, null, false, PrinterState.Idle, [], []);
+        IReadOnlyList<LoadedDocument> documents = [.. Documents];
+        var plan = PrintJobs.Plan(documents, PageRangeIndexes(), settings, SelectedTask, SelectedCapabilities, SelectedPrefs);
+        if (plan.ManualDuplex)
+        {
+            var sides = plan.Plan.Sheets.SelectMany(sheet => sheet.Back is { } back ? new[] { sheet.Front, back } : [sheet.Front]).ToList();
+            plan = plan with { ManualDuplex = false, Passes = [new DuplexPass(sides, [])] };
+        }
+        return new SheetJob(PrintText.JobName([.. documents.Select(d => d.Name)]), printer, SelectedCapabilities, settings, plan, documents, "",
+                            null, MarksOf(SelectedTask, settings), FrameMarksOf(SelectedTask, settings));
+    }
+
+    public void ReportSaved(string path)
+    {
+        ClearMessages();
+        SentMessage = $"Saved {Path.GetFileName(path)}";
+        NotifyAll();
+    }
+
+    public void ReportNotSaved(string name, string reason) => ShowFailure("Not saved", $"{name}: {reason}", null);
 
     /// <summary>The job being followed is in the system's print queue, which keeps it when the app closes.</summary>
     public bool JobIsInSpooler => _job is not null && _spooled;

@@ -23,6 +23,8 @@ internal static class ShortText
     /// <summary>The bar's title while files wait for a job to end.</summary>
     public const string FilesQueuedTitle = "Files waiting";
     public const string FilesQueued = "They are added when the job ends.";
+    /// <summary>Why a locked PDF is not added when its password is not given.</summary>
+    public const string LockedLeftOut = "It needs a password, so it was left out.";
     /// <summary>Scaling while pages share a side or fold into a booklet: they are fitted to their space.</summary>
     public const string PagesFit = "Pages fit their space";
     /// <summary>The photo size while the Photo sheet task lays out the sheet.</summary>

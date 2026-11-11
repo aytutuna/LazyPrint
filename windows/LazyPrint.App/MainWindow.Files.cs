@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using LazyPrint.App.Printing;
 using LazyPrint.App.Services;
 using LazyPrint.Core;
 using Microsoft.Win32;
@@ -52,6 +53,33 @@ public partial class MainWindow
     {
         if (ViewModel.SelectedTask is { } task) OpenSectionFor(task);
         MainTabs.SelectedItem = PrintTab;
+    }
+
+    /// <summary>Asks where to put the sheets and writes them there as a PDF, laid out as they would print.</summary>
+    private async Task SavePdfAsync()
+    {
+        if (ViewModel.SavePdfDisabledReason is not null || ViewModel.SaveJob() is not { } job) return;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save as PDF",
+            Filter = "PDF|*.pdf",
+            DefaultExt = ".pdf",
+            AddExtension = true,
+            FileName = Path.GetFileNameWithoutExtension(job.Documents[0].Name) + ".pdf",
+        };
+        string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        if (Directory.Exists(documents)) dialog.InitialDirectory = documents;
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            byte[] pdf = await StaWork.Run(() => SheetPdf.Make(job, SheetPdf.AllSides(job), _loader, _loader));
+            await File.WriteAllBytesAsync(dialog.FileName, pdf);
+            ViewModel.ReportSaved(dialog.FileName);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException || SheetPdf.Unavailable(e))
+        {
+            ViewModel.ReportNotSaved(Path.GetFileName(dialog.FileName), e.Message);
+        }
     }
 
     /// <summary>

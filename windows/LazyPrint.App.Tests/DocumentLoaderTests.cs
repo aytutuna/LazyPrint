@@ -159,7 +159,7 @@ public class DocumentLoaderTests
     [Fact]
     public async Task ALockedPdfIsRefused()
     {
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Open("locked.pdf"));
+        var error = await Assert.ThrowsAsync<PdfPasswordException>(() => Open("locked.pdf"));
 
         Assert.Equal("This PDF is locked. Open it in a PDF app and print it from there.", error.Message);
     }

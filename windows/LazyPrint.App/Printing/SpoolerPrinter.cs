@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Printing;
+using System.Printing.Interop;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -20,9 +21,10 @@ namespace LazyPrint.App.Printing;
 /// Prints through the print spooler, with no print dialog: the sides of a pass as the pages of a <see cref="DocumentPaginator"/>, one
 /// paper-sized page each, made when the writer asks for them and let go of once written, written with <see cref="XpsDocumentWriter"/> to the queue under the ticket
 /// <see cref="Ticket"/> forces. The same document can be written to an XPS file (<see cref="WriteFileAsync"/>), which is what
-/// the tests check. Every call runs on a thread of its own in the single-threaded apartment, as the print system expects.
+/// the tests check. Given the originals (<paramref name="files"/>) it lays the sheets out as a PDF and has PDFium draw it as vector
+/// onto the queue's own device context (<see cref="VectorSpool"/>); the XPS pictures are what is left when PDFium cannot be loaded. Every call runs on a thread of its own in the single-threaded apartment, as the print system expects.
 /// </summary>
-public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
+public sealed class SpoolerPrinter(IPageRenderer pages, IOriginalFiles? files = null) : ISheetPrinter
 {
     /// <summary>The resolution pictures are drawn at; the XPS path never asks the driver for its own.</summary>
     private const double Dpi = 300;
@@ -44,9 +46,14 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
                 queue.CurrentJobSettings.Description = job.Name;
                 var writer = PrintQueue.CreateXpsDocumentWriter(queue);
                 progress.Report(new JobStatus(JobState.Sending, 0));
+                if (files is not null && PrintVector(queue, job, pass, merged.ValidatedPrintTicket, progress, token) is { } spooled)
+                {
+                    await FollowAsync(queue, spooled, progress, token);
+                    return;
+                }
                 var before = JobIds(queue);
                 await WriteAsync(writer, Pages(job, pass), merged.ValidatedPrintTicket, progress, token);
-                await FollowAsync(queue, before, job.Name, progress, token);
+                await FollowAsync(queue, Found(queue, before, job.Name), progress, token);
             }
             catch (Exception e) when (e is not (OperationCanceledException or PrintException) && IsPrintSystemError(e))
             {
@@ -59,17 +66,8 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
     /// still in the queue after <see cref="FollowLimit"/> ends as sent, not as printed. Cancelling takes the job out of the queue
     /// unless the printer has it.
     /// </summary>
-    private static async Task FollowAsync(PrintQueue queue, HashSet<int> before, string name, IProgress<JobStatus> progress, CancellationToken token)
+    private static async Task FollowAsync(PrintQueue queue, int? found, IProgress<JobStatus> progress, CancellationToken token)
     {
-        int? found;
-        try
-        {
-            found = Find(queue, before, name);
-        }
-        catch (PrintSystemException)
-        {
-            found = null;
-        }
         if (found is not { } id)
         {
             progress.Report(new JobStatus(JobState.Waiting, 0, null, true));
@@ -134,6 +132,39 @@ public sealed class SpoolerPrinter(IPageRenderer pages) : ISheetPrinter
         if ((status & PrintJobStatus.Printing) != 0) return new JobStatus(JobState.Printing, pagesPrinted);
         var problem = SystemQueueProblems.Describe(PrinterMapping.QueueStates(queue)).FirstOrDefault(p => p.IsError);
         return problem is null ? new JobStatus(JobState.Waiting, 0) : new JobStatus(JobState.NeedsUser, 0, problem.Title);
+    }
+
+    /// <summary>
+    /// The sheets as a PDF drawn onto the printer's device context under the ticket's DEVMODE: the id of the spooler job
+    /// StartDoc made, or null when PDFium cannot be loaded and the XPS path takes over.
+    /// </summary>
+    private int? PrintVector(PrintQueue queue, SheetJob job, int pass, PrintTicket ticket, IProgress<JobStatus> progress, CancellationToken token)
+    {
+        byte[] pdf;
+        try
+        {
+            pdf = SheetPdf.Make(job, JobSides.Of(job, pass), files!, pages);
+        }
+        catch (Exception e) when (SheetPdf.Unavailable(e))
+        {
+            SheetPdf.LogFallback(e);
+            return null;
+        }
+        var devMode = new PrintTicketConverter(queue.FullName, PrintTicketConverter.MaxPrintSchemaVersion)
+            .ConvertPrintTicketToDevMode(ticket, BaseDevModeType.UserDefault);
+        return VectorSpool.Print(queue.FullName, devMode, pdf, job.Name, done => progress.Report(new JobStatus(JobState.Sending, done)), token);
+    }
+
+    private static int? Found(PrintQueue queue, HashSet<int> before, string name)
+    {
+        try
+        {
+            return Find(queue, before, name);
+        }
+        catch (PrintSystemException)
+        {
+            return null;
+        }
     }
 
     private static HashSet<int> JobIds(PrintQueue queue)
