@@ -458,7 +458,7 @@ public final class AppState: ObservableObject {
     }
 
     /// Puts the files that were not added in the error bar, one to a line; a long list is cut after a few.
-    func reportNotAdded(_ failed: [(name: String, reason: String)]) {
+    public func reportNotAdded(_ failed: [(name: String, reason: String)]) {
         let shown = 3
         var lines = failed.prefix(shown).map { "\($0.name): \($0.reason)" }
         if failed.count > shown { lines.append("and \(failed.count - shown) more") }

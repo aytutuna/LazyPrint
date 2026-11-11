@@ -249,9 +249,9 @@ struct ContentView: View {
         let files = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
         guard !files.isEmpty else {
             let folders = urls.filter { $0.isFileURL && $0.hasDirectoryPath }
-            if !folders.isEmpty { state.reportUnreadable(folders.map { $0.lastPathComponent }, because: DocumentText.notSupported) }
-            // Nothing to add, but what could not be opened is still said.
-            if !refused.isEmpty { state.reportUnreadable(refused.map { $0.name }, because: ContentView.addressNotOpened) }
+            // Nothing to add, but what could not be opened is still said, in one bar.
+            let notAdded: [(name: String, reason: String)] = folders.map { (name: $0.lastPathComponent, reason: DocumentText.notSupported) } + refused
+            if !notAdded.isEmpty { state.reportNotAdded(notAdded) }
             return false
         }
         // Files from the file importer are scoped to this app; the access is kept for as long as the app runs, since the
