@@ -53,10 +53,14 @@ internal sealed class FakeSheetPrinter : ISheetPrinter
     /// <summary>Runs while a pass is being printed; a test holds the job here.</summary>
     public Func<SheetJob, int, CancellationToken, Task>? While { get; set; }
 
+    /// <summary>Told to the view model before the pass is held.</summary>
+    public JobStatus? Report { get; set; }
+
     public async Task PrintAsync(SheetJob job, int pass, IProgress<JobStatus> progress, CancellationToken token)
     {
         if (Fails is not null) throw Fails;
         Passes.Add((job, pass));
+        if (Report is not null) progress.Report(Report);
         if (While is not null) await While(job, pass, token);
     }
 }

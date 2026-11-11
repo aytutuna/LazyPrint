@@ -253,6 +253,59 @@ public sealed class PrintFlowTests
         Assert.False(await rig.Model.CancelJobAndWaitAsync());
     }
 
+    private static async Task Until(Func<bool> condition)
+    {
+        for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(10);
+        Assert.True(condition());
+    }
+
+    [Fact]
+    public async Task AJobTheSpoolerStoppedTellingAboutIsSentNotPrinted()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Sheets.Report = new JobStatus(JobState.Waiting, 0, null, true);
+        rig.Sheets.While = (_, _, _) => Task.Delay(200);
+        await rig.Model.PrintAsync();
+
+        Assert.Equal(PrintText.SentStatus, rig.Model.StatusMessage);
+        var job = Assert.Single(rig.Model.Jobs);
+        Assert.Equal(JobState.Done, job.State);
+        Assert.Equal(PrintText.SentStatus, job.Detail);
+    }
+
+    [Fact]
+    public async Task CancellingAJobThePrinterAlreadyHasKeepsItsDetail()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Sheets.Report = new JobStatus(JobState.Canceled, 0, PrintText.AlreadyAtPrinter);
+        rig.Sheets.While = (_, _, token) => Task.Delay(Timeout.Infinite, token);
+        var printing = rig.Model.PrintAsync();
+        await Until(() => rig.Model.Jobs.Count == 1 && rig.Model.Jobs[0].State == JobState.Canceled);
+        rig.Model.CancelJob(rig.Model.Jobs[0].Id);
+        await printing;
+
+        var job = Assert.Single(rig.Model.Jobs);
+        Assert.Equal(JobState.Canceled, job.State);
+        Assert.Equal(PrintText.AlreadyAtPrinter, job.Detail);
+    }
+
+    [Fact]
+    public async Task ThePrinterInUseNamesItsWorstProblem()
+    {
+        using var rig = new Rig();
+        rig.Spooler.Queue.Add(Rig.Queue("HP LaserJet", true, SystemQueueState.Paused));
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Equal(IppProblemText.Paused, rig.Model.PrinterTrouble);
+
+        rig.Spooler.Queue[0] = Rig.Queue("HP LaserJet", true);
+        await rig.Model.RefreshPrintersAsync();
+        Assert.Null(rig.Model.PrinterTrouble);
+    }
+
     [Fact]
     public async Task ATwoSidedJobWaitingForItsBacksIsHalfDone()
     {
