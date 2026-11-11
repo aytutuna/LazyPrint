@@ -113,7 +113,14 @@ public sealed partial class AppViewModel
                 };
             }
             var companion = new CompanionService(options);
-            companion.Inbox.DeleteTaken();
+            try
+            {
+                companion.Inbox.DeleteTaken();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Could not clear the files taken from the inbox: {e.Message}");
+            }
             companion.Router.ApprovePairing = ApprovePhonePairingAsync;
             companion.PackageReceived += (_, _) => _dispatcher.BeginInvoke(RefreshPhoneBatches);
             companion.Changed += (_, _) => _dispatcher.BeginInvoke(() =>
@@ -260,10 +267,18 @@ public sealed partial class AppViewModel
                 if (missed > 0) ReportMissed(batch, missed);
                 return files.Count > 0;
             }
-            bool added = false;
+            bool added = false, settled = false;
             await InAddingTurnAsync(async token =>
             {
+                if (DocumentsLockedReason is not null)
+                {
+                    settled = true;
+                    if (files.Count > 0) QueueFiles(files);
+                    if (missed > 0) ReportMissed(batch, missed);
+                    return;
+                }
                 var (opened, failed) = await OpenFilesAsync(files, token);
+                settled = true;
                 if (opened.Count == 0)
                 {
                     if (failed.Count > 0) ReportNotAdded(failed);
@@ -281,6 +296,11 @@ public sealed partial class AppViewModel
                 else if (missed > 0) ReportMissed(batch, missed);
                 added = true;
             });
+            if (!settled && files.Count > 0)
+            {
+                // Stopped while opening: the files are out of the inbox already, so say where they are.
+                ShowNotice("Not added", $"The files from your phone were not added. They are in {Path.GetDirectoryName(files[0])}, and are deleted when Lazy Print next starts.");
+            }
             if (!added) return false;
             NotifyAll();
             return true;
