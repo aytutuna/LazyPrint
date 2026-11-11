@@ -492,7 +492,7 @@ struct PrintScreen: View {
 
     /// What differs from the defaults, so a setting is never out of sight.
     private var optionsSummary: String {
-        let s: PrintSettings = state.settings
+        let s: PrintSettings = OptionsSheet.used(state.settings, capabilities: state.capabilities)
         var parts: [String] = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
         if state.task == .photos || state.task == .photoSheet { parts.append(InspectorSections.photosSummary(s)) }
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")

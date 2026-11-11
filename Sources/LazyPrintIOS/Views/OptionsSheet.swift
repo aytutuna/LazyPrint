@@ -12,6 +12,8 @@ struct OptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private static let perSide: [Int] = [1, 2, 4, 6, 9, 16]
+    private static let scalings: [(String, Scaling)] = [("Shrink to fit", .shrinkToFit), ("Fit to page", .fit),
+                                                        ("Actual size", .actualSize), ("Fill", .fill)]
 
     var body: some View {
         let rules: Rules = Rules(settings: state.settings, task: state.task, capabilities: state.capabilities)
@@ -88,21 +90,15 @@ struct OptionsSheet: View {
                 Toggle("Page borders", isOn: $state.settings.pageBorders)
                     .accessibilityIdentifier("print.borders")
             }
-            Toggle(isOn: Binding(
-                get: { state.settings.scaling != .actualSize },
-                set: { (on: Bool) in state.settings.scaling = on ? .shrinkToFit : .actualSize })) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Margins")
-                    Text("Keeps pages inside what the printer can reach")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .accessibilityIdentifier("print.margins")
+            Choice(title: "Scaling", selection: Binding(
+                get: { rules.scalingLimited && state.settings.scaling != .fill ? Scaling.fit : state.settings.scaling },
+                set: { (scaling: Scaling) in state.settings.scaling = scaling }),
+                   options: rules.scalingLimited ? [("Fit to page", Scaling.fit), ("Fill", Scaling.fill)] : Self.scalings,
+                   reason: rules.scalingReason, id: "print.scaling")
             Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                 LabeledContent("Scale", value: "\(state.settings.scale) %")
             }
-            .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1)
+            .disabled(rules.scalingLimited || state.settings.scaling == .fit || state.settings.scaling == .fill)
             .accessibilityIdentifier("print.scale")
         }
     }
@@ -150,6 +146,22 @@ struct OptionsSheet: View {
 
     // MARK: Rules
 
+    static func grayOnly(_ capabilities: PrinterCapabilities?) -> Bool {
+        capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
+    }
+
+    static func noQuality(_ capabilities: PrinterCapabilities?) -> Bool {
+        capabilities.map { $0.printQualitySupported.isEmpty } ?? false
+    }
+
+    /// The settings as the printer will get them: a quality or color it cannot take is the one it uses instead.
+    static func used(_ settings: PrintSettings, capabilities: PrinterCapabilities?) -> PrintSettings {
+        var s: PrintSettings = settings
+        if noQuality(capabilities) { s.quality = .normal }
+        if grayOnly(capabilities) { s.color = .gray }
+        return s
+    }
+
     /// What the form shows for the task and the printer (the Windows `InspectorState`).
     private struct Rules {
         var showCollate = false
@@ -169,6 +181,8 @@ struct OptionsSheet: View {
         var colorReason: String?
         var qualityEnabled = true
         var qualityReason: String?
+        var scalingLimited = false
+        var scalingReason: String?
         var paperNote: String?
 
         init(settings s: PrintSettings, task: PrintTask?, capabilities: PrinterCapabilities?) {
@@ -176,8 +190,8 @@ struct OptionsSheet: View {
             let canTurn: Bool = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided: Bool = s.booklet || s.sides != .oneSided
-            let grayOnly: Bool = capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
-            let noQuality: Bool = capabilities.map { $0.printQualitySupported.isEmpty } ?? false
+            let grayOnly: Bool = OptionsSheet.grayOnly(capabilities)
+            let noQuality: Bool = OptionsSheet.noQuality(capabilities)
 
             showCollate = s.copies > 1
             showSides = !photos
@@ -189,6 +203,8 @@ struct OptionsSheet: View {
             pagesPerSideReason = s.booklet ? "Set by Booklet" : nil
             showRightToLeft = s.booklet || s.pagesPerSheet > 1
             showBorders = !s.booklet && s.pagesPerSheet > 1
+            scalingLimited = s.booklet || s.pagesPerSheet > 1
+            scalingReason = scalingLimited ? "Pages are fitted to their spaces" : nil
             showPhotos = photos
             photoSizeEnabled = task == .photos
             photoSizeReason = task == .photoSheet ? "Set by Photo sheet" : nil
