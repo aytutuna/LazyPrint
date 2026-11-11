@@ -4,7 +4,7 @@ import LazyPrintKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum ContentTab: Hashable {
+enum ContentTab: String, Hashable {
     case print
     case jobs
 }
@@ -25,8 +25,12 @@ struct ContentView: View {
     /// The last file being opened: the next waits for it, so several files from Open With keep their order.
     @State private var opening: Task<Void, Never>?
 
-    init(tab: ContentTab = .print) {
-        _tab = State(initialValue: tab)
+    static let tabKey = "selectedTab"
+
+    /// A tab given here wins over the one kept from the last run.
+    init(tab: ContentTab? = nil) {
+        let kept = UserDefaults.standard.string(forKey: ContentView.tabKey).flatMap(ContentTab.init(rawValue:))
+        _tab = State(initialValue: tab ?? kept ?? .print)
     }
 
     var body: some View {
@@ -81,7 +85,7 @@ struct ContentView: View {
             }
         }
         // Below this the layout cannot stay usable.
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(minWidth: 760, minHeight: 520)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { _ = take(urls) }
         }
@@ -121,6 +125,12 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .addFilesRequested)) { _ in
             if !state.isBusy { showImporter = true }
+        }
+        .onChange(of: tab) { _, tab in
+            UserDefaults.standard.set(tab.rawValue, forKey: ContentView.tabKey)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tabRequested)) { note in
+            if let raw = note.object as? String, let requested = ContentTab(rawValue: raw) { tab = requested }
         }
         .onAppear { state.phoneWindowRequested = { showPhone = true } }
         // A problem with the cloud folder is also said here, where it is seen without the phone sheet open.
