@@ -132,7 +132,7 @@ public enum Imposition {
         if scaling == .actualSize {
             notes.clipped = max(notes.clipped, max(fitted.frame.width - cell.width, fitted.frame.height - cell.height) / 2)
         } else if scaling == .shrinkToFit || scaling == .fit {
-            notes.smallestScale = min(notes.smallestScale, fitted.scale)
+            notes.smallestScale = min(notes.smallestScale, factor * fitted.scale)
         }
         return place(page, shown: fitted, landscape: landscape, turned: false, paper: area.paper)
     }

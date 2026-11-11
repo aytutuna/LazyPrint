@@ -140,7 +140,7 @@ public static class Imposition
         }
         else if (scaling is Scaling.ShrinkToFit or Scaling.Fit)
         {
-            notes.SmallestScale = Math.Min(notes.SmallestScale, shown.Scale);
+            notes.SmallestScale = Math.Min(notes.SmallestScale, factor * shown.Scale);
         }
         return Place(page, shown, landscape, false, area.Paper);
     }
