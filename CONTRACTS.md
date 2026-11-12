@@ -338,7 +338,7 @@ public enum TaskCatalog {
     public static func definition(_ task: PrintTask) -> TaskDefinition
     public static func tasks(for platform: AppPlatform) -> [TaskDefinition]     // fromPhone is not on the iPhone
     public static func availability(of task: PrintTask, context: TaskContext) -> TaskAvailability
-    /// The settings a task sets; what it leaves alone stays as the user had it. A task is only a preset: after this call nothing reads the task to decide what is shown, allowed or printed.
+    /// A preset starts from the defaults; only the printer, its paper, tray, paper type and color, and this job's copies, collation and page choices carry over. A task is only a preset: after this call nothing reads the task to decide what is shown, allowed or printed.
     public static func apply(_ task: PrintTask, to settings: PrintSettings, printer: PrinterCapabilities?) -> PrintSettings
 }
 ```

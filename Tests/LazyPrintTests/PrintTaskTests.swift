@@ -127,8 +127,8 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertEqual(handouts.pagesPerSheet, 2)
         XCTAssertTrue(handouts.pageBorders)
         XCTAssertFalse(handouts.booklet)
-        // What it leaves alone stays as it was.
-        XCTAssertEqual(handouts.sides, .longEdge)
+        // The booklet's two-sided choice is not carried over.
+        XCTAssertEqual(handouts.sides, .oneSided)
     }
 
     func test_apply_bookletAndHandouts_afterPhotoSheet_doNotKeepItsFill() {
@@ -159,7 +159,7 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertEqual(photos.quality, .best)
         XCTAssertEqual(photos.color, .color)
         XCTAssertFalse(photos.booklet)
-        XCTAssertFalse(photos.cutMarks)
+        XCTAssertTrue(photos.cutMarks)
 
         let sheet = TaskCatalog.apply(.photoSheet, to: start, printer: nil)
         XCTAssertEqual(sheet.taskId, "photoSheet")
@@ -170,6 +170,16 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertTrue(sheet.cutMarks)
         XCTAssertFalse(sheet.booklet)
         XCTAssertEqual(sheet.color, .gray)
+    }
+
+    func test_apply_document_startsFromTheDefaults() {
+        var worn = TaskCatalog.apply(.booklet, to: settings { $0.paperId = "a4"; $0.copies = 2; $0.color = .gray }, printer: nil)
+        worn.margin = .custom
+        worn.orientation = .landscape
+        worn.rightToLeft = true
+        worn.photoSizeId = "5x7"
+        let fresh = settings { $0.paperId = "a4"; $0.copies = 2; $0.color = .gray }
+        XCTAssertEqual(TaskCatalog.apply(.document, to: worn, printer: nil), TaskCatalog.apply(.document, to: fresh, printer: nil))
     }
 
     func test_apply_tasksWithoutSettings_onlyRememberTheTask() {

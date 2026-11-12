@@ -73,8 +73,8 @@ public struct TaskContext: Equatable, Sendable {
     }
 }
 
-/// The tasks of the Preset menu, in code rather than in a settings file. Picking a task lays its
-/// settings over the current ones (`apply`). Twin of C# `TaskCatalog`.
+/// The tasks of the Preset menu, in code rather than in a settings file. Picking a task builds its
+/// settings from the defaults (`apply`). Twin of C# `TaskCatalog`.
 public enum TaskCatalog {
     /// Every task, in menu order.
     public static let all = [
@@ -120,61 +120,43 @@ public enum TaskCatalog {
         }
     }
 
-    /// The settings a task sets; what it leaves alone stays as the user had it.
+    /// A preset starts from the defaults; only the printer, its paper, tray, paper type and color, and this job's copies, collation and page choices carry over.
     public static func apply(_ task: PrintTask, to settings: PrintSettings, printer: PrinterCapabilities?) -> PrintSettings {
-        var s = settings
+        var s = PrintSettings()
         s.taskId = task.rawValue
+        s.printerId = settings.printerId
+        s.printerName = settings.printerName
+        s.paperId = settings.paperId
+        s.mediaSource = settings.mediaSource
+        s.mediaType = settings.mediaType
+        s.color = settings.color
+        s.copies = settings.copies
+        s.collate = settings.collate
+        s.pageSelection = settings.pageSelection
+        s.reverseOrder = settings.reverseOrder
         switch task {
         case .document:
-            s.layoutStyle = .pages
-            s.pagesPerSheet = 1
-            s.booklet = false
-            s.poster = 0
-            s.scaling = .shrinkToFit
-            s.scale = 100
             s.sides = printer?.sidesSupported.contains("two-sided-long-edge") == true ? .longEdge : .oneSided
-            s.quality = .normal
         case .twoSided:
             // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
-            s.layoutStyle = .pages
-            s.pagesPerSheet = 1
-            s.booklet = false
-            s.poster = 0
-            s.scaling = .shrinkToFit
-            s.scale = 100
             s.sides = .longEdge
-            s.quality = .normal
         case .booklet:
-            s.layoutStyle = .pages
             s.booklet = true
-            s.poster = 0
-            s.scaling = .shrinkToFit
             s.sides = .longEdge
-            s.quality = .normal
         case .handouts:
-            s.layoutStyle = .pages
             s.pagesPerSheet = 2
-            s.booklet = false
-            s.poster = 0
-            s.scaling = .shrinkToFit
             s.pageBorders = true
-            s.quality = .normal
         case .photos:
             s.layoutStyle = .photoPrints
-            s.booklet = false
-            s.photoSizeId = "4x6"
-            s.photoFill = true
             s.quality = .best
             s.color = .color
         case .photoSheet:
             s.layoutStyle = .photoSheet
             s.pagesPerSheet = 4
-            s.booklet = false
-            s.poster = 0
             s.scaling = .fill
-            s.cutMarks = true
         case .testPage, .scanAndPrint, .fromPhone:
-            break
+            s = settings
+            s.taskId = task.rawValue
         }
         return s
     }

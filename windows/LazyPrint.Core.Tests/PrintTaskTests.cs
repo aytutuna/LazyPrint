@@ -135,8 +135,8 @@ public class PrintTaskTests
         Assert.Equal(2, handouts.PagesPerSheet);
         Assert.True(handouts.PageBorders);
         Assert.False(handouts.Booklet);
-        // What it leaves alone stays as it was.
-        Assert.Equal(Sides.LongEdge, handouts.Sides);
+        // The booklet's two-sided choice is not carried over.
+        Assert.Equal(Sides.OneSided, handouts.Sides);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class PrintTaskTests
         Assert.Equal(QualityChoice.Best, photos.Quality);
         Assert.Equal(ColorChoice.Color, photos.Color);
         Assert.False(photos.Booklet);
-        Assert.False(photos.CutMarks);
+        Assert.True(photos.CutMarks);
 
         var sheet = TaskCatalog.Apply(PrintTask.PhotoSheet, start, null);
         Assert.Equal("photoSheet", sheet.TaskId);
@@ -185,6 +185,21 @@ public class PrintTaskTests
         Assert.True(sheet.CutMarks);
         Assert.False(sheet.Booklet);
         Assert.Equal(ColorChoice.Gray, sheet.Color);
+    }
+
+    [Fact]
+    public void Apply_Document_StartsFromTheDefaults()
+    {
+        var booklet = TaskCatalog.Apply(PrintTask.Booklet, new PrintSettings { PaperId = "a4", Copies = 2, Color = ColorChoice.Gray }, null);
+        var worn = booklet with
+        {
+            Margin = MarginChoice.Custom,
+            Orientation = SheetOrientation.Landscape,
+            RightToLeft = true,
+            PhotoSizeId = "5x7",
+        };
+        var fresh = new PrintSettings { PaperId = "a4", Copies = 2, Color = ColorChoice.Gray };
+        Assert.Equal(TaskCatalog.Apply(PrintTask.Document, fresh, null), TaskCatalog.Apply(PrintTask.Document, worn, null));
     }
 
     [Fact]

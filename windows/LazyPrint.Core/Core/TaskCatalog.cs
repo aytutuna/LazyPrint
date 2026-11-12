@@ -91,46 +91,40 @@ public static class TaskCatalog
         _ => TaskAvailability.Available,
     };
 
-    /// <summary>The settings a task sets; what it leaves alone stays as the user had it.</summary>
+    /// <summary>A preset starts from the defaults; only the printer, its paper, tray, paper type and color, and this job's copies, collation and page choices carry over.</summary>
     public static PrintSettings Apply(PrintTask task, PrintSettings settings, PrinterCapabilities? printer)
     {
-        var s = settings with { TaskId = task.RawValue() };
+        var s = new PrintSettings
+        {
+            TaskId = task.RawValue(),
+            PrinterId = settings.PrinterId,
+            PaperId = settings.PaperId,
+            MediaSource = settings.MediaSource,
+            MediaType = settings.MediaType,
+            Color = settings.Color,
+            Copies = settings.Copies,
+            Collate = settings.Collate,
+            PageSelection = settings.PageSelection,
+            ReverseOrder = settings.ReverseOrder,
+        };
         switch (task)
         {
             case PrintTask.Document:
                 bool canTwoSided = printer?.SidesSupported.Contains("two-sided-long-edge") == true;
-                return s with
-                {
-                    LayoutStyle = LayoutStyle.Pages,
-                    PagesPerSheet = 1,
-                    Poster = 0,
-                    Booklet = false,
-                    Scaling = Scaling.ShrinkToFit,
-                    Scale = 100,
-                    Sides = canTwoSided ? Sides.LongEdge : Sides.OneSided,
-                    Quality = QualityChoice.Normal,
-                };
+                return s with { Sides = canTwoSided ? Sides.LongEdge : Sides.OneSided };
             case PrintTask.TwoSided:
                 // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
-                return s with { LayoutStyle = LayoutStyle.Pages, PagesPerSheet = 1, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, Scale = 100, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { Sides = Sides.LongEdge };
             case PrintTask.Booklet:
-                return s with { LayoutStyle = LayoutStyle.Pages, Poster = 0, Booklet = true, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { Booklet = true, Sides = Sides.LongEdge };
             case PrintTask.Handouts:
-                return s with { LayoutStyle = LayoutStyle.Pages, PagesPerSheet = 2, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, PageBorders = true, Quality = QualityChoice.Normal };
+                return s with { PagesPerSheet = 2, PageBorders = true };
             case PrintTask.Photos:
-                return s with
-                {
-                    LayoutStyle = LayoutStyle.PhotoPrints,
-                    Booklet = false,
-                    PhotoSizeId = "4x6",
-                    PhotoFill = true,
-                    Quality = QualityChoice.Best,
-                    Color = ColorChoice.Color,
-                };
+                return s with { LayoutStyle = LayoutStyle.PhotoPrints, Quality = QualityChoice.Best, Color = ColorChoice.Color };
             case PrintTask.PhotoSheet:
-                return s with { LayoutStyle = LayoutStyle.PhotoSheet, PagesPerSheet = 4, Poster = 0, Booklet = false, Scaling = Scaling.Fill, CutMarks = true };
+                return s with { LayoutStyle = LayoutStyle.PhotoSheet, PagesPerSheet = 4, Scaling = Scaling.Fill };
             default:
-                return s;
+                return settings with { TaskId = task.RawValue() };
         }
     }
 }
