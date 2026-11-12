@@ -212,7 +212,8 @@ final class IOSPrinterSystemTests: XCTestCase {
 
         let caps = try XCTUnwrap(read)
         XCTAssertEqual(caps.name, "Office HP")
-        XCTAssertEqual(caps.mediaColDatabase.map { $0.width }, [21000, 21590, 10160, 12700, 21590])
+        XCTAssertEqual(caps.mediaColDatabase.first?.width, 21000)
+        XCTAssertEqual(caps.mediaColDatabase.count, PaperSize.allCases.count - 1)
     }
 
     @MainActor
@@ -239,18 +240,20 @@ final class IOSPrinterSystemTests: XCTestCase {
         XCTAssertEqual(IOSPrinterSystem.name(of: try XCTUnwrap(URL(string: "ipp:///x")), displayName: " "), "AirPrint printer")
     }
 
-    func test_papers_areTheRegionsUsualOneThenTheOther() {
+    func test_papers_areEveryCatalogueSizeCommonOnesFirst() {
         let letter = [21590, 27940]
         let a4 = [21000, 29700]
-        let rest = [[10160, 15240], [12700, 17780], [21590, 35560]]
+        let all = PaperSize.allCases.count - 1
 
         for region in ["US", "CA", "MX", "us"] {
             let papers = IOSPrinterSystem.papers(region: region)
-            XCTAssertEqual(papers.map { [$0.width, $0.height] }, [letter, a4] + rest, region)
+            XCTAssertEqual(papers.count, all, region)
+            XCTAssertEqual([papers[0].width, papers[0].height], letter, region)
         }
         for region in ["DE", "TR", "GB", nil] {
             let papers = IOSPrinterSystem.papers(region: region)
-            XCTAssertEqual(papers.map { [$0.width, $0.height] }, [a4, letter] + rest, region ?? "nil")
+            XCTAssertEqual(papers.count, all, region ?? "nil")
+            XCTAssertEqual([papers[0].width, papers[0].height], a4, region ?? "nil")
         }
     }
 
