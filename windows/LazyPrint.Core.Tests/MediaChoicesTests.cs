@@ -36,22 +36,21 @@ public class MediaChoicesTests
     }
 
     [Theory]
-    [InlineData("photos", "photographic-glossy", "photographic-glossy")]
-    [InlineData("photoSheet", "auto", "photographic")]
-    [InlineData("photos", "stationery", "stationery")]
-    [InlineData("document", "auto", null)]
-    [InlineData(null, "auto", null)]
-    public void APhotoTaskOnAutomaticPicksThePhotoType(string? task, string chosen, string? expected)
+    [InlineData(LayoutStyle.PhotoPrints, "photographic-glossy", "photographic-glossy")]
+    [InlineData(LayoutStyle.PhotoSheet, "auto", "photographic")]
+    [InlineData(LayoutStyle.PhotoPrints, "stationery", "stationery")]
+    [InlineData(LayoutStyle.Pages, "auto", null)]
+    public void APhotoLayoutOnAutomaticPicksThePhotoType(LayoutStyle style, string chosen, string? expected)
     {
         var printer = Printer([], ["stationery", "photographic-glossy", "photographic"]);
-        var settings = new PrintSettings { TaskId = task, MediaType = chosen };
+        var settings = new PrintSettings { LayoutStyle = style, MediaType = chosen };
         Assert.Equal(expected, MediaChoices.Type(settings, printer));
     }
 
     [Fact]
-    public void APhotoTaskOnAPrinterWithoutPhotoPaperAsksForNothing()
+    public void APhotoLayoutOnAPrinterWithoutPhotoPaperAsksForNothing()
     {
-        var settings = new PrintSettings { TaskId = "photos" };
+        var settings = new PrintSettings { LayoutStyle = LayoutStyle.PhotoPrints };
         Assert.Null(MediaChoices.Type(settings, Printer([], ["stationery", "labels"])));
         Assert.Equal("photographic-satin", MediaChoices.PhotoType(["stationery", "photographic-satin", "photographic-matte"]));
         Assert.Equal("photographic-pearl", MediaChoices.PhotoType(["photographic-pearl"]));

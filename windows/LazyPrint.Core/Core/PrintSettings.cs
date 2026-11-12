@@ -18,6 +18,31 @@ public enum QualityChoice
     Best,
 }
 
+/// <summary>
+/// How the pages are laid on the sheet: the usual way (<see cref="Imposition"/>), one photo size per print (<see cref="PhotoLayout"/>),
+/// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
+/// Twin of Swift <c>LayoutStyle</c>.
+/// </summary>
+public enum LayoutStyle
+{
+    Pages,
+    PhotoPrints,
+    PhotoSheet,
+}
+
+public static class LayoutStyles
+{
+    public static bool IsPhoto(this LayoutStyle style) => style != LayoutStyle.Pages;
+
+    /// <summary>What a file saved before the layout was a setting meant: the photo tasks decided it.</summary>
+    public static LayoutStyle FromTaskId(string? taskId) => PrintTasks.TryParse(taskId) switch
+    {
+        PrintTask.Photos => LayoutStyle.PhotoPrints,
+        PrintTask.PhotoSheet => LayoutStyle.PhotoSheet,
+        _ => LayoutStyle.Pages,
+    };
+}
+
 /// <summary>What the user chose for printing. Every property has a default, so older files load (Global rule 5).</summary>
 public sealed record PrintSettings
 {
@@ -56,6 +81,7 @@ public sealed record PrintSettings
     public string MediaSource { get; set; } = MediaChoices.Auto;
     /// <summary>A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.</summary>
     public string MediaType { get; set; } = MediaChoices.Auto;
+    public LayoutStyle LayoutStyle { get; set; } = LayoutStyle.Pages;
     public string PhotoSizeId { get; set; } = "4x6";
     public bool PhotoFill { get; set; } = true;
     public bool CutMarks { get; set; } = true;
@@ -109,8 +135,27 @@ public static class SettingsStore
     public static void SavePrinters(Dictionary<string, PrinterPrefs> printers) => SavePrinters(printers, StoreFiles.DefaultDirectory);
 
     /// <summary>Same as <see cref="Load()"/>, reading settings.json from <paramref name="directory"/> (tests).</summary>
-    internal static PrintSettings? Load(string directory) =>
-        StoreFiles.Load<PrintSettings>(Path.Combine(directory, SettingsFile));
+    internal static PrintSettings? Load(string directory)
+    {
+        string path = Path.Combine(directory, SettingsFile);
+        var settings = StoreFiles.Load<PrintSettings>(path);
+        if (settings is not null && !HasKey(path, "layoutStyle")) settings.LayoutStyle = LayoutStyles.FromTaskId(settings.TaskId);
+        return settings;
+    }
+
+    /// <summary>Whether the file names the key; a file that cannot be parsed again counts as having it.</summary>
+    private static bool HasKey(string path, string key)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
+            return document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object || document.RootElement.TryGetProperty(key, out _);
+        }
+        catch (Exception)
+        {
+            return true;
+        }
+    }
 
     internal static void Save(PrintSettings settings, string directory) =>
         StoreFiles.Write(settings, Path.Combine(directory, SettingsFile));

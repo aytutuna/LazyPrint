@@ -78,7 +78,7 @@ public partial class MainWindow
 
     private void ShowPrintTab()
     {
-        if (ViewModel.SelectedTask is { } task) OpenSectionFor(task);
+        OpenSectionFor(ViewModel.Settings);
         MainTabs.SelectedItem = PrintTab;
     }
 

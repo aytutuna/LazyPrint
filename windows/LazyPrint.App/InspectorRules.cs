@@ -36,9 +36,9 @@ public sealed record InspectorState(
     string? PaperNote)
 {
     /// <param name="capabilities">What the printer in use can do; null while that is not known.</param>
-    internal static InspectorState For(PrintSettings s, PrintTask? task, PrinterCapabilities? capabilities)
+    internal static InspectorState For(PrintSettings s, PrinterCapabilities? capabilities)
     {
-        bool photos = task is PrintTask.Photos or PrintTask.PhotoSheet;
+        bool photos = s.LayoutStyle.IsPhoto();
         bool canTurn = capabilities?.SidesSupported.Contains("two-sided-long-edge") == true;
 
         // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
@@ -47,7 +47,7 @@ public sealed record InspectorState(
         string? byHand = twoSided && !photos && capabilities is not null && !canTurn ? ShortText.ByHand : null;
 
         bool alone = !poster && !s.Booklet && s.PagesPerSheet == 1;
-        bool margins = Imposition.KeepsMargin(PrintJobs.LayoutOptions(s, task));
+        bool margins = Imposition.KeepsMargin(PrintJobs.LayoutOptions(s));
 
         bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
@@ -64,7 +64,7 @@ public sealed record InspectorState(
             SidesEnabled: !s.Booklet && !poster,
             SidesReason: poster ? ShortText.PosterOneSided : s.Booklet ? ShortText.BookletTwoSided : null,
             SidesNote: byHand,
-            ShowLayout: task != PrintTask.Photos,
+            ShowLayout: s.LayoutStyle != LayoutStyle.PhotoPrints,
             PagesPerSideEnabled: !s.Booklet && !poster,
             PagesPerSideReason: poster ? ShortText.PosterPages : s.Booklet ? ShortText.BookletPages : null,
             ShowRightToLeft: !poster && (s.Booklet || s.PagesPerSheet > 1),
@@ -79,8 +79,8 @@ public sealed record InspectorState(
             MarginEnabled: margins,
             MarginReason: margins ? null : ShortText.MarginsUnused,
             ShowPhotos: photos,
-            PhotoSizeEnabled: task == PrintTask.Photos,
-            PhotoSizeReason: task == PrintTask.PhotoSheet ? ShortText.SheetLayout : null,
+            PhotoSizeEnabled: s.LayoutStyle == LayoutStyle.PhotoPrints,
+            PhotoSizeReason: s.LayoutStyle == LayoutStyle.PhotoSheet ? ShortText.SheetLayout : null,
             ColorEnabled: !grayOnly,
             ColorReason: grayOnly ? ShortText.GrayOnly : null,
             QualityEnabled: !noQuality,

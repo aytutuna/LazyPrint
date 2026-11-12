@@ -7,6 +7,8 @@ namespace LazyPrint.Core.Tests;
 // the print sections).
 public class InspectorSectionsTests
 {
+    private static string? Opened(PrintTask task) => InspectorSections.OpenedBy(TaskCatalog.Apply(task, new PrintSettings(), null));
+
     [Fact]
     public void OnlyThePrinterAndPages_StartOpen()
     {
@@ -17,13 +19,13 @@ public class InspectorSectionsTests
         {
             Assert.False(InspectorSections.OpenByDefault(id));
         }
-        Assert.Equal(InspectorSections.Layout, InspectorSections.OpenedBy(PrintTask.Booklet));
-        Assert.Equal(InspectorSections.Layout, InspectorSections.OpenedBy(PrintTask.Handouts));
-        Assert.Equal(InspectorSections.Photos, InspectorSections.OpenedBy(PrintTask.Photos));
-        Assert.Equal(InspectorSections.Photos, InspectorSections.OpenedBy(PrintTask.PhotoSheet));
-        Assert.Null(InspectorSections.OpenedBy(PrintTask.Document));
-        Assert.Null(InspectorSections.OpenedBy(PrintTask.TwoSided));
-        Assert.Null(InspectorSections.OpenedBy(PrintTask.TestPage));
+        Assert.Equal(InspectorSections.Layout, Opened(PrintTask.Booklet));
+        Assert.Equal(InspectorSections.Layout, Opened(PrintTask.Handouts));
+        Assert.Equal(InspectorSections.Photos, Opened(PrintTask.Photos));
+        Assert.Equal(InspectorSections.Photos, Opened(PrintTask.PhotoSheet));
+        Assert.Null(Opened(PrintTask.Document));
+        Assert.Null(Opened(PrintTask.TwoSided));
+        Assert.Null(Opened(PrintTask.TestPage));
     }
 
     [Fact]

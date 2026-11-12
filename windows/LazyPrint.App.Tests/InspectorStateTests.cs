@@ -7,13 +7,15 @@ namespace LazyPrint.App.Tests;
 
 public sealed class InspectorStateTests
 {
-    private static InspectorState For(PrintSettings? settings = null, PrintTask? task = null, PrinterCapabilities? printer = null) =>
-        InspectorState.For(settings ?? new PrintSettings(), task, printer);
+    private static InspectorState For(PrintSettings? settings = null, PrinterCapabilities? printer = null) =>
+        InspectorState.For(settings ?? new PrintSettings(), printer);
+
+    private static PrintSettings Preset(PrintTask task) => TaskCatalog.Apply(task, new PrintSettings(), null);
 
     [Fact]
     public void ADocumentShowsTheEverydayControlsOnly()
     {
-        var state = For(task: PrintTask.Document);
+        var state = For(Preset(PrintTask.Document));
 
         Assert.True(state.ShowSides);
         Assert.True(state.ShowLayout);
@@ -88,7 +90,7 @@ public sealed class InspectorStateTests
     [Fact]
     public void PhotoPrintsHideTheLayoutAndShowThePhotoControls()
     {
-        var state = For(task: PrintTask.Photos);
+        var state = For(Preset(PrintTask.Photos));
 
         Assert.False(state.ShowLayout);
         Assert.False(state.ShowSides);
@@ -99,12 +101,27 @@ public sealed class InspectorStateTests
     [Fact]
     public void APhotoSheetKeepsItsSizeGreyedOutWithTheReason()
     {
-        var state = For(task: PrintTask.PhotoSheet);
+        var state = For(Preset(PrintTask.PhotoSheet));
 
         Assert.True(state.ShowLayout);
         Assert.True(state.ShowPhotos);
         Assert.False(state.PhotoSizeEnabled);
         Assert.Equal("Set by Photo sheet", state.PhotoSizeReason);
+    }
+
+    [Fact]
+    public void ThePresetPickedLastDoesNotChangeTheRules()
+    {
+        var oneSided = new PrinterCapabilities { SidesSupported = ["one-sided"] };
+        foreach (var task in PrintTasks.All)
+        {
+            var settings = Preset(task);
+            var expected = For(settings, oneSided);
+            foreach (var other in PrintTasks.All.Select(t => t.RawValue()).Append(null))
+            {
+                Assert.Equal(expected, For(settings with { TaskId = other }, oneSided));
+            }
+        }
     }
 
     [Fact]
@@ -149,7 +166,7 @@ public sealed class InspectorStateTests
     {
         var oneSided = new PrinterCapabilities { SidesSupported = ["one-sided"] };
 
-        Assert.NotNull(For(new PrintSettings { Booklet = true }, PrintTask.Booklet, oneSided).SidesNote);
+        Assert.NotNull(For(new PrintSettings { Booklet = true }, oneSided).SidesNote);
     }
 
     [Fact]

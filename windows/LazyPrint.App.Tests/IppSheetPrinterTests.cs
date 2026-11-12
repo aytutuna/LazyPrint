@@ -373,7 +373,7 @@ public sealed class IppSheetPrinterTests : IDisposable
         };
         var settings = PrintFixtures.Letter(s => s.Scaling = Scaling.ActualSize);
         var document = new LoadedDocument("Letter.pdf", new DocumentKind.Pdf(false), [.. Enumerable.Repeat(new LayoutSize(612, 792), 5)]);
-        var plan = PrintJobs.Plan([document], [1, 2, 3], settings, null, caps, new PrinterPrefs());
+        var plan = PrintJobs.Plan([document], [1, 2, 3], settings, caps, new PrinterPrefs());
         var job = new SheetJob(document.Name, PrintFixtures.Printer(PrinterRoute.Ipp), caps, settings, plan, [document], "job");
         await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
 
@@ -392,7 +392,7 @@ public sealed class IppSheetPrinterTests : IDisposable
         var caps = Plain();
         var settings = PrintFixtures.Letter(_ => { });
         var document = new LoadedDocument("Letter.pdf", new DocumentKind.Pdf(false), [.. Enumerable.Repeat(new LayoutSize(612, 792), 5)]);
-        var plan = PrintJobs.Plan([document], [1, 2], settings, null, caps, new PrinterPrefs());
+        var plan = PrintJobs.Plan([document], [1, 2], settings, caps, new PrinterPrefs());
         var job = new SheetJob(document.Name, PrintFixtures.Printer(PrinterRoute.Ipp), caps, settings, plan, [document], "job");
         await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
 

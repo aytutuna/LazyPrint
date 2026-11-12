@@ -64,14 +64,14 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>
-    /// The document task is two-sided only for a printer that can turn the sheet. Picked before the printer was read (the task
-    /// a fresh install starts in), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
-    /// user changes the sides.
+    /// The document preset is two-sided only for a printer that can turn the sheet. Picked before the printer was read (the preset
+    /// a fresh install starts with), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
+    /// user changes the sides. Only the document preset is ever picked blind.
     /// </summary>
     private void ChooseSidesAgain()
     {
-        if (_sidesPickedBlind is null || SelectedTask is not { } task) return;
-        var sides = TaskCatalog.Apply(task, Settings, SelectedCapabilities).Sides;
+        if (_sidesPickedBlind is null) return;
+        var sides = TaskCatalog.Apply(PrintTask.Document, Settings, SelectedCapabilities).Sides;
         _sidesPickedBlind = sides;
         if (Settings.Sides == sides) return;
         Settings.Sides = sides;

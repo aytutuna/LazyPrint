@@ -332,7 +332,7 @@ public partial class MainWindow : Window
         await ViewModel.StartTaskAsync(task);
         if (ViewModel.SelectedTask == task && TaskCatalog.Definition(task).OpensFiles)
         {
-            OpenSectionFor(task);
+            OpenSectionFor(ViewModel.Settings);
             MainTabs.SelectedItem = PrintTab;
             // A task starts by asking for files, unless some are there already; cancelling leaves the empty print screen.
             if (ViewModel.Documents.Count == 0) _ = Dispatcher.BeginInvoke(AskForFiles, DispatcherPriority.Background);

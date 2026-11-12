@@ -104,10 +104,10 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Opens a section for a task that needs it (the photo tasks open Photos); not remembered.</summary>
-    private void OpenSectionFor(PrintTask task)
+    /// <summary>Opens the section the settings need (a photo layout opens Photos); not remembered.</summary>
+    private void OpenSectionFor(PrintSettings settings)
     {
-        if (InspectorSections.OpenedBy(task) is not { } id) return;
+        if (InspectorSections.OpenedBy(settings) is not { } id) return;
         _settingSections = true;
         try
         {
@@ -233,7 +233,7 @@ public partial class MainWindow
     {
         if (!IsLoaded && PrinterBox is null) return;
         var s = ViewModel.Settings;
-        var state = InspectorState.For(s, ViewModel.SelectedTask, ViewModel.SelectedCapabilities);
+        var state = InspectorState.For(s, ViewModel.SelectedCapabilities);
         _inspector = state;
         bool wasUpdating = _updatingUi;
         _updatingUi = true;

@@ -94,6 +94,19 @@ public sealed class PrintSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Settings_SavedInAPhotoTask_KeepTheirPhotoLayout()
+    {
+        File.WriteAllText(Settings, """{"taskId": "photos"}""");
+        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
+        File.WriteAllText(Settings, """{"taskId": "photoSheet"}""");
+        Assert.Equal(LayoutStyle.PhotoSheet, SettingsStore.Load(_directory)!.LayoutStyle);
+        File.WriteAllText(Settings, """{"taskId": "booklet"}""");
+        Assert.Equal(LayoutStyle.Pages, SettingsStore.Load(_directory)!.LayoutStyle);
+        File.WriteAllText(Settings, """{"taskId": "photos", "layoutStyle": "pages"}""");
+        Assert.Equal(LayoutStyle.Pages, SettingsStore.Load(_directory)!.LayoutStyle);
+    }
+
+    [Fact]
     public void Settings_WithAnUnknownOrWrongValue_ResetOnlyThatField()
     {
         File.WriteAllText(Settings, """

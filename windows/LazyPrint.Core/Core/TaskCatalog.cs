@@ -101,6 +101,7 @@ public static class TaskCatalog
                 bool canTwoSided = printer?.SidesSupported.Contains("two-sided-long-edge") == true;
                 return s with
                 {
+                    LayoutStyle = LayoutStyle.Pages,
                     PagesPerSheet = 1,
                     Poster = 0,
                     Booklet = false,
@@ -111,14 +112,15 @@ public static class TaskCatalog
                 };
             case PrintTask.TwoSided:
                 // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
-                return s with { PagesPerSheet = 1, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, Scale = 100, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { LayoutStyle = LayoutStyle.Pages, PagesPerSheet = 1, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, Scale = 100, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
             case PrintTask.Booklet:
-                return s with { Poster = 0, Booklet = true, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
+                return s with { LayoutStyle = LayoutStyle.Pages, Poster = 0, Booklet = true, Scaling = Scaling.ShrinkToFit, Sides = Sides.LongEdge, Quality = QualityChoice.Normal };
             case PrintTask.Handouts:
-                return s with { PagesPerSheet = 2, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, PageBorders = true, Quality = QualityChoice.Normal };
+                return s with { LayoutStyle = LayoutStyle.Pages, PagesPerSheet = 2, Poster = 0, Booklet = false, Scaling = Scaling.ShrinkToFit, PageBorders = true, Quality = QualityChoice.Normal };
             case PrintTask.Photos:
                 return s with
                 {
+                    LayoutStyle = LayoutStyle.PhotoPrints,
                     Booklet = false,
                     PhotoSizeId = "4x6",
                     PhotoFill = true,
@@ -126,7 +128,7 @@ public static class TaskCatalog
                     Color = ColorChoice.Color,
                 };
             case PrintTask.PhotoSheet:
-                return s with { PagesPerSheet = 4, Poster = 0, Booklet = false, Scaling = Scaling.Fill, CutMarks = true };
+                return s with { LayoutStyle = LayoutStyle.PhotoSheet, PagesPerSheet = 4, Poster = 0, Booklet = false, Scaling = Scaling.Fill, CutMarks = true };
             default:
                 return s;
         }

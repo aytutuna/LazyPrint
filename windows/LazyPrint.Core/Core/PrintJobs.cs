@@ -32,12 +32,11 @@ public static class PrintJobs
     private const string CollatedCopies = "separate-documents-collated-copies";
 
     /// <summary>
-    /// The layout the settings ask for. Photo tasks print one side, never a booklet. The task is only
-    /// consulted for that: the other tasks have already set what they mean in the settings. Photos have no extra margin either.
+    /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
     /// </summary>
-    public static LayoutOptions LayoutOptions(PrintSettings settings, PrintTask? task)
+    public static LayoutOptions LayoutOptions(PrintSettings settings)
     {
-        bool photos = task is PrintTask.Photos or PrintTask.PhotoSheet;
+        bool photos = settings.LayoutStyle.IsPhoto();
         return new LayoutOptions
         {
             PagesPerSheet = settings.PagesPerSheet,
@@ -79,7 +78,7 @@ public static class PrintJobs
     /// <see cref="PrinterPrefs.PaperPath"/>.
     /// </summary>
     public static JobPlan Plan(IReadOnlyList<LoadedDocument> documents, IReadOnlyList<int>? pageRange, PrintSettings settings,
-                               PrintTask? task, PrinterCapabilities? printer, PrinterPrefs prefs)
+                               PrinterCapabilities? printer, PrinterPrefs prefs)
     {
         var all = documents
             .SelectMany((document, d) => document.Pages.Select((size, i) => new SourcePage(d, i, size)))
@@ -87,12 +86,12 @@ public static class PrintJobs
         var chosen = pageRange?.Where(i => i >= 0 && i < all.Count) ?? Enumerable.Range(0, all.Count);
         var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();
 
-        bool photos = task == PrintTask.Photos;
+        bool photos = settings.LayoutStyle == LayoutStyle.PhotoPrints;
         var paper = settings.PaperId;
         var area = Area(paper, printer, photos && Borderless(settings.PhotoSizeId, Sheet(paper, printer)));
         var plan = photos
             ? PhotoLayout.Plan(pages, new PhotoOptions(PhotoSizeOf(settings.PhotoSizeId), 1, settings.PhotoFill, settings.CutMarks), area)
-            : Imposition.Plan(pages, LayoutOptions(settings, task), area);
+            : Imposition.Plan(pages, LayoutOptions(settings), area);
 
         bool manual = plan.Duplex && printer?.SidesSupported.Contains("two-sided-long-edge") != true;
         IReadOnlyList<DuplexPass> passes;

@@ -52,7 +52,7 @@ internal static class PrintFixtures
     {
         var document = new LoadedDocument("Letter.pdf", kind ?? new DocumentKind.Pdf(false),
                                           sizes ?? [.. Enumerable.Repeat(new LayoutSize(612, 792), pages)]);
-        var plan = PrintJobs.Plan([document], null, settings, null, caps, prefs ?? new PrinterPrefs());
+        var plan = PrintJobs.Plan([document], null, settings, caps, prefs ?? new PrinterPrefs());
         return new SheetJob(document.Name, printer ?? Printer(), caps, settings, plan, [document], id);
     }
 }

@@ -33,7 +33,7 @@ public sealed partial class AppViewModel
     private bool _spooled;
 
     /// <summary>What a job was made from, so Print again can make it once more.</summary>
-    private sealed record JobInputs(PrinterInfo Printer, PrinterCapabilities? Capabilities, PrintSettings Settings, PrintTask? Task,
+    private sealed record JobInputs(PrinterInfo Printer, PrinterCapabilities? Capabilities, PrintSettings Settings,
                                     IReadOnlyList<LoadedDocument> Documents, IReadOnlyList<int>? Range, string Name);
 
     /// <summary>A two-sided job whose fronts are printed: the job to print the backs with, and the card it waits on.</summary>
@@ -347,26 +347,26 @@ public sealed partial class AppViewModel
     {
         if (Documents.Count == 0) return null;
         if (PageRangeText.Trim().Length > 0 && PageRangeIndexes() is null) return null;
-        return PrintJobs.Plan([.. Documents], PageRangeIndexes(), Settings, SelectedTask, SelectedCapabilities, SelectedPrefs);
+        return PrintJobs.Plan([.. Documents], PageRangeIndexes(), Settings, SelectedCapabilities, SelectedPrefs);
     }
 
-    /// <summary>The cut marks a photo print or a photo sheet shows on the sheet, as the renderer draws them; none for other tasks.</summary>
+    /// <summary>The cut marks a photo print or a photo sheet shows on the sheet, as the renderer draws them; none for other layouts.</summary>
     public IReadOnlyList<TestPageItem> CutMarks(SheetSide side, PrintableArea area)
     {
-        if (MarksOf(SelectedTask, Settings) is { } options) return PhotoLayout.CutMarks(side, options, area);
-        return FrameMarksOf(SelectedTask, Settings) ? PhotoLayout.FrameMarks(side) : [];
+        if (MarksOf(Settings) is { } options) return PhotoLayout.CutMarks(side, options, area);
+        return FrameMarksOf(Settings) ? PhotoLayout.FrameMarks(side) : [];
     }
 
     /// <summary>Whether the cut marks are asked for, of either kind.</summary>
-    public bool DrawsCutMarks => (SelectedTask == PrintTask.Photos || FrameMarksOf(SelectedTask, Settings)) && Settings.CutMarks;
+    public bool DrawsCutMarks => Settings.LayoutStyle.IsPhoto() && Settings.CutMarks;
 
     /// <summary>A photo sheet's marks are at the frames its photos were planned into.</summary>
-    private static bool FrameMarksOf(PrintTask? task, PrintSettings settings) => task == PrintTask.PhotoSheet && settings.CutMarks;
+    private static bool FrameMarksOf(PrintSettings settings) => settings.LayoutStyle == LayoutStyle.PhotoSheet && settings.CutMarks;
 
-    /// <summary>What the cut marks of a photo print are laid out from; null when the task or the settings draw none.</summary>
-    private static PhotoOptions? MarksOf(PrintTask? task, PrintSettings settings)
+    /// <summary>What the cut marks of a photo print are laid out from; null when the settings draw none.</summary>
+    private static PhotoOptions? MarksOf(PrintSettings settings)
     {
-        if (task != PrintTask.Photos || !settings.CutMarks) return null;
+        if (settings.LayoutStyle != LayoutStyle.PhotoPrints || !settings.CutMarks) return null;
         var size = PhotoSize.All.FirstOrDefault(s => s.Id == settings.PhotoSizeId) ?? PhotoSize.All[0];
         return new PhotoOptions(size, 1, settings.PhotoFill, true);
     }
@@ -415,14 +415,14 @@ public sealed partial class AppViewModel
         var settings = Settings with { Copies = 1 };
         var printer = SelectedPrinter ?? new PrinterInfo("pdf", "PDF file", null, null, PrinterRoute.Demo, null, false, PrinterState.Idle, [], []);
         IReadOnlyList<LoadedDocument> documents = [.. Documents];
-        var plan = PrintJobs.Plan(documents, PageRangeIndexes(), settings, SelectedTask, SelectedCapabilities, SelectedPrefs);
+        var plan = PrintJobs.Plan(documents, PageRangeIndexes(), settings, SelectedCapabilities, SelectedPrefs);
         if (plan.ManualDuplex)
         {
             var sides = plan.Plan.Sheets.SelectMany(sheet => sheet.Back is { } back ? new[] { sheet.Front, back } : [sheet.Front]).ToList();
             plan = plan with { ManualDuplex = false, Passes = [new DuplexPass(sides, [])] };
         }
         return new SheetJob(PrintText.JobName([.. documents.Select(d => d.Name)]), printer, SelectedCapabilities, settings, plan, documents, "",
-                            null, MarksOf(SelectedTask, settings), FrameMarksOf(SelectedTask, settings));
+                            null, MarksOf(settings), FrameMarksOf(settings));
     }
 
     public void ReportSaved(string path)
@@ -443,7 +443,7 @@ public sealed partial class AppViewModel
     public async Task PrintAsync()
     {
         if (!CanPrint || SelectedPrinter is not { } printer || Plan() is null) return;
-        await PrintDocumentsAsync(new JobInputs(printer, SelectedCapabilities, Settings with { }, SelectedTask, [.. Documents],
+        await PrintDocumentsAsync(new JobInputs(printer, SelectedCapabilities, Settings with { }, [.. Documents],
                                                 PageRangeIndexes(), PrintText.JobName([.. Documents.Select(d => d.Name)])));
     }
 
@@ -455,10 +455,10 @@ public sealed partial class AppViewModel
     {
         ClearMessages();
         var printer = inputs.Printer;
-        var plan = PrintJobs.Plan(inputs.Documents, inputs.Range, inputs.Settings, inputs.Task, inputs.Capabilities, PrefsOf(printer));
+        var plan = PrintJobs.Plan(inputs.Documents, inputs.Range, inputs.Settings, inputs.Capabilities, PrefsOf(printer));
         string id = Guid.NewGuid().ToString("N");
-        var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Task, inputs.Settings),
-                                FrameMarksOf(inputs.Task, inputs.Settings));
+        var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Settings),
+                                FrameMarksOf(inputs.Settings));
         var record = Record(job);
         KeepAgain(id, () => PrintDocumentsAsync(inputs), inputs.Documents);
 
@@ -761,7 +761,7 @@ public sealed partial class AppViewModel
         SettingsStore.SavePrinters(_prefs, _directory);
 
         var inputs = run.Inputs;
-        run.Job = run.Job with { Plan = PrintJobs.Plan(inputs.Documents, inputs.Range, inputs.Settings, inputs.Task, inputs.Capabilities, PrefsOf(printer)) };
+        run.Job = run.Job with { Plan = PrintJobs.Plan(inputs.Documents, inputs.Range, inputs.Settings, inputs.Capabilities, PrefsOf(printer)) };
         run.Step = DuplexStep.Reload;
         _statusOverride = ManualTitle;
         NotifyAll();
