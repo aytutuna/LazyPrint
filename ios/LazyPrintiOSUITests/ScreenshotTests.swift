@@ -174,7 +174,7 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     private func twoSidedScreens(_ app: XCUIApplication) {
         app.makeDemoPrinterOneSided()
-        guard tapIfThere(app, "print.task", for: "11-two-sided"), tapIfThere(app, "task.twoSided", title: "Two-sided", for: "11-two-sided") else { return }
+        guard tapIfThere(app, "print.preset", for: "11-two-sided"), tapIfThere(app, "task.twoSided", title: "Two-sided", for: "11-two-sided") else { return }
         let print: XCUIElement = app.waitForPrint()
         app.waitUntil(print, "label == 'Print the fronts'", "Print says it prints the fronts")
         print.tap()

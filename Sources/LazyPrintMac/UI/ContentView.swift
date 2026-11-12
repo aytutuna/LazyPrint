@@ -281,7 +281,7 @@ struct ContentView: View {
         }
     }
 
-    /// A task was picked from the Task menu: its settings are applied, and a task that starts with files shows the print tab
+    /// A task was picked from the Preset menu: its settings are applied, and a task that starts with files shows the print tab
     /// and asks for them, unless some are there already; cancelling the panel leaves the empty print tab. The test page
     /// prints at once, and its result shows in the bars.
     private func start(_ task: PrintTask) async {

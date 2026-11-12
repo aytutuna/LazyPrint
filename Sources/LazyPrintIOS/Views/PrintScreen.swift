@@ -72,7 +72,7 @@ struct PrintScreen: View {
 
     /// Opens the Files importer or the photo picker.
     var addFiles: (FileSource) -> Void
-    /// A task was picked from the Task menu.
+    /// A preset was picked from the Preset menu.
     var pickTask: (PrintTask) -> Void
     var showPrinters: () -> Void
     var showJobs: () -> Void
@@ -124,7 +124,7 @@ struct PrintScreen: View {
                         Button {
                             state.clearTask()
                         } label: {
-                            Label("Leave the task", systemImage: "xmark")
+                            Label("Leave the preset", systemImage: "xmark")
                         }
                         .disabled(state.isBusy)
                         .accessibilityIdentifier("print.leaveTask")
@@ -162,26 +162,32 @@ struct PrintScreen: View {
         }
     }
 
-    // MARK: The task menu
+    // MARK: The preset menu
 
     private var taskMenu: some View {
         Menu {
-            ForEach(TaskGroup.allCases, id: \.self) { (group: TaskGroup) in
-                let definitions: [TaskDefinition] = state.taskDefinitions.filter { $0.group == group }
-                if !definitions.isEmpty {
-                    Section(group.title) {
-                        ForEach(definitions, id: \.task) { (definition: TaskDefinition) in
-                            taskItem(definition)
-                        }
-                    }
-                }
+            ForEach(TaskGroup.allCases.filter { $0 != .other }, id: \.self) { (group: TaskGroup) in
+                taskSection(group)
             }
             PresetMenuSection(dialog: $presetDialog)
+            taskSection(.other)
         } label: {
-            Label("Task", systemImage: "list.bullet")
+            Label(PrintText.presetMenu, systemImage: "list.bullet")
         }
         .disabled(state.isBusy)
-        .accessibilityIdentifier("print.task")
+        .accessibilityIdentifier("print.preset")
+    }
+
+    @ViewBuilder
+    private func taskSection(_ group: TaskGroup) -> some View {
+        let definitions: [TaskDefinition] = state.taskDefinitions.filter { $0.group == group }
+        if !definitions.isEmpty {
+            Section(group.title) {
+                ForEach(definitions, id: \.task) { (definition: TaskDefinition) in
+                    taskItem(definition)
+                }
+            }
+        }
     }
 
     /// The current task is the checked item, and picking it again applies its settings again. Under the title goes what the

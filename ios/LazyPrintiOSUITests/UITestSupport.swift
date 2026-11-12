@@ -97,14 +97,14 @@ extension XCUIApplication {
         return sheets.buttons[title].firstMatch
     }
 
-    /// Picks a task from the Task menu on the Print screen.
+    /// Picks a task from the Preset menu on the Print screen.
     @MainActor
     func pickTask(_ id: String, title: String, file: StaticString = #filePath, line: UInt = #line) {
-        let menu: XCUIElement = item("print.task")
-        XCTAssertTrue(menu.waitForExistence(timeout: 30), "The Task menu", file: file, line: line)
+        let menu: XCUIElement = item("print.preset")
+        XCTAssertTrue(menu.waitForExistence(timeout: 30), "The Preset menu", file: file, line: line)
         menu.tap()
         let task: XCUIElement = item(id, title: title)
-        XCTAssertTrue(task.waitForExistence(timeout: 30), "The \(title) item in the Task menu", file: file, line: line)
+        XCTAssertTrue(task.waitForExistence(timeout: 30), "The \(title) item in the Preset menu", file: file, line: line)
         task.tap()
     }
 

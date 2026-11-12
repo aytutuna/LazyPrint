@@ -16,12 +16,12 @@ final class PrintFlowTests: XCTestCase {
     }
 
     @MainActor
-    func test_launch_showsThePrintScreenAndTheTaskMenu() throws {
+    func test_launch_showsThePrintScreenAndThePresetMenu() throws {
         let app = try XCUIApplication.launched(opening: nil)
 
-        XCTAssertTrue(app.item("print.task").waitForExistence(timeout: 60), "The Task menu")
+        XCTAssertTrue(app.item("print.preset").waitForExistence(timeout: 60), "The Preset menu")
         XCTAssertTrue(app.item("printer.button").exists, "The printer button")
-        app.item("print.task").tap()
+        app.item("print.preset").tap()
         XCTAssertTrue(app.item("task.document", title: "Print a document").waitForExistence(timeout: 30), "The Print a document item")
         XCTAssertTrue(app.item("task.twoSided", title: "Two-sided").exists, "The Two-sided item")
     }

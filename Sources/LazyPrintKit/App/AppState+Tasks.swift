@@ -1,6 +1,6 @@
 import Foundation
 
-// Twin of windows/LazyPrint.App/AppViewModel.Tasks.cs: the tasks of the Task menu, which there are and whether they
+// Twin of windows/LazyPrint.App/AppViewModel.Tasks.cs: the tasks of the Preset menu, which there are and whether they
 // can be started, and what picking one does.
 
 extension AppState {
@@ -8,7 +8,7 @@ extension AppState {
         TaskContext(hasPrinter: selectedPrinter != nil, lazyScanInstalled: lazyScanInstalled, platform: platform)
     }
 
-    /// The tasks of the Task menu, in catalog order.
+    /// The tasks of the Preset menu, in catalog order.
     public var taskDefinitions: [TaskDefinition] {
         TaskCatalog.tasks(for: platform)
     }

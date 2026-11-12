@@ -147,11 +147,11 @@ public enum PrintText {
         "Shrunk to \(percent) %"
     }
 
-    public static let presetsHeading = "Presets"
-    public static let savePresetItem = "Save options as preset\u{2026}"
+    public static let presetMenu = "Preset"
+    public static let savePresetItem = "Save as preset\u{2026}"
     public static let renamePresetItem = "Rename preset"
     public static let deletePresetItem = "Delete preset"
-    public static let savePresetTitle = "Save options as preset"
+    public static let savePresetTitle = "Save as preset"
     public static let renamePresetTitle = "Rename preset"
     public static let presetNamePrompt = "Name"
 
@@ -171,4 +171,11 @@ public enum PrintText {
 
     public static let replacePresetMessage = "The preset gets the options you have now."
     public static let replaceButton = "Replace"
+
+    public static func deletePresetTitle(_ name: String) -> String {
+        "Delete \u{201C}\(name)\u{201D}?"
+    }
+
+    public static let deletePresetMessage = "The preset is gone; your current options stay as they are."
+    public static let deleteButton = "Delete"
 }

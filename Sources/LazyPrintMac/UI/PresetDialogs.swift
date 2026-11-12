@@ -6,10 +6,11 @@ import SwiftUI
 enum PresetDialog: Equatable {
     case save
     case rename(String)
+    case delete(String)
 }
 
-/// The alerts of the presets in the Task menu: the name to save the options under or to rename a preset to, and the
-/// question when a saved name is used again. A name that will not do shows what is wrong and asks again.
+/// The alerts of the presets in the Preset menu: the name to save the options under or to rename a preset to, the
+/// question when a saved name is used again and the one before a preset is deleted. A name that will not do shows what is wrong and asks again.
 struct PresetDialogs: ViewModifier {
     @EnvironmentObject private var state: AppState
     @Binding var dialog: PresetDialog?
@@ -20,7 +21,7 @@ struct PresetDialogs: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert(title, isPresented: Binding(get: { dialog != nil }, set: { if !$0 { dialog = nil } })) {
+            .alert(title, isPresented: Binding(get: { asksForName }, set: { if !$0, asksForName { dialog = nil } })) {
                 TextField(PrintText.presetNamePrompt, text: $name)
                 Button("Save") { commit() }
                 Button("Cancel", role: .cancel) {}
@@ -36,8 +37,17 @@ struct PresetDialogs: ViewModifier {
             } message: {
                 Text(PrintText.replacePresetMessage)
             }
+            .confirmationDialog(PrintText.deletePresetTitle(deleting ?? ""),
+                                isPresented: Binding(get: { deleting != nil }, set: { if !$0, deleting != nil { dialog = nil } }),
+                                titleVisibility: .visible) {
+                Button(PrintText.deleteButton, role: .destructive) {
+                    if let deleting { state.deletePreset(named: deleting) }
+                }
+            } message: {
+                Text(PrintText.deletePresetMessage)
+            }
             .onChange(of: dialog) { _, shown in
-                guard let shown else { return }
+                guard let shown, asksForName else { return }
                 if retrying {
                     retrying = false
                     return
@@ -50,6 +60,19 @@ struct PresetDialogs: ViewModifier {
     private var title: String {
         if case .rename = dialog { return PrintText.renamePresetTitle }
         return PrintText.savePresetTitle
+    }
+
+    /// Save and rename ask for a name; delete asks a question of its own.
+    private var asksForName: Bool {
+        switch dialog {
+        case .save, .rename: return true
+        case .delete, nil: return false
+        }
+    }
+
+    private var deleting: String? {
+        if case .delete(let name) = dialog { return name }
+        return nil
     }
 
     private func commit() {
@@ -65,6 +88,8 @@ struct PresetDialogs: ViewModifier {
             }
         case .rename(let old):
             check = state.renamePreset(old, to: name)
+        case .delete:
+            return
         }
         guard check != .ok else { return }
         note = PrintText.presetNameProblem(check)
@@ -79,14 +104,14 @@ extension View {
     }
 }
 
-/// The presets of the Task menu: the saved ones, checked while the options still equal the one applied last, and the ways to
+/// The presets of the Preset menu: the saved ones, checked while the options still equal the one applied last, and the ways to
 /// save, rename and delete them.
 struct PresetMenuSection: View {
     @EnvironmentObject private var state: AppState
     @Binding var dialog: PresetDialog?
 
     var body: some View {
-        Section(PrintText.presetsHeading) {
+        Section {
             ForEach(state.userPresets, id: \.name) { preset in
                 Toggle(preset.name, isOn: Binding(get: { state.isCurrent(preset) }, set: { _ in state.applyPreset(named: preset.name) }))
             }
@@ -99,7 +124,7 @@ struct PresetMenuSection: View {
                 }
                 Menu(PrintText.deletePresetItem) {
                     ForEach(state.userPresets, id: \.name) { preset in
-                        Button(preset.name, role: .destructive) { state.deletePreset(named: preset.name) }
+                        Button(preset.name, role: .destructive) { dialog = .delete(preset.name) }
                     }
                 }
             }
