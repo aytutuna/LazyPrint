@@ -97,7 +97,7 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.paperSummary(settings { $0.quality = .draft }), "Draft")
         XCTAssertEqual(InspectorSections.paperSummary(settings { $0.color = .gray }), "Gray")
         // A paper this version does not know is the automatic one.
-        XCTAssertEqual(InspectorSections.paperSummary(settings { $0.paperId = "tabloid" }), "")
+        XCTAssertEqual(InspectorSections.paperSummary(settings { $0.paperId = "zine" }), "")
     }
 
     func test_photosSummary_anUnknownSize_showsItsId() {
