@@ -18,6 +18,31 @@ public enum QualityChoice
     Best,
 }
 
+/// <summary>
+/// How the pages are laid on the sheet: the usual way (<see cref="Imposition"/>), one photo size per print (<see cref="PhotoLayout"/>),
+/// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
+/// Twin of Swift <c>LayoutStyle</c>.
+/// </summary>
+public enum LayoutStyle
+{
+    Pages,
+    PhotoPrints,
+    PhotoSheet,
+}
+
+public static class LayoutStyles
+{
+    public static bool IsPhoto(this LayoutStyle style) => style != LayoutStyle.Pages;
+
+    /// <summary>What a file saved before the layout was a setting meant: the photo tasks decided it.</summary>
+    public static LayoutStyle FromTaskId(string? taskId) => PrintTasks.TryParse(taskId) switch
+    {
+        PrintTask.Photos => LayoutStyle.PhotoPrints,
+        PrintTask.PhotoSheet => LayoutStyle.PhotoSheet,
+        _ => LayoutStyle.Pages,
+    };
+}
+
 /// <summary>What the user chose for printing. Every property has a default, so older files load (Global rule 5).</summary>
 public sealed record PrintSettings
 {
@@ -56,6 +81,7 @@ public sealed record PrintSettings
     public string MediaSource { get; set; } = MediaChoices.Auto;
     /// <summary>A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.</summary>
     public string MediaType { get; set; } = MediaChoices.Auto;
+    public LayoutStyle LayoutStyle { get; set; } = LayoutStyle.Pages;
     public string PhotoSizeId { get; set; } = "4x6";
     public bool PhotoFill { get; set; } = true;
     public bool CutMarks { get; set; } = true;
@@ -93,6 +119,7 @@ public static class SettingsStore
 {
     private const string SettingsFile = "settings.json";
     private const string PrintersFile = "printers.json";
+    private const string PresetsFile = "presets.json";
 
     /// <summary>
     /// null when there are no saved settings yet, or the file could not be loaded. A file that
@@ -108,9 +135,36 @@ public static class SettingsStore
 
     public static void SavePrinters(Dictionary<string, PrinterPrefs> printers) => SavePrinters(printers, StoreFiles.DefaultDirectory);
 
+    /// <summary>The presets the user saved, in the order saved; empty when there are none, handled like <see cref="Load()"/>. One with no name is dropped.</summary>
+    public static List<UserPreset> LoadPresets() => LoadPresets(StoreFiles.DefaultDirectory);
+
+    public static void SavePresets(List<UserPreset> presets) => SavePresets(presets, StoreFiles.DefaultDirectory);
+
     /// <summary>Same as <see cref="Load()"/>, reading settings.json from <paramref name="directory"/> (tests).</summary>
-    internal static PrintSettings? Load(string directory) =>
-        StoreFiles.Load<PrintSettings>(Path.Combine(directory, SettingsFile));
+    internal static PrintSettings? Load(string directory)
+    {
+        string path = Path.Combine(directory, SettingsFile);
+        var settings = StoreFiles.Load<PrintSettings>(path);
+        if (settings is not null && !HasLayoutStyle(path)) settings.LayoutStyle = LayoutStyles.FromTaskId(settings.TaskId);
+        return settings;
+    }
+
+    /// <summary>Whether the file names a layout style that exists; a file that cannot be parsed again counts as having one.</summary>
+    private static bool HasLayoutStyle(string path)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
+            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return true;
+            return document.RootElement.TryGetProperty("layoutStyle", out var value)
+                && value.ValueKind == System.Text.Json.JsonValueKind.String
+                && Enum.GetNames<LayoutStyle>().Any(n => string.Equals(n, value.GetString(), StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception)
+        {
+            return true;
+        }
+    }
 
     internal static void Save(PrintSettings settings, string directory) =>
         StoreFiles.Write(settings, Path.Combine(directory, SettingsFile));
@@ -120,4 +174,10 @@ public static class SettingsStore
 
     internal static void SavePrinters(Dictionary<string, PrinterPrefs> printers, string directory) =>
         StoreFiles.Write(printers, Path.Combine(directory, PrintersFile));
+
+    internal static List<UserPreset> LoadPresets(string directory) =>
+        [.. (StoreFiles.Load<List<UserPreset>>(Path.Combine(directory, PresetsFile)) ?? []).Where(p => p.Name.Trim().Length > 0)];
+
+    internal static void SavePresets(List<UserPreset> presets, string directory) =>
+        StoreFiles.Write(presets, Path.Combine(directory, PresetsFile));
 }

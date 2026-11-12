@@ -72,13 +72,15 @@ struct PrintScreen: View {
 
     /// Opens the Files importer or the photo picker.
     var addFiles: (FileSource) -> Void
-    /// A task was picked from the Task menu.
+    /// A preset was picked from the Preset menu.
     var pickTask: (PrintTask) -> Void
     var showPrinters: () -> Void
     var showJobs: () -> Void
 
     @State private var showOptions = false
     @State private var showDocuments = false
+    /// The name being asked for, to save the options as a preset or to rename one.
+    @State private var presetDialog: PresetDialog?
     /// Add files was asked from the documents sheet, with this source: it opens once that sheet has closed.
     @State private var addAfterDocuments: FileSource?
     /// The files are being sent to the paired computer.
@@ -105,9 +107,10 @@ struct PrintScreen: View {
                     portrait(geometry.size)
                 }
             }
-            .navigationTitle(state.task.map { TaskCatalog.definition($0).title } ?? "Print")
+            .navigationTitle(state.currentTask.map { TaskCatalog.definition($0).title } ?? "Print")
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
+            .presetDialogs($presetDialog)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: showJobs) {
@@ -117,11 +120,11 @@ struct PrintScreen: View {
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     taskMenu
-                    if state.task != nil {
+                    if state.currentTask != nil {
                         Button {
                             state.clearTask()
                         } label: {
-                            Label("Leave the task", systemImage: "xmark")
+                            Label("Leave the preset", systemImage: "xmark")
                         }
                         .disabled(state.isBusy)
                         .accessibilityIdentifier("print.leaveTask")
@@ -159,32 +162,39 @@ struct PrintScreen: View {
         }
     }
 
-    // MARK: The task menu
+    // MARK: The preset menu
 
     private var taskMenu: some View {
         Menu {
-            ForEach(TaskGroup.allCases, id: \.self) { (group: TaskGroup) in
-                let definitions: [TaskDefinition] = state.taskDefinitions.filter { $0.group == group }
-                if !definitions.isEmpty {
-                    Section(group.title) {
-                        ForEach(definitions, id: \.task) { (definition: TaskDefinition) in
-                            taskItem(definition)
-                        }
-                    }
-                }
+            ForEach(TaskGroup.allCases.filter { $0 != .other }, id: \.self) { (group: TaskGroup) in
+                taskSection(group)
             }
+            PresetMenuSection(dialog: $presetDialog)
+            taskSection(.other)
         } label: {
-            Label("Task", systemImage: "list.bullet")
+            Label(PrintText.presetMenu, systemImage: "list.bullet")
         }
         .disabled(state.isBusy)
-        .accessibilityIdentifier("print.task")
+        .accessibilityIdentifier("print.preset")
+    }
+
+    @ViewBuilder
+    private func taskSection(_ group: TaskGroup) -> some View {
+        let definitions: [TaskDefinition] = state.taskDefinitions.filter { $0.group == group }
+        if !definitions.isEmpty {
+            Section(group.title) {
+                ForEach(definitions, id: \.task) { (definition: TaskDefinition) in
+                    taskItem(definition)
+                }
+            }
+        }
     }
 
     /// The current task is the checked item, and picking it again applies its settings again. Under the title goes what the
     /// task does, or why it cannot be started.
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability: TaskAvailability = state.availability(of: definition.task)
-        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (_: Bool) in
+        let isCurrent = Binding<Bool>(get: { state.currentTask == definition.task }, set: { (_: Bool) in
             pickTask(definition.task)
         })
         return Toggle(isOn: isCurrent) {
@@ -498,7 +508,7 @@ struct PrintScreen: View {
     private var optionsSummary: String {
         let s: PrintSettings = OptionsSheet.used(state.settings, capabilities: state.capabilities)
         var parts: [String] = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
-        if state.task == .photos || state.task == .photoSheet { parts.append(InspectorSections.photosSummary(s)) }
+        if s.layoutStyle.isPhoto { parts.append(InspectorSections.photosSummary(s)) }
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 

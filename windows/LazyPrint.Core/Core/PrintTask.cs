@@ -3,7 +3,7 @@ namespace LazyPrint.Core;
 // Twin of Sources/LazyPrintKit/Core/PrintTask.swift (Lazy Scan's ScanTask, with print tasks).
 
 /// <summary>
-/// What the user is printing, as picked in the Task menu. Settings files store it as its raw
+/// What the user is printing, as picked in the Preset menu. Settings files store it as its raw
 /// string (<see cref="PrintSettings.TaskId"/>), never as this enum, so a task added by a newer
 /// version survives a round trip through an older one. Add new tasks after the existing ones.
 /// </summary>

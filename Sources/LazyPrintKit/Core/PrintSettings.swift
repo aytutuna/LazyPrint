@@ -14,6 +14,26 @@ public enum QualityChoice: String, Codable, CaseIterable, Sendable {
     case best
 }
 
+/// How the pages are laid on the sheet: the usual way (`Imposition`), one photo size per print (`PhotoLayout`),
+/// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
+/// Twin of C# `LayoutStyle`.
+public enum LayoutStyle: String, Codable, CaseIterable, Sendable {
+    case pages
+    case photoPrints
+    case photoSheet
+
+    public var isPhoto: Bool { self != .pages }
+
+    /// What a file saved before the layout was a setting meant: the photo tasks decided it.
+    static func fromTaskId(_ taskId: String?) -> LayoutStyle {
+        switch PrintTask.tryParse(taskId) {
+        case .photos: return .photoPrints
+        case .photoSheet: return .photoSheet
+        default: return .pages
+        }
+    }
+}
+
 /// What the user chose for printing. Every property has a default, so older files load (Global rule 5).
 public struct PrintSettings: Codable, Equatable, Sendable {
     /// The `PrintTask` raw value, kept as text so a newer task survives.
@@ -50,6 +70,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var mediaSource = MediaChoices.auto
     /// A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.
     public var mediaType = MediaChoices.auto
+    public var layoutStyle = LayoutStyle.pages
     public var photoSizeId = "4x6"
     public var photoFill = true
     public var cutMarks = true
@@ -58,7 +79,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
-        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, photoSizeId, photoFill, cutMarks
+        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, layoutStyle, photoSizeId, photoFill, cutMarks
     }
 }
 
@@ -85,6 +106,7 @@ extension PrintSettings {
         paperId = c.decodeLenient(forKey: .paperId, default: paperId)
         mediaSource = c.decodeLenient(forKey: .mediaSource, default: mediaSource)
         mediaType = c.decodeLenient(forKey: .mediaType, default: mediaType)
+        layoutStyle = c.decodeLenient(forKey: .layoutStyle, default: LayoutStyle.fromTaskId(taskId))
         photoSizeId = c.decodeLenient(forKey: .photoSizeId, default: photoSizeId)
         photoFill = c.decodeLenient(forKey: .photoFill, default: photoFill)
         cutMarks = c.decodeLenient(forKey: .cutMarks, default: cutMarks)
@@ -156,6 +178,7 @@ extension PrinterPrefs {
 public enum SettingsStore {
     private static let settingsFile = "settings.json"
     private static let printersFile = "printers.json"
+    private static let presetsFile = "presets.json"
 
     /// nil when there are no saved settings yet, or the file could not be loaded. A file that
     /// does not decode is moved aside as settings.unreadable-<yyyyMMdd-HHmmss>.json; one that
@@ -168,6 +191,11 @@ public enum SettingsStore {
     public static func loadPrinters() -> [String: PrinterPrefs] { loadPrinters(in: StoreFiles.defaultDirectory) }
 
     public static func savePrinters(_ printers: [String: PrinterPrefs]) { savePrinters(printers, in: StoreFiles.defaultDirectory) }
+
+    /// The presets the user saved, in the order saved; empty when there are none, handled like `load()`. One with no name is dropped.
+    public static func loadPresets() -> [UserPreset] { loadPresets(in: StoreFiles.defaultDirectory) }
+
+    public static func savePresets(_ presets: [UserPreset]) { savePresets(presets, in: StoreFiles.defaultDirectory) }
 
     /// Same as `load()`, reading settings.json from `directory` (tests).
     static func load(in directory: URL) -> PrintSettings? {
@@ -184,5 +212,14 @@ public enum SettingsStore {
 
     static func savePrinters(_ printers: [String: PrinterPrefs], in directory: URL) {
         StoreFiles.write(printers, to: directory.appendingPathComponent(printersFile))
+    }
+
+    static func loadPresets(in directory: URL) -> [UserPreset] {
+        let saved = StoreFiles.load([UserPreset].self, from: directory.appendingPathComponent(presetsFile)) ?? []
+        return saved.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    static func savePresets(_ presets: [UserPreset], in directory: URL) {
+        StoreFiles.write(presets, to: directory.appendingPathComponent(presetsFile))
     }
 }

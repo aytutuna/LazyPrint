@@ -36,13 +36,14 @@ public static class InspectorSections
     /// <summary>Printer and Pages start open; the rest start collapsed.</summary>
     public static bool OpenByDefault(string section) => section is Printer or Pages;
 
-    /// <summary>The section a task opens when it is started, if it is not open already.</summary>
-    public static string? OpenedBy(PrintTask task) => task switch
-    {
-        PrintTask.Booklet or PrintTask.Handouts => Layout,
-        PrintTask.Photos or PrintTask.PhotoSheet => Photos,
-        _ => null,
-    };
+    /// <summary>
+    /// The section the settings need when files are opened, if it is not open already: Photos for a photo layout, Layout for a
+    /// booklet or several pages to a side.
+    /// </summary>
+    public static string? OpenedBy(PrintSettings settings) =>
+        settings.LayoutStyle.IsPhoto() ? Photos
+        : settings.Booklet || settings.PagesPerSheet > 1 ? Layout
+        : null;
 
     private const int MaxParts = 3;
 
@@ -70,6 +71,7 @@ public static class InspectorSections
     {
         var parts = new List<string>();
         bool poster = s.Poster is >= 2 and <= 4;
+        if (s.LayoutStyle.IsPhoto()) parts.Add(PrintText.LayoutStyleTitle(s.LayoutStyle));
         if (poster) parts.Add($"Poster {s.Poster} × {s.Poster}");
         else if (s.Booklet) parts.Add("Booklet");
         else if (s.PagesPerSheet > 1) parts.Add($"{s.PagesPerSheet} per side");
@@ -85,7 +87,7 @@ public static class InspectorSections
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
         int margin = MarginChoices.Millimetres(s.Margin, s.MarginMm);
-        if (margin > 0 && Imposition.KeepsMargin(PrintJobs.LayoutOptions(s, null))) parts.Add($"{margin} mm margins");
+        if (margin > 0 && Imposition.KeepsMargin(PrintJobs.LayoutOptions(s))) parts.Add($"{margin} mm margins");
         return Join(parts);
     }
 

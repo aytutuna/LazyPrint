@@ -118,4 +118,37 @@ public static class PrintText
 
     /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
     public static string Shrunk(int percent) => $"Shrunk to {percent} %";
+
+    /// <summary>The layout style's name in the Layout section: "Pages", "Photo prints", "Photo sheet".</summary>
+    public static string LayoutStyleTitle(LayoutStyle style) => style switch
+    {
+        LayoutStyle.PhotoPrints => "Photo prints",
+        LayoutStyle.PhotoSheet => "Photo sheet",
+        _ => "Pages",
+    };
+
+    public const string PresetMenu = "Preset";
+    public const string SavePresetItem = "Save as preset…";
+    public const string RenamePresetItem = "Rename preset";
+    public const string DeletePresetItem = "Delete preset";
+    public const string SavePresetTitle = "Save as preset";
+    public const string RenamePresetTitle = "Rename preset";
+    public const string PresetNamePrompt = "Name";
+
+    /// <summary>Said under the name field when <see cref="UserPresets.Check"/> refuses the name.</summary>
+    public static string PresetNameProblem(PresetNameCheck check) => check switch
+    {
+        PresetNameCheck.Empty => "Give the preset a name.",
+        PresetNameCheck.BuiltIn => "A built-in preset has that name.",
+        PresetNameCheck.Exists => "A preset has that name already.",
+        _ => "",
+    };
+
+    public static string ReplacePresetTitle(string name) => $"Replace “{name}”?";
+    public const string ReplacePresetMessage = "The preset gets the options you have now.";
+    public const string ReplaceButton = "Replace";
+
+    public static string DeletePresetTitle(string name) => $"Delete “{name}”?";
+    public const string DeletePresetMessage = "The preset is gone; your current options stay as they are.";
+    public const string DeleteButton = "Delete";
 }

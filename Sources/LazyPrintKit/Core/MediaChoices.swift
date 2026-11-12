@@ -25,7 +25,7 @@ public enum MediaChoices {
         sources(printer).contains(settings.mediaSource) ? settings.mediaSource : nil
     }
 
-    /// The paper type to ask for: the chosen one when the printer lists it; for a photo task left on automatic, the printer's
+    /// The paper type to ask for: the chosen one when the printer lists it; for a photo layout left on automatic, the printer's
     /// photo type when it has one; else nil and the printer picks.
     public static func type(_ settings: PrintSettings, _ printer: PrinterCapabilities?) -> String? {
         type(settings, listed: types(printer))
@@ -33,9 +33,7 @@ public enum MediaChoices {
 
     public static func type(_ settings: PrintSettings, listed: [String]) -> String? {
         if listed.contains(settings.mediaType) { return settings.mediaType }
-        let task: PrintTask? = PrintTask.tryParse(settings.taskId)
-        let photos: Bool = task == .photos || task == .photoSheet
-        return settings.mediaType == auto && photos ? photoType(listed) : nil
+        return settings.mediaType == auto && settings.layoutStyle.isPhoto ? photoType(listed) : nil
     }
 
     /// The photo paper among `types`, plain photo paper first; nil when there is none.

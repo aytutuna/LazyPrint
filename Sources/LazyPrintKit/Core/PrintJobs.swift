@@ -37,10 +37,9 @@ public struct JobPlan: Equatable, Sendable {
 public enum PrintJobs {
     private static let collatedCopies = "separate-documents-collated-copies"
 
-    /// The layout the settings ask for. Photo tasks print one side, never a booklet. The task is only
-    /// consulted for that: the other tasks have already set what they mean in the settings. Photos have no extra margin either.
-    public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions {
-        let photos = task == .photos || task == .photoSheet
+    /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
+    public static func layoutOptions(_ settings: PrintSettings) -> LayoutOptions {
+        let photos = settings.layoutStyle.isPhoto
         return LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
                              booklet: settings.booklet && !photos,
                              rightToLeft: settings.rightToLeft,
@@ -73,7 +72,7 @@ public enum PrintJobs {
     /// reverse order (`PagePicker`) come next, before the layout. Photo prints
     /// are laid out by `PhotoLayout`, everything else by `Imposition`. A printer without two-sided gets the
     /// fronts and the backs as two passes, the backs turned and ordered for the learnt `PrinterPrefs.paperPath`.
-    public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings, task: PrintTask?,
+    public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings,
                             printer: PrinterCapabilities?, prefs: PrinterPrefs) -> JobPlan {
         var all = [SourcePage]()
         for (d, document) in documents.enumerated() {
@@ -84,7 +83,7 @@ public enum PrintJobs {
         let chosen = (pageRange ?? Array(0..<all.count)).filter { $0 >= 0 && $0 < all.count }
         let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
-        let photos = task == .photos
+        let photos = settings.layoutStyle == .photoPrints
         let paper = settings.paperId
         let printable = area(paperId: paper, printer: printer,
                              borderless: photos && borderless(settings.photoSizeId, sheet: sheet(paper, printer)))
@@ -94,7 +93,7 @@ public enum PrintJobs {
                                        cutMarks: settings.cutMarks)
             layout = PhotoLayout.plan(pages, options: options, area: printable)
         } else {
-            layout = Imposition.plan(pages, options: layoutOptions(settings, task: task), area: printable)
+            layout = Imposition.plan(pages, options: layoutOptions(settings), area: printable)
         }
 
         let manual = layout.duplex && !(printer?.sidesSupported.contains("two-sided-long-edge") ?? false)

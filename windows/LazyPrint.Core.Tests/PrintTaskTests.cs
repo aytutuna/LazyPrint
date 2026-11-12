@@ -168,6 +168,7 @@ public class PrintTaskTests
         var start = new PrintSettings { Color = ColorChoice.Gray, PhotoSizeId = "5x7", PhotoFill = false, Booklet = true, CutMarks = false };
         var photos = TaskCatalog.Apply(PrintTask.Photos, start, null);
         Assert.Equal("photos", photos.TaskId);
+        Assert.Equal(LayoutStyle.PhotoPrints, photos.LayoutStyle);
         Assert.Equal("4x6", photos.PhotoSizeId);
         Assert.True(photos.PhotoFill);
         Assert.Equal(QualityChoice.Best, photos.Quality);
@@ -177,6 +178,8 @@ public class PrintTaskTests
 
         var sheet = TaskCatalog.Apply(PrintTask.PhotoSheet, start, null);
         Assert.Equal("photoSheet", sheet.TaskId);
+        Assert.Equal(LayoutStyle.PhotoSheet, sheet.LayoutStyle);
+        Assert.Equal(LayoutStyle.Pages, TaskCatalog.Apply(PrintTask.Booklet, sheet, null).LayoutStyle);
         Assert.Equal(4, sheet.PagesPerSheet);
         Assert.Equal(Scaling.Fill, sheet.Scaling);
         Assert.True(sheet.CutMarks);

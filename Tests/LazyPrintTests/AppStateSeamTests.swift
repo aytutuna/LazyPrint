@@ -832,6 +832,185 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.settings.quality, .best)
     }
 
+    // MARK: Presets (windows/LazyPrint.App.Tests/PresetTests.cs)
+
+    private func savedPresets(_ rig: Rig) throws -> String {
+        try String(contentsOf: rig.folder.appendingPathComponent("presets.json"), encoding: .utf8)
+    }
+
+    @MainActor
+    func test_savingAPreset_keepsTheOptionsUnderTheTrimmedNameAndChecksIt() throws {
+        let rig = try makeRig()
+        rig.state.settings.paperId = "a5"
+        rig.state.settings.quality = .draft
+        rig.state.settings.copies = 4
+
+        XCTAssertEqual(rig.state.savePreset(named: "  Notes "), .ok)
+
+        let preset = try XCTUnwrap(rig.state.userPresets.first)
+        XCTAssertEqual(rig.state.userPresets.count, 1)
+        XCTAssertEqual(preset.name, "Notes")
+        XCTAssertEqual(preset.settings.paperId, "a5")
+        XCTAssertEqual(preset.settings.copies, 1)
+        XCTAssertTrue(rig.state.isCurrent(preset))
+        XCTAssertTrue(try savedPresets(rig).contains("\"name\" : \"Notes\""))
+    }
+
+    @MainActor
+    func test_aBadPresetName_savesNothing() throws {
+        let rig = try makeRig()
+
+        XCTAssertEqual(rig.state.savePreset(named: "  "), .empty)
+        XCTAssertEqual(rig.state.savePreset(named: "Handouts"), .builtIn)
+        XCTAssertTrue(rig.state.userPresets.isEmpty)
+    }
+
+    @MainActor
+    func test_aPresetNameInUse_asksBeforeItReplaces() throws {
+        let rig = try makeRig()
+        rig.state.settings.paperId = "a5"
+        _ = rig.state.savePreset(named: "Notes")
+        rig.state.settings.paperId = "letter"
+
+        XCTAssertEqual(rig.state.savePreset(named: "notes"), .exists)
+        XCTAssertEqual(rig.state.userPresets.map(\.settings.paperId), ["a5"])
+
+        XCTAssertEqual(rig.state.savePreset(named: "notes", replace: true), .ok)
+        XCTAssertEqual(rig.state.userPresets.map(\.name), ["notes"])
+        XCTAssertEqual(rig.state.userPresets.map(\.settings.paperId), ["letter"])
+    }
+
+    @MainActor
+    func test_applyingAPreset_setsTheOptionsAndLeavesCopiesAndTheTask() async throws {
+        let rig = try makeRig()
+        rig.state.settings.paperId = "a5"
+        rig.state.settings.sides = .longEdge
+        _ = rig.state.savePreset(named: "Notes")
+        await rig.state.startTask(.photos)
+        rig.state.settings.copies = 3
+
+        rig.state.applyPreset(named: "notes")
+
+        let s = rig.state.settings
+        XCTAssertEqual(s.paperId, "a5")
+        XCTAssertEqual(s.sides, .longEdge)
+        XCTAssertEqual(s.layoutStyle, .pages)
+        XCTAssertEqual(s.copies, 3)
+        XCTAssertNil(s.taskId)
+        XCTAssertNil(rig.state.task)
+        XCTAssertTrue(rig.state.isCurrent(rig.state.userPresets[0]))
+    }
+
+    @MainActor
+    func test_thePresetCheck_goesWhenAnOptionDiffersAndComesBackWhenItDoesNot() throws {
+        let rig = try makeRig()
+        _ = rig.state.savePreset(named: "Plain")
+        let preset = rig.state.userPresets[0]
+        XCTAssertTrue(rig.state.isCurrent(preset))
+
+        rig.state.settings.quality = .best
+        XCTAssertFalse(rig.state.isCurrent(preset))
+
+        rig.state.settings.quality = .normal
+        XCTAssertTrue(rig.state.isCurrent(preset))
+    }
+
+    @MainActor
+    func test_aPreset_isNotCheckedAfterATaskIsPicked() async throws {
+        let rig = try makeRig()
+        _ = rig.state.savePreset(named: "Plain")
+
+        await rig.state.startTask(.handouts)
+
+        XCTAssertFalse(rig.state.isCurrent(rig.state.userPresets[0]))
+    }
+
+    @MainActor
+    func test_anAppliedPresetsValues_winOverThePrintersAndAreKeptForIt() async throws {
+        let rig = try makeRig()
+        rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]
+        await rig.state.refreshPrinters()
+        await rig.state.selectPrinter("system:HP LaserJet")
+        rig.state.settings.paperId = "letter"
+        rig.state.settings.quality = .best
+        rig.state.settings.paperId = "a5"
+        rig.state.settings.quality = .draft
+        _ = rig.state.savePreset(named: "Notes")
+        rig.state.settings.paperId = "legal"
+        rig.state.settings.quality = .normal
+
+        rig.state.applyPreset(named: "Notes")
+
+        XCTAssertEqual(rig.state.settings.paperId, "a5")
+        let kept = try XCTUnwrap(rig.state.printerPrefs["system:HP LaserJet"])
+        XCTAssertEqual(kept.paperId, "a5")
+        XCTAssertEqual(kept.quality, .draft)
+    }
+
+    @MainActor
+    func test_renamingAPreset_keepsTheOptionsAndTheCheck() throws {
+        let rig = try makeRig()
+        rig.state.settings.paperId = "a5"
+        _ = rig.state.savePreset(named: "Notes")
+        _ = rig.state.savePreset(named: "Other")
+
+        XCTAssertEqual(rig.state.renamePreset("Notes", to: "other"), .exists)
+        XCTAssertEqual(rig.state.renamePreset("Notes", to: "Booklet"), .builtIn)
+        XCTAssertEqual(rig.state.renamePreset("Notes", to: " "), .empty)
+        XCTAssertEqual(rig.state.renamePreset("Other", to: " Draft "), .ok)
+
+        XCTAssertEqual(rig.state.userPresets.map(\.name), ["Notes", "Draft"])
+        XCTAssertTrue(rig.state.isCurrent(rig.state.userPresets[1]))
+        let json = try savedPresets(rig)
+        XCTAssertTrue(json.contains("\"name\" : \"Draft\""), json)
+        XCTAssertFalse(json.contains("Other"), json)
+    }
+
+    @MainActor
+    func test_deletingAPreset_removesItAndItsCheck() throws {
+        let rig = try makeRig()
+        _ = rig.state.savePreset(named: "Notes")
+        XCTAssertEqual(rig.state.appliedPreset, "Notes")
+
+        rig.state.deletePreset(named: "notes")
+
+        XCTAssertTrue(rig.state.userPresets.isEmpty)
+        XCTAssertNil(rig.state.appliedPreset)
+        XCTAssertFalse(try savedPresets(rig).contains("Notes"))
+    }
+
+    @MainActor
+    func test_thePresets_comeBackOnTheNextStart() throws {
+        let rig = try makeRig()
+        _ = rig.state.savePreset(named: "Notes")
+
+        XCTAssertEqual(rig.open().userPresets.map(\.name), ["Notes"])
+    }
+
+    @MainActor
+    func test_aBuiltInPreset_isCurrentOnlyWhileItsOptionsHold() async throws {
+        let rig = try makeRig()
+        await rig.state.startTask(.booklet)
+        XCTAssertEqual(rig.state.currentTask, .booklet)
+
+        rig.state.settings.copies = 3
+        XCTAssertEqual(rig.state.currentTask, .booklet)
+
+        rig.state.settings.booklet = false
+        XCTAssertNil(rig.state.currentTask)
+    }
+
+    @MainActor
+    func test_savingWhileABuiltInPresetIsOn_leavesOnlyTheNewOneCurrent() async throws {
+        let rig = try makeRig()
+        await rig.state.startTask(.booklet)
+
+        _ = rig.state.savePreset(named: "Mine")
+
+        XCTAssertNil(rig.state.currentTask)
+        XCTAssertTrue(rig.state.isCurrent(rig.state.userPresets[0]))
+    }
+
     @MainActor
     func test_aDocument_isTwoSidedOnlyWhenThePrinterCanTurnTheSheet() async throws {
         let rig = try makeRig()

@@ -18,13 +18,16 @@ final class InspectorSectionsTests: XCTestCase {
         for id in [InspectorSections.layout, InspectorSections.paper, InspectorSections.photos] {
             XCTAssertFalse(InspectorSections.openByDefault(id), id)
         }
-        XCTAssertEqual(InspectorSections.openedBy(.booklet), InspectorSections.layout)
-        XCTAssertEqual(InspectorSections.openedBy(.handouts), InspectorSections.layout)
-        XCTAssertEqual(InspectorSections.openedBy(.photos), InspectorSections.photos)
-        XCTAssertEqual(InspectorSections.openedBy(.photoSheet), InspectorSections.photos)
-        XCTAssertNil(InspectorSections.openedBy(.document))
-        XCTAssertNil(InspectorSections.openedBy(.twoSided))
-        XCTAssertNil(InspectorSections.openedBy(.testPage))
+        func opened(_ task: PrintTask) -> String? {
+            InspectorSections.openedBy(TaskCatalog.apply(task, to: PrintSettings(), printer: nil))
+        }
+        XCTAssertEqual(opened(.booklet), InspectorSections.layout)
+        XCTAssertEqual(opened(.handouts), InspectorSections.layout)
+        XCTAssertEqual(opened(.photos), InspectorSections.photos)
+        XCTAssertEqual(opened(.photoSheet), InspectorSections.photos)
+        XCTAssertNil(opened(.document))
+        XCTAssertNil(opened(.twoSided))
+        XCTAssertNil(opened(.testPage))
     }
 
     func test_titles_areShort() {

@@ -66,7 +66,6 @@ struct JobInputs {
     var printer: PrinterInfo
     var capabilities: PrinterCapabilities?
     var settings: PrintSettings
-    var task: PrintTask?
     var documents: [OpenedDocument]
     var range: [Int]?
     var name: String
@@ -116,8 +115,12 @@ public final class AppState: ObservableObject {
         }
     }
     @Published public internal(set) var printerPrefs: [String: PrinterPrefs]
-    /// The task picked from the Task menu; nil until one is.
+    /// The task picked from the Preset menu; nil until one is.
     @Published public internal(set) var task: PrintTask?
+    /// The presets the user saved, in the order saved (presets.json).
+    @Published public internal(set) var userPresets: [UserPreset] = []
+    /// The user preset applied last; it is checked in the Preset menu while the settings still have its options (`isCurrent`).
+    @Published public internal(set) var appliedPreset: String?
     /// The documents to print, in order; their pages run on as one.
     @Published public internal(set) var documents: [OpenedDocument] = [] {
         didSet {
@@ -340,6 +343,7 @@ public final class AppState: ObservableObject {
         let initial = saved ?? TaskCatalog.apply(.document, to: PrintSettings(), printer: nil)
         self.settings = initial
         self.printerPrefs = SettingsStore.loadPrinters(in: files.settingsDirectory)
+        self.userPresets = SettingsStore.loadPresets(in: files.settingsDirectory)
         self.snapshot = PrinterSnapshot(platform: platform)
         // The test page, Scan and print and From your phone act at once; none of them is a task the settings stay in.
         if let saved = PrintTask.tryParse(initial.taskId), ![.testPage, .scanAndPrint, .fromPhone].contains(saved) {
@@ -400,7 +404,7 @@ public final class AppState: ObservableObject {
         if isAddingFiles && !isBusy { return "Opening files\u{2026}" }
         if let statusOverride { return statusOverride }
         if let missing = missingPrinterMessage { return missing }
-        if let task { return PrintText.ready(TaskCatalog.definition(task).title) }
+        if let task = currentTask { return PrintText.ready(TaskCatalog.definition(task).title) }
         if let printer = selectedPrinter { return printer.name }
         return printersRead ? PrintText.noPrinterMessage : "Looking for printers\u{2026}"
     }
@@ -609,20 +613,20 @@ public final class AppState: ObservableObject {
         } else {
             lastValidRange = range
         }
-        return PrintJobs.plan(documents.map { $0.loaded }, pageRange: range, settings: settings, task: task,
+        return PrintJobs.plan(documents.map { $0.loaded }, pageRange: range, settings: settings,
                               printer: capabilities, prefs: selectedPrefs)
     }
 
-    /// What the cut marks of a photo print are laid out from; nil when the task or the settings draw none.
-    static func marks(of task: PrintTask?, _ settings: PrintSettings) -> PhotoOptions? {
-        guard task == .photos, settings.cutMarks else { return nil }
+    /// What the cut marks of a photo print are laid out from; nil when the settings draw none.
+    static func marks(_ settings: PrintSettings) -> PhotoOptions? {
+        guard settings.layoutStyle == .photoPrints, settings.cutMarks else { return nil }
         let size = PhotoSize.all.first(where: { $0.id == settings.photoSizeId }) ?? PhotoSize.all[0]
         return PhotoOptions(size: size, copiesEach: 1, fill: settings.photoFill, cutMarks: true)
     }
 
     /// Whether a photo sheet's cut marks are drawn, at the frames its photos were planned into.
-    static func drawsFrameMarks(of task: PrintTask?, _ settings: PrintSettings) -> Bool {
-        task == .photoSheet && settings.cutMarks
+    static func drawsFrameMarks(_ settings: PrintSettings) -> Bool {
+        settings.layoutStyle == .photoSheet && settings.cutMarks
     }
 
     /// Draws the current side off the main actor; an answer for a side that is no longer the current one is dropped.
@@ -710,10 +714,10 @@ public final class AppState: ObservableObject {
         }
         guard sides.indices.contains(index) else { return nil }
         let side = sides[index]
-        if let options = Self.marks(of: task, settings) {
+        if let options = Self.marks(settings) {
             return RenderedSide(side: side, items: PhotoLayout.cutMarks(side, options: options, area: plan.plan.area))
         }
-        return RenderedSide(side: side, items: Self.drawsFrameMarks(of: task, settings) ? PhotoLayout.frameMarks(side) : [])
+        return RenderedSide(side: side, items: Self.drawsFrameMarks(settings) ? PhotoLayout.frameMarks(side) : [])
     }
 
     // MARK: Two-sided card

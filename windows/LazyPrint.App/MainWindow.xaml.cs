@@ -332,7 +332,7 @@ public partial class MainWindow : Window
         await ViewModel.StartTaskAsync(task);
         if (ViewModel.SelectedTask == task && TaskCatalog.Definition(task).OpensFiles)
         {
-            OpenSectionFor(task);
+            OpenSectionFor(ViewModel.Settings);
             MainTabs.SelectedItem = PrintTab;
             // A task starts by asking for files, unless some are there already; cancelling leaves the empty print screen.
             if (ViewModel.Documents.Count == 0) _ = Dispatcher.BeginInvoke(AskForFiles, DispatcherPriority.Background);
@@ -348,27 +348,28 @@ public partial class MainWindow : Window
         SyncQueue();
     }
 
-    /// <summary>The banner above the sheet preview: the Task menu, and the task in use if there is one.</summary>
+    /// <summary>The banner above the sheet preview: the Preset menu, and the preset in use if there is one.</summary>
     private void SyncBanner()
     {
         // A task chosen behind the two-sided card would do nothing.
         TaskButton.IsEnabled = !ViewModel.IsBusy && ViewModel.ManualStep == DuplexStep.None;
-        var visibility = ViewModel.SelectedTask is null ? Visibility.Collapsed : Visibility.Visible;
+        var visibility = ViewModel.CurrentTask is null ? Visibility.Collapsed : Visibility.Visible;
         TaskBannerGlyph.Visibility = visibility;
         TaskBannerText.Visibility = visibility;
         ExitTaskButton.Visibility = visibility;
-        if (ViewModel.SelectedTask is not { } task)
+        if (ViewModel.CurrentTask is not { } task)
         {
-            AutomationProperties.SetName(TaskBannerGroup, "Task");
+            AutomationProperties.SetName(TaskBannerGroup, PrintText.PresetMenu);
             return;
         }
         var definition = TaskCatalog.Definition(task);
         TaskBannerGlyph.Text = TaskIcons.Glyph(definition.IconKey);
         TaskBannerTitle.Text = definition.Title;
         TaskBannerPrompt.Text = definition.Subtitle;
-        AutomationProperties.SetName(TaskBannerGroup, $"Task: {definition.Title}");
+        AutomationProperties.SetName(TaskBannerGroup, $"{PrintText.PresetMenu}: {definition.Title}");
     }
 
+    /// <summary>The built-in presets, the user's own with the ways to save, rename and delete them, then the actions (test page, Lazy Scan, from phone).</summary>
     private void TaskButton_Click(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu
@@ -377,19 +378,29 @@ public partial class MainWindow : Window
             Placement = PlacementMode.Bottom,
         };
         var tasks = TaskCatalog.Tasks(AppPlatform.Windows);
+        AddTaskItems(menu, tasks.Where(d => d.Group != TaskGroup.Other));
+        AddPresetItems(menu);
+        menu.Items.Add(new Separator());
+        AddTaskItems(menu, tasks.Where(d => d.Group == TaskGroup.Other));
+        menu.IsOpen = true;
+    }
+
+    private void AddTaskItems(ContextMenu menu, IEnumerable<TaskDefinition> definitions)
+    {
+        var shown = definitions.ToList();
         foreach (var group in TaskGroups.All)
         {
-            var definitions = tasks.Where(d => d.Group == group).ToList();
-            if (definitions.Count == 0) continue;
-            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
-            foreach (var definition in definitions)
+            var inGroup = shown.Where(d => d.Group == group).ToList();
+            if (inGroup.Count == 0) continue;
+            if (menu.Items.Count > 0 && menu.Items[^1] is not Separator) menu.Items.Add(new Separator());
+            foreach (var definition in inGroup)
             {
                 var availability = ViewModel.AvailabilityOf(definition.Task);
                 var item = new MenuItem
                 {
                     Header = definition.Title,
                     IsCheckable = true,
-                    IsChecked = ViewModel.SelectedTask == definition.Task,
+                    IsChecked = ViewModel.CurrentTask == definition.Task,
                     IsEnabled = availability.IsAvailable,
                     InputGestureText = availability.IsAvailable ? "" : availability.Reason,
                     ToolTip =availability.Reason ?? definition.Subtitle,
@@ -399,7 +410,67 @@ public partial class MainWindow : Window
                 menu.Items.Add(item);
             }
         }
-        menu.IsOpen = true;
+    }
+
+    /// <summary>The user's presets, checked while the options still equal the one applied last, then the ways to save, rename and delete them.</summary>
+    private void AddPresetItems(ContextMenu menu)
+    {
+        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+        foreach (var preset in ViewModel.Presets)
+        {
+            var item = new MenuItem { Header = preset.Name, IsCheckable = true, IsChecked = ViewModel.IsCurrent(preset) };
+            item.Click += (_, _) => ViewModel.ApplyPreset(preset.Name);
+            menu.Items.Add(item);
+        }
+        var save = new MenuItem { Header = PrintText.SavePresetItem };
+        save.Click += (_, _) => SavePreset();
+        menu.Items.Add(save);
+        if (ViewModel.Presets.Count == 0) return;
+        var rename = new MenuItem { Header = PrintText.RenamePresetItem };
+        var delete = new MenuItem { Header = PrintText.DeletePresetItem };
+        foreach (var preset in ViewModel.Presets)
+        {
+            var name = preset.Name;
+            var renameItem = new MenuItem { Header = name };
+            renameItem.Click += (_, _) => RenamePreset(name);
+            rename.Items.Add(renameItem);
+            var deleteItem = new MenuItem { Header = name };
+            deleteItem.Click += (_, _) => DeletePreset(name);
+            delete.Items.Add(deleteItem);
+        }
+        menu.Items.Add(rename);
+        menu.Items.Add(delete);
+    }
+
+    private void DeletePreset(string name)
+    {
+        var answer = MessageBox.Show(this, PrintText.DeletePresetMessage, PrintText.DeletePresetTitle(name),
+                                     MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
+        if (answer == MessageBoxResult.OK) ViewModel.DeletePreset(name);
+    }
+
+    /// <summary>Asks for a name and keeps the options under it; a name in use asks before it replaces that preset.</summary>
+    private void SavePreset()
+    {
+        var dialog = new PresetNameWindow(PrintText.SavePresetTitle, "", name =>
+        {
+            var check = UserPresets.Check(name, ViewModel.Presets);
+            return check == PresetNameCheck.Exists ? PresetNameCheck.Ok : check;
+        });
+        if (IsVisible) dialog.Owner = this;
+        if (dialog.ShowDialog() != true) return;
+        if (ViewModel.SavePreset(dialog.PresetName) != PresetNameCheck.Exists) return;
+        var answer = MessageBox.Show(this, PrintText.ReplacePresetMessage, PrintText.ReplacePresetTitle(dialog.PresetName),
+                                     MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
+        if (answer == MessageBoxResult.OK) ViewModel.SavePreset(dialog.PresetName, replace: true);
+    }
+
+    private void RenamePreset(string name)
+    {
+        var dialog = new PresetNameWindow(PrintText.RenamePresetTitle, name,
+            typed => UserPresets.Check(typed, ViewModel.Presets, renaming: name));
+        if (IsVisible) dialog.Owner = this;
+        if (dialog.ShowDialog() == true) ViewModel.RenamePreset(name, dialog.PresetName);
     }
 
     private void ExitTask_Click(object sender, RoutedEventArgs e) => ViewModel.ClearTask();

@@ -5,7 +5,6 @@ import Foundation
 public struct PendingBacks: Codable, Equatable, Sendable {
     var printerId: String
     var settings: PrintSettings
-    var taskId: String?
     var range: [Int]?
     /// Kept beside the settings, which leave them out; optional so a file saved before they were added still loads.
     var pageSelection: PageSelection?

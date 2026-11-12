@@ -49,4 +49,14 @@ final class PrintTextTests: XCTestCase {
         XCTAssertEqual(PrintText.pageRangeHint(pages: 3, documents: 1), "All, or 1-3, 5")
         XCTAssertEqual(PrintText.pageRangeHint(pages: 12, documents: 2), "1-12 (all documents)")
     }
+
+    func test_presetWords_areTheMenuAndTheQuestionBeforeADelete() {
+        XCTAssertEqual(PrintText.presetMenu, "Preset")
+        XCTAssertEqual(PrintText.savePresetItem, "Save as preset\u{2026}")
+        XCTAssertEqual(PrintText.deletePresetTitle("Draft"), "Delete \u{201C}Draft\u{201D}?")
+    }
+
+    func test_layoutStyleTitle_namesEachStyle() {
+        XCTAssertEqual(LayoutStyle.allCases.map(PrintText.layoutStyleTitle), ["Pages", "Photo prints", "Photo sheet"])
+    }
 }

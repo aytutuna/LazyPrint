@@ -22,7 +22,7 @@ enum PrintFixtures {
     /// A job of one document, planned as the app plans it.
     static func job(_ settings: PrintSettings, document: OpenedDocument, printer: PrinterInfo = printer(),
                     capabilities: PrinterCapabilities? = nil, id: String = "job", prefs: PrinterPrefs = PrinterPrefs()) -> SheetJob {
-        let plan = PrintJobs.plan([document.loaded], pageRange: nil, settings: settings, task: nil, printer: capabilities,
+        let plan = PrintJobs.plan([document.loaded], pageRange: nil, settings: settings, printer: capabilities,
                                   prefs: prefs)
         return SheetJob(name: document.loaded.name, printer: printer, capabilities: capabilities, settings: settings,
                         plan: plan, documents: [document], id: id)

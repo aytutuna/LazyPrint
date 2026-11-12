@@ -35,7 +35,7 @@ extension AppState {
 
     public func print() async {
         guard canPrint, let printer = selectedPrinter, jobPlan != nil else { return }
-        await printDocuments(JobInputs(printer: printer, capabilities: capabilities, settings: settings, task: task,
+        await printDocuments(JobInputs(printer: printer, capabilities: capabilities, settings: settings,
                                        documents: documents, range: pageRangeIndexes(), name: PrintText.jobName(documents.map { $0.loaded.name })))
     }
 
@@ -66,10 +66,10 @@ extension AppState {
         let printer = printers.first(where: { $0.id == inputs.printer.id }) ?? inputs.printer
         let caps = knownCapabilities(of: printer) ?? inputs.capabilities
         let plan = PrintJobs.plan(inputs.documents.map { $0.loaded }, pageRange: inputs.range, settings: inputs.settings,
-                                  task: inputs.task, printer: caps, prefs: prefs(of: printer))
+                                  printer: caps, prefs: prefs(of: printer))
         return SheetJob(name: inputs.name, printer: printer, capabilities: caps, settings: inputs.settings, plan: plan,
-                        documents: inputs.documents, id: id, marks: Self.marks(of: inputs.task, inputs.settings),
-                        frameMarks: Self.drawsFrameMarks(of: inputs.task, inputs.settings))
+                        documents: inputs.documents, id: id, marks: Self.marks(inputs.settings),
+                        frameMarks: Self.drawsFrameMarks(inputs.settings))
     }
 
     private func keepAgain(_ id: String, _ again: @escaping @MainActor () async -> Void) {
@@ -344,7 +344,7 @@ extension AppState {
 
         let inputs = run.inputs
         run.job.plan = PrintJobs.plan(inputs.documents.map { $0.loaded }, pageRange: inputs.range, settings: inputs.settings,
-                                      task: inputs.task, printer: run.job.capabilities, prefs: prefs(of: printer))
+                                      printer: run.job.capabilities, prefs: prefs(of: printer))
         run.step = .reload
         manual = run
         statusOverride = duplexTitle
@@ -359,7 +359,7 @@ extension AppState {
             return
         }
         let inputs = run.inputs
-        PendingBacks(printerId: run.job.printer.id, settings: inputs.settings, taskId: inputs.task?.rawValue, range: inputs.range,
+        PendingBacks(printerId: run.job.printer.id, settings: inputs.settings, range: inputs.range,
                      pageSelection: inputs.settings.pageSelection, reverseOrder: inputs.settings.reverseOrder,
                      paths: inputs.documents.map { $0.url.path }).save(in: files.settingsDirectory)
     }
@@ -389,7 +389,7 @@ extension AppState {
         let paper = PrintJobs.sheet(settings.paperId, capabilities)
         let laid = opened.map { loader.relaid($0, on: paper) ?? $0 }
         let inputs = JobInputs(printer: printer, capabilities: capabilities, settings: settings,
-                               task: PrintTask.tryParse(saved.taskId), documents: laid, range: saved.range,
+                               documents: laid, range: saved.range,
                                name: laid[0].loaded.name)
         let id = UUID().uuidString
         let job = sheetJob(inputs, id: id)

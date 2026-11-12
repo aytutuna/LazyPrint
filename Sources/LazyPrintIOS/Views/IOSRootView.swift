@@ -139,14 +139,14 @@ public struct IOSRootView: View {
 
     // MARK: Files and tasks
 
-    /// A task was picked from the Task menu: its settings are applied, and a task that starts with files asks for them,
+    /// A task was picked from the Preset menu: its settings are applied, and a task that starts with files asks for them,
     /// unless some are there already; cancelling the picker leaves the empty Print screen. The test page prints at once,
     /// and its result shows in the bars. The photo tasks open the photo library, the others the Files app.
     private func start(_ task: PrintTask) async {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }
         if state.documents.isEmpty {
-            source = task == .photos || task == .photoSheet ? .photos : .files
+            source = state.settings.layoutStyle.isPhoto ? .photos : .files
         }
     }
 

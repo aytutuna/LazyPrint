@@ -26,7 +26,7 @@ public static class MediaChoices
         Sources(printer).Contains(settings.MediaSource) ? settings.MediaSource : null;
 
     /// <summary>
-    /// The paper type to ask for: the chosen one when the printer lists it; for a photo task left on automatic, the printer's
+    /// The paper type to ask for: the chosen one when the printer lists it; for a photo layout left on automatic, the printer's
     /// photo type when it has one; else null and the printer picks.
     /// </summary>
     public static string? Type(PrintSettings settings, PrinterCapabilities? printer) => Type(settings, Types(printer));
@@ -34,8 +34,7 @@ public static class MediaChoices
     public static string? Type(PrintSettings settings, IReadOnlyList<string> listed)
     {
         if (listed.Contains(settings.MediaType)) return settings.MediaType;
-        bool photos = PrintTasks.TryParse(settings.TaskId) is PrintTask.Photos or PrintTask.PhotoSheet;
-        return settings.MediaType == Auto && photos ? PhotoType(listed) : null;
+        return settings.MediaType == Auto && settings.LayoutStyle.IsPhoto() ? PhotoType(listed) : null;
     }
 
     /// <summary>The photo paper among <paramref name="types"/>, plain photo paper first; null when there is none.</summary>

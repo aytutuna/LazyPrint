@@ -248,7 +248,7 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <!-- The Task menu is always there; the active task and the way to leave it
+                            <!-- The Preset menu is always there; the active preset and the way to leave it
                                  (keeping its settings) show while one is set. -->
                             <Border Grid.Row="0" x:Name="TaskBanner" Style="{StaticResource TaskBannerStyle}"
                                     Margin="12,12,12,0">
@@ -256,13 +256,13 @@
                                           AutomationProperties.LiveSetting="Polite">
                                     <DockPanel>
                                         <Button DockPanel.Dock="Left" x:Name="TaskButton" Style="{StaticResource SubtleButtonStyle}"
-                                                local:Icon.Glyph="&#xE8FD;" Content="_Task" VerticalAlignment="Center"
-                                                ToolTip="Pick what you are printing"
+                                                local:Icon.Glyph="&#xE8FD;" Content="_Preset" VerticalAlignment="Center"
+                                                ToolTip="Pick a preset or save your own"
                                                 Click="TaskButton_Click" />
                                         <Button DockPanel.Dock="Right" x:Name="ExitTaskButton" Style="{StaticResource SmallIconButtonStyle}"
                                                 Content="&#xE711;" VerticalAlignment="Center" Margin="2,0,0,0"
-                                                ToolTip="Leave the task (settings stay)"
-                                                AutomationProperties.Name="Leave the task"
+                                                ToolTip="Leave the preset (settings stay)"
+                                                AutomationProperties.Name="Leave the preset"
                                                 Click="ExitTask_Click" />
                                         <TextBlock DockPanel.Dock="Left" x:Name="TaskBannerGlyph" Style="{StaticResource GlyphText}"
                                                    FontSize="20" VerticalAlignment="Center" Margin="12,0,0,0"
@@ -521,7 +521,11 @@
 
                                     <Expander x:Name="LayoutSection" Style="{StaticResource SectionExpanderStyle}">
                                         <StackPanel>
-                                            <Label Content="Pages per sid_e" Target="{Binding ElementName=PerSideBox}" Style="{StaticResource FieldLabel}" />
+                                            <Label Content="St_yle" Target="{Binding ElementName=LayoutStyleBox}" Style="{StaticResource FieldLabel}" />
+                                            <ComboBox x:Name="LayoutStyleBox" HorizontalAlignment="Stretch"
+                                                      AutomationProperties.Name="Layout style"
+                                                      SelectionChanged="Setting_Changed" />
+                                            <Label Content="Pages per sid_e" Target="{Binding ElementName=PerSideBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="PerSideBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Pages per side"
                                                       ToolTipService.ShowOnDisabled="True"
@@ -653,7 +657,7 @@
                                         </StackPanel>
                                     </Expander>
 
-                                    <Expander x:Name="PhotosSection" Style="{StaticResource SectionExpanderStyle}" Visibility="Collapsed">
+                                    <Expander x:Name="PhotosSection" Style="{StaticResource SectionExpanderStyle}">
                                         <StackPanel>
                                             <Label Content="Si_ze" Target="{Binding ElementName=PhotoSizeBox}" Style="{StaticResource FieldLabel}" />
                                             <ComboBox x:Name="PhotoSizeBox" HorizontalAlignment="Stretch"
