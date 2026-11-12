@@ -35,8 +35,14 @@ internal static class ShortText
     public const string LockedLeftOut = "It needs a password, so it was left out.";
     /// <summary>Scaling while pages share a side or fold into a booklet: they are fitted to their space.</summary>
     public const string PagesFit = "Pages fit their space";
-    /// <summary>The photo size while the Photo sheet task lays out the sheet.</summary>
-    public const string SheetLayout = "Set by Photo sheet";
+    /// <summary>The photo size while the layout style is not Photo prints.</summary>
+    public const string NeedsPhotoPrints = "Needs the Photo prints layout";
+    /// <summary>Pages per side and scaling while the Photo prints layout lays out each print.</summary>
+    public const string PhotoPrintsLayout = "Set by Photo prints";
+    public const string PhotosOneSided = "Photos print one-sided";
+    public const string PhotosNoBooklet = "Not for photos";
+    public const string PhotosNoPoster = "Not for photos";
+    public const string PhotosNoMargin = "Photos print without margins";
     /// <summary>Color while the printer prints gray only.</summary>
     public const string GrayOnly = "This printer prints gray only";
     /// <summary>Quality while the printer does not list any.</summary>

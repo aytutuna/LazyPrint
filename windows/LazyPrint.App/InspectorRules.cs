@@ -8,11 +8,9 @@ namespace LazyPrint.App;
 /// </summary>
 public sealed record InspectorState(
     bool ShowCollate,
-    bool ShowSides,
     bool SidesEnabled,
     string? SidesReason,
     string? SidesNote,
-    bool ShowLayout,
     bool PagesPerSideEnabled,
     string? PagesPerSideReason,
     bool ShowRightToLeft,
@@ -22,11 +20,11 @@ public sealed record InspectorState(
     string? ScalingReason,
     bool ShowScale,
     bool BookletEnabled,
+    string? BookletReason,
     bool PosterEnabled,
     string? PosterReason,
     bool MarginEnabled,
     string? MarginReason,
-    bool ShowPhotos,
     bool PhotoSizeEnabled,
     string? PhotoSizeReason,
     bool ColorEnabled,
@@ -39,6 +37,7 @@ public sealed record InspectorState(
     internal static InspectorState For(PrintSettings s, PrinterCapabilities? capabilities)
     {
         bool photos = s.LayoutStyle.IsPhoto();
+        bool photoPrints = s.LayoutStyle == LayoutStyle.PhotoPrints;
         bool canTurn = capabilities?.SidesSupported.Contains("two-sided-long-edge") == true;
 
         // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
@@ -60,27 +59,25 @@ public sealed record InspectorState(
 
         return new InspectorState(
             ShowCollate: s.Copies > 1,
-            ShowSides: !photos,
-            SidesEnabled: !s.Booklet && !poster,
-            SidesReason: poster ? ShortText.PosterOneSided : s.Booklet ? ShortText.BookletTwoSided : null,
+            SidesEnabled: !s.Booklet && !poster && !photos,
+            SidesReason: photos ? ShortText.PhotosOneSided : poster ? ShortText.PosterOneSided : s.Booklet ? ShortText.BookletTwoSided : null,
             SidesNote: byHand,
-            ShowLayout: s.LayoutStyle != LayoutStyle.PhotoPrints,
-            PagesPerSideEnabled: !s.Booklet && !poster,
-            PagesPerSideReason: poster ? ShortText.PosterPages : s.Booklet ? ShortText.BookletPages : null,
+            PagesPerSideEnabled: !s.Booklet && !poster && !photoPrints,
+            PagesPerSideReason: photoPrints ? ShortText.PhotoPrintsLayout : poster ? ShortText.PosterPages : s.Booklet ? ShortText.BookletPages : null,
             ShowRightToLeft: !poster && (s.Booklet || s.PagesPerSheet > 1),
             ShowBorders: !poster && !s.Booklet && s.PagesPerSheet > 1,
             ShowOrientation: !s.Booklet,
-            ScalingEnabled: alone || !poster && s.Scaling == Scaling.Fill,
-            ScalingReason: alone || !poster && s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
+            ScalingEnabled: !photoPrints && (alone || !poster && s.Scaling == Scaling.Fill),
+            ScalingReason: photoPrints ? ShortText.PhotoPrintsLayout : alone || !poster && s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
             ShowScale: alone && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize,
-            BookletEnabled: !poster,
-            PosterEnabled: poster || !s.Booklet && s.PagesPerSheet == 1,
-            PosterReason: poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
-            MarginEnabled: margins,
-            MarginReason: margins ? null : ShortText.MarginsUnused,
-            ShowPhotos: photos,
-            PhotoSizeEnabled: s.LayoutStyle == LayoutStyle.PhotoPrints,
-            PhotoSizeReason: s.LayoutStyle == LayoutStyle.PhotoSheet ? ShortText.SheetLayout : null,
+            BookletEnabled: !poster && !photos,
+            BookletReason: photos ? ShortText.PhotosNoBooklet : poster ? ShortText.PosterPages : null,
+            PosterEnabled: !photos && (poster || !s.Booklet && s.PagesPerSheet == 1),
+            PosterReason: photos ? ShortText.PhotosNoPoster : poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
+            MarginEnabled: margins && !photos,
+            MarginReason: photos ? ShortText.PhotosNoMargin : margins ? null : ShortText.MarginsUnused,
+            PhotoSizeEnabled: photoPrints,
+            PhotoSizeReason: photoPrints ? null : ShortText.NeedsPhotoPrints,
             ColorEnabled: !grayOnly,
             ColorReason: grayOnly ? ShortText.GrayOnly : null,
             QualityEnabled: !noQuality,

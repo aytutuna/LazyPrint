@@ -71,6 +71,7 @@ public static class InspectorSections
     {
         var parts = new List<string>();
         bool poster = s.Poster is >= 2 and <= 4;
+        if (s.LayoutStyle.IsPhoto()) parts.Add(PrintText.LayoutStyleTitle(s.LayoutStyle));
         if (poster) parts.Add($"Poster {s.Poster} × {s.Poster}");
         else if (s.Booklet) parts.Add("Booklet");
         else if (s.PagesPerSheet > 1) parts.Add($"{s.PagesPerSheet} per side");

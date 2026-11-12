@@ -119,6 +119,14 @@ public static class PrintText
     /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
     public static string Shrunk(int percent) => $"Shrunk to {percent} %";
 
+    /// <summary>The layout style's name in the Layout section: "Pages", "Photo prints", "Photo sheet".</summary>
+    public static string LayoutStyleTitle(LayoutStyle style) => style switch
+    {
+        LayoutStyle.PhotoPrints => "Photo prints",
+        LayoutStyle.PhotoSheet => "Photo sheet",
+        _ => "Pages",
+    };
+
     public const string PresetMenu = "Preset";
     public const string SavePresetItem = "Save as preset…";
     public const string RenamePresetItem = "Rename preset";

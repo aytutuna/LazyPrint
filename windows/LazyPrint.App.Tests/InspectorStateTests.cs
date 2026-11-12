@@ -17,12 +17,13 @@ public sealed class InspectorStateTests
     {
         var state = For(Preset(PrintTask.Document));
 
-        Assert.True(state.ShowSides);
-        Assert.True(state.ShowLayout);
+        Assert.True(state.SidesEnabled);
+        Assert.True(state.PagesPerSideEnabled);
         Assert.False(state.ShowCollate);
         Assert.False(state.ShowRightToLeft);
         Assert.False(state.ShowBorders);
-        Assert.False(state.ShowPhotos);
+        Assert.False(state.PhotoSizeEnabled);
+        Assert.Equal("Needs the Photo prints layout", state.PhotoSizeReason);
     }
 
     [Fact]
@@ -88,13 +89,27 @@ public sealed class InspectorStateTests
     }
 
     [Fact]
-    public void PhotoPrintsHideTheLayoutAndShowThePhotoControls()
+    public void PhotoPrintsGreyOutWhatTheyLayOutThemselves()
     {
         var state = For(Preset(PrintTask.Photos));
 
-        Assert.False(state.ShowLayout);
-        Assert.False(state.ShowSides);
-        Assert.True(state.ShowPhotos);
+        Assert.False(state.SidesEnabled);
+        Assert.Equal("Photos print one-sided", state.SidesReason);
+        Assert.False(state.PagesPerSideEnabled);
+        Assert.False(state.BookletEnabled);
+        Assert.False(state.PosterEnabled);
+        Assert.False(state.ScalingEnabled);
+        Assert.False(state.MarginEnabled);
+        Assert.True(state.PhotoSizeEnabled);
+        Assert.Null(state.PhotoSizeReason);
+    }
+
+    [Fact]
+    public void AnyPresetCanChooseThePhotoLayoutAgain()
+    {
+        var state = For(Preset(PrintTask.Booklet) with { LayoutStyle = LayoutStyle.PhotoPrints });
+
+        Assert.False(state.SidesEnabled);
         Assert.True(state.PhotoSizeEnabled);
     }
 
@@ -103,10 +118,9 @@ public sealed class InspectorStateTests
     {
         var state = For(Preset(PrintTask.PhotoSheet));
 
-        Assert.True(state.ShowLayout);
-        Assert.True(state.ShowPhotos);
+        Assert.True(state.PagesPerSideEnabled);
         Assert.False(state.PhotoSizeEnabled);
-        Assert.Equal("Set by Photo sheet", state.PhotoSizeReason);
+        Assert.Equal("Needs the Photo prints layout", state.PhotoSizeReason);
     }
 
     [Fact]

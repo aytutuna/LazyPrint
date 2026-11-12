@@ -147,6 +147,7 @@ public partial class MainWindow
         QualityBox.Items.Add(Item("Normal", QualityChoice.Normal));
         QualityBox.Items.Add(Item("Draft", QualityChoice.Draft, "Faster, uses less ink"));
         QualityBox.Items.Add(Item("Best", QualityChoice.Best, "Slower, the finest print"));
+        foreach (var style in Enum.GetValues<LayoutStyle>()) LayoutStyleBox.Items.Add(Item(PrintText.LayoutStyleTitle(style), style));
         foreach (var photo in PhotoSize.All) PhotoSizeBox.Items.Add(Item(photo.Title, photo.Id));
     }
 
@@ -254,8 +255,7 @@ public partial class MainWindow
             Show(PageRangeProblemRow, PageRangeProblemText, ViewModel.PageRangeError);
             Select(PageSelectionBox, s.PageSelection);
             ReverseBox.IsChecked = s.ReverseOrder;
-            SidesGroup.Visibility = state.ShowSides ? Visibility.Visible : Visibility.Collapsed;
-            var shownSides = s.Poster is >= 2 and <= 4 ? Sides.OneSided : s.Booklet ? Sides.LongEdge : s.Sides;
+            var shownSides = s.LayoutStyle.IsPhoto() || s.Poster is >= 2 and <= 4 ? Sides.OneSided : s.Booklet ? Sides.LongEdge : s.Sides;
             SidesOne.IsChecked = shownSides == Sides.OneSided;
             SidesLong.IsChecked = shownSides == Sides.LongEdge;
             SidesShort.IsChecked = shownSides == Sides.ShortEdge;
@@ -264,6 +264,7 @@ public partial class MainWindow
             Show(SidesReasonRow, SidesReasonText, state.SidesReason ?? state.SidesNote);
 
             // Layout
+            Select(LayoutStyleBox, s.LayoutStyle);
             Select(PerSideBox, s.Booklet ? 2 : PagesPerSide.Contains(s.PagesPerSheet) ? s.PagesPerSheet : 1);
             PerSideBox.IsEnabled = state.PagesPerSideEnabled;
             PerSideBox.ToolTip = state.PagesPerSideReason;
@@ -272,7 +273,7 @@ public partial class MainWindow
             Select(OrientationBox, s.Orientation);
             BookletBox.IsChecked = s.Booklet;
             BookletBox.IsEnabled = state.BookletEnabled;
-            BookletBox.ToolTip = state.BookletEnabled ? "Two pages on each side, in the order that folds into a booklet" : ShortText.PosterPages;
+            BookletBox.ToolTip = state.BookletReason ?? "Two pages on each side, in the order that folds into a booklet";
             Select(PosterBox, s.Poster is >= 2 and <= 4 ? s.Poster : 0);
             PosterBox.IsEnabled = state.PosterEnabled;
             PosterBox.ToolTip = state.PosterReason;
@@ -325,8 +326,6 @@ public partial class MainWindow
             _updatingUi = wasUpdating;
         }
 
-        LayoutSection.Visibility = state.ShowLayout ? Visibility.Visible : Visibility.Collapsed;
-        PhotosSection.Visibility = state.ShowPhotos ? Visibility.Visible : Visibility.Collapsed;
         SyncInspectorSections();
         SyncPrintButton();
     }
@@ -348,7 +347,8 @@ public partial class MainWindow
         if (TagOf<PageSelection?>(PageSelectionBox) is { } selection) s.PageSelection = selection;
         s.ReverseOrder = ReverseBox.IsChecked == true;
         if (state.ShowOrientation && TagOf<SheetOrientation?>(OrientationBox) is { } orientation) s.Orientation = orientation;
-        if (state.SidesEnabled && state.ShowSides)
+        if (TagOf<LayoutStyle?>(LayoutStyleBox) is { } style) s.LayoutStyle = style;
+        if (state.SidesEnabled)
         {
             s.Sides = SidesLong.IsChecked == true ? Sides.LongEdge : SidesShort.IsChecked == true ? Sides.ShortEdge : Sides.OneSided;
         }

@@ -521,7 +521,11 @@
 
                                     <Expander x:Name="LayoutSection" Style="{StaticResource SectionExpanderStyle}">
                                         <StackPanel>
-                                            <Label Content="Pages per sid_e" Target="{Binding ElementName=PerSideBox}" Style="{StaticResource FieldLabel}" />
+                                            <Label Content="St_yle" Target="{Binding ElementName=LayoutStyleBox}" Style="{StaticResource FieldLabel}" />
+                                            <ComboBox x:Name="LayoutStyleBox" HorizontalAlignment="Stretch"
+                                                      AutomationProperties.Name="Layout style"
+                                                      SelectionChanged="Setting_Changed" />
+                                            <Label Content="Pages per sid_e" Target="{Binding ElementName=PerSideBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="PerSideBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Pages per side"
                                                       ToolTipService.ShowOnDisabled="True"
@@ -653,7 +657,7 @@
                                         </StackPanel>
                                     </Expander>
 
-                                    <Expander x:Name="PhotosSection" Style="{StaticResource SectionExpanderStyle}" Visibility="Collapsed">
+                                    <Expander x:Name="PhotosSection" Style="{StaticResource SectionExpanderStyle}">
                                         <StackPanel>
                                             <Label Content="Si_ze" Target="{Binding ElementName=PhotoSizeBox}" Style="{StaticResource FieldLabel}" />
                                             <ComboBox x:Name="PhotoSizeBox" HorizontalAlignment="Stretch"
