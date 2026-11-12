@@ -31,6 +31,11 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     /// <summary>The task in use; null until one is.</summary>
     public PrintTask? SelectedTask { get; private set; }
 
+    /// <summary>The built-in preset applied last while the settings still have its options; null once any of them changed.</summary>
+    public PrintTask? CurrentTask =>
+        SelectedTask is { } task && TaskCatalog.Apply(task, Settings, SelectedCapabilities) with { TaskId = null } == Settings with { TaskId = null }
+            ? task : null;
+
     /// <summary>The presets the user saved, in the order saved (presets.json).</summary>
     public List<UserPreset> Presets { get; private set; }
 
@@ -59,7 +64,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     public string StatusMessage =>
         (IsAddingFiles && !IsBusy ? "Opening files…" : null)
         ?? _statusOverride
-        ?? (SelectedTask is { } task ? PrintText.Ready(TaskCatalog.Definition(task).Title)
+        ?? (CurrentTask is { } task ? PrintText.Ready(TaskCatalog.Definition(task).Title)
             : SelectedPrinter is { } printer ? printer.Name
             : _printersRead ? PrintText.NoPrinterMessage
             : "Looking for printers…");

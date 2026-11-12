@@ -23,7 +23,9 @@ public sealed partial class AppViewModel
         else Presets.Add(preset);
         SettingsStore.SavePresets(Presets, _directory);
         AppliedPreset = preset.Name;
-        NotifyAll();
+        SelectedTask = null;
+        Settings.TaskId = null;
+        SettingsEdited();
         return PresetNameCheck.Ok;
     }
 

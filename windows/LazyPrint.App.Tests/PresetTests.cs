@@ -5,7 +5,7 @@ using Xunit;
 
 namespace LazyPrint.App.Tests;
 
-// Mirrored by Tests/LazyPrintTests/AppStatePresetsTests.swift: the same cases.
+// Mirrored by the Presets block of Tests/LazyPrintTests/AppStateSeamTests.swift: the same cases.
 public sealed class PresetTests
 {
     private static void Edit(Rig rig, Action<PrintSettings> change)
@@ -156,5 +156,40 @@ public sealed class PresetTests
         Assert.Empty(rig.Model.Presets);
         Assert.Null(rig.Model.AppliedPreset);
         Assert.DoesNotContain("Notes", SavedPresets(rig));
+    }
+
+    [Fact]
+    public void ThePresetsComeBackOnTheNextStart()
+    {
+        using var rig = new Rig();
+        rig.Model.SavePreset("Notes");
+
+        Assert.Equal(["Notes"], rig.Open().Presets.Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task ABuiltInPresetIsCurrentOnlyWhileItsOptionsHold()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Booklet);
+        Assert.Equal(PrintTask.Booklet, rig.Model.CurrentTask);
+
+        Edit(rig, s => s.Copies = 3);
+        Assert.Equal(PrintTask.Booklet, rig.Model.CurrentTask);
+
+        Edit(rig, s => s.Booklet = false);
+        Assert.Null(rig.Model.CurrentTask);
+    }
+
+    [Fact]
+    public async Task SavingWhileABuiltInPresetIsOnLeavesOnlyTheNewOneCurrent()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Booklet);
+
+        rig.Model.SavePreset("Mine");
+
+        Assert.Null(rig.Model.CurrentTask);
+        Assert.True(rig.Model.IsCurrent(rig.Model.Presets[0]));
     }
 }

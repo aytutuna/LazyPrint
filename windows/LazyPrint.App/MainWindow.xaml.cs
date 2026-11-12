@@ -353,11 +353,11 @@ public partial class MainWindow : Window
     {
         // A task chosen behind the two-sided card would do nothing.
         TaskButton.IsEnabled = !ViewModel.IsBusy && ViewModel.ManualStep == DuplexStep.None;
-        var visibility = ViewModel.SelectedTask is null ? Visibility.Collapsed : Visibility.Visible;
+        var visibility = ViewModel.CurrentTask is null ? Visibility.Collapsed : Visibility.Visible;
         TaskBannerGlyph.Visibility = visibility;
         TaskBannerText.Visibility = visibility;
         ExitTaskButton.Visibility = visibility;
-        if (ViewModel.SelectedTask is not { } task)
+        if (ViewModel.CurrentTask is not { } task)
         {
             AutomationProperties.SetName(TaskBannerGroup, PrintText.PresetMenu);
             return;
@@ -400,7 +400,7 @@ public partial class MainWindow : Window
                 {
                     Header = definition.Title,
                     IsCheckable = true,
-                    IsChecked = ViewModel.SelectedTask == definition.Task,
+                    IsChecked = ViewModel.CurrentTask == definition.Task,
                     IsEnabled = availability.IsAvailable,
                     InputGestureText = availability.IsAvailable ? "" : availability.Reason,
                     ToolTip =availability.Reason ?? definition.Subtitle,
