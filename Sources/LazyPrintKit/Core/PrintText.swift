@@ -146,4 +146,29 @@ public enum PrintText {
     public static func shrunk(_ percent: Int) -> String {
         "Shrunk to \(percent) %"
     }
+
+    public static let presetsHeading = "Presets"
+    public static let savePresetItem = "Save options as preset\u{2026}"
+    public static let renamePresetItem = "Rename preset"
+    public static let deletePresetItem = "Delete preset"
+    public static let savePresetTitle = "Save options as preset"
+    public static let renamePresetTitle = "Rename preset"
+    public static let presetNamePrompt = "Name"
+
+    /// Said under the name field when `UserPresets.check` refuses the name.
+    public static func presetNameProblem(_ check: PresetNameCheck) -> String {
+        switch check {
+        case .empty: return "Give the preset a name."
+        case .builtIn: return "A built-in preset has that name."
+        case .exists: return "A preset has that name already."
+        case .ok: return ""
+        }
+    }
+
+    public static func replacePresetTitle(_ name: String) -> String {
+        "Replace \u{201C}\(name)\u{201D}?"
+    }
+
+    public static let replacePresetMessage = "The preset gets the options you have now."
+    public static let replaceButton = "Replace"
 }

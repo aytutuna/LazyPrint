@@ -117,6 +117,10 @@ public final class AppState: ObservableObject {
     @Published public internal(set) var printerPrefs: [String: PrinterPrefs]
     /// The task picked from the Task menu; nil until one is.
     @Published public internal(set) var task: PrintTask?
+    /// The presets the user saved, in the order saved (presets.json).
+    @Published public internal(set) var userPresets: [UserPreset] = []
+    /// The user preset applied last; it is checked in the Task menu while the settings still have its options (`isCurrent`).
+    @Published public internal(set) var appliedPreset: String?
     /// The documents to print, in order; their pages run on as one.
     @Published public internal(set) var documents: [OpenedDocument] = [] {
         didSet {
@@ -339,6 +343,7 @@ public final class AppState: ObservableObject {
         let initial = saved ?? TaskCatalog.apply(.document, to: PrintSettings(), printer: nil)
         self.settings = initial
         self.printerPrefs = SettingsStore.loadPrinters(in: files.settingsDirectory)
+        self.userPresets = SettingsStore.loadPresets(in: files.settingsDirectory)
         self.snapshot = PrinterSnapshot(platform: platform)
         // The test page, Scan and print and From your phone act at once; none of them is a task the settings stay in.
         if let saved = PrintTask.tryParse(initial.taskId), ![.testPage, .scanAndPrint, .fromPhone].contains(saved) {

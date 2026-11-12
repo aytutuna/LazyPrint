@@ -48,6 +48,7 @@ extension AppState {
         default:
             clearMessages()
             self.task = task
+            appliedPreset = nil
             settings = TaskCatalog.apply(task, to: settings, printer: capabilities)
             sidesPickedBlind = task == .document && capabilities == nil ? settings.sides : nil
         }

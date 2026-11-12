@@ -178,6 +178,7 @@ extension PrinterPrefs {
 public enum SettingsStore {
     private static let settingsFile = "settings.json"
     private static let printersFile = "printers.json"
+    private static let presetsFile = "presets.json"
 
     /// nil when there are no saved settings yet, or the file could not be loaded. A file that
     /// does not decode is moved aside as settings.unreadable-<yyyyMMdd-HHmmss>.json; one that
@@ -190,6 +191,11 @@ public enum SettingsStore {
     public static func loadPrinters() -> [String: PrinterPrefs] { loadPrinters(in: StoreFiles.defaultDirectory) }
 
     public static func savePrinters(_ printers: [String: PrinterPrefs]) { savePrinters(printers, in: StoreFiles.defaultDirectory) }
+
+    /// The presets the user saved, in the order saved; empty when there are none, handled like `load()`. One with no name is dropped.
+    public static func loadPresets() -> [UserPreset] { loadPresets(in: StoreFiles.defaultDirectory) }
+
+    public static func savePresets(_ presets: [UserPreset]) { savePresets(presets, in: StoreFiles.defaultDirectory) }
 
     /// Same as `load()`, reading settings.json from `directory` (tests).
     static func load(in directory: URL) -> PrintSettings? {
@@ -206,5 +212,14 @@ public enum SettingsStore {
 
     static func savePrinters(_ printers: [String: PrinterPrefs], in directory: URL) {
         StoreFiles.write(printers, to: directory.appendingPathComponent(printersFile))
+    }
+
+    static func loadPresets(in directory: URL) -> [UserPreset] {
+        let saved = StoreFiles.load([UserPreset].self, from: directory.appendingPathComponent(presetsFile)) ?? []
+        return saved.filter { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    static func savePresets(_ presets: [UserPreset], in directory: URL) {
+        StoreFiles.write(presets, to: directory.appendingPathComponent(presetsFile))
     }
 }
