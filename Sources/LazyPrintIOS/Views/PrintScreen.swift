@@ -79,6 +79,8 @@ struct PrintScreen: View {
 
     @State private var showOptions = false
     @State private var showDocuments = false
+    /// The name being asked for, to save the options as a preset or to rename one.
+    @State private var presetDialog: PresetDialog?
     /// Add files was asked from the documents sheet, with this source: it opens once that sheet has closed.
     @State private var addAfterDocuments: FileSource?
     /// The files are being sent to the paired computer.
@@ -108,6 +110,7 @@ struct PrintScreen: View {
             .navigationTitle(state.task.map { TaskCatalog.definition($0).title } ?? "Print")
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
+            .presetDialogs($presetDialog)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: showJobs) {
@@ -173,6 +176,7 @@ struct PrintScreen: View {
                     }
                 }
             }
+            PresetMenuSection(dialog: $presetDialog)
         } label: {
             Label("Task", systemImage: "list.bullet")
         }

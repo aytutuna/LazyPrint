@@ -25,6 +25,8 @@ struct PrintView: View {
     @State private var zoom: CGFloat?
     /// The zoom that fits the sheet to the stage now, which the bar shows when nothing is zoomed.
     @State private var fit: CGFloat = 1
+    /// The name being asked for, to save the options as a preset or to rename one.
+    @State private var presetDialog: PresetDialog?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -48,6 +50,7 @@ struct PrintView: View {
             InspectorView()
                 .frame(width: 300)
         }
+        .presetDialogs($presetDialog)
     }
 
     // MARK: The sheets
@@ -122,6 +125,7 @@ struct PrintView: View {
                     }
                 }
             }
+            PresetMenuSection(dialog: $presetDialog)
         } label: {
             Label("Task", systemImage: "list.bullet")
         }
