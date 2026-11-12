@@ -399,7 +399,62 @@ public partial class MainWindow : Window
                 menu.Items.Add(item);
             }
         }
+        AddPresetItems(menu);
         menu.IsOpen = true;
+    }
+
+    /// <summary>The user's presets, checked while the options still equal the one applied last, then the ways to save, rename and delete them.</summary>
+    private void AddPresetItems(ContextMenu menu)
+    {
+        menu.Items.Add(new Separator());
+        foreach (var preset in ViewModel.Presets)
+        {
+            var item = new MenuItem { Header = preset.Name, IsCheckable = true, IsChecked = ViewModel.IsCurrent(preset) };
+            item.Click += (_, _) => ViewModel.ApplyPreset(preset.Name);
+            menu.Items.Add(item);
+        }
+        var save = new MenuItem { Header = PrintText.SavePresetItem };
+        save.Click += (_, _) => SavePreset();
+        menu.Items.Add(save);
+        if (ViewModel.Presets.Count == 0) return;
+        var rename = new MenuItem { Header = PrintText.RenamePresetItem };
+        var delete = new MenuItem { Header = PrintText.DeletePresetItem };
+        foreach (var preset in ViewModel.Presets)
+        {
+            var name = preset.Name;
+            var renameItem = new MenuItem { Header = name };
+            renameItem.Click += (_, _) => RenamePreset(name);
+            rename.Items.Add(renameItem);
+            var deleteItem = new MenuItem { Header = name };
+            deleteItem.Click += (_, _) => ViewModel.DeletePreset(name);
+            delete.Items.Add(deleteItem);
+        }
+        menu.Items.Add(rename);
+        menu.Items.Add(delete);
+    }
+
+    /// <summary>Asks for a name and keeps the options under it; a name in use asks before it replaces that preset.</summary>
+    private void SavePreset()
+    {
+        var dialog = new PresetNameWindow(PrintText.SavePresetTitle, "", name =>
+        {
+            var check = UserPresets.Check(name, ViewModel.Presets);
+            return check == PresetNameCheck.Exists ? PresetNameCheck.Ok : check;
+        });
+        if (IsVisible) dialog.Owner = this;
+        if (dialog.ShowDialog() != true) return;
+        if (ViewModel.SavePreset(dialog.PresetName) != PresetNameCheck.Exists) return;
+        var answer = MessageBox.Show(this, PrintText.ReplacePresetMessage, PrintText.ReplacePresetTitle(dialog.PresetName),
+                                     MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
+        if (answer == MessageBoxResult.OK) ViewModel.SavePreset(dialog.PresetName, replace: true);
+    }
+
+    private void RenamePreset(string name)
+    {
+        var dialog = new PresetNameWindow(PrintText.RenamePresetTitle, name,
+            typed => UserPresets.Check(typed, ViewModel.Presets, renaming: name));
+        if (IsVisible) dialog.Owner = this;
+        if (dialog.ShowDialog() == true) ViewModel.RenamePreset(name, dialog.PresetName);
     }
 
     private void ExitTask_Click(object sender, RoutedEventArgs e) => ViewModel.ClearTask();
