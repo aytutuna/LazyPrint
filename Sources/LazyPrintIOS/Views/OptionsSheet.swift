@@ -226,9 +226,13 @@ struct OptionsSheet: View {
                    options: PhotoSize.all.map { (size: PhotoSize) -> (String, String) in (size.title, size.id) },
                    enabled: rules.photoSizeEnabled, reason: rules.photoSizeReason, id: "print.photoSize")
             Toggle("Fill the size", isOn: $state.settings.photoFill)
+                .disabled(!rules.photoFillEnabled)
                 .accessibilityIdentifier("print.fill")
+            if let reason = rules.photoFillReason { note(reason) }
             Toggle("Cut marks", isOn: $state.settings.cutMarks)
+                .disabled(!rules.cutMarksEnabled)
                 .accessibilityIdentifier("print.cutMarks")
+            if let reason = rules.cutMarksReason { note(reason) }
         }
     }
 
@@ -278,6 +282,10 @@ struct OptionsSheet: View {
         var marginReason: String?
         var photoSizeEnabled = false
         var photoSizeReason: String?
+        var photoFillEnabled = false
+        var photoFillReason: String?
+        var cutMarksEnabled = false
+        var cutMarksReason: String?
         var colorEnabled = true
         var colorReason: String?
         var qualityEnabled = true
@@ -319,6 +327,10 @@ struct OptionsSheet: View {
             scalingReason = photoPrints ? "Set by Photo prints" : (scalingLimited ? "Pages are fitted to their spaces" : nil)
             photoSizeEnabled = photoPrints
             photoSizeReason = photoPrints ? nil : "Needs the Photo prints layout"
+            photoFillEnabled = photoPrints
+            photoFillReason = photoPrints ? nil : "Needs the Photo prints layout"
+            cutMarksEnabled = photos
+            cutMarksReason = photos ? nil : "Needs a photo layout"
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

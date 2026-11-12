@@ -670,12 +670,21 @@
                                             </DockPanel>
                                             <CheckBox x:Name="PhotoFillBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,12,0,0"
                                                       Content="Fill the size"
-                                                      ToolTip="Off: the whole photo fits, with white bands"
+                                                      ToolTip="Off: the whole photo fits, with white bands" ToolTipService.ShowOnDisabled="True"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                                            <DockPanel x:Name="PhotoFillReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
+                                                <TextBlock x:Name="PhotoFillReasonText" Style="{StaticResource ReasonText}" />
+                                            </DockPanel>
                                             <CheckBox x:Name="CutMarksBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,0"
                                                       Content="Cut marks"
                                                       ToolTip="Short marks at the corners when several prints fit on a sheet"
+                                                      ToolTipService.ShowOnDisabled="True"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                                            <DockPanel x:Name="CutMarksReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
+                                                <TextBlock x:Name="CutMarksReasonText" Style="{StaticResource ReasonText}" />
+                                            </DockPanel>
                                         </StackPanel>
                                     </Expander>
                                 </StackPanel>

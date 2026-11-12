@@ -272,7 +272,11 @@ struct InspectorView: View {
                 if let reason = rules.photoSizeReason { note(reason) }
             }
             Toggle("Fill the size", isOn: $state.settings.photoFill)
+                .disabled(!rules.photoFillEnabled)
+            if let reason = rules.photoFillReason { note(reason) }
             Toggle("Cut marks", isOn: $state.settings.cutMarks)
+                .disabled(!rules.cutMarksEnabled)
+            if let reason = rules.cutMarksReason { note(reason) }
         }
     }
 
@@ -358,6 +362,10 @@ struct InspectorView: View {
         var marginReason: String?
         var photoSizeEnabled = false
         var photoSizeReason: String?
+        var photoFillEnabled = false
+        var photoFillReason: String?
+        var cutMarksEnabled = false
+        var cutMarksReason: String?
         var colorEnabled = true
         var colorReason: String?
         var qualityEnabled = true
@@ -396,6 +404,10 @@ struct InspectorView: View {
             marginReason = photos ? "Photos print without margins" : (margins ? nil : "Not used at actual size or fill")
             photoSizeEnabled = photoPrints
             photoSizeReason = photoPrints ? nil : "Needs the Photo prints layout"
+            photoFillEnabled = photoPrints
+            photoFillReason = photoPrints ? nil : "Needs the Photo prints layout"
+            cutMarksEnabled = photos
+            cutMarksReason = photos ? nil : "Needs a photo layout"
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

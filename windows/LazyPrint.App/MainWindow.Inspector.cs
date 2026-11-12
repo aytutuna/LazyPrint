@@ -331,7 +331,11 @@ public partial class MainWindow
             PhotoSizeBox.ToolTip = state.PhotoSizeReason;
             Show(PhotoSizeReasonRow, PhotoSizeReasonText, state.PhotoSizeReason);
             PhotoFillBox.IsChecked = s.PhotoFill;
+            PhotoFillBox.IsEnabled = state.PhotoFillEnabled;
+            Show(PhotoFillReasonRow, PhotoFillReasonText, state.PhotoFillReason);
             CutMarksBox.IsChecked = s.CutMarks;
+            CutMarksBox.IsEnabled = state.CutMarksEnabled;
+            Show(CutMarksReasonRow, CutMarksReasonText, state.CutMarksReason);
         }
         finally
         {

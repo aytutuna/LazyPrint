@@ -24,6 +24,10 @@ public sealed class InspectorStateTests
         Assert.False(state.ShowBorders);
         Assert.False(state.PhotoSizeEnabled);
         Assert.Equal("Needs the Photo prints layout", state.PhotoSizeReason);
+        Assert.False(state.PhotoFillEnabled);
+        Assert.Equal("Needs the Photo prints layout", state.PhotoFillReason);
+        Assert.False(state.CutMarksEnabled);
+        Assert.Equal("Needs a photo layout", state.CutMarksReason);
     }
 
     [Fact]
@@ -102,6 +106,10 @@ public sealed class InspectorStateTests
         Assert.False(state.MarginEnabled);
         Assert.True(state.PhotoSizeEnabled);
         Assert.Null(state.PhotoSizeReason);
+        Assert.True(state.PhotoFillEnabled);
+        Assert.Null(state.PhotoFillReason);
+        Assert.True(state.CutMarksEnabled);
+        Assert.Null(state.CutMarksReason);
     }
 
     [Fact]
@@ -121,6 +129,9 @@ public sealed class InspectorStateTests
         Assert.True(state.PagesPerSideEnabled);
         Assert.False(state.PhotoSizeEnabled);
         Assert.Equal("Needs the Photo prints layout", state.PhotoSizeReason);
+        Assert.False(state.PhotoFillEnabled);
+        Assert.True(state.CutMarksEnabled);
+        Assert.Null(state.CutMarksReason);
     }
 
     [Fact]

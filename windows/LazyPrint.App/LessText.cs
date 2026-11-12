@@ -37,6 +37,8 @@ internal static class ShortText
     public const string PagesFit = "Pages fit their space";
     /// <summary>The photo size while the layout style is not Photo prints.</summary>
     public const string NeedsPhotoPrints = "Needs the Photo prints layout";
+    /// <summary>Cut marks while the layout style is not one of the photo layouts.</summary>
+    public const string NeedsPhotoLayout = "Needs a photo layout";
     /// <summary>Pages per side and scaling while the Photo prints layout lays out each print.</summary>
     public const string PhotoPrintsLayout = "Set by Photo prints";
     public const string PhotosOneSided = "Photos print one-sided";
