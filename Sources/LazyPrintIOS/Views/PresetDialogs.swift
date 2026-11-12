@@ -21,29 +21,32 @@ struct PresetDialogs: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert(title, isPresented: Binding<Bool>(get: { asksForName }, set: { (on: Bool) in if !on, asksForName { dialog = nil } })) {
+            .alert(title, isPresented: Binding<Bool>(get: { asksForName }, set: { (on: Bool) in if !on, asksForName { dialog = nil } }),
+                   presenting: asksForName ? dialog : nil) { (asked: PresetDialog) in
                 TextField(PrintText.presetNamePrompt, text: $name)
-                Button("Save") { commit() }
+                    .accessibilityIdentifier("preset.name")
+                Button("Save") { commit(asked) }
+                    .accessibilityIdentifier("preset.confirm")
                 Button("Cancel", role: .cancel) {}
-            } message: {
+            } message: { (_: PresetDialog) in
                 Text(note)
             }
             .confirmationDialog(PrintText.replacePresetTitle(replacing ?? ""),
                                 isPresented: Binding<Bool>(get: { replacing != nil }, set: { (on: Bool) in if !on { replacing = nil } }),
-                                titleVisibility: .visible) {
+                                titleVisibility: .visible, presenting: replacing) { (target: String) in
                 Button(PrintText.replaceButton, role: .destructive) {
-                    if let replacing { _ = state.savePreset(named: replacing, replace: true) }
+                    _ = state.savePreset(named: target, replace: true)
                 }
-            } message: {
+            } message: { (_: String) in
                 Text(PrintText.replacePresetMessage)
             }
             .confirmationDialog(PrintText.deletePresetTitle(deleting ?? ""),
                                 isPresented: Binding<Bool>(get: { deleting != nil }, set: { (on: Bool) in if !on, deleting != nil { dialog = nil } }),
-                                titleVisibility: .visible) {
+                                titleVisibility: .visible, presenting: deleting) { (target: String) in
                 Button(PrintText.deleteButton, role: .destructive) {
-                    if let deleting { state.deletePreset(named: deleting) }
+                    state.deletePreset(named: target)
                 }
-            } message: {
+            } message: { (_: String) in
                 Text(PrintText.deletePresetMessage)
             }
             .onChange(of: dialog) { (_: PresetDialog?, shown: PresetDialog?) in
@@ -75,8 +78,7 @@ struct PresetDialogs: ViewModifier {
         return nil
     }
 
-    private func commit() {
-        guard let asked = dialog else { return }
+    private func commit(_ asked: PresetDialog) {
         var check = PresetNameCheck.ok
         switch asked {
         case .save:

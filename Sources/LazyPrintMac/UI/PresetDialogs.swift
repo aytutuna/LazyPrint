@@ -21,29 +21,30 @@ struct PresetDialogs: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert(title, isPresented: Binding(get: { asksForName }, set: { if !$0, asksForName { dialog = nil } })) {
+            .alert(title, isPresented: Binding(get: { asksForName }, set: { if !$0, asksForName { dialog = nil } }),
+                   presenting: asksForName ? dialog : nil) { asked in
                 TextField(PrintText.presetNamePrompt, text: $name)
-                Button("Save") { commit() }
+                Button("Save") { commit(asked) }
                 Button("Cancel", role: .cancel) {}
-            } message: {
+            } message: { _ in
                 Text(note)
             }
             .confirmationDialog(PrintText.replacePresetTitle(replacing ?? ""),
                                 isPresented: Binding(get: { replacing != nil }, set: { if !$0 { replacing = nil } }),
-                                titleVisibility: .visible) {
+                                titleVisibility: .visible, presenting: replacing) { target in
                 Button(PrintText.replaceButton, role: .destructive) {
-                    if let replacing { _ = state.savePreset(named: replacing, replace: true) }
+                    _ = state.savePreset(named: target, replace: true)
                 }
-            } message: {
+            } message: { _ in
                 Text(PrintText.replacePresetMessage)
             }
             .confirmationDialog(PrintText.deletePresetTitle(deleting ?? ""),
                                 isPresented: Binding(get: { deleting != nil }, set: { if !$0, deleting != nil { dialog = nil } }),
-                                titleVisibility: .visible) {
+                                titleVisibility: .visible, presenting: deleting) { target in
                 Button(PrintText.deleteButton, role: .destructive) {
-                    if let deleting { state.deletePreset(named: deleting) }
+                    state.deletePreset(named: target)
                 }
-            } message: {
+            } message: { _ in
                 Text(PrintText.deletePresetMessage)
             }
             .onChange(of: dialog) { _, shown in
@@ -75,8 +76,7 @@ struct PresetDialogs: ViewModifier {
         return nil
     }
 
-    private func commit() {
-        guard let asked = dialog else { return }
+    private func commit(_ asked: PresetDialog) {
         var check = PresetNameCheck.ok
         switch asked {
         case .save:
