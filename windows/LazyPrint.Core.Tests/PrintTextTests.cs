@@ -61,4 +61,12 @@ public class PrintTextTests
         Assert.Equal("All, or 1-3, 5", PrintText.PageRangeHint(3, 1));
         Assert.Equal("1-12 (all documents)", PrintText.PageRangeHint(12, 2));
     }
+
+    [Fact]
+    public void PresetWords_AreTheMenuAndTheQuestionBeforeADelete()
+    {
+        Assert.Equal("Preset", PrintText.PresetMenu);
+        Assert.Equal("Save as preset…", PrintText.SavePresetItem);
+        Assert.Equal("Delete “Draft”?", PrintText.DeletePresetTitle("Draft"));
+    }
 }

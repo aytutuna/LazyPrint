@@ -2,7 +2,7 @@ namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Core/TaskCatalog.swift (Lazy Scan's TaskCatalog, for print tasks).
 
-/// <summary>The groups of tasks, in the order the Task menu shows them.</summary>
+/// <summary>The groups of tasks, in the order the Preset menu shows them.</summary>
 public enum TaskGroup
 {
     Documents,
