@@ -382,6 +382,14 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertFalse(ticket.collatedCopies)
     }
 
+    func test_ticket_everyCataloguePaper_isNamedByItsPwgName() {
+        for size in PaperSize.allCases where size != .auto {
+            let job = makePlan([doc(1)], makeSettings { $0.paperId = size.rawValue }, nil)
+            XCTAssertEqual(PrintJobs.ticket(job, settings: makeSettings(), format: "image/jpeg", printer: nil, name: "x").media.name,
+                           size.pwg, size.rawValue)
+        }
+    }
+
     func test_ticket_aCustomPaper_hasACustomName() {
         let job = makePlan([doc(1)], makeSettings { $0.paperId = "idCard" }, nil)
         XCTAssertEqual(PrintJobs.ticket(job, settings: makeSettings(), format: "image/jpeg", printer: nil, name: "x").media.name,

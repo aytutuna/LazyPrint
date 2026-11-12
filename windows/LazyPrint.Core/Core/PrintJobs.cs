@@ -58,7 +58,7 @@ public static class PrintJobs
     /// printer has loaded, else the usual one where the user lives.
     /// </summary>
     public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless) =>
-        Area(paper.RawValue(), printer, borderless);
+        Area(paper.RawValue, printer, borderless);
 
     /// <summary><paramref name="paperId"/> is a <see cref="PrintSettings.PaperId"/>: a named size or any PWG name.</summary>
     public static PrintableArea Area(string paperId, PrinterCapabilities? printer, bool borderless)
@@ -259,33 +259,9 @@ public static class PrintJobs
     private static string MediaName(LayoutSize paper, PrinterCapabilities? printer) =>
         PaperSizes.ListedName(printer, paper) ?? MediaName(paper);
 
-    private static string MediaName(LayoutSize paper) => PaperSizes.Match(paper) switch
-    {
-        PaperSize.Letter => "na_letter_8.5x11in",
-        PaperSize.Legal => "na_legal_8.5x14in",
-        PaperSize.Executive => "na_executive_7.25x10.5in",
-        PaperSize.A4 => "iso_a4_210x297mm",
-        PaperSize.A5 => "iso_a5_148x210mm",
-        PaperSize.A6 => "iso_a6_105x148mm",
-        PaperSize.B5Jis => "jis_b5_182x257mm",
-        PaperSize.IdCard => "iso_id-1_53.98x85.6mm",
-        PaperSize.Photo4x6 => "na_index-4x6_4x6in",
-        PaperSize.Photo5x7 => "na_5x7_5x7in",
-        _ => PaperSizes.NameOf(paper) switch
-        {
-            "A3" => "iso_a3_297x420mm",
-            "B4" => "iso_b4_250x353mm",
-            "B4 (JIS)" => "jis_b4_257x364mm",
-            "B5" => "iso_b5_176x250mm",
-            "Tabloid" => "na_ledger_11x17in",
-            "8 × 10 in" => "na_govt-letter_8x10in",
-            "Envelope #10" => "na_number-10_4.125x9.5in",
-            "Envelope DL" => "iso_dl_110x220mm",
-            "Envelope C5" => "iso_c5_162x229mm",
-            _ => string.Create(CultureInfo.InvariantCulture,
-                $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm"),
-        },
-    };
+    private static string MediaName(LayoutSize paper) => PaperSizes.Match(paper)?.Pwg
+        ?? string.Create(CultureInfo.InvariantCulture,
+            $"custom_sheet_{(int)Math.Round(paper.Width * 25.4 / 72)}x{(int)Math.Round(paper.Height * 25.4 / 72)}mm");
 }
 
 public enum JobState

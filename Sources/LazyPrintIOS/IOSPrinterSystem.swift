@@ -167,16 +167,14 @@ public final class IOSPrinterSystem: PrinterSystem {
         return url.host ?? "AirPrint printer"
     }
 
-    /// The region's usual paper, then the other of Letter and A4, then 4x6, 5x7 and Legal, each with margins of 0.25 in.
-    /// iOS does not say what a printer has in its trays; an IPP printer the app knows replaces this list with its own,
-    /// and the paper picker takes every size on it.
+    /// Every catalogue size in the order a picker shows them for the region, each with margins of 0.25 in. iOS does not
+    /// say what a printer has in its trays, so none is left out; an IPP printer the app knows replaces this list with
+    /// its own.
     nonisolated static func papers(region: String?) -> [MediaEntry] {
-        let usual: PaperSize = PaperSizes.defaultForRegion(region)
-        let other: PaperSize = usual == .letter ? .a4 : .letter
         // 0.25 in in hundredths of a millimetre
         let edge: Int = 635
         let margins: MediaMargins = MediaMargins(top: edge, left: edge, bottom: edge, right: edge)
-        return [usual, other, .photo4x6, .photo5x7, .legal].compactMap { (size: PaperSize) -> MediaEntry? in
+        return PaperSizes.displayOrder(region: region).filter { $0 != .auto }.compactMap { (size: PaperSize) -> MediaEntry? in
             guard let points = PaperSizes.points(size) else { return nil }
             return MediaEntry(attributes: [], width: Int((points.width * 2540 / 72).rounded()),
                               height: Int((points.height * 2540 / 72).rounded()), isVariable: false, margins: margins,

@@ -208,8 +208,18 @@ struct InspectorView: View {
                                                      region: Locale.current.region?.identifier)
                             : id
                     })) {
-                    ForEach(papers.options) { paper in
-                        Text(paper.label).tag(paper.id)
+                    ForEach(papers.sections) { section in
+                        if section.heading.isEmpty {
+                            ForEach(section.options) { paper in
+                                Text(paper.label).tag(paper.id)
+                            }
+                        } else {
+                            Section(section.heading) {
+                                ForEach(section.options) { paper in
+                                    Text(paper.label).tag(paper.id)
+                                }
+                            }
+                        }
                     }
                 }
                 .labelsHidden()

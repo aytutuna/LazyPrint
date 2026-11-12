@@ -309,16 +309,18 @@ public sealed class SpoolerPrinter(IPageRenderer pages, IOriginalFiles? files = 
         return new PrintTicket(output);
     }
 
-    /// <summary>The paper as the driver lists it, with its name, when it lists one of that size; else by its size alone.</summary>
+    /// <summary>The paper as the driver lists it, with its name, when it lists one of that size; else with the Windows name of a catalogue size, else by its size alone.</summary>
     private static PageMediaSize Media(LayoutSize paper, PrintCapabilities? caps)
     {
         var listed = caps?.PageMediaSizeCapability.FirstOrDefault(m =>
             m.PageMediaSizeName is not null && m.Width is { } w && m.Height is { } h
             && Math.Abs(w / DipsPerPoint - paper.Width) <= PaperSizes.FitTolerance
             && Math.Abs(h / DipsPerPoint - paper.Height) <= PaperSizes.FitTolerance);
-        return listed is { PageMediaSizeName: { } name, Width: { } width, Height: { } height }
-            ? new PageMediaSize(name, width, height)
-            : new PageMediaSize(paper.Width * DipsPerPoint, paper.Height * DipsPerPoint);
+        if (listed is { PageMediaSizeName: { } name, Width: { } width, Height: { } height }) return new PageMediaSize(name, width, height);
+        double sheetW = paper.Width * DipsPerPoint, sheetH = paper.Height * DipsPerPoint;
+        return PaperSizes.Match(paper)?.Psk is { } psk && Enum.TryParse(psk, out PageMediaSizeName named)
+            ? new PageMediaSize(named, sheetW, sheetH)
+            : new PageMediaSize(sheetW, sheetH);
     }
 
     /// <summary>The pass as a document, a page per side. The pictures are made when the writer asks for each page.</summary>

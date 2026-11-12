@@ -8,21 +8,111 @@ namespace LazyPrint.Core.Tests;
 
 public class PaperSizeTests
 {
+    private static readonly string[] OldIds = ["auto", "letter", "legal", "executive", "a4", "a5", "a6", "b5Jis", "idCard", "photo4x6", "photo5x7"];
+
     private static string CamelCase(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 
     [Fact]
     public void Automatic_IsTheFirstSizeAndTheDefault()
     {
-        Assert.Equal(PaperSize.Auto, default);
         Assert.Equal(PaperSize.Auto, PaperSizes.All[0]);
         Assert.Equal(PaperSize.Auto, PaperSizes.Parse("unknown future size"));
     }
 
     [Fact]
-    public void RawValues_AreTheStoredNames()
+    public void RawValues_OfTheOldSizesAreStillThere()
     {
-        Assert.Equal(["auto", "letter", "legal", "executive", "a4", "a5", "a6", "b5Jis", "idCard", "photo4x6", "photo5x7"], PaperSizes.All.Select(s => s.RawValue()));
-        Assert.Equal(PaperSizes.All.Select(s => s.RawValue()), PaperSizes.All.Select(s => CamelCase(s.ToString())));
+        Assert.Equal(OldIds, OldIds.Select(id => PaperSizes.Parse(id).RawValue));
+        Assert.All(OldIds, id => Assert.Contains(id, PaperSizes.All.Select(s => s.RawValue)));
+    }
+
+    [Fact]
+    public void OldIds_MapToTheSameSizesAsBefore()
+    {
+        (string Id, string Pwg)[] old =
+        [
+            ("letter", "na_letter_8.5x11in"), ("legal", "na_legal_8.5x14in"), ("executive", "na_executive_7.25x10.5in"),
+            ("a4", "iso_a4_210x297mm"), ("a5", "iso_a5_148x210mm"), ("a6", "iso_a6_105x148mm"), ("b5Jis", "jis_b5_182x257mm"),
+            ("idCard", "iso_id-1_53.98x85.6mm"), ("photo4x6", "na_index-4x6_4x6in"), ("photo5x7", "na_5x7_5x7in"),
+        ];
+        foreach (var (id, pwg) in old)
+        {
+            Assert.Equal(pwg, PaperSizes.Parse(id).Pwg);
+            Assert.Equal(PaperSizes.PwgSize(pwg), PaperSizes.PointsOf(id));
+        }
+    }
+
+    [Fact]
+    public void Catalogue_HasEveryCommonSizeOnceWithAUniqueIdAndName()
+    {
+        var sizes = PaperSizes.All.Where(s => s != PaperSize.Auto).ToList();
+        Assert.Equal(sizes.Count, sizes.Select(s => s.RawValue).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(sizes.Count, sizes.Select(s => s.Pwg).Distinct().Count());
+        Assert.Equal(sizes.Count, sizes.Select(s => s.Label).Distinct().Count());
+        foreach (var pwg in new[]
+        {
+            "na_letter_8.5x11in", "na_legal_8.5x14in", "na_ledger_11x17in", "na_executive_7.25x10.5in", "na_invoice_5.5x8.5in",
+            "iso_a0_841x1189mm", "iso_a8_52x74mm", "iso_b4_250x353mm", "iso_b6_125x176mm", "jis_b4_257x364mm", "jis_b5_182x257mm",
+            "oe_photo-l_3.5x5in", "na_index-4x6_4x6in", "na_5x7_5x7in", "jpn_hagaki_100x148mm", "na_index-3x5_3x5in",
+            "na_number-10_4.125x9.5in", "na_monarch_3.875x7.5in", "iso_dl_110x220mm", "iso_c4_229x324mm", "jpn_chou3_120x235mm",
+            "jpn_kaku2_240x332mm",
+        })
+        {
+            Assert.Contains(sizes, s => s.Pwg == pwg);
+        }
+    }
+
+    [Fact]
+    public void EveryEntrysSize_ComesFromItsName()
+    {
+        foreach (var size in PaperSizes.All.Where(s => s != PaperSize.Auto))
+        {
+            var points = PaperSizes.Points(size);
+            Assert.True(points is { Width: > 0 } p && p.Width < p.Height, size.RawValue);
+            Assert.Equal(points, PaperSizes.PwgSize(size.Pwg));
+            Assert.Equal(size, PaperSizes.Match(points!.Value));
+            Assert.Equal(size.Label, PaperSizes.NameOf(points.Value));
+        }
+        Assert.Null(PaperSizes.Points(PaperSize.Auto));
+    }
+
+    [Fact]
+    public void TheCataloguesSizes_AreAsPublished()
+    {
+        static void Check(PaperSize size, double widthMm, double heightMm)
+        {
+            var p = PaperSizes.Points(size)!.Value;
+            Assert.Equal(widthMm * 72 / 25.4, p.Width, 0.01);
+            Assert.Equal(heightMm * 72 / 25.4, p.Height, 0.01);
+        }
+        Check(PaperSize.A0, 841, 1189);
+        Check(PaperSize.A8, 52, 74);
+        Check(PaperSize.B5, 176, 250);
+        Check(PaperSize.B5Jis, 182, 257);
+        Check(PaperSize.Statement, 139.7, 215.9);
+        Check(PaperSize.Folio, 215.9, 330.2);
+        Check(PaperSize.JuniorLegal, 127, 203.2);
+        Check(PaperSize.PhotoL, 88.9, 127);
+        Check(PaperSize.Hagaki, 100, 148);
+        Check(PaperSize.Panorama, 101.6, 304.8);
+        Check(PaperSize.EnvNumber10, 104.775, 241.3);
+        Check(PaperSize.EnvMonarch, 98.425, 190.5);
+        Check(PaperSize.EnvC4, 229, 324);
+        Check(PaperSize.EnvKaku2, 240, 332);
+    }
+
+    [Theory]
+    [InlineData("Statement", "na_invoice_5.5x8.5in")]
+    [InlineData("A0", "iso_a0_841x1189mm")]
+    [InlineData("EnvMonarch", "na_monarch_3.875x7.5in")]
+    [InlineData("Hagaki", "jpn_hagaki_100x148mm")]
+    [InlineData("4x6.Borderless", "na_index-4x6_4x6in")]
+    [InlineData("Postcard", "jpn_hagaki_100x148mm")]
+    [InlineData("FanFoldGermanLegal", "na_foolscap_8.5x13in")]
+    [InlineData("Folio", "om_folio_210x330mm")]
+    public void MediaSize_ReadsMoreCupsNames(string cups, string pwg)
+    {
+        Assert.Equal(PaperSizes.PwgSize(pwg), PaperSizes.MediaSize(cups));
     }
 
     [Fact]
@@ -46,20 +136,20 @@ public class PaperSizeTests
     {
         Assert.Equal(new LayoutSize(612, 792), PaperSizes.Points(PaperSize.Letter));
         Assert.Equal(new LayoutSize(612, 1008), PaperSizes.Points(PaperSize.Legal));
-        Assert.Equal(595.2744, PaperSizes.Points(PaperSize.A4)!.Value.Width, 0.0001);
-        Assert.Equal(841.8888, PaperSizes.Points(PaperSize.A4)!.Value.Height, 0.0001);
+        Assert.Equal(595.2756, PaperSizes.Points(PaperSize.A4)!.Value.Width, 0.0001);
+        Assert.Equal(841.8898, PaperSizes.Points(PaperSize.A4)!.Value.Height, 0.0001);
         Assert.Null(PaperSizes.Points(PaperSize.Auto));
     }
 
     [Theory]
-    [InlineData("US", PaperSize.Letter)]
-    [InlineData("ca", PaperSize.Letter)]
-    [InlineData("DE", PaperSize.A4)]
-    [InlineData(null, PaperSize.A4)]
-    [InlineData("", PaperSize.A4)]
-    public void DefaultForRegion_IsLetterWhereLetterIsUsed(string? region, PaperSize expected)
+    [InlineData("US", "letter")]
+    [InlineData("ca", "letter")]
+    [InlineData("DE", "a4")]
+    [InlineData(null, "a4")]
+    [InlineData("", "a4")]
+    public void DefaultForRegion_IsLetterWhereLetterIsUsed(string? region, string expected)
     {
-        Assert.Equal(expected, PaperSizes.DefaultForRegion(region));
+        Assert.Equal(expected, PaperSizes.DefaultForRegion(region).RawValue);
     }
 
     [Fact]
@@ -73,12 +163,27 @@ public class PaperSizeTests
     }
 
     [Fact]
-    public void DisplayOrder_PutsAutomaticAndTheRegionsSizeFirst()
+    public void DisplayOrder_PutsAutomaticAndTheCommonSizesFirst()
     {
-        var order = PaperSizes.DisplayOrder("US");
-        Assert.Equal([PaperSize.Auto, PaperSize.Letter, PaperSize.Legal], order.Take(3));
-        Assert.Equal(PaperSizes.All.Count, order.Count);
-        Assert.Equal(PaperSize.A4, PaperSizes.DisplayOrder("FR")[1]);
+        var us = PaperSizes.DisplayOrder("US");
+        Assert.Equal([PaperSize.Auto, PaperSize.Letter, PaperSize.Legal, PaperSize.Tabloid, PaperSize.Photo4x6, PaperSize.Photo5x7,
+                      PaperSize.Photo8x10, PaperSize.A4, PaperSize.EnvNumber10], us.Take(9));
+        var fr = PaperSizes.DisplayOrder("FR");
+        Assert.Equal([PaperSize.Auto, PaperSize.A4, PaperSize.A5, PaperSize.A3, PaperSize.Photo10x15, PaperSize.Photo13x18,
+                      PaperSize.Letter, PaperSize.EnvDl], fr.Take(8));
+        Assert.Equal(PaperSize.A4, PaperSizes.DisplayOrder(null)[1]);
+        foreach (var order in new[] { us, fr }) Assert.Equal(PaperSizes.All.Count, order.Distinct().Count());
+    }
+
+    [Fact]
+    public void DisplayOrder_ListsTheRestByGroup_EachBySize()
+    {
+        var order = PaperSizes.DisplayOrder("DE").Skip(8).ToList();
+        var groups = order.Select(size => size.Group).Distinct().ToList();
+        Assert.Equal([PaperGroup.Us, PaperGroup.IsoA, PaperGroup.IsoB, PaperGroup.JisB, PaperGroup.Photo, PaperGroup.Envelope, PaperGroup.Card], groups);
+        Assert.Equal(PaperSize.JuniorLegal, order[0]);
+        Assert.True(order.IndexOf(PaperSize.A8) < order.IndexOf(PaperSize.A6));
+        Assert.True(order.IndexOf(PaperSize.A1) < order.IndexOf(PaperSize.A0));
     }
 
     [Fact]
@@ -93,10 +198,10 @@ public class PaperSizeTests
     [Fact]
     public void LabelAndDetail_AreWhatPickersShow()
     {
-        Assert.Equal("B5 (JIS)", PaperSize.B5Jis.Label());
-        Assert.Equal("182 × 257 mm", PaperSize.B5Jis.Detail());
-        Assert.Equal("8.5 × 11 in", PaperSize.Letter.Detail());
-        Assert.Equal("Automatic", PaperSize.Auto.Label());
+        Assert.Equal("B5 (JIS)", PaperSize.B5Jis.Label);
+        Assert.Equal("182 × 257 mm", PaperSize.B5Jis.Detail);
+        Assert.Equal("8.5 × 11 in", PaperSize.Letter.Detail);
+        Assert.Equal("Automatic", PaperSize.Auto.Label);
     }
 
     // MARK: Any size a printer lists
@@ -172,9 +277,9 @@ public class PaperSizeTests
     public void IdFor_KeepsNamedSizesAsTheirRawValueAndTheRestInMillimetres()
     {
         Assert.Equal("a4", PaperSizes.IdFor(PaperSizes.PwgSize("iso_a4_210x297mm")!.Value));
-        string a3 = PaperSizes.IdFor(PaperSizes.PwgSize("iso_a3_297x420mm")!.Value);
-        Assert.Equal("listed_sheet_297x420mm", a3);
-        Assert.Equal(297 * 72 / 25.4, PaperSizes.PointsOf(a3)!.Value.Width, 0.1);
+        string a3 = PaperSizes.IdFor(PaperSizes.PwgSize("om_x_300x400mm")!.Value);
+        Assert.Equal("listed_sheet_300x400mm", a3);
+        Assert.Equal(300 * 72 / 25.4, PaperSizes.PointsOf(a3)!.Value.Width, 0.1);
     }
 
     [Fact]
@@ -219,36 +324,44 @@ public class PaperSizeTests
     }
 
     [Fact]
-    public void Choices_ListThePrintersSizes_TheRegionsFirst()
+    public void Choices_ListEveryCatalogueSize_WhateverThePrinterLists()
     {
-        var choices = PaperSizes.Choices(Lists("iso_a3_297x420mm", "na_letter_8.5x11in", "iso_a4_210x297mm", "na_ledger_11x17in"), "auto", "US");
-        Assert.Equal(["auto", "letter", "a4", "listed_sheet_279.4x431.8mm", "listed_sheet_297x420mm"], choices.Options.Select(o => o.Id));
-        Assert.Equal(["Automatic", "Letter", "A4", "Tabloid", "A3"], choices.Options.Select(o => o.Label));
-        Assert.Equal("11.69 × 16.54 in", choices.Options[^1].Detail);
-        Assert.Equal("auto", choices.Selected);
-    }
-
-    [Fact]
-    public void Choices_WithoutAListKeepTheUsualCases()
-    {
-        foreach (var caps in new PrinterCapabilities?[] { null, new PrinterCapabilities() })
+        foreach (var caps in new PrinterCapabilities?[] { null, new PrinterCapabilities(), Lists("iso_a3_297x420mm", "na_letter_8.5x11in") })
         {
-            var ids = PaperSizes.Choices(caps, "auto", "FR").Options.Select(o => o.Id).ToList();
-            Assert.Equal("auto", ids[0]);
-            Assert.Equal("a4", ids[1]);
-            Assert.All(new[] { "letter", "legal", "photo4x6", "photo5x7" }, id => Assert.Contains(id, ids));
+            var choices = PaperSizes.Choices(caps, "auto", "US");
+            Assert.Equal("auto", choices.Selected);
+            Assert.Equal(PaperSizes.All.Count, choices.Options.Count);
+            Assert.Equal(PaperSizes.All.Select(size => size.RawValue).Order(), choices.Options.Select(o => o.Id).Order());
+            Assert.Equal("auto", choices.Options[0].Id);
+            Assert.Equal(["letter", "legal", "tabloid", "photo4x6", "photo5x7", "photo8x10", "a4", "envNumber10"], choices.Options.Skip(1).Take(8).Select(o => o.Id));
+            Assert.All(choices.Options.Skip(1).Take(8), o => Assert.Equal(PaperSizes.CommonGroup, o.Group));
+            Assert.Equal("US", choices.Options[9].Group);
+            Assert.Equal("297 × 420 mm", choices.Options.First(o => o.Id == "a3").Detail);
         }
+        Assert.Equal(["a4", "a5", "a3"], PaperSizes.Choices(null, "auto", "FR").Options.Skip(1).Take(3).Select(o => o.Id));
     }
 
     [Fact]
-    public void Choices_ShowAChosenSizeThePrinterDoesNotListAsAnEntryOfItsOwn()
+    public void Choices_AddThePrintersOtherSizesAfterTheGroups_ByTheirOwnName()
+    {
+        var caps = Lists("iso_a4_210x297mm", "om_small-photo_100x150mm", "om_large-card_300x400mm", "om_odd-sheet_123x456mm");
+        var options = PaperSizes.Choices(caps, "auto", "DE").Options;
+        var extra = options.Where(o => o.Group == PaperSizes.PrinterGroup).ToList();
+        Assert.Equal(["Odd sheet", "Large card"], extra.Select(o => o.Label));
+        Assert.Equal("123 × 456 mm", extra[0].Detail);
+        Assert.Same(extra[^1], options[^1]);
+    }
+
+    [Fact]
+    public void Choices_ShowASizeThePrinterDoesNotListAsChosen()
     {
         var caps = Lists("iso_a4_210x297mm", "na_letter_8.5x11in");
-        var choices = PaperSizes.Choices(caps, "a5", "US");
-        Assert.Equal("a5", choices.Selected);
-        Assert.Equal("a5", choices.Options[^1].Id);
+        Assert.Equal("a5", PaperSizes.Choices(caps, "a5", "US").Selected);
         Assert.Equal("auto", PaperSizes.Choices(caps, "nonsense", "US").Selected);
         Assert.Equal("a4", PaperSizes.Choices(caps, "iso_a4_210x297mm", "US").Selected);
+        var odd = PaperSizes.Choices(caps, "listed_sheet_300x400mm", "US");
+        Assert.Equal("listed_sheet_300x400mm", odd.Selected);
+        Assert.Equal(PaperSizes.PrinterGroup, odd.Options[^1].Group);
     }
 
     private static readonly PaperRange Range = new(5000, 21590, 10000, 35560);

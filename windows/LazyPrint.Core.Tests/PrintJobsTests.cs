@@ -150,7 +150,7 @@ public class PrintJobsTests
     {
         var paper = PrintJobs.Area(PaperSize.Auto, null, false).Paper;
         var usual = PaperSizes.Match(paper);
-        Assert.True(usual is PaperSize.Letter or PaperSize.A4);
+        Assert.True(usual == PaperSize.Letter || usual == PaperSize.A4);
     }
 
     // MARK: - Plan
@@ -424,6 +424,16 @@ public class PrintJobsTests
         var ticket = PrintJobs.Ticket(Plan([Doc(2)], uncollated, Hp), uncollated, "application/pdf", Hp, "x");
         Assert.Equal(2, ticket.Copies);
         Assert.False(ticket.CollatedCopies);
+    }
+
+    [Fact]
+    public void Ticket_EveryCataloguePaper_IsNamedByItsPwgName()
+    {
+        foreach (var size in PaperSizes.All.Where(s => s != PaperSize.Auto))
+        {
+            var job = Plan([Doc(1)], Settings(s => s.PaperId = size.RawValue), null);
+            Assert.Equal(size.Pwg, PrintJobs.Ticket(job, Settings(), "image/jpeg", null, "x").Media.Name);
+        }
     }
 
     [Fact]

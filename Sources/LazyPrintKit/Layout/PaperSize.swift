@@ -1,58 +1,102 @@
 import Foundation
 
-// Twin of windows/LazyPrint.Core/Layout/PaperSize.cs (Lazy Scan's PaperSize, without the scanner
+// Twin of windows/LazyPrint.Core/Layout/PaperSize.cs (the paper catalogue, without the scanner
 // parts): one paper size model for settings and printing, sizes in points.
 
-/// A paper size. `.auto` comes first: it is the default and the fallback for a size a newer
-/// version adds, and it means the printer's own paper. Add new sizes after the existing ones.
-/// Twin of C# `PaperSize` (labels: `PaperSizes.Label` / `Detail`).
-public enum PaperSize: String, Codable, CaseIterable, Identifiable, Sendable {
-    case auto
-    case letter
-    case legal
-    case executive
-    case a4
-    case a5
-    case a6
-    case b5Jis
-    /// An ID-1 card (credit card, most ID cards and driving licences), 85.6 × 54 mm.
-    case idCard
-    case photo4x6
-    case photo5x7
+/// Where a size belongs in a list of sizes. Twin of C# `PaperGroup`.
+public enum PaperGroup: String, Sendable {
+    case auto, us, isoA, isoB, jisB, photo, card, envelope
+}
+
+/// A paper size of the catalogue. `.auto` comes first: it is the default and the fallback for a size a
+/// newer version adds, and it means the printer's own paper. `rawValue` is what a setting stores ("a4",
+/// "b5Jis", "idCard"); `pwg` is its PWG 5101.1 self-describing name, which also gives the size. Add new
+/// sizes at the end of their group in `allCases`. Twin of C# `PaperSize` (without the Windows `Psk` name).
+public struct PaperSize: Hashable, CaseIterable, Identifiable, Sendable {
+    public let rawValue: String
+    public let pwg: String
+    /// What a picker shows: "Automatic", "Letter", "B5 (JIS)", "ID card".
+    public let label: String
+    public let group: PaperGroup
 
     public var id: String { rawValue }
 
-    /// What a picker shows: "Automatic", "Letter", "B5 (JIS)", "ID card".
-    public var label: String {
-        switch self {
-        case .auto: return "Automatic"
-        case .letter: return "Letter"
-        case .legal: return "Legal"
-        case .executive: return "Executive"
-        case .a4: return "A4"
-        case .a5: return "A5"
-        case .a6: return "A6"
-        case .b5Jis: return "B5 (JIS)"
-        case .idCard: return "ID card"
-        case .photo4x6: return "4 \u{00D7} 6 in"
-        case .photo5x7: return "5 \u{00D7} 7 in"
-        }
+    private init(_ rawValue: String, _ pwg: String, _ label: String, _ group: PaperGroup) {
+        self.rawValue = rawValue
+        self.pwg = pwg
+        self.label = label
+        self.group = group
     }
 
-    /// The dimensions as people know them: "8.5 × 11 in", "210 × 297 mm"; for Automatic, what it prints on.
+    public static let auto = PaperSize("auto", "", "Automatic", .auto)
+
+    public static let letter = PaperSize("letter", "na_letter_8.5x11in", "Letter", .us)
+    public static let legal = PaperSize("legal", "na_legal_8.5x14in", "Legal", .us)
+    public static let tabloid = PaperSize("tabloid", "na_ledger_11x17in", "Tabloid", .us)
+    public static let executive = PaperSize("executive", "na_executive_7.25x10.5in", "Executive", .us)
+    public static let statement = PaperSize("statement", "na_invoice_5.5x8.5in", "Statement", .us)
+    public static let folio = PaperSize("folio", "na_foolscap_8.5x13in", "Folio", .us)
+    public static let juniorLegal = PaperSize("juniorLegal", "na_junior-legal_5x8in", "Junior Legal", .us)
+
+    public static let a0 = PaperSize("a0", "iso_a0_841x1189mm", "A0", .isoA)
+    public static let a1 = PaperSize("a1", "iso_a1_594x841mm", "A1", .isoA)
+    public static let a2 = PaperSize("a2", "iso_a2_420x594mm", "A2", .isoA)
+    public static let a3 = PaperSize("a3", "iso_a3_297x420mm", "A3", .isoA)
+    public static let a4 = PaperSize("a4", "iso_a4_210x297mm", "A4", .isoA)
+    public static let a5 = PaperSize("a5", "iso_a5_148x210mm", "A5", .isoA)
+    public static let a6 = PaperSize("a6", "iso_a6_105x148mm", "A6", .isoA)
+    public static let a7 = PaperSize("a7", "iso_a7_74x105mm", "A7", .isoA)
+    public static let a8 = PaperSize("a8", "iso_a8_52x74mm", "A8", .isoA)
+
+    public static let b4 = PaperSize("b4", "iso_b4_250x353mm", "B4", .isoB)
+    public static let b5 = PaperSize("b5", "iso_b5_176x250mm", "B5", .isoB)
+    public static let b6 = PaperSize("b6", "iso_b6_125x176mm", "B6", .isoB)
+
+    public static let b4Jis = PaperSize("b4Jis", "jis_b4_257x364mm", "B4 (JIS)", .jisB)
+    public static let b5Jis = PaperSize("b5Jis", "jis_b5_182x257mm", "B5 (JIS)", .jisB)
+
+    public static let photoL = PaperSize("photoL", "oe_photo-l_3.5x5in", "Photo L", .photo)
+    public static let photo3x5 = PaperSize("photo3x5", "na_index-3x5_3x5in", "3 \u{00D7} 5 in", .photo)
+    public static let photo4x6 = PaperSize("photo4x6", "na_index-4x6_4x6in", "4 \u{00D7} 6 in", .photo)
+    public static let photo10x15 = PaperSize("photo10x15", "om_small-photo_100x150mm", "10 \u{00D7} 15 cm", .photo)
+    public static let photo5x7 = PaperSize("photo5x7", "na_5x7_5x7in", "5 \u{00D7} 7 in", .photo)
+    public static let photo13x18 = PaperSize("photo13x18", "om_photo-13x18_130x180mm", "13 \u{00D7} 18 cm", .photo)
+    public static let photo8x10 = PaperSize("photo8x10", "na_govt-letter_8x10in", "8 \u{00D7} 10 in", .photo)
+    public static let photo11x14 = PaperSize("photo11x14", "na_edp_11x14in", "11 \u{00D7} 14 in", .photo)
+    public static let panorama = PaperSize("panorama", "oe_panorama-4x12_4x12in", "Panorama", .photo)
+    public static let hagaki = PaperSize("hagaki", "jpn_hagaki_100x148mm", "Hagaki", .photo)
+
+    /// An ID-1 card (credit card, most ID cards and driving licences), 85.6 × 54 mm.
+    public static let idCard = PaperSize("idCard", "iso_id-1_53.98x85.6mm", "ID card", .card)
+
+    public static let envNumber10 = PaperSize("envNumber10", "na_number-10_4.125x9.5in", "Envelope #10", .envelope)
+    public static let envNumber9 = PaperSize("envNumber9", "na_number-9_3.875x8.875in", "Envelope #9", .envelope)
+    public static let envMonarch = PaperSize("envMonarch", "na_monarch_3.875x7.5in", "Envelope Monarch", .envelope)
+    public static let envDl = PaperSize("envDl", "iso_dl_110x220mm", "Envelope DL", .envelope)
+    public static let envC4 = PaperSize("envC4", "iso_c4_229x324mm", "Envelope C4", .envelope)
+    public static let envC5 = PaperSize("envC5", "iso_c5_162x229mm", "Envelope C5", .envelope)
+    public static let envC6 = PaperSize("envC6", "iso_c6_114x162mm", "Envelope C6", .envelope)
+    public static let envChou3 = PaperSize("envChou3", "jpn_chou3_120x235mm", "Envelope Chou 3", .envelope)
+    public static let envKaku2 = PaperSize("envKaku2", "jpn_kaku2_240x332mm", "Envelope Kaku 2", .envelope)
+
+    /// Every size, Automatic first, then the groups in the order a list shows them.
+    public static let allCases: [PaperSize] = [
+        auto,
+        letter, legal, tabloid, executive, statement, folio, juniorLegal,
+        a0, a1, a2, a3, a4, a5, a6, a7, a8,
+        b4, b5, b6,
+        b4Jis, b5Jis,
+        photoL, photo3x5, photo4x6, photo10x15, photo5x7, photo13x18, photo8x10, photo11x14, panorama, hagaki,
+        idCard,
+        envNumber10, envNumber9, envMonarch, envDl, envC4, envC5, envC6, envChou3, envKaku2,
+    ]
+
+    /// The dimensions as people know them, from the PWG name: "8.5 × 11 in", "210 × 297 mm"; for Automatic, what it prints on.
     public var detail: String {
-        switch self {
-        case .auto: return "The paper in the printer"
-        case .letter: return "8.5 \u{00D7} 11 in"
-        case .legal: return "8.5 \u{00D7} 14 in"
-        case .executive: return "7.25 \u{00D7} 10.5 in"
-        case .a4: return "210 \u{00D7} 297 mm"
-        case .a5: return "148 \u{00D7} 210 mm"
-        case .a6: return "105 \u{00D7} 148 mm"
-        case .b5Jis: return "182 \u{00D7} 257 mm"
-        case .idCard: return "85.6 \u{00D7} 54 mm"
-        case .photo4x6, .photo5x7: return "Photo paper"
-        }
+        if self == .auto { return "The paper in the printer" }
+        let size: String = pwg.components(separatedBy: "_").last ?? ""
+        return size.replacingOccurrences(of: "x", with: " \u{00D7} ").replacingOccurrences(of: "mm", with: " mm")
+            .replacingOccurrences(of: "in", with: " in")
     }
 }
 
@@ -66,10 +110,7 @@ public enum PaperSizes {
     public static let letterRegions: [String] = ["US", "CA", "MX", "PH", "CL", "CO", "CR", "DO", "GT", "NI", "PA", "PR", "SV", "VE"]
 
     /// Portrait width × height in points; nil for `.auto`.
-    public static func points(_ size: PaperSize) -> LayoutSize? {
-        guard let paper = inches(size) else { return nil }
-        return LayoutSize(width: paper.width * 72, height: paper.height * 72)
-    }
+    public static func points(_ size: PaperSize) -> LayoutSize? { pwgSize(size.pwg) }
 
     /// The size stored as `text` (its raw value, compared without regard to case and surrounding
     /// spaces); `.auto` for nil and anything else.
@@ -100,11 +141,50 @@ public enum PaperSizes {
         return nil
     }
 
-    /// The sizes as pickers list them: Automatic, the region's usual size, then the others in
-    /// declaration order.
+    /// The heading of the sizes a list puts first.
+    public static let commonGroup = "Most common"
+
+    /// The heading of the sizes a printer lists that the catalogue has no name for.
+    public static let printerGroup = "Printer sizes"
+
+    private static let groupOrder: [PaperGroup] = [.us, .isoA, .isoB, .jisB, .photo, .envelope, .card]
+
+    /// The heading a group's sizes sit under.
+    public static func groupLabel(_ group: PaperGroup) -> String {
+        switch group {
+        case .us: return "US"
+        case .isoA: return "ISO A"
+        case .isoB: return "ISO B"
+        case .jisB: return "JIS B"
+        case .photo: return "Photo"
+        case .envelope: return "Envelopes"
+        case .card: return "Cards"
+        case .auto: return ""
+        }
+    }
+
+    /// The sizes a list shows first: Letter, Legal, Tabloid, photo and envelope sizes where Letter is used, A4, A5, A3
+    /// and the metric ones elsewhere.
+    public static func commonFor(_ regionCode: String?) -> [PaperSize] {
+        usesInches(regionCode)
+            ? [.letter, .legal, .tabloid, .photo4x6, .photo5x7, .photo8x10, .a4, .envNumber10]
+            : [.a4, .a5, .a3, .photo10x15, .photo13x18, .letter, .envDl]
+    }
+
+    /// The sizes as pickers list them: Automatic, the common ones for the region, then each group by area.
     public static func displayOrder(region regionCode: String?) -> [PaperSize] {
-        let usual = defaultForRegion(regionCode)
-        return [.auto, usual] + PaperSize.allCases.filter { $0 != .auto && $0 != usual }
+        let common = commonFor(regionCode)
+        var rest: [PaperSize] = []
+        for group in groupOrder {
+            let sizes: [PaperSize] = PaperSize.allCases.filter { $0.group == group && !common.contains($0) }
+            rest += sizes.sorted { (a: PaperSize, b: PaperSize) -> Bool in area(a) < area(b) }
+        }
+        return [.auto] + common + rest
+    }
+
+    private static func area(_ size: PaperSize) -> Double {
+        guard let p = points(size) else { return 0 }
+        return p.width * p.height
     }
 
     /// The size fits `area` (portrait, within `fitTolerance`). Automatic always fits, and so does
@@ -113,22 +193,6 @@ public enum PaperSizes {
         guard let paper = points(size), let area, area.width > 0, area.height > 0 else { return true }
         return paper.width <= area.width + fitTolerance && paper.height <= area.height + fitTolerance
     }
-
-    private static func inches(_ size: PaperSize) -> LayoutSize? {
-        switch size {
-        case .auto: return nil
-        case .letter: return LayoutSize(width: 8.5, height: 11)
-        case .legal: return LayoutSize(width: 8.5, height: 14)
-        case .executive: return LayoutSize(width: 7.25, height: 10.5)
-        case .a4: return LayoutSize(width: 8.2677, height: 11.6929)
-        case .a5: return LayoutSize(width: 5.8268, height: 8.2677)
-        case .a6: return LayoutSize(width: 4.1339, height: 5.8268)
-        case .b5Jis: return LayoutSize(width: 7.1654, height: 10.1181)
-        case .idCard: return LayoutSize(width: 2.125, height: 3.370)
-        case .photo4x6: return LayoutSize(width: 4, height: 6)
-        case .photo5x7: return LayoutSize(width: 5, height: 7)
-        }
-    }
 }
 
 /// A size a picker offers; `id` is what `PrintSettings.paperId` keeps. Twin of C# `PaperOption`.
@@ -136,18 +200,42 @@ public struct PaperOption: Equatable, Identifiable, Sendable {
     public var id: String
     public var label: String
     public var detail: String
+    /// The heading the entry sits under in a grouped picker: "" for Automatic and Custom size, else
+    /// `PaperSizes.commonGroup`, a group's name or `PaperSizes.printerGroup`.
+    public var group: String
 
-    public init(id: String, label: String, detail: String) {
+    public init(id: String, label: String, detail: String, group: String = "") {
         self.id = id
         self.label = label
         self.detail = detail
+        self.group = group
     }
+}
+
+/// Consecutive options under one heading ("" for none); the Mac and iPhone pickers build it from `PaperChoices`.
+public struct PaperSection: Identifiable, Equatable, Sendable {
+    public var heading: String
+    public var options: [PaperOption]
+    public var id: String { (options.first?.id ?? "") + heading }
 }
 
 /// What a paper picker lists and which entry shows as chosen (`PaperSizes.choices`). Twin of C# `PaperChoices`.
 public struct PaperChoices: Equatable, Sendable {
     public var options: [PaperOption]
     public var selected: String
+
+    /// The options in runs of one heading, in order.
+    public var sections: [PaperSection] {
+        var result: [PaperSection] = []
+        for option in options {
+            if let last = result.last, last.heading == option.group {
+                result[result.count - 1].options.append(option)
+            } else {
+                result.append(PaperSection(heading: option.group, options: [option]))
+            }
+        }
+        return result
+    }
 }
 
 /// Any size a printer lists: PWG and CUPS names, the names people know, a custom size. Twin of the same part of C# `PaperSizes`.
@@ -158,18 +246,17 @@ extension PaperSizes {
     private static let typedPrefix = "custom_sheet_"
     private static let listedPrefix = "listed_sheet_"
 
-    /// The sizes without a case of their own that people know by name, in millimetres.
-    private static let otherNames: [(label: String, width: Double, height: Double)] = [
-        ("A3", 297, 420), ("B4", 250, 353), ("B4 (JIS)", 257, 364), ("B5", 176, 250), ("Tabloid", 279.4, 431.8),
-        ("8 \u{00D7} 10 in", 203.2, 254), ("Envelope #10", 104.775, 241.3), ("Envelope DL", 110, 220), ("Envelope C5", 162, 229),
-    ]
-
     /// The names CUPS and PPD files give sizes, as PWG names, lower case.
     private static let cupsNames: [String: String] = [
         "letter": "na_letter_8.5x11in", "legal": "na_legal_8.5x14in", "executive": "na_executive_7.25x10.5in",
+        "statement": "na_invoice_5.5x8.5in", "fanfoldgermanlegal": "na_foolscap_8.5x13in", "folio": "om_folio_210x330mm",
+        "a0": "iso_a0_841x1189mm", "a1": "iso_a1_594x841mm", "a2": "iso_a2_420x594mm",
         "a3": "iso_a3_297x420mm", "a4": "iso_a4_210x297mm", "a5": "iso_a5_148x210mm", "a6": "iso_a6_105x148mm",
+        "a7": "iso_a7_74x105mm", "a8": "iso_a8_52x74mm",
         "b5": "jis_b5_182x257mm", "tabloid": "na_ledger_11x17in", "11x17": "na_ledger_11x17in",
-        "envdl": "iso_dl_110x220mm", "env10": "na_number-10_4.125x9.5in", "envc5": "iso_c5_162x229mm",
+        "4x6": "na_index-4x6_4x6in", "5x7": "na_5x7_5x7in", "8x10": "na_govt-letter_8x10in", "hagaki": "jpn_hagaki_100x148mm", "postcard": "jpn_hagaki_100x148mm",
+        "envdl": "iso_dl_110x220mm", "env10": "na_number-10_4.125x9.5in", "env9": "na_number-9_3.875x8.875in",
+        "envmonarch": "na_monarch_3.875x7.5in", "envc4": "iso_c4_229x324mm", "envc5": "iso_c5_162x229mm", "envc6": "iso_c6_114x162mm",
     ]
 
     /// The size in a PWG self-describing name ("iso_a4_210x297mm", "na_letter_8.5x11in"), portrait, in points; nil for any
@@ -262,12 +349,7 @@ extension PaperSizes {
     }
 
     /// The name people know a sheet by ("Letter", "A3", "Envelope DL"); nil for a size without one.
-    public static func nameOf(_ sheet: LayoutSize) -> String? {
-        if let named = match(sheet) { return named.label }
-        let shortSide = min(sheet.width, sheet.height)
-        let longSide = max(sheet.width, sheet.height)
-        return otherNames.first(where: { abs($0.width * 72 / 25.4 - shortSide) <= fitTolerance && abs($0.height * 72 / 25.4 - longSide) <= fitTolerance })?.label
-    }
+    public static func nameOf(_ sheet: LayoutSize) -> String? { match(sheet)?.label }
 
     /// Inches where the region uses Letter, millimetres elsewhere.
     public static func usesInches(_ regionCode: String?) -> Bool {
@@ -334,26 +416,25 @@ extension PaperSizes {
         return sizes.isEmpty || sizes.contains(where: { same($0, paper) }) || printer?.customPaper?.accepts(paper) == true
     }
 
-    /// What a picker lists and shows as chosen: Automatic, then the printer's sizes (the region's usual first, then by area),
-    /// or the usual set when it lists none, and Custom size when it takes a range. A chosen size the printer does not list
-    /// is shown as Custom size when its range takes it, else as an entry of its own.
+    /// What a picker lists and shows as chosen: Automatic, the common sizes for the region, every other size by group, the
+    /// sizes the printer lists that have no name here, and Custom size when it takes a range. Every size can be chosen
+    /// whatever the printer lists. A chosen size that is not an entry is shown as Custom size when the range takes it, else
+    /// as an entry of its own.
     public static func choices(printer: PrinterCapabilities?, chosen chosenId: String?, region regionCode: String?) -> PaperChoices {
         var options = [PaperOption(id: "auto", label: PaperSize.auto.label, detail: PaperSize.auto.detail)]
-        let sizes = listed(printer)
-        if sizes.isEmpty {
-            options += displayOrder(region: regionCode).filter { $0 != .auto }
-                .map { PaperOption(id: $0.rawValue, label: $0.label, detail: $0.detail) }
-        } else {
-            let usual: LayoutSize = points(defaultForRegion(regionCode)) ?? LayoutSize(width: 612, height: 792)
-            let ordered: [LayoutSize] = sizes.sorted { (a: LayoutSize, b: LayoutSize) -> Bool in
-                let aUsual = same(a, usual), bUsual = same(b, usual)
-                if aUsual != bUsual { return aUsual }
-                return a.width * a.height < b.width * b.height
-            }
-            options += ordered.map { optionFor($0, region: regionCode) }
+        let common = commonFor(regionCode)
+        for size in displayOrder(region: regionCode) where size != .auto {
+            let group = common.contains(size) ? commonGroup : groupLabel(size.group)
+            options.append(PaperOption(id: size.rawValue, label: size.label, detail: size.detail, group: group))
+        }
+        let others: [LayoutSize] = listed(printer).filter { match($0) == nil }
+            .sorted { (a: LayoutSize, b: LayoutSize) -> Bool in a.width * a.height < b.width * b.height }
+        for sheet in others {
+            var option = optionFor(sheet, region: regionCode, printer: printer)
+            option.group = printerGroup
+            options.append(option)
         }
         let range = printer?.customPaper
-        if range != nil { options.append(PaperOption(id: customId, label: "Custom size", detail: "")) }
 
         var selected = "auto"
         if let chosen = pointsOf(chosenId), let text = chosenId {
@@ -365,10 +446,13 @@ extension PaperSizes {
             } else if isListed {
                 selected = id
             } else {
-                options.append(optionFor(chosen, region: regionCode))
+                var option = optionFor(chosen, region: regionCode, printer: printer)
+                option.group = printerGroup
+                options.append(option)
                 selected = id
             }
         }
+        if range != nil { options.append(PaperOption(id: customId, label: "Custom size", detail: "")) }
         return PaperChoices(options: options, selected: selected)
     }
 
@@ -386,11 +470,21 @@ extension PaperSizes {
         return customSizeId(width: width, height: height, region: regionCode, printer: printer)
     }
 
-    /// The entry for a sheet: the named size's own label and detail, else its name or its dimensions.
-    private static func optionFor(_ sheet: LayoutSize, region regionCode: String?) -> PaperOption {
-        if let named = match(sheet) { return PaperOption(id: named.rawValue, label: named.label, detail: named.detail) }
+    /// The entry for a sheet without a catalogue name: the name the printer gives it ("Small photo"), else its dimensions.
+    private static func optionFor(_ sheet: LayoutSize, region regionCode: String?, printer: PrinterCapabilities?) -> PaperOption {
         let dimensions = dimensionText(sheet, region: regionCode)
-        if let name = nameOf(sheet) { return PaperOption(id: idFor(sheet), label: name, detail: dimensions) }
+        if let pwg = listedName(printer, sheet), let name = friendlyName(pwg) {
+            return PaperOption(id: idFor(sheet), label: name, detail: dimensions)
+        }
         return PaperOption(id: idFor(sheet), label: dimensions, detail: "")
+    }
+
+    /// The middle of a PWG name as words: "om_small-photo_100x150mm" is "Small photo".
+    private static func friendlyName(_ pwg: String) -> String? {
+        let parts = pwg.split(separator: "_", omittingEmptySubsequences: false)
+        guard parts.count >= 3 else { return nil }
+        let text = parts[1].replacingOccurrences(of: "-", with: " ")
+        guard let first = text.first, !first.isNumber else { return nil }
+        return String(first).uppercased() + String(text.dropFirst())
     }
 }

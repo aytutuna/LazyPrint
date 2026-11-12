@@ -81,6 +81,26 @@ public sealed class SpoolerPrinterTests : IDisposable
     }
 
     [Fact]
+    public async Task APaperWithAWindowsNameIsTheTicketsMediaByThatName()
+    {
+        var job = PrintFixtures.Job(new PrintSettings { PaperId = "a3" }, pages: 1);
+        var (_, ticket, _) = await Write(job, 0);
+
+        Assert.Equal(PageMediaSizeName.ISOA3, ticket.PageMediaSize!.PageMediaSizeName);
+    }
+
+    [Fact]
+    public void EveryPskNameInTheCatalogueIsAWindowsPageMediaSizeName()
+    {
+        foreach (var size in PaperSizes.All.Where(s => s.Psk is not null))
+        {
+            Assert.True(Enum.TryParse<PageMediaSizeName>(size.Psk, out _), size.RawValue);
+        }
+        Assert.Equal("ISOA4", PaperSize.A4.Psk);
+        Assert.Equal("NorthAmericaGermanLegalFanfold", PaperSize.Folio.Psk);
+    }
+
+    [Fact]
     public async Task APaperOfAnotherSizeIsTheTicketsMedia()
     {
         var job = PrintFixtures.Job(new PrintSettings { PaperId = "a4" }, pages: 1);

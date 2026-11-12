@@ -3,32 +3,104 @@ using System.Text.RegularExpressions;
 
 namespace LazyPrint.Core;
 
-// Twin of Sources/LazyPrintKit/Layout/PaperSize.swift (Lazy Scan's PaperSize, without the scanner
+// Twin of Sources/LazyPrintKit/Layout/PaperSize.swift (the paper catalogue, without the scanner
 // parts): one paper size model for settings and printing, sizes in points.
 
-/// <summary>
-/// A paper size. <see cref="Auto"/> comes first: it is the default and the fallback for a size a
-/// newer version adds, and it means the printer's own paper. Stored as the camelCase name
-/// ("a4", "b5Jis", "idCard"). Add new sizes after the existing ones.
-/// </summary>
-public enum PaperSize
+/// <summary>Where a size belongs in a list of sizes.</summary>
+public enum PaperGroup
 {
     Auto,
-    Letter,
-    Legal,
-    Executive,
-    A4,
-    A5,
-    A6,
-    B5Jis,
+    Us,
+    IsoA,
+    IsoB,
+    JisB,
+    Photo,
+    Card,
+    Envelope,
+}
+
+/// <summary>
+/// A paper size of the catalogue. <see cref="Auto"/> comes first: it is the default and the fallback for a size a
+/// newer version adds, and it means the printer's own paper. <see cref="RawValue"/> is what a setting stores ("a4",
+/// "b5Jis", "idCard"); <see cref="Pwg"/> is its PWG 5101.1 self-describing name, which also gives the size. Add new
+/// sizes at the end of their group in <see cref="All"/>.
+/// </summary>
+/// <param name="Psk">The Windows PrintTicket PageMediaSizeName of the size, without a prefix; null where Windows has none.</param>
+public sealed record PaperSize(string RawValue, string Pwg, string Label, PaperGroup Group, string? Psk = null)
+{
+    public static readonly PaperSize Auto = new("auto", "", "Automatic", PaperGroup.Auto);
+
+    public static readonly PaperSize Letter = new("letter", "na_letter_8.5x11in", "Letter", PaperGroup.Us, "NorthAmericaLetter");
+    public static readonly PaperSize Legal = new("legal", "na_legal_8.5x14in", "Legal", PaperGroup.Us, "NorthAmericaLegal");
+    public static readonly PaperSize Tabloid = new("tabloid", "na_ledger_11x17in", "Tabloid", PaperGroup.Us, "NorthAmericaTabloid");
+    public static readonly PaperSize Executive = new("executive", "na_executive_7.25x10.5in", "Executive", PaperGroup.Us, "NorthAmericaExecutive");
+    public static readonly PaperSize Statement = new("statement", "na_invoice_5.5x8.5in", "Statement", PaperGroup.Us, "NorthAmericaStatement");
+    public static readonly PaperSize Folio = new("folio", "na_foolscap_8.5x13in", "Folio", PaperGroup.Us, "NorthAmericaGermanLegalFanfold");
+    public static readonly PaperSize JuniorLegal = new("juniorLegal", "na_junior-legal_5x8in", "Junior Legal", PaperGroup.Us);
+
+    public static readonly PaperSize A0 = new("a0", "iso_a0_841x1189mm", "A0", PaperGroup.IsoA, "ISOA0");
+    public static readonly PaperSize A1 = new("a1", "iso_a1_594x841mm", "A1", PaperGroup.IsoA, "ISOA1");
+    public static readonly PaperSize A2 = new("a2", "iso_a2_420x594mm", "A2", PaperGroup.IsoA, "ISOA2");
+    public static readonly PaperSize A3 = new("a3", "iso_a3_297x420mm", "A3", PaperGroup.IsoA, "ISOA3");
+    public static readonly PaperSize A4 = new("a4", "iso_a4_210x297mm", "A4", PaperGroup.IsoA, "ISOA4");
+    public static readonly PaperSize A5 = new("a5", "iso_a5_148x210mm", "A5", PaperGroup.IsoA, "ISOA5");
+    public static readonly PaperSize A6 = new("a6", "iso_a6_105x148mm", "A6", PaperGroup.IsoA, "ISOA6");
+    public static readonly PaperSize A7 = new("a7", "iso_a7_74x105mm", "A7", PaperGroup.IsoA, "ISOA7");
+    public static readonly PaperSize A8 = new("a8", "iso_a8_52x74mm", "A8", PaperGroup.IsoA, "ISOA8");
+
+    public static readonly PaperSize B4 = new("b4", "iso_b4_250x353mm", "B4", PaperGroup.IsoB, "ISOB4");
+    public static readonly PaperSize B5 = new("b5", "iso_b5_176x250mm", "B5", PaperGroup.IsoB, "ISOB5Envelope");
+    public static readonly PaperSize B6 = new("b6", "iso_b6_125x176mm", "B6", PaperGroup.IsoB);
+
+    public static readonly PaperSize B4Jis = new("b4Jis", "jis_b4_257x364mm", "B4 (JIS)", PaperGroup.JisB, "JISB4");
+    public static readonly PaperSize B5Jis = new("b5Jis", "jis_b5_182x257mm", "B5 (JIS)", PaperGroup.JisB, "JISB5");
+
+    public static readonly PaperSize PhotoL = new("photoL", "oe_photo-l_3.5x5in", "Photo L", PaperGroup.Photo, "JapanLPhoto");
+    public static readonly PaperSize Photo3x5 = new("photo3x5", "na_index-3x5_3x5in", "3 × 5 in", PaperGroup.Photo);
+    public static readonly PaperSize Photo4x6 = new("photo4x6", "na_index-4x6_4x6in", "4 × 6 in", PaperGroup.Photo, "NorthAmerica4x6");
+    public static readonly PaperSize Photo10x15 = new("photo10x15", "om_small-photo_100x150mm", "10 × 15 cm", PaperGroup.Photo);
+    public static readonly PaperSize Photo5x7 = new("photo5x7", "na_5x7_5x7in", "5 × 7 in", PaperGroup.Photo, "NorthAmerica5x7");
+    public static readonly PaperSize Photo13x18 = new("photo13x18", "om_photo-13x18_130x180mm", "13 × 18 cm", PaperGroup.Photo);
+    public static readonly PaperSize Photo8x10 = new("photo8x10", "na_govt-letter_8x10in", "8 × 10 in", PaperGroup.Photo, "NorthAmerica8x10");
+    public static readonly PaperSize Photo11x14 = new("photo11x14", "na_edp_11x14in", "11 × 14 in", PaperGroup.Photo);
+    public static readonly PaperSize Panorama = new("panorama", "oe_panorama-4x12_4x12in", "Panorama", PaperGroup.Photo);
+    public static readonly PaperSize Hagaki = new("hagaki", "jpn_hagaki_100x148mm", "Hagaki", PaperGroup.Photo, "JapanHagakiPostcard");
+
     /// <summary>An ID-1 card (credit card, most ID cards and driving licences), 85.6 × 54 mm.</summary>
-    IdCard,
-    Photo4x6,
-    Photo5x7,
+    public static readonly PaperSize IdCard = new("idCard", "iso_id-1_53.98x85.6mm", "ID card", PaperGroup.Card);
+
+    public static readonly PaperSize EnvNumber10 = new("envNumber10", "na_number-10_4.125x9.5in", "Envelope #10", PaperGroup.Envelope, "NorthAmericaNumber10Envelope");
+    public static readonly PaperSize EnvNumber9 = new("envNumber9", "na_number-9_3.875x8.875in", "Envelope #9", PaperGroup.Envelope, "NorthAmericaNumber9Envelope");
+    public static readonly PaperSize EnvMonarch = new("envMonarch", "na_monarch_3.875x7.5in", "Envelope Monarch", PaperGroup.Envelope, "NorthAmericaMonarchEnvelope");
+    public static readonly PaperSize EnvDl = new("envDl", "iso_dl_110x220mm", "Envelope DL", PaperGroup.Envelope, "ISODLEnvelope");
+    public static readonly PaperSize EnvC4 = new("envC4", "iso_c4_229x324mm", "Envelope C4", PaperGroup.Envelope, "ISOC4Envelope");
+    public static readonly PaperSize EnvC5 = new("envC5", "iso_c5_162x229mm", "Envelope C5", PaperGroup.Envelope, "ISOC5Envelope");
+    public static readonly PaperSize EnvC6 = new("envC6", "iso_c6_114x162mm", "Envelope C6", PaperGroup.Envelope, "ISOC6Envelope");
+    public static readonly PaperSize EnvChou3 = new("envChou3", "jpn_chou3_120x235mm", "Envelope Chou 3", PaperGroup.Envelope, "JapanChou3Envelope");
+    public static readonly PaperSize EnvKaku2 = new("envKaku2", "jpn_kaku2_240x332mm", "Envelope Kaku 2", PaperGroup.Envelope, "JapanKaku2Envelope");
+
+    /// <summary>Every size, Automatic first, then the groups in the order a list shows them.</summary>
+    public static readonly IReadOnlyList<PaperSize> All =
+    [
+        Auto,
+        Letter, Legal, Tabloid, Executive, Statement, Folio, JuniorLegal,
+        A0, A1, A2, A3, A4, A5, A6, A7, A8,
+        B4, B5, B6,
+        B4Jis, B5Jis,
+        PhotoL, Photo3x5, Photo4x6, Photo10x15, Photo5x7, Photo13x18, Photo8x10, Photo11x14, Panorama, Hagaki,
+        IdCard,
+        EnvNumber10, EnvNumber9, EnvMonarch, EnvDl, EnvC4, EnvC5, EnvC6, EnvChou3, EnvKaku2,
+    ];
+
+    /// <summary>The dimensions as people know them, from the PWG name: "8.5 × 11 in", "210 × 297 mm"; for Automatic, what it prints on.</summary>
+    public string Detail => this == Auto
+        ? "The paper in the printer"
+        : Pwg[(Pwg.LastIndexOf('_') + 1)..].Replace("x", " × ").Replace("mm", " mm").Replace("in", " in");
 }
 
 /// <summary>A size a picker offers; <see cref="Id"/> is what <see cref="PrintSettings.PaperId"/> keeps.</summary>
-public sealed record PaperOption(string Id, string Label, string Detail);
+/// <param name="Group">The heading the entry sits under in a grouped picker: "" for Automatic and Custom size, else <see cref="PaperSizes.CommonGroup"/>, a group's name or <see cref="PaperSizes.PrinterGroup"/>.</param>
+public sealed record PaperOption(string Id, string Label, string Detail, string Group = "");
 
 /// <summary>What a paper picker lists and which entry shows as chosen (<see cref="PaperSizes.Choices"/>).</summary>
 public sealed record PaperChoices(IReadOnlyList<PaperOption> Options, string Selected);
@@ -46,48 +118,49 @@ public static class PaperSizes
     public static readonly IReadOnlyList<string> LetterRegions =
         ["US", "CA", "MX", "PH", "CL", "CO", "CR", "DO", "GT", "NI", "PA", "PR", "SV", "VE"];
 
-    /// <summary>Every size, in declaration order (Automatic first).</summary>
-    public static IReadOnlyList<PaperSize> All { get; } = Enum.GetValues<PaperSize>();
+    /// <summary>Every size, Automatic first.</summary>
+    public static IReadOnlyList<PaperSize> All => PaperSize.All;
+
+    /// <summary>The heading of the sizes a list puts first.</summary>
+    public const string CommonGroup = "Most common";
+
+    /// <summary>The heading of the sizes a printer lists that the catalogue has no name for.</summary>
+    public const string PrinterGroup = "Printer sizes";
+
+    private static readonly PaperGroup[] GroupOrder =
+        [PaperGroup.Us, PaperGroup.IsoA, PaperGroup.IsoB, PaperGroup.JisB, PaperGroup.Photo, PaperGroup.Envelope, PaperGroup.Card];
+
+    /// <summary>The heading a group's sizes sit under.</summary>
+    public static string GroupLabel(PaperGroup group) => group switch
+    {
+        PaperGroup.Us => "US",
+        PaperGroup.IsoA => "ISO A",
+        PaperGroup.IsoB => "ISO B",
+        PaperGroup.JisB => "JIS B",
+        PaperGroup.Photo => "Photo",
+        PaperGroup.Envelope => "Envelopes",
+        PaperGroup.Card => "Cards",
+        _ => "",
+    };
 
     /// <summary>Portrait width × height in points; null for <see cref="PaperSize.Auto"/>.</summary>
-    public static LayoutSize? Points(PaperSize size) => Inches(size) is { } inches
-        ? new LayoutSize(inches.Width * 72, inches.Height * 72)
-        : null;
+    public static LayoutSize? Points(PaperSize size) => PwgSize(size.Pwg);
 
     /// <summary>The picker entry that stands for a size typed in; never stored.</summary>
     public const string CustomId = "custom";
-
-    /// <summary>The sizes without a case of their own that people know by name, in millimetres.</summary>
-    private static readonly (string Label, double Width, double Height)[] OtherNames =
-    [
-        ("A3", 297, 420), ("B4", 250, 353), ("B4 (JIS)", 257, 364), ("B5", 176, 250), ("Tabloid", 279.4, 431.8),
-        ("8 × 10 in", 203.2, 254), ("Envelope #10", 104.775, 241.3), ("Envelope DL", 110, 220), ("Envelope C5", 162, 229),
-    ];
 
     /// <summary>The names CUPS and PPD files give sizes, as PWG names.</summary>
     private static readonly Dictionary<string, string> CupsNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Letter"] = "na_letter_8.5x11in", ["Legal"] = "na_legal_8.5x14in", ["Executive"] = "na_executive_7.25x10.5in",
+        ["Statement"] = "na_invoice_5.5x8.5in", ["FanFoldGermanLegal"] = "na_foolscap_8.5x13in", ["Folio"] = "om_folio_210x330mm",
+        ["A0"] = "iso_a0_841x1189mm", ["A1"] = "iso_a1_594x841mm", ["A2"] = "iso_a2_420x594mm",
         ["A3"] = "iso_a3_297x420mm", ["A4"] = "iso_a4_210x297mm", ["A5"] = "iso_a5_148x210mm", ["A6"] = "iso_a6_105x148mm",
+        ["A7"] = "iso_a7_74x105mm", ["A8"] = "iso_a8_52x74mm",
         ["B5"] = "jis_b5_182x257mm", ["Tabloid"] = "na_ledger_11x17in", ["11x17"] = "na_ledger_11x17in",
-        ["EnvDL"] = "iso_dl_110x220mm", ["Env10"] = "na_number-10_4.125x9.5in", ["EnvC5"] = "iso_c5_162x229mm",
-    };
-
-    /// <summary>The stored name: "auto", "letter", "a4", "b5Jis", "idCard" (the Swift raw values).</summary>
-    public static string RawValue(this PaperSize size) => size switch
-    {
-        PaperSize.Auto => "auto",
-        PaperSize.Letter => "letter",
-        PaperSize.Legal => "legal",
-        PaperSize.Executive => "executive",
-        PaperSize.A4 => "a4",
-        PaperSize.A5 => "a5",
-        PaperSize.A6 => "a6",
-        PaperSize.B5Jis => "b5Jis",
-        PaperSize.IdCard => "idCard",
-        PaperSize.Photo4x6 => "photo4x6",
-        PaperSize.Photo5x7 => "photo5x7",
-        _ => throw new ArgumentOutOfRangeException(nameof(size), size, null),
+        ["4x6"] = "na_index-4x6_4x6in", ["5x7"] = "na_5x7_5x7in", ["8x10"] = "na_govt-letter_8x10in", ["Hagaki"] = "jpn_hagaki_100x148mm", ["Postcard"] = "jpn_hagaki_100x148mm",
+        ["EnvDL"] = "iso_dl_110x220mm", ["Env10"] = "na_number-10_4.125x9.5in", ["Env9"] = "na_number-9_3.875x8.875in",
+        ["EnvMonarch"] = "na_monarch_3.875x7.5in", ["EnvC4"] = "iso_c4_229x324mm", ["EnvC5"] = "iso_c5_162x229mm", ["EnvC6"] = "iso_c6_114x162mm",
     };
 
     /// <summary>
@@ -99,7 +172,7 @@ public static class PaperSizes
         string trimmed = text?.Trim() ?? "";
         foreach (var size in All)
         {
-            if (string.Equals(size.RawValue(), trimmed, StringComparison.OrdinalIgnoreCase)) return size;
+            if (string.Equals(size.RawValue, trimmed, StringComparison.OrdinalIgnoreCase)) return size;
         }
         return PaperSize.Auto;
     }
@@ -131,11 +204,18 @@ public static class PaperSizes
         return null;
     }
 
-    /// <summary>The sizes as pickers list them: Automatic, the region's usual size, then the others in declaration order.</summary>
+    /// <summary>The sizes a list shows first: Letter, Legal, Tabloid, photo and envelope sizes where Letter is used, A4, A5, A3 and the metric ones elsewhere.</summary>
+    public static IReadOnlyList<PaperSize> CommonFor(string? regionCode) => UsesInches(regionCode)
+        ? [PaperSize.Letter, PaperSize.Legal, PaperSize.Tabloid, PaperSize.Photo4x6, PaperSize.Photo5x7, PaperSize.Photo8x10, PaperSize.A4, PaperSize.EnvNumber10]
+        : [PaperSize.A4, PaperSize.A5, PaperSize.A3, PaperSize.Photo10x15, PaperSize.Photo13x18, PaperSize.Letter, PaperSize.EnvDl];
+
+    /// <summary>The sizes as pickers list them: Automatic, the common ones for the region, then each group by area.</summary>
     public static IReadOnlyList<PaperSize> DisplayOrder(string? regionCode)
     {
-        var usual = DefaultForRegion(regionCode);
-        return [PaperSize.Auto, usual, .. All.Where(size => size != PaperSize.Auto && size != usual)];
+        var common = CommonFor(regionCode);
+        var rest = GroupOrder.SelectMany(group => All.Where(size => size.Group == group && !common.Contains(size))
+            .OrderBy(size => { var p = Points(size)!.Value; return p.Width * p.Height; }));
+        return [PaperSize.Auto, .. common, .. rest];
     }
 
     /// <summary>
@@ -147,39 +227,6 @@ public static class PaperSizes
         if (Points(size) is not { } paper || area is not { } a || a.Width <= 0 || a.Height <= 0) return true;
         return paper.Width <= a.Width + FitTolerance && paper.Height <= a.Height + FitTolerance;
     }
-
-    /// <summary>What a picker shows: "Automatic", "Letter", "B5 (JIS)", "ID card".</summary>
-    public static string Label(this PaperSize size) => size switch
-    {
-        PaperSize.Auto => "Automatic",
-        PaperSize.Letter => "Letter",
-        PaperSize.Legal => "Legal",
-        PaperSize.Executive => "Executive",
-        PaperSize.A4 => "A4",
-        PaperSize.A5 => "A5",
-        PaperSize.A6 => "A6",
-        PaperSize.B5Jis => "B5 (JIS)",
-        PaperSize.IdCard => "ID card",
-        PaperSize.Photo4x6 => "4 × 6 in",
-        PaperSize.Photo5x7 => "5 × 7 in",
-        _ => size.ToString(),
-    };
-
-    /// <summary>The dimensions as people know them: "8.5 × 11 in", "210 × 297 mm"; for Automatic, what it prints on.</summary>
-    public static string Detail(this PaperSize size) => size switch
-    {
-        PaperSize.Auto => "The paper in the printer",
-        PaperSize.Letter => "8.5 × 11 in",
-        PaperSize.Legal => "8.5 × 14 in",
-        PaperSize.Executive => "7.25 × 10.5 in",
-        PaperSize.A4 => "210 × 297 mm",
-        PaperSize.A5 => "148 × 210 mm",
-        PaperSize.A6 => "105 × 148 mm",
-        PaperSize.B5Jis => "182 × 257 mm",
-        PaperSize.IdCard => "85.6 × 54 mm",
-        PaperSize.Photo4x6 or PaperSize.Photo5x7 => "Photo paper",
-        _ => "",
-    };
 
     /// <summary>
     /// The size in a PWG self-describing name ("iso_a4_210x297mm", "na_letter_8.5x11in"), portrait, in points; null for any
@@ -261,7 +308,7 @@ public static class PaperSizes
     }
 
     /// <summary>The id to keep for a sheet (portrait, in points): the raw value of the named size, else its size in millimetres.</summary>
-    public static string IdFor(LayoutSize points) => Match(points) is { } named ? named.RawValue() : SheetId(ListedPrefix, points);
+    public static string IdFor(LayoutSize points) => Match(points) is { } named ? named.RawValue : SheetId(ListedPrefix, points);
 
     private const string TypedPrefix = "custom_sheet_";
     private const string ListedPrefix = "listed_sheet_";
@@ -274,16 +321,7 @@ public static class PaperSizes
     }
 
     /// <summary>The name people know a sheet by ("Letter", "A3", "Envelope DL"); null for a size without one.</summary>
-    public static string? NameOf(LayoutSize points)
-    {
-        if (Match(points) is { } named) return named.Label();
-        double shortSide = Math.Min(points.Width, points.Height), longSide = Math.Max(points.Width, points.Height);
-        foreach (var (label, width, height) in OtherNames)
-        {
-            if (Math.Abs(width * 72 / 25.4 - shortSide) <= FitTolerance && Math.Abs(height * 72 / 25.4 - longSide) <= FitTolerance) return label;
-        }
-        return null;
-    }
+    public static string? NameOf(LayoutSize points) => Match(points)?.Label;
 
     /// <summary>Inches where the region uses Letter, millimetres elsewhere.</summary>
     public static bool UsesInches(string? regionCode) => LetterRegions.Contains(regionCode?.Trim().ToUpperInvariant() ?? "");
@@ -347,27 +385,24 @@ public static class PaperSizes
     }
 
     /// <summary>
-    /// What a picker lists and shows as chosen: Automatic, then the printer's sizes (the region's usual first, then by area),
-    /// or the usual set when it lists none, and Custom size when it takes a range. A chosen size the printer does not list
-    /// is shown as Custom size when its range takes it, else as an entry of its own.
+    /// What a picker lists and shows as chosen: Automatic, the common sizes for the region, every other size by group, the
+    /// sizes the printer lists that have no name here, and Custom size when it takes a range. Every size can be chosen
+    /// whatever the printer lists. A chosen size that is not an entry is shown as Custom size when the range takes it, else
+    /// as an entry of its own.
     /// </summary>
     public static PaperChoices Choices(PrinterCapabilities? printer, string? chosenId, string? regionCode)
     {
-        var options = new List<PaperOption> { new("auto", PaperSize.Auto.Label(), PaperSize.Auto.Detail()) };
-        var listed = Listed(printer);
-        if (listed.Count == 0)
+        var options = new List<PaperOption> { new("auto", PaperSize.Auto.Label, PaperSize.Auto.Detail) };
+        var common = CommonFor(regionCode);
+        foreach (var size in DisplayOrder(regionCode).Where(size => size != PaperSize.Auto))
         {
-            options.AddRange(DisplayOrder(regionCode).Where(size => size != PaperSize.Auto)
-                .Select(size => new PaperOption(size.RawValue(), size.Label(), size.Detail())));
+            options.Add(new PaperOption(size.RawValue, size.Label, size.Detail, common.Contains(size) ? CommonGroup : GroupLabel(size.Group)));
         }
-        else
+        foreach (var size in Listed(printer).Where(size => Match(size) is null).OrderBy(size => size.Width * size.Height))
         {
-            var usual = Points(DefaultForRegion(regionCode))!.Value;
-            options.AddRange(listed.OrderBy(size => Same(size, usual) ? 0 : 1).ThenBy(size => size.Width * size.Height)
-                .Select(size => OptionFor(size, regionCode)));
+            options.Add(OptionFor(size, regionCode, printer) with { Group = PrinterGroup });
         }
         var range = printer?.CustomPaper;
-        if (range is not null) options.Add(new PaperOption(CustomId, "Custom size", ""));
 
         string selected = "auto";
         if (PointsOf(chosenId) is { } chosen)
@@ -378,10 +413,11 @@ public static class PaperSizes
             else if (options.Any(o => o.Id == id)) selected = id;
             else
             {
-                options.Add(OptionFor(chosen, regionCode));
+                options.Add(OptionFor(chosen, regionCode, printer) with { Group = PrinterGroup });
                 selected = id;
             }
         }
+        if (range is not null) options.Add(new PaperOption(CustomId, "Custom size", ""));
         return new PaperChoices(options, selected);
     }
 
@@ -401,29 +437,24 @@ public static class PaperSizes
         return CustomSizeId(width, height, regionCode, printer);
     }
 
-    /// <summary>The entry for a sheet: the named size's own label and detail, else its name or its dimensions.</summary>
-    private static PaperOption OptionFor(LayoutSize size, string? regionCode)
+    /// <summary>The entry for a sheet without a catalogue name: the name the printer gives it ("Small photo"), else its dimensions.</summary>
+    private static PaperOption OptionFor(LayoutSize size, string? regionCode, PrinterCapabilities? printer)
     {
-        if (Match(size) is { } named) return new PaperOption(named.RawValue(), named.Label(), named.Detail());
         string dimensions = DimensionText(size, regionCode);
-        return NameOf(size) is { } name ? new PaperOption(IdFor(size), name, dimensions) : new PaperOption(IdFor(size), dimensions, "");
+        return ListedName(printer, size) is { } pwg && FriendlyName(pwg) is { Length: > 0 } name
+            ? new PaperOption(IdFor(size), name, dimensions)
+            : new PaperOption(IdFor(size), dimensions, "");
+    }
+
+    /// <summary>The middle of a PWG name as words: "om_small-photo_100x150mm" is "Small photo".</summary>
+    private static string FriendlyName(string pwg)
+    {
+        string[] parts = pwg.Split('_');
+        if (parts.Length < 3) return "";
+        string text = parts[1].Replace('-', ' ');
+        return text.Length == 0 || char.IsDigit(text[0]) ? "" : char.ToUpperInvariant(text[0]) + text[1..];
     }
 
     private static bool Same(LayoutSize a, LayoutSize b) =>
         Math.Abs(a.Width - b.Width) <= FitTolerance && Math.Abs(a.Height - b.Height) <= FitTolerance;
-
-    private static LayoutSize? Inches(PaperSize size) => size switch
-    {
-        PaperSize.Letter => new LayoutSize(8.5, 11),
-        PaperSize.Legal => new LayoutSize(8.5, 14),
-        PaperSize.Executive => new LayoutSize(7.25, 10.5),
-        PaperSize.A4 => new LayoutSize(8.2677, 11.6929),
-        PaperSize.A5 => new LayoutSize(5.8268, 8.2677),
-        PaperSize.A6 => new LayoutSize(4.1339, 5.8268),
-        PaperSize.B5Jis => new LayoutSize(7.1654, 10.1181),
-        PaperSize.IdCard => new LayoutSize(2.125, 3.370),
-        PaperSize.Photo4x6 => new LayoutSize(4, 6),
-        PaperSize.Photo5x7 => new LayoutSize(5, 7),
-        _ => null,
-    };
 }

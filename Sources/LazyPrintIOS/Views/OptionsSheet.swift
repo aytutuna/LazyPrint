@@ -180,16 +180,14 @@ struct OptionsSheet: View {
         Section(InspectorSections.title(InspectorSections.paper)) {
             let papers: PaperChoices = PaperSizes.choices(printer: state.capabilities, chosen: state.settings.paperId,
                                                           region: Locale.current.region?.identifier)
-            Choice(title: "Paper", selection: Binding(
+            PaperPicker(papers: papers, reason: rules.paperNote, selection: Binding(
                 get: { papers.selected },
                 set: { (id: String) in
                     state.settings.paperId = id == PaperSizes.customId
                         ? PaperSizes.startCustom(printer: state.capabilities, chosen: state.settings.paperId,
                                                  region: Locale.current.region?.identifier)
                         : id
-                }),
-                   options: papers.options.map { (paper: PaperOption) -> (String, String) in (paper.label, paper.id) },
-                   reason: rules.paperNote, id: "print.paper")
+                }))
             if papers.selected == PaperSizes.customId { CustomPaperFields() }
             mediaChoice("Tray", ids: MediaChoices.sources(state.capabilities), label: MediaChoices.sourceLabel, current: state.settings.mediaSource,
                         set: { (id: String) in state.settings.mediaSource = id }, id: "print.tray")
@@ -383,6 +381,41 @@ private struct CustomPaperFields: View {
         state.settings.paperId = PaperSizes.customSizeId(width: w, height: h, region: Locale.current.region?.identifier,
                                                          printer: state.capabilities)
         load()
+    }
+}
+
+/// The paper menu: the sizes under their group headings, with the note under it when the printer does not list the one chosen.
+private struct PaperPicker: View {
+    let papers: PaperChoices
+    var reason: String?
+    @Binding var selection: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker("Paper", selection: $selection) {
+                ForEach(papers.sections) { (section: PaperSection) in
+                    if section.heading.isEmpty {
+                        ForEach(section.options) { (paper: PaperOption) in
+                            Text(paper.label).tag(paper.id)
+                        }
+                    } else {
+                        Section(section.heading) {
+                            ForEach(section.options) { (paper: PaperOption) in
+                                Text(paper.label).tag(paper.id)
+                            }
+                        }
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            if let reason {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityIdentifier("print.paper")
     }
 }
 

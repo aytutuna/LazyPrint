@@ -270,36 +270,12 @@ public enum PrintJobs {
         return notes
     }
 
-    /// A PWG self-describing media name: the standard one of a named size, else a custom one in millimetres.
+    /// A PWG self-describing media name: the one of a catalogue size, else a custom one in millimetres.
     private static func mediaName(_ paper: LayoutSize) -> String {
-        switch PaperSizes.match(paper) {
-        case .letter?: return "na_letter_8.5x11in"
-        case .legal?: return "na_legal_8.5x14in"
-        case .executive?: return "na_executive_7.25x10.5in"
-        case .a4?: return "iso_a4_210x297mm"
-        case .a5?: return "iso_a5_148x210mm"
-        case .a6?: return "iso_a6_105x148mm"
-        case .b5Jis?: return "jis_b5_182x257mm"
-        case .idCard?: return "iso_id-1_53.98x85.6mm"
-        case .photo4x6?: return "na_index-4x6_4x6in"
-        case .photo5x7?: return "na_5x7_5x7in"
-        default:
-            switch PaperSizes.nameOf(paper) {
-            case "A3"?: return "iso_a3_297x420mm"
-            case "B4"?: return "iso_b4_250x353mm"
-            case "B4 (JIS)"?: return "jis_b4_257x364mm"
-            case "B5"?: return "iso_b5_176x250mm"
-            case "Tabloid"?: return "na_ledger_11x17in"
-            case "8 \u{00D7} 10 in"?: return "na_govt-letter_8x10in"
-            case "Envelope #10"?: return "na_number-10_4.125x9.5in"
-            case "Envelope DL"?: return "iso_dl_110x220mm"
-            case "Envelope C5"?: return "iso_c5_162x229mm"
-            default: break
-            }
-            let width = Int((paper.width * 25.4 / 72).rounded(.toNearestOrEven))
-            let height = Int((paper.height * 25.4 / 72).rounded(.toNearestOrEven))
-            return "custom_sheet_\(width)x\(height)mm"
-        }
+        if let named = PaperSizes.match(paper) { return named.pwg }
+        let width = Int((paper.width * 25.4 / 72).rounded(.toNearestOrEven))
+        let height = Int((paper.height * 25.4 / 72).rounded(.toNearestOrEven))
+        return "custom_sheet_\(width)x\(height)mm"
     }
 }
 

@@ -153,14 +153,26 @@ public partial class MainWindow
 
     private static string Region => RegionInfo.CurrentRegion.TwoLetterISORegionName;
 
-    /// <summary>The sizes the printer lists (the usual ones when it lists none), the chosen one selected, and the boxes of a custom size.</summary>
+    /// <summary>Every size under its group heading, the chosen one selected, and the boxes of a custom size.</summary>
     private void ShowPaper(PrintSettings s)
     {
         var choices = PaperSizes.Choices(ViewModel.SelectedCapabilities, s.PaperId, Region);
-        if (!PaperBox.Items.OfType<ComboBoxItem>().Select(i => i.Tag).SequenceEqual(choices.Options.Select(o => (object)o.Id)))
+        var shown = PaperBox.Items.OfType<ComboBoxItem>().Where(i => i.Tag is not null).Select(i => i.Tag);
+        if (!shown.SequenceEqual(choices.Options.Select(o => (object)o.Id)))
         {
             PaperBox.Items.Clear();
-            foreach (var option in choices.Options) PaperBox.Items.Add(Item(option.Label, option.Id, option.Detail));
+            string group = "";
+            foreach (var option in choices.Options)
+            {
+                if (option.Group != group)
+                {
+                    PaperBox.Items.Add(option.Group == ""
+                        ? new Separator()
+                        : new ComboBoxItem { Content = option.Group, IsEnabled = false, FontWeight = FontWeights.SemiBold });
+                }
+                group = option.Group;
+                PaperBox.Items.Add(Item(option.Label, option.Id, option.Detail));
+            }
         }
         Select(PaperBox, choices.Selected);
 
