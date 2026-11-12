@@ -71,6 +71,7 @@ public enum InspectorSections {
     public static func layoutSummary(_ s: PrintSettings) -> String {
         var parts = [String]()
         let poster = (2...4).contains(s.poster)
+        if s.layoutStyle.isPhoto { parts.append(PrintText.layoutStyleTitle(s.layoutStyle)) }
         if poster {
             parts.append("Poster \(s.poster) \u{00D7} \(s.poster)")
         } else if s.booklet {

@@ -26,9 +26,9 @@ struct InspectorView: View {
                 VStack(spacing: 10) {
                     printerSection
                     pagesSection(rules)
-                    if rules.showLayout { layoutSection(rules) }
+                    layoutSection(rules)
                     paperSection(rules)
-                    if rules.showPhotos { photosSection(rules) }
+                    photosSection(rules)
                 }
                 .padding(14)
                 .disabled(state.isBusy)
@@ -87,20 +87,18 @@ struct InspectorView: View {
                 .labelsHidden()
                 Toggle("Reverse order", isOn: $state.settings.reverseOrder)
             }
-            if rules.showSides {
-                field("Two-sided") {
-                    Picker("Two-sided", selection: Binding(
-                        get: { (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
-                        set: { state.settings.sides = $0 })) {
-                        Text("Off").tag(Sides.oneSided)
-                        Text("Long edge").tag(Sides.longEdge)
-                        Text("Short edge").tag(Sides.shortEdge)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .disabled(!rules.sidesEnabled)
-                    if let reason = rules.sidesReason ?? rules.sidesNote { note(reason) }
+            field("Two-sided") {
+                Picker("Two-sided", selection: Binding(
+                    get: { state.settings.layoutStyle.isPhoto || (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
+                    set: { state.settings.sides = $0 })) {
+                    Text("Off").tag(Sides.oneSided)
+                    Text("Long edge").tag(Sides.longEdge)
+                    Text("Short edge").tag(Sides.shortEdge)
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .disabled(!rules.sidesEnabled)
+                if let reason = rules.sidesReason ?? rules.sidesNote { note(reason) }
             }
         }
     }
@@ -108,6 +106,14 @@ struct InspectorView: View {
     private func layoutSection(_ rules: Rules) -> some View {
         InspectorSection(id: InspectorSections.layout, icon: "square.grid.2x2",
                          summary: InspectorSections.layoutSummary(state.settings)) {
+            field("Style") {
+                Picker("Style", selection: $state.settings.layoutStyle) {
+                    ForEach(LayoutStyle.allCases, id: \.self) { style in
+                        Text(PrintText.layoutStyleTitle(style)).tag(style)
+                    }
+                }
+                .labelsHidden()
+            }
             field("Pages per side") {
                 Picker("Pages per side", selection: Binding(
                     get: { state.settings.booklet ? 2 : (Self.perSide.contains(state.settings.pagesPerSheet) ? state.settings.pagesPerSheet : 1) },
@@ -132,6 +138,7 @@ struct InspectorView: View {
             }
             Toggle("Booklet", isOn: $state.settings.booklet)
                 .disabled(!rules.bookletEnabled)
+            if let reason = rules.bookletReason { note(reason) }
             field("Poster") {
                 Picker("Poster", selection: Binding(
                     get: { (2...4).contains(state.settings.poster) ? state.settings.poster : 0 },
@@ -155,12 +162,13 @@ struct InspectorView: View {
                     Text("Fill").tag(Scaling.fill)
                 }
                 .labelsHidden()
-                .disabled(rules.poster)
+                .disabled(rules.poster || rules.photoPrints)
+                if let reason = rules.scalingReason { note(reason) }
                 if state.settings.scaling == .actualSize || state.settings.scaling == .shrinkToFit {
                     Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                         Text("\(state.settings.scale) %")
                     }
-                    .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1 || rules.poster)
+                    .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1 || rules.poster || rules.photoPrints)
                     .accessibilityLabel("Scale")
                     .accessibilityValue("\(state.settings.scale) %")
                 }
@@ -321,23 +329,23 @@ struct InspectorView: View {
     /// What the inspector shows for the task and the printer (the Windows `InspectorState`).
     private struct Rules {
         var showCollate = false
-        var showSides = true
         var sidesEnabled = true
         var sidesReason: String?
         var sidesNote: String?
-        var showLayout = true
         var pagesPerSideEnabled = true
         var pagesPerSideReason: String?
         var showRightToLeft = false
         var showBorders = false
         var showOrientation = true
         var poster = false
+        var photoPrints = false
+        var scalingReason: String?
         var bookletEnabled = true
+        var bookletReason: String?
         var posterEnabled = true
         var posterReason: String?
         var marginEnabled = true
         var marginReason: String?
-        var showPhotos = false
         var photoSizeEnabled = false
         var photoSizeReason: String?
         var colorEnabled = true
@@ -348,6 +356,7 @@ struct InspectorView: View {
 
         init(settings s: PrintSettings, capabilities: PrinterCapabilities?) {
             let photos = s.layoutStyle.isPhoto
+            let photoPrints = s.layoutStyle == .photoPrints
             let canTurn = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
@@ -358,25 +367,25 @@ struct InspectorView: View {
             let margins = Imposition.keepsMargin(PrintJobs.layoutOptions(s))
 
             showCollate = s.copies > 1
-            showSides = !photos
-            sidesEnabled = !s.booklet && !poster
-            sidesReason = poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
+            sidesEnabled = !s.booklet && !poster && !photos
+            sidesReason = photos ? "Photos print one-sided" : poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
             sidesNote = twoSided && !photos && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
-            showLayout = s.layoutStyle != .photoPrints
-            pagesPerSideEnabled = !s.booklet && !poster
-            pagesPerSideReason = poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
+            pagesPerSideEnabled = !s.booklet && !poster && !photoPrints
+            pagesPerSideReason = photoPrints ? "Set by Photo prints" : poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
             showRightToLeft = !poster && (s.booklet || s.pagesPerSheet > 1)
             showBorders = !poster && !s.booklet && s.pagesPerSheet > 1
             showOrientation = !s.booklet
             self.poster = poster
-            bookletEnabled = !poster
-            posterEnabled = poster || (!s.booklet && s.pagesPerSheet == 1)
-            posterReason = posterEnabled ? nil : "Needs one page per side"
-            marginEnabled = margins
-            marginReason = margins ? nil : "Not used at actual size or fill"
-            showPhotos = photos
-            photoSizeEnabled = s.layoutStyle == .photoPrints
-            photoSizeReason = s.layoutStyle == .photoSheet ?"Set by Photo sheet" : nil
+            self.photoPrints = photoPrints
+            scalingReason = photoPrints ? "Set by Photo prints" : nil
+            bookletEnabled = !poster && !photos
+            bookletReason = photos ? "Not for photos" : nil
+            posterEnabled = !photos && (poster || (!s.booklet && s.pagesPerSheet == 1))
+            posterReason = photos ? "Not for photos" : (posterEnabled ? nil : "Needs one page per side")
+            marginEnabled = margins && !photos
+            marginReason = photos ? "Photos print without margins" : (margins ? nil : "Not used at actual size or fill")
+            photoSizeEnabled = photoPrints
+            photoSizeReason = photoPrints ? nil : "Needs the Photo prints layout"
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

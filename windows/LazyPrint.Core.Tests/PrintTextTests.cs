@@ -69,4 +69,10 @@ public class PrintTextTests
         Assert.Equal("Save as preset…", PrintText.SavePresetItem);
         Assert.Equal("Delete “Draft”?", PrintText.DeletePresetTitle("Draft"));
     }
+
+    [Fact]
+    public void LayoutStyleTitle_NamesEachStyle()
+    {
+        Assert.Equal(["Pages", "Photo prints", "Photo sheet"], Enum.GetValues<LayoutStyle>().Select(PrintText.LayoutStyleTitle));
+    }
 }

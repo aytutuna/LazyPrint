@@ -147,6 +147,15 @@ public enum PrintText {
         "Shrunk to \(percent) %"
     }
 
+    /// The layout style's name in the Layout section: "Pages", "Photo prints", "Photo sheet".
+    public static func layoutStyleTitle(_ style: LayoutStyle) -> String {
+        switch style {
+        case .pages: return "Pages"
+        case .photoPrints: return "Photo prints"
+        case .photoSheet: return "Photo sheet"
+        }
+    }
+
     public static let presetMenu = "Preset"
     public static let savePresetItem = "Save as preset\u{2026}"
     public static let renamePresetItem = "Rename preset"
