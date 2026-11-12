@@ -338,6 +338,11 @@ public partial class PhoneWindow : Window
                 PairNote.Text = $"Paired with {name}. Files sent from it wait for you to print them.";
                 PairNote.Visibility = Visibility.Visible;
             }
+            else if (_code is not null && _companion?.Devices.HasPending(DateTimeOffset.UtcNow) == true)
+            {
+                PairNote.Text = "Waiting for the phone to connect...";
+                PairNote.Visibility = Visibility.Visible;
+            }
             else if (_code is not null)
             {
                 // Cleared wherever the user ends the pairing, so a code still set here has run out.
