@@ -353,9 +353,9 @@ public sealed class PairedDeviceStore
         lock (_gate)
         {
             Reload();
-            if (_removed.Contains(id)) return null;
-            protectedKey = _file.Devices.FirstOrDefault(d => d.Id == id)?.SyncKeyProtected
-                           ?? (_pending.TryGetValue(id, out var entry) ? entry.Device.SyncKeyProtected : "");
+            if (_pending.TryGetValue(id, out var entry)) protectedKey = entry.Device.SyncKeyProtected;
+            else if (_removed.Contains(id)) return null;
+            else protectedKey = _file.Devices.FirstOrDefault(d => d.Id == id)?.SyncKeyProtected ?? "";
         }
         return UnprotectSyncKey(protectedKey);
     }
@@ -382,7 +382,7 @@ public sealed class PairedDeviceStore
             Reload();
             _removed.Add(id);
             _pending.Remove(id);
-            removed =_file.Devices.RemoveAll(d => d.Id == id) > 0;
+            removed = _file.Devices.RemoveAll(d => d.Id == id) > 0;
             if (removed) StoreFiles.Write(_file, _path);
         }
         if (removed) Changed?.Invoke(this, EventArgs.Empty);

@@ -306,4 +306,14 @@ final class PairedDeviceStoreTests: XCTestCase {
         store.clearPending()
         XCTAssertNotNil(try keys.load(for: "phone-0002"))
     }
+
+    func testPrepare_AfterRemove_KeepsTheSyncKeyForTheReply() throws {
+        let store = PairedDeviceStore(directory: directory, syncKeyStore: MemorySecretStore())
+        _ = try store.pair(id: "phone-0001", name: "P", platform: "ios", appVersion: "1.0", now: now)
+        XCTAssertTrue(store.remove("phone-0001"))
+        let secret = try store.prepare(id: "phone-0001", name: "P", platform: "ios", appVersion: "1.0", now: now)
+        let key = try XCTUnwrap(try store.syncKey(for: "phone-0001"))
+        XCTAssertNotNil(store.authenticate(id: "phone-0001", secret: secret, now: now))
+        XCTAssertEqual(try store.syncKey(for: "phone-0001"), key)
+    }
 }

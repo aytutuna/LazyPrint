@@ -320,7 +320,7 @@ public final class PairedDeviceStore: @unchecked Sendable {
         guard let store = syncKeyStore, CompanionProtocol.isValidId(id) else { return nil }
         lock.lock()
         reload()
-        let paired = !removed.contains(id) && (file.devices.contains { $0.id == id } || pending[id] != nil)
+        let paired = pending[id] != nil || (!removed.contains(id) && file.devices.contains { $0.id == id })
         lock.unlock()
         guard paired, let key = try store.load(for: id), key.count == SyncPackage.keyByteCount else { return nil }
         return key
@@ -357,8 +357,8 @@ public final class PairedDeviceStore: @unchecked Sendable {
             StoreFiles.write(file, to: url)
             return (file.devices[index], false)
         }
-        let expired = dropExpired(now: now)
-        let committed = commitPending(id: id, presented: presented, now: now)
+        var expired = dropExpired(now: now)
+        let committed = commitPending(id: id, presented: presented, now: now, dropped: &expired)
         lock.unlock()
         releaseSyncKeys(expired)
         guard let device = committed else { return nil }
@@ -367,11 +367,12 @@ public final class PairedDeviceStore: @unchecked Sendable {
     }
 
     /// Stores the approved phone `id` when `presented` is its secret's hash (with the lock held).
-    private func commitPending(id: String, presented: String, now: Date) -> PairedDevice? {
+    private func commitPending(id: String, presented: String, now: Date, dropped: inout [String]) -> PairedDevice? {
         guard var device = pending[id]?.device, PairedDeviceStore.matches(device.secretHash, presented) else { return nil }
         let others = file.devices.filter { $0.id != id }
         guard others.count < PairedDeviceStore.maxDevices else {
             pending[id] = nil
+            dropped.append(id)
             return nil
         }
         device.paired = now

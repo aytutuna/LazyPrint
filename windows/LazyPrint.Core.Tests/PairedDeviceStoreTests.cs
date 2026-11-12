@@ -307,4 +307,16 @@ public sealed class PairedDeviceStoreTests : IDisposable
         string again = store.Prepare("phone-0000", "P", "ios", "1.0", Now);
         Assert.NotNull(store.Authenticate("phone-0000", again, Now));
     }
+
+    [Fact]
+    public void Prepare_AfterRemove_KeepsTheSyncKeyForTheReply()
+    {
+        var store = new PairedDeviceStore(_directory);
+        store.Pair("phone-0001", "P", "ios", "1.0", Now);
+        Assert.True(store.Remove("phone-0001"));
+        string secret = store.Prepare("phone-0001", "P", "ios", "1.0", Now);
+        byte[] key = Assert.IsType<byte[]>(store.SyncKey("phone-0001"));
+        Assert.NotNull(store.Authenticate("phone-0001", secret, Now));
+        Assert.Equal(key, store.SyncKey("phone-0001"));
+    }
 }
