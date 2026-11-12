@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace LazyPrint.Core;
 
-// Twin of Sources/LazyPrintKit/Layout/PaperSize.swift (Lazy Scan's PaperSize, without the scanner
+// Twin of Sources/LazyPrintKit/Layout/PaperSize.swift (the paper catalogue, without the scanner
 // parts): one paper size model for settings and printing, sizes in points.
 
 /// <summary>Where a size belongs in a list of sizes.</summary>
@@ -35,7 +35,7 @@ public sealed record PaperSize(string RawValue, string Pwg, string Label, PaperG
     public static readonly PaperSize Tabloid = new("tabloid", "na_ledger_11x17in", "Tabloid", PaperGroup.Us, "NorthAmericaTabloid");
     public static readonly PaperSize Executive = new("executive", "na_executive_7.25x10.5in", "Executive", PaperGroup.Us, "NorthAmericaExecutive");
     public static readonly PaperSize Statement = new("statement", "na_invoice_5.5x8.5in", "Statement", PaperGroup.Us, "NorthAmericaStatement");
-    public static readonly PaperSize Folio = new("folio", "na_foolscap_8.5x13in", "Folio", PaperGroup.Us);
+    public static readonly PaperSize Folio = new("folio", "na_foolscap_8.5x13in", "Folio", PaperGroup.Us, "NorthAmericaGermanLegalFanfold");
     public static readonly PaperSize JuniorLegal = new("juniorLegal", "na_junior-legal_5x8in", "Junior Legal", PaperGroup.Us);
 
     public static readonly PaperSize A0 = new("a0", "iso_a0_841x1189mm", "A0", PaperGroup.IsoA, "ISOA0");
@@ -49,19 +49,19 @@ public sealed record PaperSize(string RawValue, string Pwg, string Label, PaperG
     public static readonly PaperSize A8 = new("a8", "iso_a8_52x74mm", "A8", PaperGroup.IsoA, "ISOA8");
 
     public static readonly PaperSize B4 = new("b4", "iso_b4_250x353mm", "B4", PaperGroup.IsoB, "ISOB4");
-    public static readonly PaperSize B5 = new("b5", "iso_b5_176x250mm", "B5", PaperGroup.IsoB);
+    public static readonly PaperSize B5 = new("b5", "iso_b5_176x250mm", "B5", PaperGroup.IsoB, "ISOB5Envelope");
     public static readonly PaperSize B6 = new("b6", "iso_b6_125x176mm", "B6", PaperGroup.IsoB);
 
     public static readonly PaperSize B4Jis = new("b4Jis", "jis_b4_257x364mm", "B4 (JIS)", PaperGroup.JisB, "JISB4");
     public static readonly PaperSize B5Jis = new("b5Jis", "jis_b5_182x257mm", "B5 (JIS)", PaperGroup.JisB, "JISB5");
 
-    public static readonly PaperSize PhotoL = new("photoL", "oe_photo-l_3.5x5in", "Photo L", PaperGroup.Photo);
+    public static readonly PaperSize PhotoL = new("photoL", "oe_photo-l_3.5x5in", "Photo L", PaperGroup.Photo, "JapanLPhoto");
     public static readonly PaperSize Photo3x5 = new("photo3x5", "na_index-3x5_3x5in", "3 × 5 in", PaperGroup.Photo);
     public static readonly PaperSize Photo4x6 = new("photo4x6", "na_index-4x6_4x6in", "4 × 6 in", PaperGroup.Photo, "NorthAmerica4x6");
     public static readonly PaperSize Photo10x15 = new("photo10x15", "om_small-photo_100x150mm", "10 × 15 cm", PaperGroup.Photo);
     public static readonly PaperSize Photo5x7 = new("photo5x7", "na_5x7_5x7in", "5 × 7 in", PaperGroup.Photo, "NorthAmerica5x7");
     public static readonly PaperSize Photo13x18 = new("photo13x18", "om_photo-13x18_130x180mm", "13 × 18 cm", PaperGroup.Photo);
-    public static readonly PaperSize Photo8x10 = new("photo8x10", "na_govt-letter_8x10in", "8 × 10 in", PaperGroup.Photo);
+    public static readonly PaperSize Photo8x10 = new("photo8x10", "na_govt-letter_8x10in", "8 × 10 in", PaperGroup.Photo, "NorthAmerica8x10");
     public static readonly PaperSize Photo11x14 = new("photo11x14", "na_edp_11x14in", "11 × 14 in", PaperGroup.Photo);
     public static readonly PaperSize Panorama = new("panorama", "oe_panorama-4x12_4x12in", "Panorama", PaperGroup.Photo);
     public static readonly PaperSize Hagaki = new("hagaki", "jpn_hagaki_100x148mm", "Hagaki", PaperGroup.Photo, "JapanHagakiPostcard");
@@ -153,12 +153,12 @@ public static class PaperSizes
     private static readonly Dictionary<string, string> CupsNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Letter"] = "na_letter_8.5x11in", ["Legal"] = "na_legal_8.5x14in", ["Executive"] = "na_executive_7.25x10.5in",
-        ["Statement"] = "na_invoice_5.5x8.5in", ["Folio"] = "na_foolscap_8.5x13in",
+        ["Statement"] = "na_invoice_5.5x8.5in", ["FanFoldGermanLegal"] = "na_foolscap_8.5x13in", ["Folio"] = "om_folio_210x330mm",
         ["A0"] = "iso_a0_841x1189mm", ["A1"] = "iso_a1_594x841mm", ["A2"] = "iso_a2_420x594mm",
         ["A3"] = "iso_a3_297x420mm", ["A4"] = "iso_a4_210x297mm", ["A5"] = "iso_a5_148x210mm", ["A6"] = "iso_a6_105x148mm",
         ["A7"] = "iso_a7_74x105mm", ["A8"] = "iso_a8_52x74mm",
         ["B5"] = "jis_b5_182x257mm", ["Tabloid"] = "na_ledger_11x17in", ["11x17"] = "na_ledger_11x17in",
-        ["4x6"] = "na_index-4x6_4x6in", ["5x7"] = "na_5x7_5x7in", ["8x10"] = "na_govt-letter_8x10in", ["Hagaki"] = "jpn_hagaki_100x148mm",
+        ["4x6"] = "na_index-4x6_4x6in", ["5x7"] = "na_5x7_5x7in", ["8x10"] = "na_govt-letter_8x10in", ["Hagaki"] = "jpn_hagaki_100x148mm", ["Postcard"] = "jpn_hagaki_100x148mm",
         ["EnvDL"] = "iso_dl_110x220mm", ["Env10"] = "na_number-10_4.125x9.5in", ["Env9"] = "na_number-9_3.875x8.875in",
         ["EnvMonarch"] = "na_monarch_3.875x7.5in", ["EnvC4"] = "iso_c4_229x324mm", ["EnvC5"] = "iso_c5_162x229mm", ["EnvC6"] = "iso_c6_114x162mm",
     };

@@ -82,6 +82,7 @@ final class PaperSizeTests: XCTestCase {
         let cases: [(String, String)] = [
             ("Statement", "na_invoice_5.5x8.5in"), ("A0", "iso_a0_841x1189mm"), ("EnvMonarch", "na_monarch_3.875x7.5in"),
             ("Hagaki", "jpn_hagaki_100x148mm"), ("4x6.Borderless", "na_index-4x6_4x6in"),
+            ("Postcard", "jpn_hagaki_100x148mm"), ("FanFoldGermanLegal", "na_foolscap_8.5x13in"), ("Folio", "om_folio_210x330mm"),
         ]
         for (cups, pwg) in cases { XCTAssertEqual(PaperSizes.mediaSize(cups), PaperSizes.pwgSize(pwg), cups) }
     }

@@ -97,7 +97,7 @@ public sealed class SpoolerPrinterTests : IDisposable
             Assert.True(Enum.TryParse<PageMediaSizeName>(size.Psk, out _), size.RawValue);
         }
         Assert.Equal("ISOA4", PaperSize.A4.Psk);
-        Assert.Null(PaperSize.Folio.Psk);
+        Assert.Equal("NorthAmericaGermanLegalFanfold", PaperSize.Folio.Psk);
     }
 
     [Fact]

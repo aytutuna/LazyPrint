@@ -1,6 +1,6 @@
 import Foundation
 
-// Twin of windows/LazyPrint.Core/Layout/PaperSize.cs (Lazy Scan's PaperSize, without the scanner
+// Twin of windows/LazyPrint.Core/Layout/PaperSize.cs (the paper catalogue, without the scanner
 // parts): one paper size model for settings and printing, sizes in points.
 
 /// Where a size belongs in a list of sizes. Twin of C# `PaperGroup`.
@@ -249,12 +249,12 @@ extension PaperSizes {
     /// The names CUPS and PPD files give sizes, as PWG names, lower case.
     private static let cupsNames: [String: String] = [
         "letter": "na_letter_8.5x11in", "legal": "na_legal_8.5x14in", "executive": "na_executive_7.25x10.5in",
-        "statement": "na_invoice_5.5x8.5in", "folio": "na_foolscap_8.5x13in",
+        "statement": "na_invoice_5.5x8.5in", "fanfoldgermanlegal": "na_foolscap_8.5x13in", "folio": "om_folio_210x330mm",
         "a0": "iso_a0_841x1189mm", "a1": "iso_a1_594x841mm", "a2": "iso_a2_420x594mm",
         "a3": "iso_a3_297x420mm", "a4": "iso_a4_210x297mm", "a5": "iso_a5_148x210mm", "a6": "iso_a6_105x148mm",
         "a7": "iso_a7_74x105mm", "a8": "iso_a8_52x74mm",
         "b5": "jis_b5_182x257mm", "tabloid": "na_ledger_11x17in", "11x17": "na_ledger_11x17in",
-        "4x6": "na_index-4x6_4x6in", "5x7": "na_5x7_5x7in", "8x10": "na_govt-letter_8x10in", "hagaki": "jpn_hagaki_100x148mm",
+        "4x6": "na_index-4x6_4x6in", "5x7": "na_5x7_5x7in", "8x10": "na_govt-letter_8x10in", "hagaki": "jpn_hagaki_100x148mm", "postcard": "jpn_hagaki_100x148mm",
         "envdl": "iso_dl_110x220mm", "env10": "na_number-10_4.125x9.5in", "env9": "na_number-9_3.875x8.875in",
         "envmonarch": "na_monarch_3.875x7.5in", "envc4": "iso_c4_229x324mm", "envc5": "iso_c5_162x229mm", "envc6": "iso_c6_114x162mm",
     ]

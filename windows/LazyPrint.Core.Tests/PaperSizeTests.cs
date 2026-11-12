@@ -107,6 +107,9 @@ public class PaperSizeTests
     [InlineData("EnvMonarch", "na_monarch_3.875x7.5in")]
     [InlineData("Hagaki", "jpn_hagaki_100x148mm")]
     [InlineData("4x6.Borderless", "na_index-4x6_4x6in")]
+    [InlineData("Postcard", "jpn_hagaki_100x148mm")]
+    [InlineData("FanFoldGermanLegal", "na_foolscap_8.5x13in")]
+    [InlineData("Folio", "om_folio_210x330mm")]
     public void MediaSize_ReadsMoreCupsNames(string cups, string pwg)
     {
         Assert.Equal(PaperSizes.PwgSize(pwg), PaperSizes.MediaSize(cups));
