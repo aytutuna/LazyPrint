@@ -72,12 +72,16 @@ public sealed class PairedDeviceStore
     public const int MaxDevices = 16;
     /// <summary>A phone's last-seen time is written at most this often.</summary>
     public static readonly TimeSpan LastSeenResolution = TimeSpan.FromMinutes(1);
+    /// <summary>How long an approved phone waits for its first request before it is dropped.</summary>
+    public static readonly TimeSpan PendingLifetime = TimeSpan.FromMinutes(2);
 
     private readonly string _path;
     private readonly object _gate = new();
     private PairedDevicesFile _file;
     /// <summary>Phones removed in this session: never accepted again, whatever the file says.</summary>
     private readonly HashSet<string> _removed = [];
+    /// <summary>Approved phones that have not made a request with their new secret yet; never written to the file.</summary>
+    private readonly Dictionary<string, (PairedDevice Device, DateTimeOffset Since)> _pending = [];
 
     public PairedDeviceStore() : this(StoreFiles.DefaultDirectory) { }
 
@@ -184,19 +188,7 @@ public sealed class PairedDeviceStore
             Reload();
             var others = _file.Devices.Where(d => d.Id != id).ToList();
             if (others.Count >= MaxDevices) throw new InvalidOperationException("Too many phones are paired.");
-            string syncKey = _file.Devices.FirstOrDefault(d => d.Id == id)?.SyncKeyProtected ?? "";
-            if (!OpensSyncKey(syncKey)) syncKey = ProtectSyncKey(RandomNumberGenerator.GetBytes(SyncPackage.KeyByteCount));
-            var device = new PairedDevice
-            {
-                Id = id,
-                Name = CleanName(name),
-                Platform = CleanName(platform),
-                AppVersion = CleanName(appVersion),
-                SecretHash = HashSecret(secret),
-                Paired = now,
-                LastSeen = now,
-                SyncKeyProtected = syncKey,
-            };
+            var device = NewDevice(id, name, platform, appVersion, now, secret);
             var previous = _file.Devices;
             _file.Devices = [.. others, device];
             if (!StoreFiles.Write(_file, _path))
@@ -205,36 +197,149 @@ public sealed class PairedDeviceStore
                 throw new IOException("The pairing could not be saved.");
             }
             _removed.Remove(id);
+            _pending.Remove(id);
         }
         Changed?.Invoke(this, EventArgs.Empty);
         return CompanionProtocol.EncodeBase64Url(secret);
     }
 
     /// <summary>
+    /// Approves the phone <paramref name="id"/> and returns its new secret like Pair, but keeps the
+    /// phone in memory only: it is not paired, listed or written until its first request with that
+    /// secret (<see cref="Authenticate(string?, string?, DateTimeOffset, out bool)"/>), so a phone
+    /// that never got the secret is never stored. Throws <see cref="InvalidOperationException"/> and
+    /// <see cref="ArgumentException"/> as Pair does.
+    /// </summary>
+    public string Prepare(string id, string name, string platform, string appVersion, DateTimeOffset now) =>
+        Prepare(id, name, platform, appVersion, now, RandomNumberGenerator.GetBytes(SecretByteCount));
+
+    internal string Prepare(string id, string name, string platform, string appVersion, DateTimeOffset now, byte[] secret)
+    {
+        if (!CompanionProtocol.IsValidId(id)) throw new ArgumentException("The phone's id is not valid.", nameof(id));
+        if (secret.Length != SecretByteCount) throw new ArgumentException("A device secret has 32 bytes.", nameof(secret));
+        lock (_gate)
+        {
+            Reload();
+            if (_file.Devices.Count(d => d.Id != id) >= MaxDevices) throw new InvalidOperationException("Too many phones are paired.");
+            _pending[id] = (NewDevice(id, name, platform, appVersion, now, secret), now);
+        }
+        return CompanionProtocol.EncodeBase64Url(secret);
+    }
+
+    /// <summary>Drops the approved phone <paramref name="id"/> that never came back (its reply was not delivered).</summary>
+    public void Discard(string id)
+    {
+        lock (_gate) _pending.Remove(id);
+    }
+
+    /// <summary>Drops every approved phone that has not come back (pairing ended).</summary>
+    public void ClearPending()
+    {
+        lock (_gate) _pending.Clear();
+    }
+
+    /// <summary>Whether an approved phone still waits for its first request (the desktop keeps listening for it).</summary>
+    public bool HasPending(DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            DropExpired(now);
+            return _pending.Count > 0;
+        }
+    }
+
+    private PairedDevice NewDevice(string id, string name, string platform, string appVersion, DateTimeOffset now, byte[] secret)
+    {
+        string syncKey = _file.Devices.FirstOrDefault(d => d.Id == id)?.SyncKeyProtected ?? "";
+        if (!OpensSyncKey(syncKey)) syncKey = ProtectSyncKey(RandomNumberGenerator.GetBytes(SyncPackage.KeyByteCount));
+        return new PairedDevice
+        {
+            Id = id,
+            Name = CleanName(name),
+            Platform = CleanName(platform),
+            AppVersion = CleanName(appVersion),
+            SecretHash = HashSecret(secret),
+            Paired = now,
+            LastSeen = now,
+            SyncKeyProtected = syncKey,
+        };
+    }
+
+    private void DropExpired(DateTimeOffset now)
+    {
+        foreach (var id in _pending.Where(p => now - p.Value.Since >= PendingLifetime || now < p.Value.Since).Select(p => p.Key).ToList())
+        {
+            _pending.Remove(id);
+        }
+    }
+
+    /// <summary>
     /// The paired phone <paramref name="id"/> when <paramref name="secret"/> is its secret (compared
     /// in constant time); null otherwise. Records when it was last seen.
     /// </summary>
-    public PairedDevice? Authenticate(string? id, string? secret, DateTimeOffset now)
+    public PairedDevice? Authenticate(string? id, string? secret, DateTimeOffset now) => Authenticate(id, secret, now, out _);
+
+    /// <summary>
+    /// Same, and the first request of a phone approved with <see cref="Prepare(string, string, string, string, DateTimeOffset)"/>
+    /// pairs it for good (<paramref name="firstUse"/>); null when that cannot be saved.
+    /// </summary>
+    public PairedDevice? Authenticate(string? id, string? secret, DateTimeOffset now, out bool firstUse)
     {
+        firstUse = false;
         if (!CompanionProtocol.IsValidId(id) || CompanionProtocol.DecodeBase64Url(secret) is not { Length: SecretByteCount } bytes)
         {
             return null;
         }
         byte[] presented = Convert.FromHexString(HashSecret(bytes));
+        PairedDevice? result;
         lock (_gate)
         {
             Reload();
-            if (_removed.Contains(id!)) return null;
-            var device = _file.Devices.FirstOrDefault(d => d.Id == id);
-            if (device is null || device.SecretHash.Length != 64 || !IsHex(device.SecretHash)) return null;
-            if (!CryptographicOperations.FixedTimeEquals(presented, Convert.FromHexString(device.SecretHash))) return null;
-            if (device.LastSeen is not { } seen || now - seen >= LastSeenResolution || now < seen)
+            var device = _removed.Contains(id!) ? null : _file.Devices.FirstOrDefault(d => d.Id == id);
+            if (device is not null && Matches(device, presented))
             {
-                device.LastSeen = now;
-                StoreFiles.Write(_file, _path);
+                if (device.LastSeen is not { } seen || now - seen >= LastSeenResolution || now < seen)
+                {
+                    device.LastSeen = now;
+                    StoreFiles.Write(_file, _path);
+                }
+                return device.Copy();
             }
-            return device.Copy();
+            result = CommitPending(id!, presented, now);
+            firstUse = result is not null;
         }
+        if (firstUse) Changed?.Invoke(this, EventArgs.Empty);
+        return result;
+    }
+
+    private static bool Matches(PairedDevice device, byte[] presented) =>
+        device.SecretHash.Length == 64 && IsHex(device.SecretHash)
+        && CryptographicOperations.FixedTimeEquals(presented, Convert.FromHexString(device.SecretHash));
+
+    /// <summary>Stores the approved phone <paramref name="id"/> when <paramref name="presented"/> is its secret's hash (with <see cref="_gate"/> held).</summary>
+    private PairedDevice? CommitPending(string id, byte[] presented, DateTimeOffset now)
+    {
+        DropExpired(now);
+        if (!_pending.TryGetValue(id, out var entry) || !Matches(entry.Device, presented)) return null;
+        var others = _file.Devices.Where(d => d.Id != id).ToList();
+        if (others.Count >= MaxDevices)
+        {
+            _pending.Remove(id);
+            return null;
+        }
+        var device = entry.Device;
+        device.Paired = now;
+        device.LastSeen = now;
+        var previous = _file.Devices;
+        _file.Devices = [.. others, device];
+        if (!StoreFiles.Write(_file, _path))
+        {
+            _file.Devices = previous;
+            return null;
+        }
+        _pending.Remove(id);
+        _removed.Remove(id);
+        return device.Copy();
     }
 
     /// <summary>
@@ -249,7 +354,8 @@ public sealed class PairedDeviceStore
         {
             Reload();
             if (_removed.Contains(id)) return null;
-            protectedKey = _file.Devices.FirstOrDefault(d => d.Id == id)?.SyncKeyProtected ?? "";
+            protectedKey = _file.Devices.FirstOrDefault(d => d.Id == id)?.SyncKeyProtected
+                           ?? (_pending.TryGetValue(id, out var entry) ? entry.Device.SyncKeyProtected : "");
         }
         return UnprotectSyncKey(protectedKey);
     }
@@ -275,7 +381,8 @@ public sealed class PairedDeviceStore
         {
             Reload();
             _removed.Add(id);
-            removed = _file.Devices.RemoveAll(d => d.Id == id) > 0;
+            _pending.Remove(id);
+            removed =_file.Devices.RemoveAll(d => d.Id == id) > 0;
             if (removed) StoreFiles.Write(_file, _path);
         }
         if (removed) Changed?.Invoke(this, EventArgs.Empty);
@@ -290,6 +397,7 @@ public sealed class PairedDeviceStore
         {
             Reload();
             count = _file.Devices.Count;
+            _pending.Clear();
             foreach (var device in _file.Devices) _removed.Add(device.Id);
             _file.Devices = [];
             StoreFiles.Write(_file, _path);

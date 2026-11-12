@@ -176,6 +176,8 @@ extension AppState {
         companionClient = client
         companionStatus = .reachable(desktopName: desktop.name)
         statusOverride = CompanionText.pairedMessage(desktop.name)
+        // The desktop only stores this phone at its first request with the secret.
+        _ = try? await client.hello()
     }
 
     /// Tells the desktop to forget this phone (best effort: it may be off), then forgets the desktop

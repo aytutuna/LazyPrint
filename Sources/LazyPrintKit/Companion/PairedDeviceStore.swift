@@ -97,6 +97,8 @@ public final class PairedDeviceStore: @unchecked Sendable {
     public static let maxDevices = 16
     /// A phone's last-seen time is written at most this often.
     public static let lastSeenResolution: TimeInterval = 60
+    /// How long an approved phone waits for its first request before it is dropped.
+    public static let pendingLifetime: TimeInterval = 120
 
     private let url: URL
     private let syncKeyStore: (any CompanionSecretStore)?
@@ -104,6 +106,8 @@ public final class PairedDeviceStore: @unchecked Sendable {
     private var file: PairedDevicesFile
     /// Phones removed in this session: never accepted again, whatever the file says.
     private var removed: Set<String> = []
+    /// Approved phones that have not made a request with their new secret yet; never written to the file.
+    private var pending: [String: (device: PairedDevice, since: Date)] = [:]
 
     /// Called (on the thread that changed it) after a phone was paired or removed.
     public var onChange: (() -> Void)?
@@ -216,15 +220,97 @@ public final class PairedDeviceStore: @unchecked Sendable {
                 throw PairedDeviceStoreError.notSaved
             }
             removed.remove(id)
+            pending[id] = nil
         }
-        if let store = syncKeyStore, (try? store.load(for: id))?.count != SyncPackage.keyByteCount {
-            var generator = SystemRandomNumberGenerator()
-            let key = Data((0..<SyncPackage.keyByteCount).map { _ in UInt8.random(in: UInt8.min...UInt8.max, using: &generator) })
-            // A key that cannot be kept is not handed out: the phone pairs without the sync folder.
-            if (try? store.save(key, for: id)) == nil { try? store.delete(for: id) }
-        }
+        ensureSyncKey(for: id)
         onChange?()
         return CompanionProtocol.encodeBase64Url(secret)
+    }
+
+    /// Approves the phone `id` and returns its new secret like `pair`, but keeps the phone in memory only:
+    /// it is not paired, listed or written until its first request with that secret (`authenticateFirstUse`),
+    /// so a phone that never got the secret is never stored. Throws as `pair` does, except `notSaved`.
+    public func prepare(id: String, name: String, platform: String, appVersion: String, now: Date) throws -> String {
+        var generator = SystemRandomNumberGenerator()
+        let secret = Data((0..<PairedDeviceStore.secretByteCount).map { _ in UInt8.random(in: UInt8.min...UInt8.max, using: &generator) })
+        return try prepare(id: id, name: name, platform: platform, appVersion: appVersion, now: now, secret: secret)
+    }
+
+    /// Same as `prepare(id:name:platform:appVersion:now:)` with a given secret (tests).
+    func prepare(id: String, name: String, platform: String, appVersion: String, now: Date, secret: Data) throws -> String {
+        guard CompanionProtocol.isValidId(id) else { throw PairedDeviceStoreError.invalidId }
+        guard secret.count == PairedDeviceStore.secretByteCount else { throw PairedDeviceStoreError.invalidSecret }
+        lock.lock()
+        reload()
+        guard file.devices.filter({ $0.id != id }).count < PairedDeviceStore.maxDevices else {
+            lock.unlock()
+            throw PairedDeviceStoreError.tooManyDevices
+        }
+        var device = PairedDevice()
+        device.id = id
+        device.name = PairedDeviceStore.cleanName(name)
+        device.platform = PairedDeviceStore.cleanName(platform)
+        device.appVersion = PairedDeviceStore.cleanName(appVersion)
+        device.secretHash = PairedDeviceStore.hashSecret(secret)
+        device.paired = now
+        device.lastSeen = now
+        pending[id] = (device, now)
+        lock.unlock()
+        ensureSyncKey(for: id)
+        return CompanionProtocol.encodeBase64Url(secret)
+    }
+
+    /// Drops the approved phone `id` that never came back (its reply was not delivered).
+    public func discard(_ id: String) {
+        lock.lock()
+        let dropped = pending.removeValue(forKey: id) != nil
+        lock.unlock()
+        if dropped { releaseSyncKeys([id]) }
+    }
+
+    /// Drops every approved phone that has not come back (pairing ended).
+    public func clearPending() {
+        lock.lock()
+        let ids = Array(pending.keys)
+        pending = [:]
+        lock.unlock()
+        releaseSyncKeys(ids)
+    }
+
+    /// Whether an approved phone still waits for its first request (the desktop keeps listening for it).
+    public func hasPending(now: Date) -> Bool {
+        lock.lock()
+        let expired = dropExpired(now: now)
+        let any = !pending.isEmpty
+        lock.unlock()
+        releaseSyncKeys(expired)
+        return any
+    }
+
+    /// Makes the phone's sync key when it has none. A key that cannot be kept is not handed out: the phone
+    /// pairs without the sync folder.
+    private func ensureSyncKey(for id: String) {
+        guard let store = syncKeyStore, (try? store.load(for: id))?.count != SyncPackage.keyByteCount else { return }
+        var generator = SystemRandomNumberGenerator()
+        let key = Data((0..<SyncPackage.keyByteCount).map { _ in UInt8.random(in: UInt8.min...UInt8.max, using: &generator) })
+        if (try? store.save(key, for: id)) == nil { try? store.delete(for: id) }
+    }
+
+    /// Deletes the sync keys of dropped approvals, unless the phone is paired from before.
+    private func releaseSyncKeys(_ ids: [String]) {
+        guard let store = syncKeyStore, !ids.isEmpty else { return }
+        lock.lock()
+        reload()
+        let stale = ids.filter { id in pending[id] == nil && !file.devices.contains { $0.id == id } }
+        lock.unlock()
+        for id in stale { try? store.delete(for: id) }
+    }
+
+    /// Drops the approvals whose time is up (with the lock held); returns their ids.
+    private func dropExpired(now: Date) -> [String] {
+        let ids = pending.filter { now.timeIntervalSince($0.value.since) >= PairedDeviceStore.pendingLifetime || now < $0.value.since }.map { $0.key }
+        for id in ids { pending[id] = nil }
+        return ids
     }
 
     /// The sync key of the paired phone `id` (32 bytes, sent to it at pairing and opening what it puts in
@@ -234,7 +320,7 @@ public final class PairedDeviceStore: @unchecked Sendable {
         guard let store = syncKeyStore, CompanionProtocol.isValidId(id) else { return nil }
         lock.lock()
         reload()
-        let paired = !removed.contains(id) && file.devices.contains { $0.id == id }
+        let paired = !removed.contains(id) && (file.devices.contains { $0.id == id } || pending[id] != nil)
         lock.unlock()
         guard paired, let key = try store.load(for: id), key.count == SyncPackage.keyByteCount else { return nil }
         return key
@@ -249,27 +335,65 @@ public final class PairedDeviceStore: @unchecked Sendable {
     /// The paired phone `id` when `secret` is its secret (compared in constant time); nil otherwise.
     /// Records when it was last seen.
     public func authenticate(id: String?, secret: String?, now: Date) -> PairedDevice? {
+        authenticateFirstUse(id: id, secret: secret, now: now)?.device
+    }
+
+    /// Same, and says whether this was the first request of a phone approved with `prepare`, which pairs
+    /// it for good; nil when that cannot be saved.
+    public func authenticateFirstUse(id: String?, secret: String?, now: Date) -> (device: PairedDevice, firstUse: Bool)? {
         guard let id = id, CompanionProtocol.isValidId(id),
               let bytes = CompanionProtocol.decodeBase64Url(secret), bytes.count == PairedDeviceStore.secretByteCount
         else { return nil }
         let presented = PairedDeviceStore.hashSecret(bytes)
         lock.lock()
-        defer { lock.unlock() }
         reload()
-        guard !removed.contains(id), let index = file.devices.firstIndex(where: { $0.id == id }) else { return nil }
-        let stored = file.devices[index].secretHash
-        guard stored.utf8.count == 64, stored.utf8.count == presented.utf8.count else { return nil }
+        if !removed.contains(id), let index = file.devices.firstIndex(where: { $0.id == id }),
+           PairedDeviceStore.matches(file.devices[index].secretHash, presented) {
+            defer { lock.unlock() }
+            if let seen = file.devices[index].lastSeen, now.timeIntervalSince(seen) < PairedDeviceStore.lastSeenResolution, now >= seen {
+                return (file.devices[index], false)
+            }
+            file.devices[index].lastSeen = now
+            StoreFiles.write(file, to: url)
+            return (file.devices[index], false)
+        }
+        let expired = dropExpired(now: now)
+        let committed = commitPending(id: id, presented: presented, now: now)
+        lock.unlock()
+        releaseSyncKeys(expired)
+        guard let device = committed else { return nil }
+        onChange?()
+        return (device, true)
+    }
+
+    /// Stores the approved phone `id` when `presented` is its secret's hash (with the lock held).
+    private func commitPending(id: String, presented: String, now: Date) -> PairedDevice? {
+        guard var device = pending[id]?.device, PairedDeviceStore.matches(device.secretHash, presented) else { return nil }
+        let others = file.devices.filter { $0.id != id }
+        guard others.count < PairedDeviceStore.maxDevices else {
+            pending[id] = nil
+            return nil
+        }
+        device.paired = now
+        device.lastSeen = now
+        let previous = file.devices
+        file.devices = others + [device]
+        guard StoreFiles.write(file, to: url) else {
+            file.devices = previous
+            return nil
+        }
+        pending[id] = nil
+        removed.remove(id)
+        return device
+    }
+
+    private static func matches(_ stored: String, _ presented: String) -> Bool {
+        guard stored.utf8.count == 64, stored.utf8.count == presented.utf8.count else { return false }
         var difference: UInt8 = 0
         for (a, b) in zip(stored.utf8, presented.utf8) {
             difference |= a ^ b
         }
-        guard difference == 0 else { return nil }
-        if let seen = file.devices[index].lastSeen, now.timeIntervalSince(seen) < PairedDeviceStore.lastSeenResolution, now >= seen {
-            return file.devices[index]
-        }
-        file.devices[index].lastSeen = now
-        StoreFiles.write(file, to: url)
-        return file.devices[index]
+        return difference == 0
     }
 
     /// Unpairs the phone `id`; it is refused from now on. False when it was not paired.
@@ -278,6 +402,7 @@ public final class PairedDeviceStore: @unchecked Sendable {
         lock.lock()
         reload()
         removed.insert(id)
+        pending[id] = nil
         let before = file.devices.count
         file.devices.removeAll { $0.id == id }
         let wasPaired = file.devices.count != before
@@ -296,10 +421,12 @@ public final class PairedDeviceStore: @unchecked Sendable {
         let count = file.devices.count
         let ids = file.devices.map(\.id)
         for id in ids { removed.insert(id) }
+        let waiting = Array(pending.keys)
+        pending = [:]
         file.devices = []
         StoreFiles.write(file, to: url)
         lock.unlock()
-        for id in ids { try? syncKeyStore?.delete(for: id) }
+        for id in ids + waiting { try? syncKeyStore?.delete(for: id) }
         if count > 0 { onChange?() }
         return count
     }

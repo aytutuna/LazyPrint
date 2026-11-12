@@ -247,6 +247,8 @@ final class CompanionLoopbackTests: XCTestCase {
         let opened = try openPairing()
         let client = phone(id)
         let answer = try await pair(client, opened.token, id)
+        // The phone is stored at its first request with the secret.
+        _ = try await client.hello()
         return (client, answer.deviceSecret)
     }
 
@@ -319,13 +321,15 @@ final class CompanionLoopbackTests: XCTestCase {
         let opened = try openPairing()
         let client = phone()
         let answer = try await pair(client, opened.token)
+        XCTAssertEqual(devices.count, 0)
+        XCTAssertTrue(devices.hasPending(now: clock.now))
+        let hello = try await client.hello()
         XCTAssertEqual(devices.count, 1)
         let device = try XCTUnwrap(devices.devices.first)
         XCTAssertEqual(device.name, "Test phone")
         let secret = try XCTUnwrap(CompanionProtocol.decodeBase64Url(answer.deviceSecret))
         XCTAssertEqual(device.secretHash, PairedDeviceStore.hashSecret(secret))
 
-        let hello = try await client.hello()
         XCTAssertEqual(hello.desktopName, "TEST-MAC")
         let health = try await client.health()
         XCTAssertEqual(health, HealthResponse(protocolVersion: 1, paired: true))
@@ -369,13 +373,30 @@ final class CompanionLoopbackTests: XCTestCase {
         XCTAssertEqual(devices.count, 0)
         XCTAssertEqual(opened.state(at: clock.now), .open)
         // The right pin still pairs with the same code.
-        _ = try await pair(phone(), opened.token)
+        let right = phone()
+        _ = try await pair(right, opened.token)
+        _ = try await right.hello()
         XCTAssertEqual(devices.count, 1)
+    }
+
+    func testAnApprovedPhoneThatNeverComesBack_IsNotStored() async throws {
+        let opened = try openPairing()
+        let client = phone()
+        _ = try await pair(client, opened.token)
+        XCTAssertEqual(devices.count, 0)
+        clock.advance(PairedDeviceStore.pendingLifetime)
+        XCTAssertFalse(devices.hasPending(now: clock.now))
+        let late = await isUnauthorized { _ = try await client.hello() }
+        XCTAssertTrue(late)
+        XCTAssertEqual(devices.count, 0)
+        XCTAssertTrue(PairedDeviceStore(directory: directory.appendingPathComponent("Settings", isDirectory: true)).devices.isEmpty)
     }
 
     func testExpiredAndReusedTokens_AreRefused() async throws {
         let opened = try openPairing()
-        _ = try await pair(phone("phone-0001"), opened.token, "phone-0001")
+        let first = phone("phone-0001")
+        _ = try await pair(first, opened.token, "phone-0001")
+        _ = try await first.hello()
         let second = phone("phone-0002")
         let reused = await refusal { _ = try await self.pair(second, opened.token, "phone-0002") }
         XCTAssertEqual(reused?.status, 403)

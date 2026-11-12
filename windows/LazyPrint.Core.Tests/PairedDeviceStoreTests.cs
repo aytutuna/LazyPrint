@@ -252,4 +252,59 @@ public sealed class PairedDeviceStoreTests : IDisposable
         File.WriteAllText(FilePath, before);
         Assert.Null(store.Authenticate("phone-0001", secret, Now));
     }
+
+    [Fact]
+    public void Prepare_KeepsThePhoneOutOfTheFileUntilItsFirstRequest()
+    {
+        var store = new PairedDeviceStore(_directory);
+        int changes = 0;
+        store.Changed += (_, _) => changes++;
+        string secret = store.Prepare("phone-0001", "Aytu's iPhone", "ios", "1.0", Now, CompanionVectors.Secret);
+        Assert.Equal(CompanionVectors.SecretText, secret);
+        Assert.Empty(store.Devices);
+        Assert.Equal(0, store.Count);
+        Assert.False(File.Exists(FilePath) && File.ReadAllText(FilePath).Contains("phone-0001"));
+        Assert.True(store.HasPending(Now));
+        Assert.Null(store.Authenticate("phone-0001", CompanionVectors.SecretText.Replace('A', 'B'), Now, out bool wrong));
+        Assert.False(wrong);
+        Assert.Equal(0, changes);
+
+        var device = store.Authenticate("phone-0001", secret, Now.AddSeconds(5), out bool firstUse);
+        Assert.True(firstUse);
+        Assert.Equal("Aytu's iPhone", device?.Name);
+        Assert.Equal(CompanionVectors.SecretHash, Assert.Single(new PairedDeviceStore(_directory).Devices).SecretHash);
+        Assert.False(store.HasPending(Now));
+        Assert.Equal(1, changes);
+        Assert.NotNull(store.Authenticate("phone-0001", secret, Now.AddSeconds(6), out firstUse));
+        Assert.False(firstUse);
+    }
+
+    [Fact]
+    public void Prepare_ForgetsAPhoneThatIsDiscardedClearedOrLate()
+    {
+        var store = new PairedDeviceStore(_directory);
+        string first = store.Prepare("phone-0001", "A", "ios", "1.0", Now);
+        store.Discard("phone-0001");
+        Assert.Null(store.Authenticate("phone-0001", first, Now));
+        string second = store.Prepare("phone-0002", "B", "ios", "1.0", Now);
+        store.ClearPending();
+        Assert.Null(store.Authenticate("phone-0002", second, Now));
+        string third = store.Prepare("phone-0003", "C", "ios", "1.0", Now);
+        Assert.Null(store.Authenticate("phone-0003", third, Now + PairedDeviceStore.PendingLifetime));
+        string fourth = store.Prepare("phone-0004", "D", "ios", "1.0", Now);
+        store.Remove("phone-0004");
+        Assert.Null(store.Authenticate("phone-0004", fourth, Now));
+        Assert.Empty(store.Devices);
+    }
+
+    [Fact]
+    public void Prepare_RefusesAPhoneBeyondTheLimit()
+    {
+        var store = new PairedDeviceStore(_directory);
+        for (int i = 0; i < PairedDeviceStore.MaxDevices; i++) store.Pair($"phone-{i:D4}", "P", "ios", "1.0", Now);
+        Assert.Throws<InvalidOperationException>(() => store.Prepare("phone-9999", "P", "ios", "1.0", Now));
+        // A paired phone pairing again is not another phone.
+        string again = store.Prepare("phone-0000", "P", "ios", "1.0", Now);
+        Assert.NotNull(store.Authenticate("phone-0000", again, Now));
+    }
 }

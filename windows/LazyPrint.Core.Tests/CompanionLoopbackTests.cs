@@ -186,6 +186,8 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
         var phone = new FakePhone(Pin, id);
         var response = await phone.PairAsync(code);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The phone is stored at its first request with the secret.
+        Assert.Equal(HttpStatusCode.OK, (await phone.SendAsync(HttpMethod.Get, CompanionProtocol.HelloPath)).StatusCode);
         return (code, phone);
     }
 
@@ -280,6 +282,7 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
         // A second, still-listening reason: a paired phone keeps the server up after the code expires.
         using var first = new FakePhone(Pin, "phone-0001");
         Assert.Equal(HttpStatusCode.OK, (await first.PairAsync(code)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await first.SendAsync(HttpMethod.Get, CompanionProtocol.HelloPath)).StatusCode);
         using var second = new FakePhone(Pin, "phone-0002");
         var reused = await second.PairAsync(code);
         Assert.Equal(HttpStatusCode.Forbidden, reused.StatusCode);
@@ -595,8 +598,29 @@ public sealed class CompanionLoopbackTests : IAsyncLifetime
         answer.SetResult(true);
         Assert.Equal(HttpStatusCode.OK, (await pairing).StatusCode);
         Assert.False(_service.AwaitingApproval);
+        // Approved, not stored yet; the host keeps listening for the phone's first request.
+        Assert.Empty(_service.Devices.Devices);
+        await WaitUntil(() => _service.Status.State == CompanionListenState.Listening);
+        Assert.Equal(HttpStatusCode.OK, (await phone.SendAsync(HttpMethod.Get, CompanionProtocol.HelloPath)).StatusCode);
         Assert.Single(_service.Devices.Devices);
         Assert.Equal(CompanionListenState.Listening, _service.Status.State);
+    }
+
+    [Fact]
+    public async Task AnApprovedPhoneThatNeverComesBack_IsNotStoredAndTheHostStopsListening()
+    {
+        var code = await _service.OpenPairingAsync();
+        Assert.NotNull(code);
+        using var phone = new FakePhone(Pin);
+        Assert.Equal(HttpStatusCode.OK, (await phone.PairAsync(code)).StatusCode);
+        Assert.Empty(_service.Devices.Devices);
+        Assert.True(_service.Devices.HasPending(_now));
+        _now += PairedDeviceStore.PendingLifetime;
+        await _service.RefreshAsync();
+        await WaitUntil(() => _service.Status.State == CompanionListenState.Off);
+        Assert.Empty(_service.Devices.Devices);
+        await AssertNotListening(code.Port);
+        Assert.Empty(new PairedDeviceStore(_directory).Devices);
     }
 
     [Fact]

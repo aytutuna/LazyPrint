@@ -135,6 +135,60 @@ final class CompanionRouterTests: XCTestCase {
         XCTAssertEqual(router.awaitingApproval, 0)
     }
 
+    func testPair_DoesNotStoreAPhoneThatNeverComesBack() async throws {
+        let secret = try await pairPhone()
+        XCTAssertTrue(devices.devices.isEmpty)
+        XCTAssertTrue(devices.hasPending(now: now))
+        now = now.addingTimeInterval(PairedDeviceStore.pendingLifetime)
+        XCTAssertFalse(devices.hasPending(now: now))
+        let hello = await send("GET", CompanionProtocol.helloPath, device: "phone-0001", secret: secret)
+        XCTAssertEqual(hello.status, 401)
+        XCTAssertTrue(devices.devices.isEmpty)
+        XCTAssertTrue(PairedDeviceStore(directory: directory).devices.isEmpty)
+    }
+
+    func testPair_StoresAnApprovedPhoneAtItsFirstRequest() async throws {
+        let paired = Guarded<Int>(0)
+        router.onDevicePaired = { _ in paired.value += 1 }
+        let secret = try await pairPhone()
+        XCTAssertTrue(PairedDeviceStore(directory: directory).devices.isEmpty)
+        let first = await send("GET", CompanionProtocol.helloPath, device: "phone-0001", secret: secret)
+        XCTAssertEqual(first.status, 200)
+        XCTAssertEqual(paired.value, 1)
+        XCTAssertEqual(PairedDeviceStore(directory: directory).devices.map(\.id), ["phone-0001"])
+        XCTAssertFalse(devices.hasPending(now: now))
+        let second = await send("GET", CompanionProtocol.helloPath, device: "phone-0001", secret: secret)
+        XCTAssertEqual(second.status, 200)
+        XCTAssertEqual(paired.value, 1)
+    }
+
+    func testPair_GivesAnApprovedPhoneNothingBeforeItsSecretIsUsed() async throws {
+        let secret = try await pairPhone()
+        let package = try CompanionFixtures.package()
+        let other = CompanionVectors.secretText
+        let wrongHello = await send("GET", CompanionProtocol.helloPath, device: "phone-0001", secret: other)
+        XCTAssertEqual(wrongHello.status, 401)
+        let noSecret = await send("GET", CompanionProtocol.helloPath, device: "phone-0001")
+        XCTAssertEqual(noSecret.status, 401)
+        let wrongUpload = await send("PUT", CompanionProtocol.inboxPrefix + "package-0001", body: package,
+                                     device: "phone-0001", secret: other)
+        XCTAssertEqual(wrongUpload.status, 401)
+        XCTAssertTrue(devices.devices.isEmpty)
+        // With its own secret it is a paired phone like any other.
+        let upload = await send("PUT", CompanionProtocol.inboxPrefix + "package-0001", body: package,
+                                device: "phone-0001", secret: secret)
+        XCTAssertEqual(upload.status, 201)
+        XCTAssertEqual(devices.devices.count, 1)
+    }
+
+    func testPair_ForgetsAnApprovedPhoneWhenPairingEnds() async throws {
+        let secret = try await pairPhone()
+        devices.clearPending()
+        let hello = await send("GET", CompanionProtocol.helloPath, device: "phone-0001", secret: secret)
+        XCTAssertEqual(hello.status, 401)
+        XCTAssertTrue(devices.devices.isEmpty)
+    }
+
     func testPair_GivesASecretForTheOpenSessionsToken() async throws {
         let session = try PairingSession(opened: now)
         pairing = session
@@ -147,8 +201,13 @@ final class CompanionRouterTests: XCTestCase {
         XCTAssertEqual(answer.desktopId, devices.desktopId)
         XCTAssertEqual(answer.desktopName, "AYTU-PC")
         XCTAssertEqual(answer.protocolVersion, 1)
-        XCTAssertNotNil(devices.authenticate(id: "phone-0001", secret: answer.deviceSecret, now: now))
+        // Approved, not paired yet: its first request with the secret pairs it.
+        XCTAssertNil(paired.value)
+        XCTAssertTrue(devices.devices.isEmpty)
+        let hello = await send("GET", CompanionProtocol.helloPath, device: "phone-0001", secret: answer.deviceSecret)
+        XCTAssertEqual(hello.status, 200)
         XCTAssertEqual(paired.value?.name, "Aytu's iPhone")
+        XCTAssertEqual(devices.devices.count, 1)
         // The token was single use.
         let again = await send("POST", CompanionProtocol.pairPath, body: pairRequest(session.token, "phone-0002", name: "Other"))
         XCTAssertEqual(again.status, 403)

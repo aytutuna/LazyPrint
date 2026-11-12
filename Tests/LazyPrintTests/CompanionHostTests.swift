@@ -142,6 +142,8 @@ final class CompanionHostTests: XCTestCase {
         let answer = try await pair(phone(code, id: id), code, id: id)
         let secret = try XCTUnwrap(CompanionProtocol.decodeBase64Url(answer.deviceSecret))
         let client = try phone(code, id: id, secret: secret)
+        // The phone is stored at its first request with the secret.
+        _ = try await client.hello()
         return (code, client)
     }
 
@@ -334,8 +336,26 @@ final class CompanionHostTests: XCTestCase {
         _ = try await pairing.value
         // The router settles the request once the server has written the answer, which the phone can read first.
         try await waitUntil { !service.awaitingApproval }
+        // Approved, not stored yet; the host keeps listening for the phone's first request.
+        XCTAssertEqual(service.devices.count, 0)
+        try await waitUntil { service.status.state == .listening }
+        _ = try await client.hello()
         XCTAssertEqual(service.devices.count, 1)
         XCTAssertEqual(service.status.state, .listening)
+    }
+
+    func testAnApprovedPhoneThatNeverComesBack_IsNotStoredAndTheHostStopsListening() async throws {
+        let opened = await service.openPairing()
+        let code = try XCTUnwrap(opened)
+        _ = try await pair(phone(code), code)
+        XCTAssertTrue(service.devices.devices.isEmpty)
+        XCTAssertTrue(service.devices.hasPending(now: clock.value))
+        clock.value = clock.value.addingTimeInterval(PairedDeviceStore.pendingLifetime)
+        await service.refresh()
+        try await waitUntil { service.status.state == .off }
+        XCTAssertTrue(service.devices.devices.isEmpty)
+        let listening = await isListening(code.port)
+        XCTAssertFalse(listening)
     }
 
     func testADeclinedPhone_StopsTheListeningItKeptUp() async throws {
