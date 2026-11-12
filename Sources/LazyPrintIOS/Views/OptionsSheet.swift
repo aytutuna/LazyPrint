@@ -18,7 +18,7 @@ struct OptionsSheet: View {
                                                         ("Actual size", .actualSize), ("Fill", .fill)]
 
     var body: some View {
-        let rules: Rules = Rules(settings: state.settings, task: state.task, capabilities: state.capabilities)
+        let rules: Rules = Rules(settings: state.settings, capabilities: state.capabilities)
         NavigationStack {
             Form {
                 pagesSection(rules)
@@ -285,8 +285,8 @@ struct OptionsSheet: View {
         var scalingReason: String?
         var paperNote: String?
 
-        init(settings s: PrintSettings, task: PrintTask?, capabilities: PrinterCapabilities?) {
-            let photos: Bool = task == .photos || task == .photoSheet
+        init(settings s: PrintSettings, capabilities: PrinterCapabilities?) {
+            let photos: Bool = s.layoutStyle.isPhoto
             let canTurn: Bool = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided: Bool = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
@@ -294,14 +294,14 @@ struct OptionsSheet: View {
             let noQuality: Bool = OptionsSheet.noQuality(capabilities)
 
             let poster: Bool = (2...4).contains(s.poster)
-            let margins: Bool = Imposition.keepsMargin(PrintJobs.layoutOptions(s, task: task))
+            let margins: Bool = Imposition.keepsMargin(PrintJobs.layoutOptions(s))
 
             showCollate = s.copies > 1
             showSides = !photos
             sidesEnabled = !s.booklet && !poster
             sidesReason = poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
             sidesNote = twoSided && !photos && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
-            showLayout = task != .photos
+            showLayout = s.layoutStyle != .photoPrints
             pagesPerSideEnabled = !s.booklet && !poster
             pagesPerSideReason = poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
             showRightToLeft = !poster && (s.booklet || s.pagesPerSheet > 1)
@@ -316,8 +316,8 @@ struct OptionsSheet: View {
             scalingLimited = s.booklet || s.pagesPerSheet > 1 || poster
             scalingReason = scalingLimited ? "Pages are fitted to their spaces" : nil
             showPhotos = photos
-            photoSizeEnabled = task == .photos
-            photoSizeReason = task == .photoSheet ? "Set by Photo sheet" : nil
+            photoSizeEnabled = s.layoutStyle == .photoPrints
+            photoSizeReason = s.layoutStyle == .photoSheet ?"Set by Photo sheet" : nil
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

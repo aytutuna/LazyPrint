@@ -34,13 +34,12 @@ public enum InspectorSections {
         section == printer || section == pages
     }
 
-    /// The section a task opens when it is started, if it is not open already.
-    public static func openedBy(_ task: PrintTask) -> String? {
-        switch task {
-        case .booklet, .handouts: return layout
-        case .photos, .photoSheet: return photos
-        default: return nil
-        }
+    /// The section the settings need when files are opened, if it is not open already: Photos for a photo layout, Layout for a
+    /// booklet or several pages to a side.
+    public static func openedBy(_ settings: PrintSettings) -> String? {
+        if settings.layoutStyle.isPhoto { return photos }
+        if settings.booklet || settings.pagesPerSheet > 1 { return layout }
+        return nil
     }
 
     private static let maxParts = 3
@@ -93,7 +92,7 @@ public enum InspectorSections {
             }
         }
         let margin = MarginChoices.millimetres(s.margin, custom: s.marginMm)
-        if margin > 0 && Imposition.keepsMargin(PrintJobs.layoutOptions(s, task: nil)) { parts.append("\(margin) mm margins") }
+        if margin > 0 && Imposition.keepsMargin(PrintJobs.layoutOptions(s)) { parts.append("\(margin) mm margins") }
         return join(parts)
     }
 

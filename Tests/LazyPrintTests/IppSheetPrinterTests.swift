@@ -237,7 +237,7 @@ final class IppSheetPrinterTests: XCTestCase {
     private func rangeJob(_ range: [Int], caps: PrinterCapabilities) throws -> SheetJob {
         let settings = PrintFixtures.letter { $0.scaling = .actualSize }
         let document = try openLetterPDF(pages: 5)
-        let plan = PrintJobs.plan([document.loaded], pageRange: range, settings: settings, task: nil, printer: caps,
+        let plan = PrintJobs.plan([document.loaded], pageRange: range, settings: settings, printer: caps,
                                   prefs: PrinterPrefs())
         return SheetJob(name: document.loaded.name, printer: PrintFixtures.printer(.ipp), capabilities: caps, settings: settings,
                         plan: plan, documents: [document], id: "job")

@@ -35,24 +35,23 @@ final class MediaChoicesTests: XCTestCase {
 
     func test_aPhotoTaskOnAutomatic_picksThePhotoType() {
         let caps = printer(sources: [], types: ["stationery", "photographic-glossy", "photographic"])
-        let cases: [(String?, String, String?)] = [
-            ("photos", "photographic-glossy", "photographic-glossy"),
-            ("photoSheet", "auto", "photographic"),
-            ("photos", "stationery", "stationery"),
-            ("document", "auto", nil),
-            (nil, "auto", nil),
+        let cases: [(LayoutStyle, String, String?)] = [
+            (.photoPrints, "photographic-glossy", "photographic-glossy"),
+            (.photoSheet, "auto", "photographic"),
+            (.photoPrints, "stationery", "stationery"),
+            (.pages, "auto", nil),
         ]
-        for (task, chosen, expected) in cases {
+        for (style, chosen, expected) in cases {
             var settings = PrintSettings()
-            settings.taskId = task
+            settings.layoutStyle = style
             settings.mediaType = chosen
-            XCTAssertEqual(MediaChoices.type(settings, caps), expected, "\(task ?? "nil") \(chosen)")
+            XCTAssertEqual(MediaChoices.type(settings, caps), expected, "\(style) \(chosen)")
         }
     }
 
     func test_aPhotoTaskOnAPrinterWithoutPhotoPaper_asksForNothing() {
         var settings = PrintSettings()
-        settings.taskId = "photos"
+        settings.layoutStyle = .photoPrints
         XCTAssertNil(MediaChoices.type(settings, printer(sources: [], types: ["stationery", "labels"])))
         XCTAssertEqual(MediaChoices.photoType(["stationery", "photographic-satin", "photographic-matte"]), "photographic-satin")
         XCTAssertEqual(MediaChoices.photoType(["photographic-pearl"]), "photographic-pearl")

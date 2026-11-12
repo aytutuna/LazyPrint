@@ -131,7 +131,7 @@ public final class IOSAirPrintPrinter: SheetPrinter {
     static func outputType(for job: SheetJob) -> UIPrintInfo.OutputType {
         // Photo output is what lets the printer print to the edge, which a photo job planned without margins counts on.
         let gray: Bool = job.settings.color == .gray
-        if job.settings.taskId == PrintTask.photos.rawValue,
+        if job.settings.layoutStyle == .photoPrints,
            job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0) {
             return gray ? UIPrintInfo.OutputType.photoGrayscale : UIPrintInfo.OutputType.photo
         }

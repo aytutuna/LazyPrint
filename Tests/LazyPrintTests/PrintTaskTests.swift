@@ -153,6 +153,7 @@ final class PrintTaskTests: XCTestCase {
         let start = settings { $0.color = .gray; $0.photoSizeId = "5x7"; $0.photoFill = false; $0.booklet = true; $0.cutMarks = false }
         let photos = TaskCatalog.apply(.photos, to: start, printer: nil)
         XCTAssertEqual(photos.taskId, "photos")
+        XCTAssertEqual(photos.layoutStyle, .photoPrints)
         XCTAssertEqual(photos.photoSizeId, "4x6")
         XCTAssertTrue(photos.photoFill)
         XCTAssertEqual(photos.quality, .best)
@@ -162,6 +163,8 @@ final class PrintTaskTests: XCTestCase {
 
         let sheet = TaskCatalog.apply(.photoSheet, to: start, printer: nil)
         XCTAssertEqual(sheet.taskId, "photoSheet")
+        XCTAssertEqual(sheet.layoutStyle, .photoSheet)
+        XCTAssertEqual(TaskCatalog.apply(.booklet, to: sheet, printer: nil).layoutStyle, .pages)
         XCTAssertEqual(sheet.pagesPerSheet, 4)
         XCTAssertEqual(sheet.scaling, .fill)
         XCTAssertTrue(sheet.cutMarks)

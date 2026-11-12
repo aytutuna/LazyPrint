@@ -51,13 +51,13 @@ final class IOSAirPrintPrinterTests: XCTestCase {
 
     func test_outputType_isPhotoForAPhotoJobWithoutMargins() {
         var job = makeJob(color: .color)
-        job.settings.taskId = PrintTask.photos.rawValue
+        job.settings.layoutStyle = .photoPrints
         job.plan.plan.area.margins = LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
 
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .photo)
         job.settings.color = .gray
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .photoGrayscale)
-        job.settings.taskId = PrintTask.document.rawValue
+        job.settings.layoutStyle = .pages
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .grayscale)
     }
 

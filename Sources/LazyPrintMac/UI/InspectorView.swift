@@ -12,15 +12,15 @@ struct InspectorView: View {
 
     private static let perSide = [1, 2, 4, 6, 9, 16]
 
-    /// Opens the section a task needs (the photo tasks open Photos); kept like any section the user opened.
-    static func open(for task: PrintTask) {
-        if let id = InspectorSections.openedBy(task) {
+    /// Opens the section the settings need (a photo layout opens Photos); kept like any section the user opened.
+    static func open(for settings: PrintSettings) {
+        if let id = InspectorSections.openedBy(settings) {
             UserDefaults.standard.set(true, forKey: "inspector." + id)
         }
     }
 
     var body: some View {
-        let rules = Rules(settings: state.settings, task: state.task, capabilities: state.capabilities)
+        let rules = Rules(settings: state.settings, capabilities: state.capabilities)
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 10) {
@@ -346,8 +346,8 @@ struct InspectorView: View {
         var qualityReason: String?
         var paperNote: String?
 
-        init(settings s: PrintSettings, task: PrintTask?, capabilities: PrinterCapabilities?) {
-            let photos = task == .photos || task == .photoSheet
+        init(settings s: PrintSettings, capabilities: PrinterCapabilities?) {
+            let photos = s.layoutStyle.isPhoto
             let canTurn = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
@@ -355,14 +355,14 @@ struct InspectorView: View {
             let noQuality = capabilities.map { $0.printQualitySupported.isEmpty } ?? false
 
             let poster = (2...4).contains(s.poster)
-            let margins = Imposition.keepsMargin(PrintJobs.layoutOptions(s, task: task))
+            let margins = Imposition.keepsMargin(PrintJobs.layoutOptions(s))
 
             showCollate = s.copies > 1
             showSides = !photos
             sidesEnabled = !s.booklet && !poster
             sidesReason = poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
             sidesNote = twoSided && !photos && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
-            showLayout = task != .photos
+            showLayout = s.layoutStyle != .photoPrints
             pagesPerSideEnabled = !s.booklet && !poster
             pagesPerSideReason = poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
             showRightToLeft = !poster && (s.booklet || s.pagesPerSheet > 1)
@@ -375,8 +375,8 @@ struct InspectorView: View {
             marginEnabled = margins
             marginReason = margins ? nil : "Not used at actual size or fill"
             showPhotos = photos
-            photoSizeEnabled = task == .photos
-            photoSizeReason = task == .photoSheet ? "Set by Photo sheet" : nil
+            photoSizeEnabled = s.layoutStyle == .photoPrints
+            photoSizeReason = s.layoutStyle == .photoSheet ?"Set by Photo sheet" : nil
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

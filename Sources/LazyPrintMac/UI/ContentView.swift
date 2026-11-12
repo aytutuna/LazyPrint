@@ -275,7 +275,7 @@ struct ContentView: View {
                 await state.takeBatch(id, startNew: startNew)
             }
             if !state.documents.isEmpty {
-                if let task = state.task { InspectorView.open(for: task) }
+                InspectorView.open(for: state.settings)
                 tab = .print
             }
         }
@@ -287,7 +287,7 @@ struct ContentView: View {
     private func start(_ task: PrintTask) async {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }
-        InspectorView.open(for: task)
+        InspectorView.open(for: state.settings)
         tab = .print
         if state.documents.isEmpty { showImporter = true }
     }
@@ -319,7 +319,7 @@ struct ContentView: View {
             state.holdAccess(started)
             state.remember(files)
             if !state.documents.isEmpty {
-                if let task = state.task { InspectorView.open(for: task) }
+                InspectorView.open(for: state.settings)
                 tab = .print
             }
         }

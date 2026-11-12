@@ -22,7 +22,7 @@ extension AppState {
     public func summary(of task: PrintTask) -> String {
         let s = TaskCatalog.apply(task, to: settings, printer: capabilities)
         var parts = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
-        if task == .photos || task == .photoSheet { parts.append(InspectorSections.photosSummary(s)) }
+        if s.layoutStyle.isPhoto { parts.append(InspectorSections.photosSummary(s)) }
         let summary = parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
         return summary.isEmpty ? "One page per side" : summary
     }
@@ -60,12 +60,12 @@ extension AppState {
         settings.taskId = nil
     }
 
-    /// The document task is two-sided only for a printer that can turn the sheet. Picked before the printer was read (the task
-    /// a fresh install starts in), it chose one-sided; it chooses again each time the printer in use is read or changes, until the
-    /// user changes the sides.
+    /// The document preset is two-sided only for a printer that can turn the sheet. Picked before the printer was read (the preset
+    /// a fresh install starts with), it chose one-sided; it chooses again each time the printer in use is read or changes, until
+    /// the user changes the sides. Only the document preset is ever picked blind.
     func chooseSidesAgain() {
-        guard sidesPickedBlind != nil, let task else { return }
-        let sides = TaskCatalog.apply(task, to: settings, printer: capabilities).sides
+        guard sidesPickedBlind != nil else { return }
+        let sides = TaskCatalog.apply(.document, to: settings, printer: capabilities).sides
         sidesPickedBlind = sides
         if settings.sides != sides { settings.sides = sides }
     }

@@ -498,7 +498,7 @@ struct PrintScreen: View {
     private var optionsSummary: String {
         let s: PrintSettings = OptionsSheet.used(state.settings, capabilities: state.capabilities)
         var parts: [String] = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s)]
-        if state.task == .photos || state.task == .photoSheet { parts.append(InspectorSections.photosSummary(s)) }
+        if s.layoutStyle.isPhoto { parts.append(InspectorSections.photosSummary(s)) }
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 

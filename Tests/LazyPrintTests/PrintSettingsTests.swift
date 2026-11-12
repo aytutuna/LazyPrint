@@ -119,6 +119,17 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(s.pagesPerSheet, 2)
     }
 
+    func test_settings_savedInAPhotoTask_keepTheirPhotoLayout() throws {
+        try write(#"{"taskId": "photos"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .photoPrints)
+        try write(#"{"taskId": "photoSheet"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .photoSheet)
+        try write(#"{"taskId": "booklet"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .pages)
+        try write(#"{"taskId": "photos", "layoutStyle": "pages"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .pages)
+    }
+
     func test_settings_unreadable_areMovedAside() throws {
         try write("this is not JSON {", to: settingsURL)
         XCTAssertNil(SettingsStore.load(in: directory))

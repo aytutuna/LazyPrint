@@ -146,7 +146,7 @@ public struct IOSRootView: View {
         await state.startTask(task)
         guard state.task == task, TaskCatalog.definition(task).opensFiles else { return }
         if state.documents.isEmpty {
-            source = task == .photos || task == .photoSheet ? .photos : .files
+            source = state.settings.layoutStyle.isPhoto ? .photos : .files
         }
     }
 

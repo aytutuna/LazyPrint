@@ -66,7 +66,6 @@ struct JobInputs {
     var printer: PrinterInfo
     var capabilities: PrinterCapabilities?
     var settings: PrintSettings
-    var task: PrintTask?
     var documents: [OpenedDocument]
     var range: [Int]?
     var name: String
@@ -609,20 +608,20 @@ public final class AppState: ObservableObject {
         } else {
             lastValidRange = range
         }
-        return PrintJobs.plan(documents.map { $0.loaded }, pageRange: range, settings: settings, task: task,
+        return PrintJobs.plan(documents.map { $0.loaded }, pageRange: range, settings: settings,
                               printer: capabilities, prefs: selectedPrefs)
     }
 
-    /// What the cut marks of a photo print are laid out from; nil when the task or the settings draw none.
-    static func marks(of task: PrintTask?, _ settings: PrintSettings) -> PhotoOptions? {
-        guard task == .photos, settings.cutMarks else { return nil }
+    /// What the cut marks of a photo print are laid out from; nil when the settings draw none.
+    static func marks(_ settings: PrintSettings) -> PhotoOptions? {
+        guard settings.layoutStyle == .photoPrints, settings.cutMarks else { return nil }
         let size = PhotoSize.all.first(where: { $0.id == settings.photoSizeId }) ?? PhotoSize.all[0]
         return PhotoOptions(size: size, copiesEach: 1, fill: settings.photoFill, cutMarks: true)
     }
 
     /// Whether a photo sheet's cut marks are drawn, at the frames its photos were planned into.
-    static func drawsFrameMarks(of task: PrintTask?, _ settings: PrintSettings) -> Bool {
-        task == .photoSheet && settings.cutMarks
+    static func drawsFrameMarks(_ settings: PrintSettings) -> Bool {
+        settings.layoutStyle == .photoSheet && settings.cutMarks
     }
 
     /// Draws the current side off the main actor; an answer for a side that is no longer the current one is dropped.
@@ -710,10 +709,10 @@ public final class AppState: ObservableObject {
         }
         guard sides.indices.contains(index) else { return nil }
         let side = sides[index]
-        if let options = Self.marks(of: task, settings) {
+        if let options = Self.marks(settings) {
             return RenderedSide(side: side, items: PhotoLayout.cutMarks(side, options: options, area: plan.plan.area))
         }
-        return RenderedSide(side: side, items: Self.drawsFrameMarks(of: task, settings) ? PhotoLayout.frameMarks(side) : [])
+        return RenderedSide(side: side, items: Self.drawsFrameMarks(settings) ? PhotoLayout.frameMarks(side) : [])
     }
 
     // MARK: Two-sided card

@@ -126,6 +126,7 @@ public enum TaskCatalog {
         s.taskId = task.rawValue
         switch task {
         case .document:
+            s.layoutStyle = .pages
             s.pagesPerSheet = 1
             s.booklet = false
             s.poster = 0
@@ -135,6 +136,7 @@ public enum TaskCatalog {
             s.quality = .normal
         case .twoSided:
             // A printer that can't turn the sheet itself gets two passes: the plan decides, not the setting.
+            s.layoutStyle = .pages
             s.pagesPerSheet = 1
             s.booklet = false
             s.poster = 0
@@ -143,12 +145,14 @@ public enum TaskCatalog {
             s.sides = .longEdge
             s.quality = .normal
         case .booklet:
+            s.layoutStyle = .pages
             s.booklet = true
             s.poster = 0
             s.scaling = .shrinkToFit
             s.sides = .longEdge
             s.quality = .normal
         case .handouts:
+            s.layoutStyle = .pages
             s.pagesPerSheet = 2
             s.booklet = false
             s.poster = 0
@@ -156,12 +160,14 @@ public enum TaskCatalog {
             s.pageBorders = true
             s.quality = .normal
         case .photos:
+            s.layoutStyle = .photoPrints
             s.booklet = false
             s.photoSizeId = "4x6"
             s.photoFill = true
             s.quality = .best
             s.color = .color
         case .photoSheet:
+            s.layoutStyle = .photoSheet
             s.pagesPerSheet = 4
             s.booklet = false
             s.poster = 0
