@@ -163,9 +163,11 @@ public partial class MainWindow
             string group = "";
             foreach (var option in choices.Options)
             {
-                if (option.Group != group && option.Group != "")
+                if (option.Group != group)
                 {
-                    PaperBox.Items.Add(new ComboBoxItem { Content = option.Group, IsEnabled = false, FontWeight = FontWeights.SemiBold });
+                    PaperBox.Items.Add(option.Group == ""
+                        ? new Separator()
+                        : new ComboBoxItem { Content = option.Group, IsEnabled = false, FontWeight = FontWeights.SemiBold });
                 }
                 group = option.Group;
                 PaperBox.Items.Add(Item(option.Label, option.Id, option.Detail));
