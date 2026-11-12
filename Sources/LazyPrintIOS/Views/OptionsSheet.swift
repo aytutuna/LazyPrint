@@ -137,6 +137,7 @@ struct OptionsSheet: View {
             Toggle("Booklet", isOn: $state.settings.booklet)
                 .disabled(!rules.bookletEnabled)
                 .accessibilityIdentifier("print.booklet")
+            if let reason = rules.bookletReason { note(reason) }
             Choice(title: "Poster", selection: Binding(
                 get: { (2...4).contains(state.settings.poster) ? state.settings.poster : 0 },
                 set: { (count: Int) in state.settings.poster = count }),
@@ -270,6 +271,7 @@ struct OptionsSheet: View {
         var poster = false
         var photoPrints = false
         var bookletEnabled = true
+        var bookletReason: String?
         var posterEnabled = true
         var posterReason: String?
         var marginEnabled = true
@@ -308,6 +310,7 @@ struct OptionsSheet: View {
             self.poster = poster
             self.photoPrints = photoPrints
             bookletEnabled = !poster && !photos
+            bookletReason = photos ? "Not for photos" : poster ? "Set by Poster" : nil
             posterEnabled = !photos && (poster || (!s.booklet && s.pagesPerSheet == 1))
             posterReason = photos ? "Not for photos" : (posterEnabled ? nil : "Needs one page per side")
             marginEnabled = margins && !photos
