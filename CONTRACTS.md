@@ -185,7 +185,7 @@ public enum DuplexCheckAnswer: String, Sendable { case sameEdge, oppositeEdges, 
 - Sheets stack in the output tray in the order they were printed, whichever way up they land, and the tray feeds its top sheet first: turning the stack over puts the first sheet on top, so the backs go in sheet order; reloading it as it lies puts the last sheet on top, so they go in reverse. Both passes are sent with the page order forced normal (the spooler's `JobPageOrder` Standard, CUPS `outputorder=normal`), so a driver set to reverse order cannot undo this.
 - Every front gets a back. In reverse order a blank back gets one near-white dot (0.5 pt, gray 250) in a corner, so a driver that skips blank pages cannot put the backs out of step.
 - `learn`: `sameEdge` keeps the path and marks it checked; `oppositeEdges` toggles `turnBacks`; `bothOnOneSide` toggles `turnStackOver` and leaves `checked` false, so the check runs again with the other reloading.
-- On the iPhone, where iOS may end the app while the sheets are out, a job waiting for its backs is kept in `pending-backs.json` in the settings folder (`PendingBacks`: printer id, settings, task, range, page selection, reverse order and the file paths; written by `keepBacks()`, which clears it when the job is over). At launch `restoreBacks()` opens the files again and, if they are all there and the printer turns up, shows the reload card as for the next pass (a check sheet in between starts over); otherwise it clears the file. The files in the inbox it names are kept at launch. Windows and the Mac keep nothing.
+- On the iPhone, where iOS may end the app while the sheets are out, a job waiting for its backs is kept in `pending-backs.json` in the settings folder (`PendingBacks`: printer id, settings, range, page selection, reverse order and the file paths; written by `keepBacks()`, which clears it when the job is over). At launch `restoreBacks()` opens the files again and, if they are all there and the printer turns up, shows the reload card as for the next pass (a check sheet in between starts over); otherwise it clears the file. The files in the inbox it names are kept at launch. Windows and the Mac keep nothing.
 - `ManualDuplexText` holds the step card's words, the same on all three platforms: "Printing the fronts", "Take the 7 printed sheets out. Turn the stack over and put it back in the tray, top edge first." or, for the other paper path, "Put the stack back in the tray as it is, top edge first.", "Print the backs", "Check with one sheet", the check's question and its three answers. Counts are of sheets.
 
 ### Layout/TestPage
@@ -336,10 +336,12 @@ public enum TaskCatalog {
     public static func definition(_ task: PrintTask) -> TaskDefinition
     public static func tasks(for platform: AppPlatform) -> [TaskDefinition]     // fromPhone is not on the iPhone
     public static func availability(of task: PrintTask, context: TaskContext) -> TaskAvailability
-    /// The settings a task sets; what it leaves alone stays as the user had it.
+    /// The settings a task sets; what it leaves alone stays as the user had it. A task is only a preset: after this call nothing reads the task to decide what is shown, allowed or printed.
     public static func apply(_ task: PrintTask, to settings: PrintSettings, printer: PrinterCapabilities?) -> PrintSettings
 }
 ```
+
+A task is a preset and nothing more. Every behaviour that used to follow the current task follows a setting now: the photo layouts are `PrintSettings.layoutStyle` (`pages`, `photoPrints`, `photoSheet`; `LayoutStyle`, same in C#), which `PrintJobs.plan`, `layoutOptions`, `MediaChoices.type`, the cut marks, the inspector rules (photo size usable only for `photoPrints`, "Set by Photo sheet" for `photoSheet`, Layout hidden for `photoPrints`) and `InspectorSections.openedBy(settings)` read, so the same settings give the same plan and the same rules whatever task was picked last. The task id is kept for the Task menu's check mark, the banner's title and the status line only. Every task but the photo ones sets `layoutStyle` to `pages`; `photos` sets `photoPrints` and `photoSheet` sets `photoSheet`. A settings file saved before `layoutStyle` existed has no such key and reads it from the task id (`photos` as `photoPrints`, `photoSheet` as `photoSheet`, else `pages`): Swift decodes the missing key with that default, C# does so in `SettingsStore.Load` once it sees the key is missing. Leaving the task keeps the layout.
 
 What each task sets: `document` one per side, shrink to fit, two-sided when the printer can; `twoSided` long edge (by hand when the printer can't); `booklet`; `handouts` 2 per side, page borders; the first four also put quality back to normal, as `photos` sets it to best, and leave colour alone; `photos` the photo size 4×6, fill, best quality, color; `photoSheet` 4 per side, fill, cut marks (at the corners of the photos' frames, `PhotoLayout.frameMarks`); `testPage` prints `TestPage` at once on the chosen printer; `scanAndPrint` hands off to Lazy Scan (see "Hand-off"); `fromPhone` opens the phone window. A first launch, with no settings saved, starts in the `document` task, so a new user gets two-sided printing without opening the Task menu; leaving the task is saved like any other change, and the next launch starts in none. A `document` picked before the printer's capabilities are read (the printers not listed yet) can only choose one side. It remembers that choice and chooses again each time the printer in use is read or changes (a demo printer that was chosen stays the printer in use after real ones are listed), until the user changes the sides; a change the user made stands. Both view models do this (`sidesPickedBlind` and `chooseSidesAgain` in Swift, `_sidesPickedBlind` and `ChooseSidesAgain` in C#).
 
@@ -372,6 +374,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var paperId: String = "auto"         // a PaperSize raw value or a PWG media name ("iso_a3_297x420mm", "custom_sheet_100x200mm"); auto = what the printer has loaded, else the regional default
     public var mediaSource: String = "auto"     // a media-source keyword the printer lists ("main", "tray-2", "manual"); auto = the printer picks
     public var mediaType: String = "auto"       // a media-type keyword the printer lists ("stationery", "photographic-glossy"); auto = the printer picks
+    public var layoutStyle: LayoutStyle = .pages  // pages, photoPrints (PhotoLayout, one side, no margin or poster, borderless when the size fits) or photoSheet (Imposition as set, one side, no margin or poster); read from taskId when a saved file has no such key
     public var photoSizeId: String = "4x6"
     public var photoFill: Bool = true
     public var cutMarks: Bool = true
@@ -433,9 +436,9 @@ public struct JobPlan: Equatable, Sendable {
     public var notes: [String]              // "2 blank pages added", "Edges cut off (3 mm)", "Shrunk to 82 %", "Printed in gray: this printer has no color" (color asked for, printer lists monochrome only)
 }
 public enum PrintJobs {
-    public static func layoutOptions(_ settings: PrintSettings, task: PrintTask?) -> LayoutOptions
+    public static func layoutOptions(_ settings: PrintSettings) -> LayoutOptions
     public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea
-    public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings, task: PrintTask?,
+    public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings,
                             printer: PrinterCapabilities?, prefs: PrinterPrefs) -> JobPlan
     /// A document `asIs` is the printer's to scale ("auto" or "fit") and may go short edge; imposed sheets are "none" and long edge.
     /// With no database entry for the paper, media-col carries its size and the margins laid out, when the printer takes margins.
@@ -475,7 +478,7 @@ Checks (ids are stable): `lastFailure`; `network` (offline; Public: "Windows won
 
 ### Core/StatusLine, InspectorSections, PrintText
 
-`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, poster, scaling, margins, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by the photo tasks); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Waiting for HP LaserJet: Paper jam", "Canceling…", "Printed", "Load the backs", errors titled by their problem.
+`StatusLine` is Lazy Scan's (six words at most, the full sentence for screen readers). `InspectorSections`: `printer` (open), `pages` (copies, range, two-sided; open), `layout` (pages per side, booklet, poster, scaling, margins, borders), `paper` (paper, quality, color), `photos` (size, fill, cut marks; opened by a photo layout; `openedBy(settings)` gives Photos for a photo layout and Layout for a booklet or several pages per side); a collapsed header summarizes what is on ("2 per side · Borders"). `PrintText` holds the sentences both apps show: "Sent 3 sheets to HP LaserJet", "Printing 2 of 5", "Waiting for HP LaserJet: Paper jam", "Canceling…", "Printed", "Load the backs", errors titled by their problem.
 
 ## Render/ (both platforms)
 
