@@ -404,7 +404,7 @@ public final class AppState: ObservableObject {
         if isAddingFiles && !isBusy { return "Opening files\u{2026}" }
         if let statusOverride { return statusOverride }
         if let missing = missingPrinterMessage { return missing }
-        if let task { return PrintText.ready(TaskCatalog.definition(task).title) }
+        if let task = currentTask { return PrintText.ready(TaskCatalog.definition(task).title) }
         if let printer = selectedPrinter { return printer.name }
         return printersRead ? PrintText.noPrinterMessage : "Looking for printers\u{2026}"
     }

@@ -22,6 +22,8 @@ extension AppState {
         }
         SettingsStore.savePresets(userPresets, in: files.settingsDirectory)
         appliedPreset = preset.name
+        task = nil
+        settings.taskId = nil
         return .ok
     }
 

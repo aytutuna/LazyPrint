@@ -988,6 +988,30 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_aBuiltInPreset_isCurrentOnlyWhileItsOptionsHold() async throws {
+        let rig = try makeRig()
+        await rig.state.startTask(.booklet)
+        XCTAssertEqual(rig.state.currentTask, .booklet)
+
+        rig.state.settings.copies = 3
+        XCTAssertEqual(rig.state.currentTask, .booklet)
+
+        rig.state.settings.booklet = false
+        XCTAssertNil(rig.state.currentTask)
+    }
+
+    @MainActor
+    func test_savingWhileABuiltInPresetIsOn_leavesOnlyTheNewOneCurrent() async throws {
+        let rig = try makeRig()
+        await rig.state.startTask(.booklet)
+
+        _ = rig.state.savePreset(named: "Mine")
+
+        XCTAssertNil(rig.state.currentTask)
+        XCTAssertTrue(rig.state.isCurrent(rig.state.userPresets[0]))
+    }
+
+    @MainActor
     func test_aDocument_isTwoSidedOnlyWhenThePrinterCanTurnTheSheet() async throws {
         let rig = try makeRig()
         rig.spooler.listed = [Rig.queue("HP LaserJet", isDefault: true)]

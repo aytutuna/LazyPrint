@@ -107,7 +107,7 @@ struct PrintScreen: View {
                     portrait(geometry.size)
                 }
             }
-            .navigationTitle(state.task.map { TaskCatalog.definition($0).title } ?? "Print")
+            .navigationTitle(state.currentTask.map { TaskCatalog.definition($0).title } ?? "Print")
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
             .presetDialogs($presetDialog)
@@ -120,7 +120,7 @@ struct PrintScreen: View {
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     taskMenu
-                    if state.task != nil {
+                    if state.currentTask != nil {
                         Button {
                             state.clearTask()
                         } label: {
@@ -194,7 +194,7 @@ struct PrintScreen: View {
     /// task does, or why it cannot be started.
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability: TaskAvailability = state.availability(of: definition.task)
-        let isCurrent = Binding<Bool>(get: { state.task == definition.task }, set: { (_: Bool) in
+        let isCurrent = Binding<Bool>(get: { state.currentTask == definition.task }, set: { (_: Bool) in
             pickTask(definition.task)
         })
         return Toggle(isOn: isCurrent) {

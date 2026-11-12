@@ -76,7 +76,7 @@ struct PrintView: View {
 
     private var banner: some View {
         HStack(spacing: 12) {
-            if let task = state.task {
+            if let task = state.currentTask {
                 let definition = TaskCatalog.definition(task)
                 Image(systemName: TaskSymbols.systemImage(definition.iconKey))
                     .font(.title2)
@@ -91,12 +91,12 @@ struct PrintView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text("Pick a task to set everything up, or just add files.")
+                Text("Pick a preset to set everything up, or just add files.")
                     .foregroundStyle(.secondary)
             }
             Spacer()
             taskMenu
-            if state.task != nil {
+            if state.currentTask != nil {
                 Button {
                     state.clearTask()
                 } label: {
@@ -143,7 +143,7 @@ struct PrintView: View {
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability = state.availability(of: definition.task)
         let title = availability.isAvailable ? definition.title : "\(definition.title) \u{2013} \(availability.reason ?? "")"
-        let isCurrent = Binding(get: { state.task == definition.task }, set: { (on: Bool) in
+        let isCurrent = Binding(get: { state.currentTask == definition.task }, set: { (on: Bool) in
             if on { pickTask(definition.task) }
         })
         return Toggle(isOn: isCurrent) {

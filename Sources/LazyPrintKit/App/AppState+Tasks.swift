@@ -27,6 +27,16 @@ extension AppState {
         return summary.isEmpty ? "One page per side" : summary
     }
 
+    /// The built-in preset applied last while the settings still have its options; nil once any of them changed.
+    public var currentTask: PrintTask? {
+        guard let task else { return nil }
+        var applied = TaskCatalog.apply(task, to: settings, printer: capabilities)
+        var now = settings
+        applied.taskId = nil
+        now.taskId = nil
+        return applied == now ? task : nil
+    }
+
     /// Picks a task: its settings are applied over the user's, the rest stay as they were. The test page prints at once;
     /// Scan and print hands over to Lazy Scan; From your phone asks the shell to open the phone window.
     public func startTask(_ task: PrintTask) async {
