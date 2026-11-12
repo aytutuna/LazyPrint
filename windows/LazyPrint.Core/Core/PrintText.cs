@@ -119,11 +119,11 @@ public static class PrintText
     /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
     public static string Shrunk(int percent) => $"Shrunk to {percent} %";
 
-    public const string PresetsHeading = "Presets";
-    public const string SavePresetItem = "Save options as preset…";
+    public const string PresetMenu = "Preset";
+    public const string SavePresetItem = "Save as preset…";
     public const string RenamePresetItem = "Rename preset";
     public const string DeletePresetItem = "Delete preset";
-    public const string SavePresetTitle = "Save options as preset";
+    public const string SavePresetTitle = "Save as preset";
     public const string RenamePresetTitle = "Rename preset";
     public const string PresetNamePrompt = "Name";
 
@@ -139,4 +139,8 @@ public static class PrintText
     public static string ReplacePresetTitle(string name) => $"Replace “{name}”?";
     public const string ReplacePresetMessage = "The preset gets the options you have now.";
     public const string ReplaceButton = "Replace";
+
+    public static string DeletePresetTitle(string name) => $"Delete “{name}”?";
+    public const string DeletePresetMessage = "The preset is gone; your current options stay as they are.";
+    public const string DeleteButton = "Delete";
 }

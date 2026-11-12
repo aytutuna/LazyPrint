@@ -34,7 +34,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     /// <summary>The presets the user saved, in the order saved (presets.json).</summary>
     public List<UserPreset> Presets { get; private set; }
 
-    /// <summary>The user preset applied last; it is checked in the Task menu while the settings still have its options (<see cref="IsCurrent"/>).</summary>
+    /// <summary>The user preset applied last; it is checked in the Preset menu while the settings still have its options (<see cref="IsCurrent"/>).</summary>
     public string? AppliedPreset { get; private set; }
 
     /// <summary>There were no saved settings when the app started.</summary>
