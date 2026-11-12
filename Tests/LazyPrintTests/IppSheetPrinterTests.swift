@@ -234,6 +234,13 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertNotEqual(try request.document(), bytes)
     }
 
+    func test_aPdfUnderPhotoPrints_isDrawnHereNotSentAsItIs() async throws {
+        let (url, bytes) = try original()
+        try await printer(original: url).print(try job({ $0.layoutStyle = .photoPrints }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+
+        XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
+    }
+
     private func rangeJob(_ range: [Int], caps: PrinterCapabilities) throws -> SheetJob {
         let settings = PrintFixtures.letter { $0.scaling = .actualSize }
         let document = try openLetterPDF(pages: 5)

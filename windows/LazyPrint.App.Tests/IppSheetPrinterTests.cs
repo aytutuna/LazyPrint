@@ -122,6 +122,18 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
+    public async Task APdfUnderPhotoPrintsIsDrawnHereNotSentAsItIs()
+    {
+        string file = Path.Combine(_folder, "Letter.pdf");
+        byte[] pdf = "%PDF-1.4\nnot really a pdf, only bytes to send\n%%EOF"u8.ToArray();
+        File.WriteAllBytes(file, pdf);
+        var job = Job(s => s.LayoutStyle = LayoutStyle.PhotoPrints, pages: 1, caps: Plain());
+        await Printer(new Files(file)).PrintAsync(job, 0, new Reports<JobStatus>(), CancellationToken.None);
+
+        Assert.NotEqual(pdf, Assert.Single(Sent(IppOperation.PrintJob)).Document);
+    }
+
+    [Fact]
     public async Task APdfPrintedAsItIsGoesAsLoadedEvenIfTheFileIsGoneByThen()
     {
         string file = Path.Combine(_folder, "Letter.pdf");
