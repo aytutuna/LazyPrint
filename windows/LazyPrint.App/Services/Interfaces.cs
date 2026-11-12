@@ -16,6 +16,9 @@ public interface IPrinterSystem
 
     /// <summary>Resumes a paused queue.</summary>
     void Resume(string queueName);
+
+    /// <summary>The host a port's device answers at, for a port that holds none (a WSD port); null when it is not known.</summary>
+    string? PortHost(string port) => null;
 }
 
 /// <summary>Opens the files a task starts with.</summary>

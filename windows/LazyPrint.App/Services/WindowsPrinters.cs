@@ -58,6 +58,43 @@ internal static class PrinterMapping
                              || port.StartsWith("PORTPROMPT:", StringComparison.OrdinalIgnoreCase)
                              || port.StartsWith("nul", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>A port the WSD monitor made: its name is "WSD-" and a GUID, and holds no host.</summary>
+    public static bool IsWsdPort(string? port) => port is not null && port.StartsWith("WSD-", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// How an ipp:// or ipps:// port says to reach the printer: its own port number, else 631. Null for any other port.
+    /// </summary>
+    public static (bool Secure, int Port)? IppPortOf(string? port)
+    {
+        if (port is null || !Uri.TryCreate(port.Trim(), UriKind.Absolute, out var uri)) return null;
+        bool secure = uri.Scheme == "ipps";
+        if (!secure && uri.Scheme != "ipp") return null;
+        return (secure, uri.IsDefaultPort || uri.Port < 1 ? PrinterAddress.DefaultPort : uri.Port);
+    }
+
+    /// <summary>
+    /// The host in what the device says of itself: a URL ("http://192.168.1.20:5357/uuid"), or a bare address. Of several
+    /// values the first IPv4 address wins, since an IPv6 link-local one needs a scope; null when none holds a host.
+    /// </summary>
+    public static string? WsdHost(IEnumerable<string?> values)
+    {
+        var hosts = values.Select(HostIn).OfType<string>().ToList();
+        return hosts.FirstOrDefault(h => System.Net.IPAddress.TryParse(h, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+               ?? hosts.FirstOrDefault();
+    }
+
+    private static string? HostIn(string? value)
+    {
+        string text = value?.Trim() ?? "";
+        if (text.Length == 0) return null;
+        if (Uri.TryCreate(text, UriKind.Absolute, out var uri))
+        {
+            return uri.Scheme is "http" or "https" or "ipp" or "ipps" && uri.Host.Trim('[', ']') is { Length: > 0 } host ? host : null;
+        }
+        string bare = text.Trim('[', ']');
+        return System.Net.IPAddress.TryParse(bare, out _) ? bare : null;
+    }
+
     /// <summary>A size or an offset from the spooler's 1/96 inch to points.</summary>
     public static double Points(double deviceIndependentUnits) => deviceIndependentUnits * 72 / 96;
 
@@ -269,6 +306,8 @@ public sealed class WindowsPrinters : IPrinterSystem
             return null;
         }
     }
+
+    public string? PortHost(string port) => PrinterMapping.IsWsdPort(port) ? WsdDevices.HostOf(port) : null;
 
     public void ClearJobs(string queueName)
     {

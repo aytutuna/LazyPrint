@@ -405,22 +405,29 @@ public sealed partial class AppViewModel
         }
     }
 
-    /// <summary>A system queue with a host in its port and no IPP printer matched to it.</summary>
-    private static bool IsPlainQueue(PrinterInfo printer) =>
-        printer.Route == PrinterRoute.System && printer.IppEndpoint is null && printer.Address is { Length: > 0 };
+    /// <summary>A system queue with a host in its port, or on a WSD port, and no IPP printer matched to it.</summary>
+    private bool IsPlainQueue(PrinterInfo printer) =>
+        printer.Route == PrinterRoute.System && printer.IppEndpoint is null
+        && (printer.Address is { Length: > 0 } || PrinterMapping.IsWsdPort(PortOf(printer)));
+
+    private string? PortOf(PrinterInfo printer) => _queues.FirstOrDefault(q => "system:" + q.Name == printer.Id)?.Port;
 
     /// <summary>
-    /// Asks the host of a queue on a TCP/IP port for its marker levels, at the usual IPP paths. A host that does not
-    /// answer shows no levels, as before.
+    /// Asks the host of a queue on a TCP/IP, WSD or ipp:// port for its marker levels, at the usual IPP paths and, for an
+    /// ipp:// port, the port number it names. A host that does not answer shows no levels, as before.
     /// </summary>
     private async Task ReadHostsAsync(IReadOnlyList<PrinterInfo> rows)
     {
         if (_networkPrinters is not { } network || rows.Count == 0) return;
         var reads = await Task.WhenAll(rows.Select(async printer =>
         {
+            string? queuePort = PortOf(printer);
+            string? host = PrinterMapping.IsWsdPort(queuePort) ? await Task.Run(() => _printerSystem.PortHost(queuePort!)) : printer.Address;
+            if (host is null) return (printer.Id, Capabilities: (PrinterCapabilities?)null);
+            var (secure, port) = PrinterMapping.IppPortOf(queuePort) ?? (false, PrinterAddress.DefaultPort);
             foreach (string path in HostPaths)
             {
-                if (PrinterAddress.Create(false, printer.Address!, PrinterAddress.DefaultPort, path) is not { } address) break;
+                if (PrinterAddress.Create(secure, host, port, path) is not { } address) break;
                 using var timeout = new CancellationTokenSource(HostTimeout);
                 try
                 {

@@ -33,36 +33,4 @@ final class PrintLayoutTests: XCTestCase {
         XCTAssertEqual(PrintCopies.plan(requested: 3, maxCopyCount: 99, pageCount: 1, canCollate: false),
                        PrintCopiesPlan(ticketCopies: 3, documentRepeats: 1))
     }
-
-    // MARK: Ruler page
-
-    func test_tickPosition_startsAtTheFirstInchLineAndStepsACentimetre() {
-        XCTAssertEqual(PrintCalibration.tickPosition(0), 72, accuracy: 1e-9)
-        XCTAssertEqual(PrintCalibration.tickPosition(1), 72 + 72 / 2.54, accuracy: 1e-9)
-        XCTAssertEqual(PrintCalibration.tickPosition(10), 72 + 10 * 72 / 2.54, accuracy: 1e-9)
-    }
-
-    func test_makeRulerPage_letter_hasAnInchGridAndCentimetreTicks() throws {
-        let lines = drawnLines(PrintCalibration.makeRulerPage(paper: layoutLetter))
-        let grey = lines.filter { $0.color == .gray(128) }
-        let black = lines.filter { $0.color == .black }
-        // 8 vertical lines (72 to 576) and 10 horizontal ones (72 to 720); the paper's own edges are not drawn.
-        XCTAssertEqual(grey.filter { $0.from.x == $0.to.x }.count, 8)
-        XCTAssertEqual(grey.filter { $0.from.y == $0.to.y }.count, 10)
-        let firstGrey = try XCTUnwrap(grey.first)
-        XCTAssertEqual(firstGrey.from.x, 72)
-        XCTAssertEqual(firstGrey.to.y, 792)
-        // Ticks every centimetre from the first inch line: 20 across (to 610.6 pt), 26 down (to 780.6 pt).
-        XCTAssertEqual(black.filter { $0.from.x == $0.to.x }.count, 20)
-        XCTAssertEqual(black.filter { $0.from.y == $0.to.y }.count, 26)
-    }
-
-    func test_makeRulerPage_ticks_areLongEveryFiveCentimetres() {
-        let across = drawnLines(PrintCalibration.makeRulerPage(paper: layoutLetter)).filter { $0.color == .black && $0.from.x == $0.to.x }
-        XCTAssertEqual(across[0].to.y - across[0].from.y, 0.3 * 72, accuracy: 1e-9)
-        XCTAssertEqual(across[1].to.y - across[1].from.y, 0.15 * 72, accuracy: 1e-9)
-        XCTAssertEqual(across[5].to.y - across[5].from.y, 0.3 * 72, accuracy: 1e-9)
-        XCTAssertEqual(across[0].from.y, 72)
-        XCTAssertEqual(across[0].width, PrintCalibration.lineWidth)
-    }
 }

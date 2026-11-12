@@ -106,6 +106,8 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
     var hold: (@Sendable (SheetJob, Int) async throws -> Void)?
     /// What a pass reports before it is held.
     var reports: [JobStatus] = []
+    /// Like hold, but with the pass's progress callback, for reports that come while the job is held.
+    var heldReporting: (@Sendable (SheetJob, Int, @Sendable (JobStatus) -> Void) async throws -> Void)?
 
     var passes: [(job: SheetJob, pass: Int)] {
         lock.lock()
@@ -135,6 +137,29 @@ private final class SeamSheets: SheetPrinter, @unchecked Sendable {
         lock.unlock()
         for status in reports { progress(status) }
         if let hold { try await hold(job, pass) }
+        if let heldReporting { try await heldReporting(job, pass, progress) }
+    }
+}
+
+/// A flag a held pass waits on without stopping when it is canceled.
+private final class Gate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        lock.unlock()
+    }
+
+    func wait() async {
+        while true {
+            lock.lock()
+            let open = isOpen
+            lock.unlock()
+            if open { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
     }
 }
 
@@ -1621,6 +1646,54 @@ final class AppStateSeamTests: XCTestCase {
         XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
         XCTAssertNil(rig.state.error)
         XCTAssertFalse(rig.state.isBusy)
+    }
+
+    @MainActor
+    func test_cancelling_saysCancelingAndIgnoresLaterReportsUntilThePassEnds() async throws {
+        let rig = try await printingRig()
+        let stopped = Gate()
+        let ended = Gate()
+        rig.sheets.heldReporting = { _, _, report in
+            await stopped.wait()
+            report(JobStatus(state: .printing, sidesDone: 1))
+            await ended.wait()
+            try Task.checkCancellation()
+        }
+
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { rig.state.isBusy && rig.sheets.passes.count == 1 }
+        rig.state.cancelJob(rig.state.jobs[0].id)
+
+        XCTAssertEqual(rig.state.statusOverride, PrintText.canceling)
+        XCTAssertEqual(rig.state.jobs[0].detail, PrintText.canceling)
+        stopped.open()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(rig.state.statusOverride, PrintText.canceling)
+        XCTAssertEqual(rig.state.jobs[0].detail, PrintText.canceling)
+        ended.open()
+        await printing.value
+
+        XCTAssertEqual(rig.state.jobs.map { $0.state }, [.canceled])
+        XCTAssertNil(rig.state.jobs[0].detail)
+        XCTAssertNil(rig.state.statusOverride)
+    }
+
+    @MainActor
+    func test_aLateReportOfFewerSides_doesNotMoveTheCountBack() async throws {
+        let rig = try await printingRig(pages: 6)
+        let release = Gate()
+        rig.sheets.heldReporting = { _, _, report in
+            report(JobStatus(state: .printing, sidesDone: 2))
+            report(JobStatus(state: .printing, sidesDone: 1))
+            await release.wait()
+        }
+
+        let printing = Task { await rig.state.print() }
+        try await waitUntil { rig.state.statusOverride?.hasPrefix("Printing 3 of") == true }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(rig.state.statusOverride?.hasPrefix("Printing 3 of"), true)
+        release.open()
+        await printing.value
     }
 
     @MainActor
