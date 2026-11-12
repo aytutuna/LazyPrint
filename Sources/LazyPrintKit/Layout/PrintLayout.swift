@@ -44,43 +44,4 @@ public enum PrintCalibration {
     static let centimetre: Double = 72 / 2.54
     static let shortTick: Double = 0.15 * 72
     static let longTick: Double = 0.3 * 72
-
-    /// A page `paper` large as drawing items: a grey grid line every inch from the paper's top-left
-    /// corner, and centimetre ticks in black along the first inch line across and down, 0.15 in long
-    /// and 0.3 in at every 5 cm. Printed at real size, the squares measure 1 inch and the ticks 1 cm
-    /// with a ruler.
-    public static func makeRulerPage(paper: LayoutSize) -> [TestPageItem] {
-        let grey = TestColor.gray(128)
-        var items: [TestPageItem] = []
-        var k = 1
-        while Double(k * 72) < paper.width {
-            let x = Double(k * 72)
-            items.append(.line(from: LayoutPoint(x: x, y: 0), to: LayoutPoint(x: x, y: paper.height), width: lineWidth, color: grey))
-            k += 1
-        }
-        k = 1
-        while Double(k * 72) < paper.height {
-            let y = Double(k * 72)
-            items.append(.line(from: LayoutPoint(x: 0, y: y), to: LayoutPoint(x: paper.width, y: y), width: lineWidth, color: grey))
-            k += 1
-        }
-        k = 0
-        while tickPosition(k) < paper.width {
-            let x = tickPosition(k)
-            let length = k % 5 == 0 ? longTick : shortTick
-            items.append(.line(from: LayoutPoint(x: x, y: 72), to: LayoutPoint(x: x, y: 72 + length), width: lineWidth, color: .black))
-            k += 1
-        }
-        k = 0
-        while tickPosition(k) < paper.height {
-            let y = tickPosition(k)
-            let length = k % 5 == 0 ? longTick : shortTick
-            items.append(.line(from: LayoutPoint(x: 72, y: y), to: LayoutPoint(x: 72 + length, y: y), width: lineWidth, color: .black))
-            k += 1
-        }
-        return items
-    }
-
-    /// The position of the `k`-th centimetre tick from the paper's edge, after the first inch line.
-    public static func tickPosition(_ k: Int) -> Double { 72 + Double(k) * centimetre }
 }

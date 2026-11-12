@@ -41,38 +41,4 @@ public static class PrintCalibration
     internal const double Centimetre = 72 / 2.54;
     internal const double ShortTick = 0.15 * 72;
     internal const double LongTick = 0.3 * 72;
-
-    /// <summary>
-    /// A page <paramref name="paper"/> large as drawing items: a grey grid line every inch from the
-    /// paper's top-left corner, and centimetre ticks in black along the first inch line across and
-    /// down, 0.15 in long and 0.3 in at every 5 cm. Printed at real size, the squares measure 1 inch
-    /// and the ticks 1 cm with a ruler.
-    /// </summary>
-    public static IReadOnlyList<TestPageItem> MakeRulerPage(LayoutSize paper)
-    {
-        var grey = TestColor.Gray(128);
-        var items = new List<TestPageItem>();
-        for (int k = 1; k * 72 < paper.Width; k++)
-        {
-            items.Add(new TestPageItem.Line(new(k * 72, 0), new(k * 72, paper.Height), LineWidth, grey));
-        }
-        for (int k = 1; k * 72 < paper.Height; k++)
-        {
-            items.Add(new TestPageItem.Line(new(0, k * 72), new(paper.Width, k * 72), LineWidth, grey));
-        }
-        for (int k = 0; TickPosition(k) < paper.Width; k++)
-        {
-            double x = TickPosition(k), length = k % 5 == 0 ? LongTick : ShortTick;
-            items.Add(new TestPageItem.Line(new(x, 72), new(x, 72 + length), LineWidth, TestColor.Black));
-        }
-        for (int k = 0; TickPosition(k) < paper.Height; k++)
-        {
-            double y = TickPosition(k), length = k % 5 == 0 ? LongTick : ShortTick;
-            items.Add(new TestPageItem.Line(new(72, y), new(72 + length, y), LineWidth, TestColor.Black));
-        }
-        return items;
-    }
-
-    /// <summary>The position of the <paramref name="k"/>-th centimetre tick from the paper's edge, after the first inch line.</summary>
-    public static double TickPosition(int k) => 72 + k * Centimetre;
 }
