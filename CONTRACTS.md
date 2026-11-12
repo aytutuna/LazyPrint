@@ -392,6 +392,32 @@ public struct PrinterPrefs: Codable, Equatable, Sendable {
 
 Both files follow Global rule 5. Each printer remembers its own paper, tray, paper type, two-sided, color and quality: choosing a printer brings back the ones last used with it (`PrinterPrefs.apply` / `ApplyTo`; a printer never used keeps the current values), and changing one while a printer is in use keeps it for that printer (`remembering` / `Remembering`). Copies, range and layout stay with the task. `printers.json` maps `PrinterInfo.id` to `PrinterPrefs`; ids are stable across runs: a system queue is always `system:` and its name, whether or not its IPP twin answered this time; a printer only on the network is `ipp:` and its UUID (`ipp:name:` and its instance name without one); the demo printer is `demo`.
 
+### Core/UserPresets (presets.json)
+
+```swift
+public struct UserPreset: Codable, Equatable, Sendable { public var name: String; public var settings: PrintSettings }
+public enum PresetNameCheck: Sendable { case ok, empty, builtIn, exists }
+public enum UserPresets {
+    public static func check(_ name: String, among presets: [UserPreset], renaming: String? = nil) -> PresetNameCheck
+    public static func find(_ name: String, in presets: [UserPreset]) -> UserPreset?
+    public static func make(_ name: String, from settings: PrintSettings) -> UserPreset
+    public static func apply(_ preset: UserPreset, to settings: PrintSettings) -> PrintSettings
+    public static func matches(_ preset: UserPreset, _ settings: PrintSettings) -> Bool
+}
+```
+
+A preset is a name and the option values: everything in `PrintSettings` except the printer (`printerId`, `printerName`), the task, copies, and the per-job page selection and reverse order. The built-in presets are the tasks that set options (Print a document, Two-sided, Booklet, Handouts, Photo prints, Photo sheet), kept in code; the user's are in `presets.json` next to `settings.json`, a JSON array of `{ "name", "settings" }` in the order saved, read like the other files (Global rule 5: unknown keys ignored, a bad field falls back to its default, an unreadable file is moved aside as `presets.unreadable-<yyyyMMdd-HHmmss>.json`; an entry with no name is dropped). `SettingsStore.loadPresets` / `savePresets` (C# `LoadPresets` / `SavePresets`) read and write it; the file is written at once on every change, not after a pause.
+
+`check` trims the name: empty is `empty`; the title of a task (built-in preset) is `builtIn`; another user preset's name, ignoring case, is `exists` (the preset being renamed may keep its own name, in any case). `make` stores the trimmed name and the options with the printer, task, copies, page selection and order cleared. `apply` lays the preset's options over the settings and leaves the printer, copies, page selection and order; no task is current afterwards (`taskId` nil). `matches` is true while the settings have every option the preset sets, whatever the task id.
+
+`AppState` (C# `AppViewModel`) holds `userPresets` and `appliedPreset` (the name applied last, in memory only) and offers:
+  - `savePreset(named:replace:)` keeps the current options under the name; `.exists` with `replace` false saves nothing and the UI asks to replace it, then calls again with `replace` true; `.empty` and `.builtIn` refuse the name and the UI says why (`PrintText.presetNameProblem`). A saved preset is the one applied.
+  - `applyPreset(named:)` sets the options; documents, page range and copies stay, no task is current and `appliedPreset` is the preset. The settings are assigned as one change, so a printer with its own remembered paper, sides, color and quality takes the preset's values and remembers them as for any edit.
+  - `renamePreset(_:to:)` (same name rules, `exists` for another preset's name) and `deletePreset(named:)`.
+  - `isCurrent(_ preset)` is true when the preset is `appliedPreset` and `matches` the settings now: the checkmark in the Task menu, which goes as soon as an option differs and comes back when it matches again. Picking a task clears `appliedPreset`.
+
+The Task menu lists the user presets after the tasks, then "Save options as preset…" and, when there are presets, "Rename preset" and "Delete preset", each with a submenu of the names. The name is asked in a small window (Windows `PresetNameWindow`) or an alert with a text field (Mac and iPhone `PresetDialogs`).
+
 ### Core/Printers (the printer list)
 
 ```swift
