@@ -240,4 +240,80 @@ final class PairedDeviceStoreTests: XCTestCase {
         try before.write(to: fileURL)
         XCTAssertNil(store.authenticate(id: "phone-0001", secret: secret, now: now))
     }
+
+    func testPrepare_KeepsThePhoneOutOfTheFileUntilItsFirstRequest() throws {
+        let store = makeStore()
+        let changes = Guarded<Int>(0)
+        store.onChange = { changes.value += 1 }
+        let secret = try store.prepare(id: "phone-0001", name: "Aytu's iPhone", platform: "ios", appVersion: "1.0", now: now,
+                                       secret: CompanionVectors.secret)
+        XCTAssertEqual(secret, CompanionVectors.secretText)
+        XCTAssertTrue(store.devices.isEmpty)
+        XCTAssertEqual(store.count, 0)
+        XCTAssertTrue(store.hasPending(now: now))
+        XCTAssertNil(store.authenticateFirstUse(id: "phone-0001", secret: CompanionVectors.secretText.replacingOccurrences(of: "A", with: "B"), now: now))
+        XCTAssertEqual(changes.value, 0)
+
+        let first = try XCTUnwrap(store.authenticateFirstUse(id: "phone-0001", secret: secret, now: now.addingTimeInterval(5)))
+        XCTAssertTrue(first.firstUse)
+        XCTAssertEqual(first.device.name, "Aytu's iPhone")
+        XCTAssertEqual(makeStore().devices.map(\.secretHash), [CompanionVectors.secretHash])
+        XCTAssertFalse(store.hasPending(now: now))
+        XCTAssertEqual(changes.value, 1)
+        let again = try XCTUnwrap(store.authenticateFirstUse(id: "phone-0001", secret: secret, now: now.addingTimeInterval(6)))
+        XCTAssertFalse(again.firstUse)
+    }
+
+    func testPrepare_ForgetsAPhoneThatIsDiscardedClearedOrLate() throws {
+        let store = makeStore()
+        let first = try store.prepare(id: "phone-0001", name: "A", platform: "ios", appVersion: "1.0", now: now)
+        store.discard("phone-0001")
+        XCTAssertNil(store.authenticate(id: "phone-0001", secret: first, now: now))
+        let second = try store.prepare(id: "phone-0002", name: "B", platform: "ios", appVersion: "1.0", now: now)
+        store.clearPending()
+        XCTAssertNil(store.authenticate(id: "phone-0002", secret: second, now: now))
+        let third = try store.prepare(id: "phone-0003", name: "C", platform: "ios", appVersion: "1.0", now: now)
+        XCTAssertNil(store.authenticate(id: "phone-0003", secret: third, now: now.addingTimeInterval(PairedDeviceStore.pendingLifetime)))
+        let fourth = try store.prepare(id: "phone-0004", name: "D", platform: "ios", appVersion: "1.0", now: now)
+        store.remove("phone-0004")
+        XCTAssertNil(store.authenticate(id: "phone-0004", secret: fourth, now: now))
+        XCTAssertTrue(store.devices.isEmpty)
+    }
+
+    func testPrepare_RefusesAPhoneBeyondTheLimit() throws {
+        let store = makeStore()
+        for i in 0..<PairedDeviceStore.maxDevices {
+            _ = try store.pair(id: String(format: "phone-%04d", i), name: "P", platform: "ios", appVersion: "1.0", now: now)
+        }
+        XCTAssertThrowsError(try store.prepare(id: "phone-9999", name: "P", platform: "ios", appVersion: "1.0", now: now)) {
+            XCTAssertEqual($0 as? PairedDeviceStoreError, .tooManyDevices)
+        }
+        // A paired phone pairing again is not another phone.
+        let again = try store.prepare(id: "phone-0000", name: "P", platform: "ios", appVersion: "1.0", now: now)
+        XCTAssertNotNil(store.authenticate(id: "phone-0000", secret: again, now: now))
+    }
+
+    func testPrepare_DeletesTheSyncKeyOfAPhoneThatNeverComesBack() throws {
+        let keys = MemorySecretStore()
+        let store = PairedDeviceStore(directory: directory, syncKeyStore: keys)
+        _ = try store.prepare(id: "phone-0001", name: "A", platform: "ios", appVersion: "1.0", now: now)
+        XCTAssertNotNil(try store.syncKey(for: "phone-0001"))
+        store.discard("phone-0001")
+        XCTAssertNil(try keys.load(for: "phone-0001"))
+        // A phone paired before keeps its key when pairing again is dropped.
+        _ = try store.pair(id: "phone-0002", name: "B", platform: "ios", appVersion: "1.0", now: now)
+        _ = try store.prepare(id: "phone-0002", name: "B", platform: "ios", appVersion: "1.0", now: now)
+        store.clearPending()
+        XCTAssertNotNil(try keys.load(for: "phone-0002"))
+    }
+
+    func testPrepare_AfterRemove_KeepsTheSyncKeyForTheReply() throws {
+        let store = PairedDeviceStore(directory: directory, syncKeyStore: MemorySecretStore())
+        _ = try store.pair(id: "phone-0001", name: "P", platform: "ios", appVersion: "1.0", now: now)
+        XCTAssertTrue(store.remove("phone-0001"))
+        let secret = try store.prepare(id: "phone-0001", name: "P", platform: "ios", appVersion: "1.0", now: now)
+        let key = try XCTUnwrap(try store.syncKey(for: "phone-0001"))
+        XCTAssertNotNil(store.authenticate(id: "phone-0001", secret: secret, now: now))
+        XCTAssertEqual(try store.syncKey(for: "phone-0001"), key)
+    }
 }

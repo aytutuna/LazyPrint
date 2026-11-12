@@ -81,7 +81,16 @@ public sealed class CompanionService : IAsyncDisposable
         Router.PackageReceived += (_, e) => PackageReceived?.Invoke(this, e);
         Router.DeviceRemoved += (_, _) => _ = RefreshQuietlyAsync();
         // A declined (or cut off) pairing no longer keeps the host listening.
-        Router.ApprovalSettled += (_, _) => _ = RefreshQuietlyAsync();
+        Router.ApprovalSettled += (_, _) =>
+        {
+            _ = RefreshQuietlyAsync();
+            // An approved phone is only kept listening for until its time is up.
+            if (Devices.HasPending(_options.Clock()))
+            {
+                _ = Task.Delay(PairedDeviceStore.PendingLifetime + TimeSpan.FromSeconds(1))
+                        .ContinueWith(_ => RefreshQuietlyAsync(), TaskContinuationOptions.OnlyOnRanToCompletion);
+            }
+        };
         Host.StatusChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         Devices.Changed += (_, _) => _ = RefreshQuietlyAsync();
         TrustedNetworks.Changed += (_, _) => _ = RefreshQuietlyAsync();
@@ -160,6 +169,7 @@ public sealed class CompanionService : IAsyncDisposable
         {
             _pairing?.Close();
             _pairingTimer?.Cancel();
+            Devices.ClearPending();
             _pairing = new PairingSession(_options.Clock());
             _pairingTimer = timer = new CancellationTokenSource();
         }
@@ -199,6 +209,7 @@ public sealed class CompanionService : IAsyncDisposable
     /// <summary>Closes the pairing session; the host stops listening if no phone is paired.</summary>
     public async Task ClosePairingAsync()
     {
+        Devices.ClearPending();
         lock (_gate)
         {
             _pairing?.Close();
@@ -332,7 +343,7 @@ public sealed class CompanionService : IAsyncDisposable
         }
     }
 
-    private bool IsWanted() => Devices.Count > 0 || Pairing is not null || AwaitingApproval;
+    private bool IsWanted() => Devices.Count > 0 || Pairing is not null || AwaitingApproval || Devices.HasPending(_options.Clock());
 
     private X509Certificate2 Certificate()
     {

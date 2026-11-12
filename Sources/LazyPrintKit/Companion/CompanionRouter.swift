@@ -203,10 +203,14 @@ public final class CompanionRouter: @unchecked Sendable {
 
     /// The paired phone the request comes from; nil (a failure counted) when its id and secret do not match one.
     private func authenticate(_ request: CompanionRequest, now: Date) -> PairedDevice? {
-        let device = devices.authenticate(id: request.head.header(CompanionProtocol.deviceIdHeader),
-                                          secret: request.head.bearerToken, now: now)
-        if device == nil { limiter.recordFailure(request.remote, now: now) }
-        return device
+        let result = devices.authenticateFirstUse(id: request.head.header(CompanionProtocol.deviceIdHeader),
+                                                  secret: request.head.bearerToken, now: now)
+        guard let result else {
+            limiter.recordFailure(request.remote, now: now)
+            return nil
+        }
+        if result.firstUse { onDevicePaired?(result.device) }
+        return result.device
     }
 
     private func health(_ request: CompanionRequest, now: Date) -> CompanionResponse {
@@ -269,8 +273,8 @@ public final class CompanionRouter: @unchecked Sendable {
         guard await approve(pair) else { return .error(403, .declined) }
         let secret: String
         do {
-            secret = try devices.pair(id: pair.phoneId, name: pair.phoneName, platform: pair.platform,
-                                      appVersion: pair.appVersion, now: clock())
+            secret = try devices.prepare(id: pair.phoneId, name: pair.phoneName, platform: pair.platform,
+                                         appVersion: pair.appVersion, now: clock())
         } catch PairedDeviceStoreError.tooManyDevices {
             return .error(409, .tooManyDevices)
         } catch {
@@ -279,14 +283,11 @@ public final class CompanionRouter: @unchecked Sendable {
         var response = CompanionResponse.json(200, PairResponse(desktopId: devices.desktopId, desktopName: desktopName(), deviceSecret: secret,
                                                                 protocolVersion: CompanionProtocol.version,
                                                                 syncKey: (try? devices.syncKey(for: pair.phoneId)).map(CompanionProtocol.encodeBase64Url)).toJSON())
-        // The phone counts as paired once it has the secret; when the reply never got to it, it is forgotten again.
+        // The phone is only approved until it comes back with its secret (see authenticate); one that
+        // never got the reply is dropped at once.
         let phoneId = pair.phoneId
         response.written = { [self] delivered in
-            if !delivered {
-                _ = devices.remove(phoneId)
-            } else if let device = devices.devices.first(where: { $0.id == phoneId }) {
-                onDevicePaired?(device)
-            }
+            if !delivered { devices.discard(phoneId) }
             settleApproval()
         }
         return response

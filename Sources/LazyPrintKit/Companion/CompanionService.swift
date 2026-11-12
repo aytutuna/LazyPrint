@@ -112,7 +112,17 @@ public final class CompanionService: @unchecked Sendable {
         router.onPackageReceived = { [weak self] package, device in self?.onPackageReceived?(package, device) }
         router.onDeviceRemoved = { [weak self] _ in self?.refreshQuietly() }
         // A declined (or cut off) pairing no longer keeps the host listening.
-        router.onApprovalSettled = { [weak self] in self?.refreshQuietly() }
+        router.onApprovalSettled = { [weak self] in
+            guard let self else { return }
+            self.refreshQuietly()
+            // An approved phone is only kept listening for until its time is up.
+            if self.devices.hasPending(now: self.options.clock()) {
+                Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64((PairedDeviceStore.pendingLifetime + 1) * 1_000_000_000))
+                    self?.refreshQuietly()
+                }
+            }
+        }
         host.onStatusChange = { [weak self] in self?.onChange?() }
         devices.onChange = { [weak self] in self?.refreshQuietly() }
         trustedNetworks.onChange = { [weak self] in self?.refreshQuietly() }
@@ -388,7 +398,7 @@ public final class CompanionService: @unchecked Sendable {
     }
 
     private var isWanted: Bool {
-        devices.count > 0 || pairing != nil || awaitingApproval
+        devices.count > 0 || pairing != nil || awaitingApproval || devices.hasPending(now: options.clock())
     }
 
     private var currentSession: PairingSession? {
@@ -414,6 +424,7 @@ public final class CompanionService: @unchecked Sendable {
 
     /// Closes the session open now and its timer, then keeps `opened` (nil: none) with its `timer`.
     private func replaceSession(_ opened: PairingSession?, timer: Task<Void, Never>?) {
+        devices.clearPending()
         lock.lock()
         session?.close()
         pairingTimer?.cancel()

@@ -239,8 +239,9 @@ public sealed class CompanionRouter
     /// <summary>The paired phone the request comes from; null (a failure counted) when its id and secret do not match one.</summary>
     private PairedDevice? Authenticate(CompanionRequest request, DateTimeOffset now)
     {
-        var device = _devices.Authenticate(request.Head.Header(CompanionProtocol.DeviceIdHeader), request.Head.BearerToken, now);
+        var device = _devices.Authenticate(request.Head.Header(CompanionProtocol.DeviceIdHeader), request.Head.BearerToken, now, out bool firstUse);
         if (device is null) _limiter.RecordFailure(request.Remote, now);
+        else if (firstUse) DevicePaired?.Invoke(this, device);
         return device;
     }
 
@@ -329,15 +330,11 @@ public sealed class CompanionRouter
         string secret;
         try
         {
-            secret = _devices.Pair(pair.PhoneId, pair.PhoneName, pair.Platform, pair.AppVersion, _clock());
+            secret = _devices.Prepare(pair.PhoneId, pair.PhoneName, pair.Platform, pair.AppVersion, _clock());
         }
         catch (InvalidOperationException)
         {
             return CompanionResponse.Error(409, CompanionError.TooManyDevices);
-        }
-        catch (IOException)
-        {
-            return CompanionResponse.Error(500, CompanionError.ServerError);
         }
         string? syncKey = null;
         try
@@ -350,13 +347,13 @@ public sealed class CompanionRouter
         }
         var response = CompanionResponse.Json(200, new PairResponse(_devices.DesktopId, DesktopName(), secret, CompanionProtocol.Version,
                                                                     syncKey).ToJson());
-        // The phone counts as paired once it has the secret; when the reply never got to it, it is forgotten again.
+        // The phone is only approved until it comes back with its secret (see Authenticate); one that
+        // never got the reply is dropped at once.
         response.Written = delivered =>
         {
             try
             {
-                if (!delivered) _devices.Remove(pair.PhoneId);
-                else if (_devices.Devices.FirstOrDefault(d => d.Id == pair.PhoneId) is { } device) DevicePaired?.Invoke(this, device);
+                if (!delivered) _devices.Discard(pair.PhoneId);
             }
             finally
             {

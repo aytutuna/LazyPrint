@@ -100,8 +100,12 @@ public sealed class CompanionRouterTests : IDisposable
         Assert.Equal(_devices.DesktopId, answer.DesktopId);
         Assert.Equal("AYTU-PC", answer.DesktopName);
         Assert.Equal(1, answer.ProtocolVersion);
-        Assert.NotNull(_devices.Authenticate("phone-0001", answer.DeviceSecret, _now));
+        // Approved, not paired yet: its first request with the secret pairs it.
+        Assert.Null(paired);
+        Assert.Empty(_devices.Devices);
+        Assert.Equal(200, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001", secret: answer.DeviceSecret)).Status);
         Assert.Equal("Aytu's iPhone", paired?.Name);
+        Assert.Single(_devices.Devices);
         // The token was single use.
         var again = await Send("POST", CompanionProtocol.PairPath, Json(new PairRequest(_pairing.Token, "phone-0002", "Other", "ios", "1.0")));
         Assert.Equal(403, again.Status);
@@ -120,6 +124,58 @@ public sealed class CompanionRouterTests : IDisposable
         Assert.Empty(_devices.Devices);
         Assert.Equal(0, paired);
         Assert.Equal(0, _router.AwaitingApproval);
+    }
+
+    [Fact]
+    public async Task Pair_DoesNotStoreAPhoneThatNeverComesBack()
+    {
+        string secret = await PairPhone();
+        Assert.Empty(_devices.Devices);
+        Assert.True(_devices.HasPending(_now));
+        // Not stored while it is awaited, and refused with the secret it was given, unless it comes back in time.
+        _now += PairedDeviceStore.PendingLifetime;
+        Assert.False(_devices.HasPending(_now));
+        Assert.Equal(401, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001", secret: secret)).Status);
+        Assert.Empty(_devices.Devices);
+        Assert.Empty(new PairedDeviceStore(_directory).Devices);
+    }
+
+    [Fact]
+    public async Task Pair_StoresAnApprovedPhoneAtItsFirstRequest()
+    {
+        int paired = 0;
+        _router.DevicePaired += (_, _) => paired++;
+        string secret = await PairPhone();
+        Assert.Empty(new PairedDeviceStore(_directory).Devices);
+        Assert.Equal(200, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001", secret: secret)).Status);
+        Assert.Equal(1, paired);
+        Assert.Equal("phone-0001", Assert.Single(new PairedDeviceStore(_directory).Devices).Id);
+        Assert.False(_devices.HasPending(_now));
+        Assert.Equal(200, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001", secret: secret)).Status);
+        Assert.Equal(1, paired);
+    }
+
+    [Fact]
+    public async Task Pair_GivesAnApprovedPhoneNothingBeforeItsSecretIsUsed()
+    {
+        string secret = await PairPhone();
+        // Another secret, or none, gets what an unknown phone gets.
+        Assert.Equal(401, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001", secret: CompanionVectors.SecretText)).Status);
+        Assert.Equal(401, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001")).Status);
+        Assert.Equal(401, (await Send("PUT", CompanionProtocol.InboxPrefix + "package-0001", [1], device: "phone-0001", secret: CompanionVectors.SecretText)).Status);
+        Assert.Empty(_devices.Devices);
+        // With its own secret it is a paired phone like any other, and the upload route answers it.
+        Assert.NotEqual(401, (await Send("PUT", CompanionProtocol.InboxPrefix + "package-0001", [1], device: "phone-0001", secret: secret)).Status);
+        Assert.Single(_devices.Devices);
+    }
+
+    [Fact]
+    public async Task Pair_ForgetsAnApprovedPhoneWhenPairingEnds()
+    {
+        string secret = await PairPhone();
+        _devices.ClearPending();
+        Assert.Equal(401, (await Send("GET", CompanionProtocol.HelloPath, device: "phone-0001", secret: secret)).Status);
+        Assert.Empty(_devices.Devices);
     }
 
     [Fact]
