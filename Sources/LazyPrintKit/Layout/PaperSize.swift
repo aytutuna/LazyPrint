@@ -141,15 +141,50 @@ public enum PaperSizes {
         return nil
     }
 
-    /// The sizes a list puts at the top, after Automatic and the region's usual one.
-    private static let common: [PaperSize] = [.letter, .a4, .legal, .a3, .a5, .tabloid, .photo4x6, .photo5x7]
+    /// The heading of the sizes a list puts first.
+    public static let commonGroup = "Most common"
 
-    /// The sizes as pickers list them: Automatic, the region's usual size, the common ones, then the rest in
-    /// catalogue order.
+    /// The heading of the sizes a printer lists that the catalogue has no name for.
+    public static let printerGroup = "Printer sizes"
+
+    private static let groupOrder: [PaperGroup] = [.us, .isoA, .isoB, .jisB, .photo, .envelope, .card]
+
+    /// The heading a group's sizes sit under.
+    public static func groupLabel(_ group: PaperGroup) -> String {
+        switch group {
+        case .us: return "US"
+        case .isoA: return "ISO A"
+        case .isoB: return "ISO B"
+        case .jisB: return "JIS B"
+        case .photo: return "Photo"
+        case .envelope: return "Envelopes"
+        case .card: return "Cards"
+        case .auto: return ""
+        }
+    }
+
+    /// The sizes a list shows first: Letter, Legal, Tabloid, photo and envelope sizes where Letter is used, A4, A5, A3
+    /// and the metric ones elsewhere.
+    public static func commonFor(_ regionCode: String?) -> [PaperSize] {
+        usesInches(regionCode)
+            ? [.letter, .legal, .tabloid, .photo4x6, .photo5x7, .photo8x10, .a4, .envNumber10]
+            : [.a4, .a5, .a3, .photo10x15, .photo13x18, .letter, .envDl]
+    }
+
+    /// The sizes as pickers list them: Automatic, the common ones for the region, then each group by area.
     public static func displayOrder(region regionCode: String?) -> [PaperSize] {
-        var first: [PaperSize] = [.auto, defaultForRegion(regionCode)]
-        for size in common where !first.contains(size) { first.append(size) }
-        return first + PaperSize.allCases.filter { !first.contains($0) }
+        let common = commonFor(regionCode)
+        var rest: [PaperSize] = []
+        for group in groupOrder {
+            let sizes: [PaperSize] = PaperSize.allCases.filter { $0.group == group && !common.contains($0) }
+            rest += sizes.sorted { (a: PaperSize, b: PaperSize) -> Bool in area(a) < area(b) }
+        }
+        return [.auto] + common + rest
+    }
+
+    private static func area(_ size: PaperSize) -> Double {
+        guard let p = points(size) else { return 0 }
+        return p.width * p.height
     }
 
     /// The size fits `area` (portrait, within `fitTolerance`). Automatic always fits, and so does
@@ -165,18 +200,42 @@ public struct PaperOption: Equatable, Identifiable, Sendable {
     public var id: String
     public var label: String
     public var detail: String
+    /// The heading the entry sits under in a grouped picker: "" for Automatic and Custom size, else
+    /// `PaperSizes.commonGroup`, a group's name or `PaperSizes.printerGroup`.
+    public var group: String
 
-    public init(id: String, label: String, detail: String) {
+    public init(id: String, label: String, detail: String, group: String = "") {
         self.id = id
         self.label = label
         self.detail = detail
+        self.group = group
     }
+}
+
+/// Consecutive options under one heading ("" for none); the Mac and iPhone pickers build it from `PaperChoices`.
+public struct PaperSection: Identifiable, Equatable, Sendable {
+    public var heading: String
+    public var options: [PaperOption]
+    public var id: String { (options.first?.id ?? "") + heading }
 }
 
 /// What a paper picker lists and which entry shows as chosen (`PaperSizes.choices`). Twin of C# `PaperChoices`.
 public struct PaperChoices: Equatable, Sendable {
     public var options: [PaperOption]
     public var selected: String
+
+    /// The options in runs of one heading, in order.
+    public var sections: [PaperSection] {
+        var result: [PaperSection] = []
+        for option in options {
+            if let last = result.last, last.heading == option.group {
+                result[result.count - 1].options.append(option)
+            } else {
+                result.append(PaperSection(heading: option.group, options: [option]))
+            }
+        }
+        return result
+    }
 }
 
 /// Any size a printer lists: PWG and CUPS names, the names people know, a custom size. Twin of the same part of C# `PaperSizes`.
@@ -357,26 +416,25 @@ extension PaperSizes {
         return sizes.isEmpty || sizes.contains(where: { same($0, paper) }) || printer?.customPaper?.accepts(paper) == true
     }
 
-    /// What a picker lists and shows as chosen: Automatic, then the printer's sizes (the region's usual first, then by area),
-    /// or the usual set when it lists none, and Custom size when it takes a range. A chosen size the printer does not list
-    /// is shown as Custom size when its range takes it, else as an entry of its own.
+    /// What a picker lists and shows as chosen: Automatic, the common sizes for the region, every other size by group, the
+    /// sizes the printer lists that have no name here, and Custom size when it takes a range. Every size can be chosen
+    /// whatever the printer lists. A chosen size that is not an entry is shown as Custom size when the range takes it, else
+    /// as an entry of its own.
     public static func choices(printer: PrinterCapabilities?, chosen chosenId: String?, region regionCode: String?) -> PaperChoices {
         var options = [PaperOption(id: "auto", label: PaperSize.auto.label, detail: PaperSize.auto.detail)]
-        let sizes = listed(printer)
-        if sizes.isEmpty {
-            options += displayOrder(region: regionCode).filter { $0 != .auto }
-                .map { PaperOption(id: $0.rawValue, label: $0.label, detail: $0.detail) }
-        } else {
-            let usual: LayoutSize = points(defaultForRegion(regionCode)) ?? LayoutSize(width: 612, height: 792)
-            let ordered: [LayoutSize] = sizes.sorted { (a: LayoutSize, b: LayoutSize) -> Bool in
-                let aUsual = same(a, usual), bUsual = same(b, usual)
-                if aUsual != bUsual { return aUsual }
-                return a.width * a.height < b.width * b.height
-            }
-            options += ordered.map { optionFor($0, region: regionCode) }
+        let common = commonFor(regionCode)
+        for size in displayOrder(region: regionCode) where size != .auto {
+            let group = common.contains(size) ? commonGroup : groupLabel(size.group)
+            options.append(PaperOption(id: size.rawValue, label: size.label, detail: size.detail, group: group))
+        }
+        let others: [LayoutSize] = listed(printer).filter { match($0) == nil }
+            .sorted { (a: LayoutSize, b: LayoutSize) -> Bool in a.width * a.height < b.width * b.height }
+        for sheet in others {
+            var option = optionFor(sheet, region: regionCode, printer: printer)
+            option.group = printerGroup
+            options.append(option)
         }
         let range = printer?.customPaper
-        if range != nil { options.append(PaperOption(id: customId, label: "Custom size", detail: "")) }
 
         var selected = "auto"
         if let chosen = pointsOf(chosenId), let text = chosenId {
@@ -388,10 +446,13 @@ extension PaperSizes {
             } else if isListed {
                 selected = id
             } else {
-                options.append(optionFor(chosen, region: regionCode))
+                var option = optionFor(chosen, region: regionCode, printer: printer)
+                option.group = printerGroup
+                options.append(option)
                 selected = id
             }
         }
+        if range != nil { options.append(PaperOption(id: customId, label: "Custom size", detail: "")) }
         return PaperChoices(options: options, selected: selected)
     }
 
@@ -409,11 +470,21 @@ extension PaperSizes {
         return customSizeId(width: width, height: height, region: regionCode, printer: printer)
     }
 
-    /// The entry for a sheet: the named size's own label and detail, else its name or its dimensions.
-    private static func optionFor(_ sheet: LayoutSize, region regionCode: String?) -> PaperOption {
-        if let named = match(sheet) { return PaperOption(id: named.rawValue, label: named.label, detail: named.detail) }
+    /// The entry for a sheet without a catalogue name: the name the printer gives it ("Small photo"), else its dimensions.
+    private static func optionFor(_ sheet: LayoutSize, region regionCode: String?, printer: PrinterCapabilities?) -> PaperOption {
         let dimensions = dimensionText(sheet, region: regionCode)
-        if let name = nameOf(sheet) { return PaperOption(id: idFor(sheet), label: name, detail: dimensions) }
+        if let pwg = listedName(printer, sheet), let name = friendlyName(pwg) {
+            return PaperOption(id: idFor(sheet), label: name, detail: dimensions)
+        }
         return PaperOption(id: idFor(sheet), label: dimensions, detail: "")
+    }
+
+    /// The middle of a PWG name as words: "om_small-photo_100x150mm" is "Small photo".
+    private static func friendlyName(_ pwg: String) -> String? {
+        let parts = pwg.split(separator: "_", omittingEmptySubsequences: false)
+        guard parts.count >= 3 else { return nil }
+        let text = parts[1].replacingOccurrences(of: "-", with: " ")
+        guard let first = text.first, !first.isNumber else { return nil }
+        return String(first).uppercased() + String(text.dropFirst())
     }
 }

@@ -125,18 +125,23 @@ final class PaperSizeTests: XCTestCase {
         XCTAssertNil(PaperSizes.match(LayoutSize(width: 0, height: 700)))
     }
 
-    func test_displayOrder_putsAutomaticAndTheRegionsSizeFirst() {
-        let order = PaperSizes.displayOrder(region: "US")
-        XCTAssertEqual(Array(order.prefix(4)), [.auto, .letter, .a4, .legal])
-        XCTAssertEqual(order.count, PaperSize.allCases.count)
-        XCTAssertEqual(PaperSizes.displayOrder(region: "FR")[1], .a4)
+    func test_displayOrder_putsAutomaticAndTheCommonSizesFirst() {
+        let us = PaperSizes.displayOrder(region: "US")
+        XCTAssertEqual(Array(us.prefix(9)), [.auto, .letter, .legal, .tabloid, .photo4x6, .photo5x7, .photo8x10, .a4, .envNumber10])
+        let fr = PaperSizes.displayOrder(region: "FR")
+        XCTAssertEqual(Array(fr.prefix(8)), [.auto, .a4, .a5, .a3, .photo10x15, .photo13x18, .letter, .envDl])
+        XCTAssertEqual(PaperSizes.displayOrder(region: nil)[1], .a4)
+        for order in [us, fr] { XCTAssertEqual(Set(order).count, PaperSize.allCases.count) }
     }
 
-    func test_displayOrder_putsTheCommonSizesAboveTheRest() throws {
-        let order = PaperSizes.displayOrder(region: "DE")
-        XCTAssertEqual(Array(order.prefix(7)), [.auto, .a4, .letter, .legal, .a3, .a5, .tabloid])
-        XCTAssertLessThan(try XCTUnwrap(order.firstIndex(of: .photo4x6)), try XCTUnwrap(order.firstIndex(of: .a0)))
-        XCTAssertEqual(Set(order).count, PaperSize.allCases.count)
+    func test_displayOrder_listsTheRestByGroup_eachBySize() throws {
+        let order = Array(PaperSizes.displayOrder(region: "DE").dropFirst(8))
+        var groups: [PaperGroup] = []
+        for size in order where !groups.contains(size.group) { groups.append(size.group) }
+        XCTAssertEqual(groups, [.us, .isoA, .isoB, .jisB, .photo, .envelope, .card])
+        XCTAssertEqual(order.first, .juniorLegal)
+        XCTAssertLessThan(try XCTUnwrap(order.firstIndex(of: .a8)), try XCTUnwrap(order.firstIndex(of: .a6)))
+        XCTAssertLessThan(try XCTUnwrap(order.firstIndex(of: .a1)), try XCTUnwrap(order.firstIndex(of: .a0)))
     }
 
     func test_fits_allowsTheToleranceAndAlwaysFitsAutomatic() {
@@ -260,31 +265,45 @@ final class PaperSizeTests: XCTestCase {
         XCTAssertTrue(PaperSizes.listed(nil).isEmpty)
     }
 
-    func test_choices_listThePrintersSizes_theRegionsFirst() {
-        let caps = lists("iso_a3_297x420mm", "na_letter_8.5x11in", "iso_a4_210x297mm", "na_ledger_11x17in")
-        let choices = PaperSizes.choices(printer: caps, chosen: "auto", region: "US")
-        XCTAssertEqual(choices.options.map(\.id), ["auto", "letter", "a4", "tabloid", "a3"])
-        XCTAssertEqual(choices.options.map(\.label), ["Automatic", "Letter", "A4", "Tabloid", "A3"])
-        XCTAssertEqual(choices.options.last?.detail, "297 \u{00D7} 420 mm")
-        XCTAssertEqual(choices.selected, "auto")
-    }
-
-    func test_choices_withoutAListKeepTheUsualCases() {
-        for caps in [nil, PrinterCapabilities()] as [PrinterCapabilities?] {
-            let ids = PaperSizes.choices(printer: caps, chosen: "auto", region: "FR").options.map(\.id)
-            XCTAssertEqual(ids[0], "auto")
-            XCTAssertEqual(ids[1], "a4")
-            for id in ["letter", "legal", "photo4x6", "photo5x7"] { XCTAssertTrue(ids.contains(id), id) }
+    func test_choices_listEveryCatalogueSize_whateverThePrinterLists() {
+        let printers = [nil, PrinterCapabilities(), lists("iso_a3_297x420mm", "na_letter_8.5x11in")] as [PrinterCapabilities?]
+        for caps in printers {
+            let choices = PaperSizes.choices(printer: caps, chosen: "auto", region: "US")
+            XCTAssertEqual(choices.selected, "auto")
+            XCTAssertEqual(choices.options.map(\.id).sorted(), PaperSize.allCases.map(\.rawValue).sorted())
+            XCTAssertEqual(choices.options.first?.id, "auto")
+            XCTAssertEqual(choices.options.dropFirst().prefix(8).map(\.id),
+                           ["letter", "legal", "tabloid", "photo4x6", "photo5x7", "photo8x10", "a4", "envNumber10"])
+            XCTAssertTrue(choices.options.dropFirst().prefix(8).allSatisfy { $0.group == PaperSizes.commonGroup })
+            XCTAssertEqual(choices.options[9].group, "US")
+            XCTAssertEqual(choices.options.first(where: { $0.id == "a3" })?.detail, "297 \u{00D7} 420 mm")
         }
+        XCTAssertEqual(PaperSizes.choices(printer: nil, chosen: "auto", region: "FR").options.dropFirst().prefix(3).map(\.id), ["a4", "a5", "a3"])
     }
 
-    func test_choices_showAChosenSizeThePrinterDoesNotListAsAnEntryOfItsOwn() {
+    func test_choices_addThePrintersOtherSizesAfterTheGroups_byTheirOwnName() {
+        let caps = lists("iso_a4_210x297mm", "om_small-photo_100x150mm", "om_large-card_300x400mm", "om_odd-sheet_123x456mm")
+        let options = PaperSizes.choices(printer: caps, chosen: "auto", region: "DE").options
+        let extra = options.filter { $0.group == PaperSizes.printerGroup }
+        XCTAssertEqual(extra.map(\.label), ["Odd sheet", "Large card"])
+        XCTAssertEqual(extra.first?.detail, "123 \u{00D7} 456 mm")
+        XCTAssertEqual(options.last, extra.last)
+    }
+
+    func test_choices_sectionsGroupConsecutiveOptions() {
+        let sections = PaperSizes.choices(printer: nil, chosen: "auto", region: "DE").sections
+        XCTAssertEqual(sections.map(\.heading), ["", "Most common", "US", "ISO A", "ISO B", "JIS B", "Photo", "Envelopes", "Cards"])
+        XCTAssertEqual(sections[0].options.map(\.id), ["auto"])
+    }
+
+    func test_choices_showASizeThePrinterDoesNotListAsChosen() {
         let caps = lists("iso_a4_210x297mm", "na_letter_8.5x11in")
-        let choices = PaperSizes.choices(printer: caps, chosen: "a5", region: "US")
-        XCTAssertEqual(choices.selected, "a5")
-        XCTAssertEqual(choices.options.last?.id, "a5")
+        XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: "a5", region: "US").selected, "a5")
         XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: "nonsense", region: "US").selected, "auto")
         XCTAssertEqual(PaperSizes.choices(printer: caps, chosen: "iso_a4_210x297mm", region: "US").selected, "a4")
+        let odd = PaperSizes.choices(printer: caps, chosen: "listed_sheet_300x400mm", region: "US")
+        XCTAssertEqual(odd.selected, "listed_sheet_300x400mm")
+        XCTAssertEqual(odd.options.last?.group, PaperSizes.printerGroup)
     }
 
     private let range = PaperRange(minWidth: 5000, maxWidth: 21590, minHeight: 10000, maxHeight: 35560)
