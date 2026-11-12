@@ -24,9 +24,7 @@ struct PresetDialogs: ViewModifier {
             .alert(title, isPresented: Binding<Bool>(get: { asksForName }, set: { (on: Bool) in if !on, asksForName { dialog = nil } }),
                    presenting: asksForName ? dialog : nil) { (asked: PresetDialog) in
                 TextField(PrintText.presetNamePrompt, text: $name)
-                    .accessibilityIdentifier("preset.name")
                 Button("Save") { commit(asked) }
-                    .accessibilityIdentifier("preset.confirm")
                 Button("Cancel", role: .cancel) {}
             } message: { (_: PresetDialog) in
                 Text(note)
@@ -46,6 +44,7 @@ struct PresetDialogs: ViewModifier {
                 Button(PrintText.deleteButton, role: .destructive) {
                     state.deletePreset(named: target)
                 }
+                .accessibilityIdentifier("preset.delete.confirm")
             } message: { (_: String) in
                 Text(PrintText.deletePresetMessage)
             }
@@ -118,17 +117,20 @@ struct PresetMenuSection: View {
                 Toggle(preset.name, isOn: Binding<Bool>(get: { state.isCurrent(preset) }, set: { (_: Bool) in state.applyPreset(named: preset.name) }))
             }
             Button(PrintText.savePresetItem) { dialog = .save }
+                .accessibilityIdentifier("preset.save")
             if !state.userPresets.isEmpty {
                 Menu(PrintText.renamePresetItem) {
                     ForEach(state.userPresets, id: \.name) { (preset: UserPreset) in
                         Button(preset.name) { dialog = .rename(preset.name) }
                     }
                 }
+                .accessibilityIdentifier("preset.rename")
                 Menu(PrintText.deletePresetItem) {
                     ForEach(state.userPresets, id: \.name) { (preset: UserPreset) in
                         Button(preset.name, role: .destructive) { dialog = .delete(preset.name) }
                     }
                 }
+                .accessibilityIdentifier("preset.delete")
             }
         }
     }
