@@ -283,7 +283,8 @@ public static partial class PrinterMerge
             string text = port.StartsWith("IP_", StringComparison.OrdinalIgnoreCase) ? port[3..] : port;
             hosts.AddRange(Ipv4().Matches(text).Select(m => m.Value));
             string name = text.Split(':')[0];
-            if (hosts.Count == 0 && name.Contains('.') && Uri.CheckHostName(name) == UriHostNameType.Dns) hosts.Add(HostKey(name));
+            bool wsd = port.StartsWith("WSD-", StringComparison.OrdinalIgnoreCase);
+            if (hosts.Count == 0 && !wsd && name.Contains('.') && Uri.CheckHostName(name) == UriHostNameType.Dns) hosts.Add(HostKey(name));
         }
 
         string? uuid = queue.Uuid ?? (UuidParameter().Match(port) is { Success: true } q ? q.Groups[1].Value : null);

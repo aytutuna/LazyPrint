@@ -422,8 +422,7 @@ public sealed partial class AppViewModel
         var reads = await Task.WhenAll(rows.Select(async printer =>
         {
             string? queuePort = PortOf(printer);
-            string? host = printer.Address;
-            if (host is null && PrinterMapping.IsWsdPort(queuePort)) host = await Task.Run(() => _printerSystem.PortHost(queuePort!));
+            string? host = PrinterMapping.IsWsdPort(queuePort) ? await Task.Run(() => _printerSystem.PortHost(queuePort!)) : printer.Address;
             if (host is null) return (printer.Id, Capabilities: (PrinterCapabilities?)null);
             var (secure, port) = PrinterMapping.IppPortOf(queuePort) ?? (false, PrinterAddress.DefaultPort);
             foreach (string path in HostPaths)

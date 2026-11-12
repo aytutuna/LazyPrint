@@ -94,6 +94,13 @@ public class PrinterMergeTests
     }
 
     [Fact]
+    public void Merge_AWsdPortWithAServiceSuffix_HasNoAddress()
+    {
+        var row = Assert.Single(Merge([Queue("Office", "WSD-7a1b6c2e-0000-4a4e-8d2f-000000000001.0064")], []));
+        Assert.Null(row.Address);
+    }
+
+    [Fact]
     public void Merge_ASecondQueueForTheSamePrinter_IsARowOfItsOwn()
     {
         var rows = Merge([Queue("HP A", "IP_192.168.1.20"), Queue("HP B", "IP_192.168.1.20")], [Net("HP A1B2C3", HpUuid)]);
