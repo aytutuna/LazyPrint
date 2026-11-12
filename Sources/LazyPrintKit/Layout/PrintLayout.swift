@@ -1,7 +1,7 @@
 import Foundation
 
 // Twin of windows/LazyPrint.Core/Layout/PrintLayout.cs: how many copies the printer makes and the
-// ruler page that checks real size (Lazy Scan's PrintLayout, without the Copy task's placement).
+// ruler constants (Lazy Scan's PrintLayout, without the Copy task's placement).
 
 /// How a number of copies is asked of a printer: the copy count of the job, and how many times the
 /// pages are put in it, one after the other (collated).
@@ -36,7 +36,7 @@ public enum PrintCopies {
     }
 }
 
-/// A test page to check that prints come out at real size. Twin of C# `PrintCalibration`.
+/// The ruler constants the test page draws with. Twin of C# `PrintCalibration`.
 public enum PrintCalibration {
     /// The width of the ruler's lines: about 1/150 in.
     public static let lineWidth: Double = 72.0 / 150

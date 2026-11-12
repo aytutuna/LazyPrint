@@ -1,7 +1,7 @@
 namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Layout/PrintLayout.swift: how many copies the printer makes and the
-// ruler page that checks real size (Lazy Scan's PrintLayout, without the Copy task's placement).
+// ruler constants (Lazy Scan's PrintLayout, without the Copy task's placement).
 
 /// <summary>How a number of copies is asked of a printer.</summary>
 /// <param name="TicketCopies">The copy count the print job asks the printer for.</param>
@@ -32,7 +32,7 @@ public static class PrintCopies
     }
 }
 
-/// <summary>A test page to check that prints come out at real size.</summary>
+/// <summary>The ruler constants the test page draws with.</summary>
 public static class PrintCalibration
 {
     /// <summary>The width of the ruler's lines: about 1/150 in.</summary>
