@@ -115,6 +115,58 @@ public sealed class PrinterMappingTests
         Assert.Equal(virtualPort, PrinterMapping.IsVirtualPort(port));
     }
 
+    [Theory]
+    [InlineData("WSD-7a1b6c2e-0000-4a4e-8d2f-000000000001", true)]
+    [InlineData("wsd-1234", true)]
+    [InlineData("IP_192.168.1.20", false)]
+    [InlineData(null, false)]
+    public void AWsdPortIsOneTheWsdMonitorMade(string? port, bool wsd)
+    {
+        Assert.Equal(wsd, PrinterMapping.IsWsdPort(port));
+    }
+
+    [Theory]
+    [InlineData("ipp://192.168.1.20:8631/ipp/print", false, 8631)]
+    [InlineData("ipps://printer.local:443/ipp/print", true, 443)]
+    [InlineData("ipp://192.168.1.20/ipp/print", false, 631)]
+    [InlineData("ipp://192.168.1.20:631", false, 631)]
+    public void AnIppPortNamesItsOwnPortNumber(string port, bool secure, int number)
+    {
+        Assert.Equal((secure, number), PrinterMapping.IppPortOf(port));
+    }
+
+    [Theory]
+    [InlineData("IP_192.168.1.20")]
+    [InlineData("http://192.168.1.20:9100/")]
+    [InlineData("WSD-7a1b6c2e-0000-4a4e-8d2f-000000000001")]
+    [InlineData(null)]
+    public void OnlyAnIppPortHasAnIppPortNumber(string? port)
+    {
+        Assert.Null(PrinterMapping.IppPortOf(port));
+    }
+
+    [Theory]
+    [InlineData("http://192.168.1.50:5357/7a1b6c2e-0000-4a4e-8d2f-000000000001", "192.168.1.50")]
+    [InlineData("https://printer.example.com/WebServices/Device", "printer.example.com")]
+    [InlineData("http://[2001:db8::7]:80/device", "2001:db8::7")]
+    [InlineData("192.168.1.50", "192.168.1.50")]
+    [InlineData("[2001:db8::7]", "2001:db8::7")]
+    [InlineData("urn:uuid:7a1b6c2e-0000-4a4e-8d2f-000000000001", null)]
+    [InlineData("  ", null)]
+    [InlineData("not a host", null)]
+    public void TheHostIsFoundInWhatAWsdDeviceSays(string value, string? host)
+    {
+        Assert.Equal(host, PrinterMapping.WsdHost([value]));
+    }
+
+    [Fact]
+    public void OfSeveralWsdAddressesTheFirstIpv4WinsAndNothingUsableIsNull()
+    {
+        Assert.Equal("10.0.0.9", PrinterMapping.WsdHost(["2001:db8::7", "10.0.0.9", "10.0.0.10"]));
+        Assert.Equal("2001:db8::7", PrinterMapping.WsdHost([null, "2001:db8::7"]));
+        Assert.Null(PrinterMapping.WsdHost([null, "urn:uuid:x"]));
+    }
+
     // MARK: Papers
 
     [Fact]
