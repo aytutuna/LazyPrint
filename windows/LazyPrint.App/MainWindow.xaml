@@ -256,7 +256,7 @@
                                           AutomationProperties.LiveSetting="Polite">
                                     <DockPanel>
                                         <Button DockPanel.Dock="Left" x:Name="TaskButton" Style="{StaticResource SubtleButtonStyle}"
-                                                local:Icon.Glyph="&#xE8FD;" Content="_Preset" VerticalAlignment="Center"
+                                                local:Icon.Glyph="&#xE8FD;" Content="Prese_t" VerticalAlignment="Center"
                                                 ToolTip="Pick a preset or save your own"
                                                 Click="TaskButton_Click" />
                                         <Button DockPanel.Dock="Right" x:Name="ExitTaskButton" Style="{StaticResource SmallIconButtonStyle}"
