@@ -77,6 +77,27 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 
     public init() {}
 
+    // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
+    public static func sameInUse(_ preset: PrintSettings, _ settings: PrintSettings) -> Bool {
+        let poster = (2...4).contains(preset.poster)
+        let alone = preset.layoutStyle == .pages && !poster && !preset.booklet && preset.pagesPerSheet == 1
+        var p = preset
+        var s = settings
+        p.taskId = nil
+        s.taskId = nil
+        if p.margin != .custom { p.marginMm = s.marginMm }
+        if p.layoutStyle == .pages {
+            p.photoSizeId = s.photoSizeId
+            p.photoFill = s.photoFill
+            p.cutMarks = s.cutMarks
+        }
+        if !(alone && (p.scaling == .shrinkToFit || p.scaling == .actualSize)) { p.scale = s.scale }
+        if !(p.booklet || p.pagesPerSheet > 1) || poster { p.rightToLeft = s.rightToLeft }
+        if p.pagesPerSheet == 1 && !p.booklet { p.pageBorders = s.pageBorders }
+        if p.booklet { p.orientation = s.orientation }
+        return p == s
+    }
+
     enum CodingKeys: String, CodingKey {
         case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
         case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, layoutStyle, photoSizeId, photoFill, cutMarks

@@ -1026,6 +1026,19 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_aBuiltInPreset_staysCurrentWhenAnUnusedOptionChanges() async throws {
+        let rig = try makeRig()
+        await rig.state.startTask(.document)
+
+        rig.state.settings.marginMm = 15
+        rig.state.settings.photoSizeId = "5x7"
+        XCTAssertEqual(rig.state.currentTask, .document)
+
+        rig.state.settings.orientation = .landscape
+        XCTAssertNil(rig.state.currentTask)
+    }
+
+    @MainActor
     func test_savingWhileABuiltInPresetIsOn_leavesOnlyTheNewOneCurrent() async throws {
         let rig = try makeRig()
         await rig.state.startTask(.booklet)

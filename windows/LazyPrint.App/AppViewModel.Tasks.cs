@@ -18,7 +18,7 @@ public sealed partial class AppViewModel
     public TaskAvailability AvailabilityOf(PrintTask task) => TaskCatalog.Availability(task, TaskContext);
 
     /// <summary>
-    /// Picks a task: its settings are applied over the user's, the rest stay as they were. The test page prints at once;
+    /// Picks a task: it starts from the defaults; the printer, paper, color, copies and page choices carry over. The test page prints at once;
     /// Scan and print hands over to Lazy Scan; From your phone opens the Phone window.
     /// </summary>
     public async Task StartTaskAsync(PrintTask task)

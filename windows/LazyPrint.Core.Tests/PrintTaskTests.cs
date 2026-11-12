@@ -213,4 +213,16 @@ public class PrintTaskTests
         // The start is left as it was.
         Assert.Null(start.TaskId);
     }
+
+    [Fact]
+    public void SameInUse_IgnoresOptionsTheLayoutDoesNotUse()
+    {
+        var document = TaskCatalog.Apply(PrintTask.Document, new PrintSettings(), Duplex);
+        Assert.True(PrintSettings.SameInUse(document, document with { MarginMm = 15 }));
+        Assert.True(PrintSettings.SameInUse(document, document with { PhotoSizeId = "5x7" }));
+        Assert.False(PrintSettings.SameInUse(document, document with { Orientation = SheetOrientation.Landscape }));
+
+        var booklet = TaskCatalog.Apply(PrintTask.Booklet, new PrintSettings(), Duplex);
+        Assert.True(PrintSettings.SameInUse(booklet, booklet with { Orientation = SheetOrientation.Landscape }));
+    }
 }

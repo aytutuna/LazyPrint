@@ -85,6 +85,26 @@ public sealed record PrintSettings
     public string PhotoSizeId { get; set; } = "4x6";
     public bool PhotoFill { get; set; } = true;
     public bool CutMarks { get; set; } = true;
+
+    // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
+    public static bool SameInUse(PrintSettings preset, PrintSettings settings)
+    {
+        bool poster = preset.Poster is >= 2 and <= 4;
+        bool alone = preset.LayoutStyle == LayoutStyle.Pages && !poster && !preset.Booklet && preset.PagesPerSheet == 1;
+        var p = preset with { TaskId = null };
+        if (p.Margin != MarginChoice.Custom) p.MarginMm = settings.MarginMm;
+        if (p.LayoutStyle == LayoutStyle.Pages)
+        {
+            p.PhotoSizeId = settings.PhotoSizeId;
+            p.PhotoFill = settings.PhotoFill;
+            p.CutMarks = settings.CutMarks;
+        }
+        if (!(alone && p.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize)) p.Scale = settings.Scale;
+        if (!(p.Booklet || p.PagesPerSheet > 1) || poster) p.RightToLeft = settings.RightToLeft;
+        if (p.PagesPerSheet == 1 && !p.Booklet) p.PageBorders = settings.PageBorders;
+        if (p.Booklet) p.Orientation = settings.Orientation;
+        return p == settings with { TaskId = null };
+    }
 }
 
 /// <summary>What is remembered about one printer.</summary>

@@ -140,4 +140,12 @@ public sealed class UserPresetsTests : IDisposable
         Assert.False(UserPresets.Matches(preset, applied with { Quality = QualityChoice.Normal }));
         Assert.False(UserPresets.Matches(preset, applied with { PaperId = "letter" }));
     }
+
+    [Fact]
+    public void APresetStillMatchesWhenAnUnusedOptionChanges()
+    {
+        var preset = UserPresets.Make("Draft", Draft());
+        var applied = UserPresets.Apply(preset, new PrintSettings());
+        Assert.True(UserPresets.Matches(preset, applied with { MarginMm = 15 }));
+    }
 }

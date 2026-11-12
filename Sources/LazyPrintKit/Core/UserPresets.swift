@@ -82,8 +82,6 @@ public enum UserPresets {
 
     /// The settings still have every option the preset sets.
     public static func matches(_ preset: UserPreset, _ settings: PrintSettings) -> Bool {
-        var current = settings
-        current.taskId = nil
-        return apply(preset, to: settings) == current
+        PrintSettings.sameInUse(apply(preset, to: settings), settings)
     }
 }

@@ -146,4 +146,11 @@ final class UserPresetsTests: XCTestCase {
         other.paperId = "letter"
         XCTAssertFalse(UserPresets.matches(preset, other))
     }
+
+    func test_aPreset_stillMatchesWhenAnUnusedOptionChanges() {
+        let preset = UserPresets.make("Draft", from: draft())
+        var applied = UserPresets.apply(preset, to: PrintSettings())
+        applied.marginMm = 15
+        XCTAssertTrue(UserPresets.matches(preset, applied))
+    }
 }

@@ -33,7 +33,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
 
     /// <summary>The built-in preset applied last while the settings still have its options; null once any of them changed.</summary>
     public PrintTask? CurrentTask =>
-        SelectedTask is { } task && TaskCatalog.Apply(task, Settings, SelectedCapabilities) with { TaskId = null } == Settings with { TaskId = null }
+        SelectedTask is { } task && PrintSettings.SameInUse(TaskCatalog.Apply(task, Settings, SelectedCapabilities), Settings)
             ? task : null;
 
     /// <summary>The presets the user saved, in the order saved (presets.json).</summary>

@@ -59,5 +59,5 @@ public static class UserPresets
     };
 
     /// <summary>The settings still have every option the preset sets.</summary>
-    public static bool Matches(UserPreset preset, PrintSettings settings) => Apply(preset, settings) == settings with { TaskId = null };
+    public static bool Matches(UserPreset preset, PrintSettings settings) => PrintSettings.SameInUse(Apply(preset, settings), settings);
 }

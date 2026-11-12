@@ -182,6 +182,19 @@ public sealed class PresetTests
     }
 
     [Fact]
+    public async Task ABuiltInPresetStaysCurrentWhenAnUnusedOptionChanges()
+    {
+        using var rig = new Rig();
+        await rig.Model.StartTaskAsync(PrintTask.Document);
+
+        Edit(rig, s => { s.MarginMm = 15; s.PhotoSizeId = "5x7"; });
+        Assert.Equal(PrintTask.Document, rig.Model.CurrentTask);
+
+        Edit(rig, s => s.Orientation = SheetOrientation.Landscape);
+        Assert.Null(rig.Model.CurrentTask);
+    }
+
+    [Fact]
     public async Task SavingWhileABuiltInPresetIsOnLeavesOnlyTheNewOneCurrent()
     {
         using var rig = new Rig();

@@ -192,4 +192,22 @@ final class PrintTaskTests: XCTestCase {
         // The start is left as it was.
         XCTAssertNil(start.taskId)
     }
+
+    func test_sameInUse_ignoresOptionsTheLayoutDoesNotUse() {
+        let document = TaskCatalog.apply(.document, to: PrintSettings(), printer: duplex)
+        var other = document
+        other.marginMm = 15
+        XCTAssertTrue(PrintSettings.sameInUse(document, other))
+        other = document
+        other.photoSizeId = "5x7"
+        XCTAssertTrue(PrintSettings.sameInUse(document, other))
+        other = document
+        other.orientation = .landscape
+        XCTAssertFalse(PrintSettings.sameInUse(document, other))
+
+        let booklet = TaskCatalog.apply(.booklet, to: PrintSettings(), printer: duplex)
+        other = booklet
+        other.orientation = .landscape
+        XCTAssertTrue(PrintSettings.sameInUse(booklet, other))
+    }
 }
