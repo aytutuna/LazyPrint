@@ -95,7 +95,7 @@ public class InspectorSectionsTests
         Assert.Equal("Draft", InspectorSections.PaperSummary(new PrintSettings { Quality = QualityChoice.Draft }));
         Assert.Equal("Gray", InspectorSections.PaperSummary(new PrintSettings { Color = ColorChoice.Gray }));
         // A paper this version does not know is the automatic one.
-        Assert.Equal("", InspectorSections.PaperSummary(new PrintSettings { PaperId = "tabloid" }));
+        Assert.Equal("", InspectorSections.PaperSummary(new PrintSettings { PaperId = "zine" }));
     }
 
     [Fact]
