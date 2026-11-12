@@ -104,6 +104,8 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Equal(LayoutStyle.Pages, SettingsStore.Load(_directory)!.LayoutStyle);
         File.WriteAllText(Settings, """{"taskId": "photos", "layoutStyle": "pages"}""");
         Assert.Equal(LayoutStyle.Pages, SettingsStore.Load(_directory)!.LayoutStyle);
+        File.WriteAllText(Settings, """{"taskId": "photos", "layoutStyle": "poster"}""");
+        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
     }
 
     [Fact]

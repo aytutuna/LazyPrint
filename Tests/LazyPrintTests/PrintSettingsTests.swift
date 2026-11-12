@@ -128,6 +128,8 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .pages)
         try write(#"{"taskId": "photos", "layoutStyle": "pages"}"#, to: settingsURL)
         XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .pages)
+        try write(#"{"taskId": "photos", "layoutStyle": "poster"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .photoPrints)
     }
 
     func test_settings_unreadable_areMovedAside() throws {

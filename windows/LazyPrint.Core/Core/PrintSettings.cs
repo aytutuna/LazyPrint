@@ -145,17 +145,20 @@ public static class SettingsStore
     {
         string path = Path.Combine(directory, SettingsFile);
         var settings = StoreFiles.Load<PrintSettings>(path);
-        if (settings is not null && !HasKey(path, "layoutStyle")) settings.LayoutStyle = LayoutStyles.FromTaskId(settings.TaskId);
+        if (settings is not null && !HasLayoutStyle(path)) settings.LayoutStyle = LayoutStyles.FromTaskId(settings.TaskId);
         return settings;
     }
 
-    /// <summary>Whether the file names the key; a file that cannot be parsed again counts as having it.</summary>
-    private static bool HasKey(string path, string key)
+    /// <summary>Whether the file names a layout style that exists; a file that cannot be parsed again counts as having one.</summary>
+    private static bool HasLayoutStyle(string path)
     {
         try
         {
             using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
-            return document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object || document.RootElement.TryGetProperty(key, out _);
+            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return true;
+            return document.RootElement.TryGetProperty("layoutStyle", out var value)
+                && value.ValueKind == System.Text.Json.JsonValueKind.String
+                && Enum.GetNames<LayoutStyle>().Any(n => string.Equals(n, value.GetString(), StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception)
         {
