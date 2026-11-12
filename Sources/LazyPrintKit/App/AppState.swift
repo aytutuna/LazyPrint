@@ -247,6 +247,10 @@ public final class AppState: ObservableObject {
     /// The pass being printed runs in a task of its own, by job record id.
     var jobTasks: [String: Task<Void, Error>] = [:]
     var runningRecord: String?
+    /// Set once Cancel is pressed on the running pass; later reports from the printer are ignored.
+    var canceling = false
+    /// The most sides the printer has reported done in the running pass; a late report cannot lower it.
+    var sidesDone = 0
     /// The records whose pass was stopped because the system's background time ran out.
     var timedOut: Set<String> = []
     var manual: ManualRun? {

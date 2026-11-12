@@ -111,6 +111,8 @@ extension AppState {
         let sides = max(1, job.plan.passes[pass].sides.count * JobSides.copies(job))
         isBusy = true
         runningRecord = recordId
+        canceling = false
+        sidesDone = 0
         setJob(recordId, .sending, nil)
         statusOverride = PrintText.printing(1, of: sides)
         let running = Task { try await self.send(job, pass: pass, sides: sides, recordId: recordId) }
@@ -124,7 +126,8 @@ extension AppState {
             done = true
         } catch {
             if running.isCancelled || error is CancellationError {
-                setJob(recordId, .canceled, nil)
+                let stopped = jobs.first(where: { $0.id == recordId }).flatMap { $0.state == .canceled ? $0.detail : nil }
+                setJob(recordId, .canceled, stopped)
                 statusOverride = nil
                 if timedOut.contains(recordId) {
                     // The card holds the job: Print and Print again wait, so its own buttons are what is left to press.
@@ -194,6 +197,7 @@ extension AppState {
 
     /// What the printer says of the pass while it runs. A report that comes after the pass has ended is dropped.
     private func progress(_ status: JobStatus, recordId: String, sides: Int, printer: String) {
+        if canceling { return }
         // A last report can land after the pass has returned: it still carries the printer's warning.
         if status.state == .done {
             if let record = jobs.first(where: { $0.id == recordId }), runningRecord == recordId || record.state == .done {
@@ -202,6 +206,7 @@ extension AppState {
             return
         }
         guard runningRecord == recordId else { return }
+        sidesDone = max(sidesDone, status.sidesDone)
         canCancelJob = status.cancelable
         setJob(recordId, status.state, status.detail)
         if status.state == .needsUser, let detail = status.detail {
@@ -209,9 +214,9 @@ extension AppState {
         } else if status.state == .waiting {
             statusOverride = PrintText.waiting(for: printer, reason: status.detail)
         } else if status.state == .preparing {
-            statusOverride = PrintText.preparing(min(status.sidesDone + 1, sides), of: sides)
+            statusOverride = PrintText.preparing(min(sidesDone + 1, sides), of: sides)
         } else {
-            statusOverride = PrintText.printing(min(status.sidesDone + 1, sides), of: sides)
+            statusOverride = PrintText.printing(min(sidesDone + 1, sides), of: sides)
         }
     }
 
@@ -258,19 +263,30 @@ extension AppState {
 
     /// Stops the job being printed; the printer keeps what it already took.
     public func cancelJob() {
-        if let id = runningRecord { jobTasks[id]?.cancel() }
+        if let id = runningRecord { stopJob(id) }
+    }
+
+    /// Until the printer has answered the cancel, the job says so instead of printing.
+    private func stopJob(_ id: String) {
+        guard let running = jobTasks[id], !canceling else { return }
+        canceling = true
+        running.cancel()
+        if let record = jobs.first(where: { $0.id == id }), record.state != .canceled {
+            setJob(id, record.state, PrintText.canceling)
+        }
+        statusOverride = PrintText.canceling
     }
 
     /// Stops the job being printed and returns once its task has ended, which is after the printer was told to drop it.
     public func cancelJobAndWait() async {
         guard let id = runningRecord, let running = jobTasks[id] else { return }
-        running.cancel()
+        stopJob(id)
         _ = try? await running.value
     }
 
     /// The Jobs tab's Cancel for a job still going.
     public func cancelJob(_ id: String) {
-        if runningRecord == id { jobTasks[id]?.cancel() }
+        if runningRecord == id { stopJob(id) }
     }
 
     /// The Jobs tab's Print again: the job is planned once more from what it was made of, with what is known of the
