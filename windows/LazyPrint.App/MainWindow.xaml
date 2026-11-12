@@ -303,7 +303,7 @@
                                                 local:Icon.Glyph="&#xE710;" Content="Add _files…" HorizontalAlignment="Center"
                                                 Margin="0,16,0,0" ToolTip="Add PDFs, pictures and text (Ctrl+O)" Click="AddFiles_Click" />
                                         <Button x:Name="EmptyRecentButton" Style="{StaticResource SubtleButtonStyle}"
-                                                Content="_Recent" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                                Content="Recent" HorizontalAlignment="Center" Margin="0,4,0,0"
                                                 ToolTip="Files opened before" Click="Recent_Click" />
                                         <TextBlock Text="{x:Static local:ShortText.DropHint}" Style="{StaticResource CaptionText}"
                                                    TextAlignment="Center" TextWrapping="Wrap" Margin="0,2,0,0" />
@@ -365,7 +365,7 @@
                                                 local:Icon.Glyph="&#xE710;" Content="Add _files…" ToolTip="Add PDFs, pictures and text (Ctrl+O)"
                                                 Click="AddFiles_Click" />
                                         <Button DockPanel.Dock="Right" x:Name="RecentButton" Style="{StaticResource SubtleButtonStyle}"
-                                                Content="_Recent" ToolTip="Files opened before" Click="Recent_Click" />
+                                                Content="Recent" ToolTip="Files opened before" Click="Recent_Click" />
                                         <TextBlock x:Name="DocumentStripLabel" Style="{StaticResource CaptionText}" TextWrapping="NoWrap"
                                                    VerticalAlignment="Center" />
                                     </DockPanel>
@@ -545,7 +545,7 @@
                                                       ToolTip="Two pages on each side, in the order that folds into a booklet"
                                                       ToolTipService.ShowOnDisabled="True"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
-                                            <Label Content="Pos_ter" Target="{Binding ElementName=PosterBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                            <Label Content="Poster" Target="{Binding ElementName=PosterBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="PosterBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Poster"
                                                       ToolTipService.ShowOnDisabled="True"
@@ -562,7 +562,7 @@
                                                       Content="Page borders"
                                                       ToolTip="A thin line around each page"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
-                                            <Label Content="Scal_ing" Target="{Binding ElementName=ScalingBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                            <Label Content="Sca_ling" Target="{Binding ElementName=ScalingBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="ScalingBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Scaling"
                                                       ToolTipService.ShowOnDisabled="True"
@@ -620,13 +620,13 @@
                                                 <TextBlock x:Name="PaperNoteText" Style="{StaticResource ReasonText}" />
                                             </DockPanel>
                                             <StackPanel x:Name="TrayRow" Visibility="Collapsed">
-                                                <Label Content="_Tray" Target="{Binding ElementName=TrayBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                                <Label Content="Tray" Target="{Binding ElementName=TrayBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                                 <ComboBox x:Name="TrayBox" HorizontalAlignment="Stretch"
                                                           AutomationProperties.Name="Tray"
                                                           SelectionChanged="Setting_Changed" />
                                             </StackPanel>
                                             <StackPanel x:Name="PaperTypeRow" Visibility="Collapsed">
-                                                <Label Content="Paper _type" Target="{Binding ElementName=PaperTypeBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                                <Label Content="Paper type" Target="{Binding ElementName=PaperTypeBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                                 <ComboBox x:Name="PaperTypeBox" HorizontalAlignment="Stretch"
                                                           AutomationProperties.Name="Paper type"
                                                           SelectionChanged="Setting_Changed" />
