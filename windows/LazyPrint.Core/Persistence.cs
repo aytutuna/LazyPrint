@@ -140,16 +140,22 @@ internal static class StoreFiles
     /// </summary>
     internal static T Decode<T>(ReadOnlySpan<byte> json) where T : class
     {
-        var (encoding, bomLength) = DetectEncoding(json);
-        json = json[bomLength..];
-        if (encoding is not null)
-            json = Encoding.UTF8.GetBytes(encoding.GetString(json));
-        if (!Utf8.IsValid(json))
-            throw new JsonException("The file is not valid UTF-8.");
-        var value = JsonSerializer.Deserialize<T>(json, JsonOptions);
+        var value = JsonSerializer.Deserialize<T>(ToUtf8(json), JsonOptions);
         if (value is null || LenientDecoding.ContainsNull(value))
             throw new JsonException($"The file does not contain a {typeof(T).Name}.");
         return value;
+    }
+
+    /// <summary>The JSON text as UTF-8 without a byte-order mark, whatever encoding the file used; throws when it is not valid.</summary>
+    internal static byte[] ToUtf8(ReadOnlySpan<byte> json)
+    {
+        var (encoding, bomLength) = DetectEncoding(json);
+        json = json[bomLength..];
+        if (encoding is not null)
+            return Encoding.UTF8.GetBytes(encoding.GetString(json));
+        if (!Utf8.IsValid(json))
+            throw new JsonException("The file is not valid UTF-8.");
+        return json.ToArray();
     }
 
     /// <summary>

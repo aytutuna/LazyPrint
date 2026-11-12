@@ -109,6 +109,16 @@ public sealed class PrintSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Settings_SavedInAPhotoTaskWithAByteOrderMark_KeepTheirPhotoLayout()
+    {
+        byte[] json = System.Text.Encoding.UTF8.GetBytes("""{"taskId": "photos"}""");
+        File.WriteAllBytes(Settings, [0xEF, 0xBB, 0xBF, .. json]);
+        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
+        File.WriteAllBytes(Settings, [0xFF, 0xFE, .. System.Text.Encoding.Unicode.GetBytes("""{"taskId": "photos"}""")]);
+        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
+    }
+
+    [Fact]
     public void Settings_WithAnUnknownOrWrongValue_ResetOnlyThatField()
     {
         File.WriteAllText(Settings, """

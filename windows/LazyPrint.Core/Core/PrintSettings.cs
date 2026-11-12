@@ -154,7 +154,7 @@ public static class SettingsStore
     {
         try
         {
-            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(path));
+            using var document = System.Text.Json.JsonDocument.Parse(StoreFiles.ToUtf8(File.ReadAllBytes(path)));
             if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return true;
             return document.RootElement.TryGetProperty("layoutStyle", out var value)
                 && value.ValueKind == System.Text.Json.JsonValueKind.String
