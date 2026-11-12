@@ -144,8 +144,16 @@ public sealed class UserPresetsTests : IDisposable
     [Fact]
     public void APresetStillMatchesWhenAnUnusedOptionChanges()
     {
+        var preset = UserPresets.Make("Draft", Draft() with { Margin = MarginChoice.None });
+        var applied = UserPresets.Apply(preset, new PrintSettings());
+        Assert.True(UserPresets.Matches(preset, applied with { MarginMm = 20 }));
+    }
+
+    [Fact]
+    public void APresetDoesNotMatchWhenAUsedOptionChanges()
+    {
         var preset = UserPresets.Make("Draft", Draft());
         var applied = UserPresets.Apply(preset, new PrintSettings());
-        Assert.True(UserPresets.Matches(preset, applied with { MarginMm = 15 }));
+        Assert.False(UserPresets.Matches(preset, applied with { MarginMm = 20 }));
     }
 }

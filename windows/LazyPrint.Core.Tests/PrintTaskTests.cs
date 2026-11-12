@@ -225,4 +225,21 @@ public class PrintTaskTests
         var booklet = TaskCatalog.Apply(PrintTask.Booklet, new PrintSettings(), Duplex);
         Assert.True(PrintSettings.SameInUse(booklet, booklet with { Orientation = SheetOrientation.Landscape }));
     }
+
+    [Fact]
+    public void SameInUse_IgnoresSidesWhenTheLayoutDoesNotUseThem()
+    {
+        var booklet = TaskCatalog.Apply(PrintTask.Booklet, new PrintSettings(), Duplex);
+        Assert.True(PrintSettings.SameInUse(booklet, booklet with { Sides = Sides.OneSided }));
+    }
+
+    [Fact]
+    public void SameInUse_CountsScaleForALonePageOnAPhotoSheet()
+    {
+        var sheet = new PrintSettings
+        {
+            LayoutStyle = LayoutStyle.PhotoSheet, PagesPerSheet = 1, Scaling = Scaling.ShrinkToFit, Scale = 50,
+        };
+        Assert.False(PrintSettings.SameInUse(sheet, sheet with { Scale = 100 }));
+    }
 }

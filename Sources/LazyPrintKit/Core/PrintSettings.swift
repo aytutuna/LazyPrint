@@ -80,7 +80,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
     public static func sameInUse(_ preset: PrintSettings, _ settings: PrintSettings) -> Bool {
         let poster = (2...4).contains(preset.poster)
-        let alone = preset.layoutStyle == .pages && !poster && !preset.booklet && preset.pagesPerSheet == 1
+        let alone = preset.layoutStyle != .photoPrints && !poster && !preset.booklet && preset.pagesPerSheet == 1
         var p = preset
         var s = settings
         p.taskId = nil
@@ -95,6 +95,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
         if !(p.booklet || p.pagesPerSheet > 1) || poster { p.rightToLeft = s.rightToLeft }
         if p.pagesPerSheet == 1 && !p.booklet { p.pageBorders = s.pageBorders }
         if p.booklet { p.orientation = s.orientation }
+        if p.layoutStyle.isPhoto || p.booklet || poster { p.sides = s.sides }
         return p == s
     }
 

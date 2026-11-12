@@ -148,9 +148,18 @@ final class UserPresetsTests: XCTestCase {
     }
 
     func test_aPreset_stillMatchesWhenAnUnusedOptionChanges() {
+        var d = draft()
+        d.margin = .none
+        let preset = UserPresets.make("Draft", from: d)
+        var applied = UserPresets.apply(preset, to: PrintSettings())
+        applied.marginMm = 20
+        XCTAssertTrue(UserPresets.matches(preset, applied))
+    }
+
+    func test_aPreset_doesNotMatchWhenAUsedOptionChanges() {
         let preset = UserPresets.make("Draft", from: draft())
         var applied = UserPresets.apply(preset, to: PrintSettings())
-        applied.marginMm = 15
-        XCTAssertTrue(UserPresets.matches(preset, applied))
+        applied.marginMm = 20
+        XCTAssertFalse(UserPresets.matches(preset, applied))
     }
 }

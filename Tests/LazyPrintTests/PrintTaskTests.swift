@@ -210,4 +210,22 @@ final class PrintTaskTests: XCTestCase {
         other.orientation = .landscape
         XCTAssertTrue(PrintSettings.sameInUse(booklet, other))
     }
+
+    func test_sameInUse_ignoresSidesWhenTheLayoutDoesNotUseThem() {
+        let booklet = TaskCatalog.apply(.booklet, to: PrintSettings(), printer: duplex)
+        var other = booklet
+        other.sides = .oneSided
+        XCTAssertTrue(PrintSettings.sameInUse(booklet, other))
+    }
+
+    func test_sameInUse_countsScaleForALonePageOnAPhotoSheet() {
+        var sheet = PrintSettings()
+        sheet.layoutStyle = .photoSheet
+        sheet.pagesPerSheet = 1
+        sheet.scaling = .shrinkToFit
+        sheet.scale = 50
+        var other = sheet
+        other.scale = 100
+        XCTAssertFalse(PrintSettings.sameInUse(sheet, other))
+    }
 }

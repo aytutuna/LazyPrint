@@ -90,7 +90,7 @@ public sealed record PrintSettings
     public static bool SameInUse(PrintSettings preset, PrintSettings settings)
     {
         bool poster = preset.Poster is >= 2 and <= 4;
-        bool alone = preset.LayoutStyle == LayoutStyle.Pages && !poster && !preset.Booklet && preset.PagesPerSheet == 1;
+        bool alone = preset.LayoutStyle != LayoutStyle.PhotoPrints && !poster && !preset.Booklet && preset.PagesPerSheet == 1;
         var p = preset with { TaskId = null };
         if (p.Margin != MarginChoice.Custom) p.MarginMm = settings.MarginMm;
         if (p.LayoutStyle == LayoutStyle.Pages)
@@ -103,6 +103,7 @@ public sealed record PrintSettings
         if (!(p.Booklet || p.PagesPerSheet > 1) || poster) p.RightToLeft = settings.RightToLeft;
         if (p.PagesPerSheet == 1 && !p.Booklet) p.PageBorders = settings.PageBorders;
         if (p.Booklet) p.Orientation = settings.Orientation;
+        if (p.LayoutStyle.IsPhoto() || p.Booklet || poster) p.Sides = settings.Sides;
         return p == settings with { TaskId = null };
     }
 }
