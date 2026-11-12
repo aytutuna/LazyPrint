@@ -118,4 +118,25 @@ public static class PrintText
 
     /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
     public static string Shrunk(int percent) => $"Shrunk to {percent} %";
+
+    public const string PresetsHeading = "Presets";
+    public const string SavePresetItem = "Save options as preset…";
+    public const string RenamePresetItem = "Rename preset";
+    public const string DeletePresetItem = "Delete preset";
+    public const string SavePresetTitle = "Save options as preset";
+    public const string RenamePresetTitle = "Rename preset";
+    public const string PresetNamePrompt = "Name";
+
+    /// <summary>Said under the name field when <see cref="UserPresets.Check"/> refuses the name.</summary>
+    public static string PresetNameProblem(PresetNameCheck check) => check switch
+    {
+        PresetNameCheck.Empty => "Give the preset a name.",
+        PresetNameCheck.BuiltIn => "A built-in preset has that name.",
+        PresetNameCheck.Exists => "A preset has that name already.",
+        _ => "",
+    };
+
+    public static string ReplacePresetTitle(string name) => $"Replace “{name}”?";
+    public const string ReplacePresetMessage = "The preset gets the options you have now.";
+    public const string ReplaceButton = "Replace";
 }

@@ -50,6 +50,7 @@ public sealed partial class AppViewModel
         ClearMessages();
         Settings = TaskCatalog.Apply(task, Settings, SelectedCapabilities);
         SelectedTask = task;
+        AppliedPreset = null;
         _sidesPickedBlind = task == PrintTask.Document && SelectedCapabilities is null ? Settings.Sides : null;
         SettingsEdited();
     }

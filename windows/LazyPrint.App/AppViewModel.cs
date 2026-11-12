@@ -31,6 +31,12 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
     /// <summary>The task in use; null until one is.</summary>
     public PrintTask? SelectedTask { get; private set; }
 
+    /// <summary>The presets the user saved, in the order saved (presets.json).</summary>
+    public List<UserPreset> Presets { get; private set; }
+
+    /// <summary>The user preset applied last; it is checked in the Task menu while the settings still have its options (<see cref="IsCurrent"/>).</summary>
+    public string? AppliedPreset { get; private set; }
+
     /// <summary>There were no saved settings when the app started.</summary>
     public bool IsFirstRun { get; }
 
@@ -95,6 +101,7 @@ public sealed partial class AppViewModel : INotifyPropertyChanged
             ? savedTask : null;
         if (saved is null) _sidesPickedBlind = Settings.Sides;
         _prefs = SettingsStore.LoadPrinters(_directory);
+        Presets = SettingsStore.LoadPresets(_directory);
     }
 
     private void NotifyAll() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));

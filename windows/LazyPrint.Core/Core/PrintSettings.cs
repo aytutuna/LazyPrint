@@ -119,6 +119,7 @@ public static class SettingsStore
 {
     private const string SettingsFile = "settings.json";
     private const string PrintersFile = "printers.json";
+    private const string PresetsFile = "presets.json";
 
     /// <summary>
     /// null when there are no saved settings yet, or the file could not be loaded. A file that
@@ -133,6 +134,11 @@ public static class SettingsStore
     public static Dictionary<string, PrinterPrefs> LoadPrinters() => LoadPrinters(StoreFiles.DefaultDirectory);
 
     public static void SavePrinters(Dictionary<string, PrinterPrefs> printers) => SavePrinters(printers, StoreFiles.DefaultDirectory);
+
+    /// <summary>The presets the user saved, in the order saved; empty when there are none, handled like <see cref="Load()"/>. One with no name is dropped.</summary>
+    public static List<UserPreset> LoadPresets() => LoadPresets(StoreFiles.DefaultDirectory);
+
+    public static void SavePresets(List<UserPreset> presets) => SavePresets(presets, StoreFiles.DefaultDirectory);
 
     /// <summary>Same as <see cref="Load()"/>, reading settings.json from <paramref name="directory"/> (tests).</summary>
     internal static PrintSettings? Load(string directory)
@@ -165,4 +171,10 @@ public static class SettingsStore
 
     internal static void SavePrinters(Dictionary<string, PrinterPrefs> printers, string directory) =>
         StoreFiles.Write(printers, Path.Combine(directory, PrintersFile));
+
+    internal static List<UserPreset> LoadPresets(string directory) =>
+        [.. (StoreFiles.Load<List<UserPreset>>(Path.Combine(directory, PresetsFile)) ?? []).Where(p => p.Name.Trim().Length > 0)];
+
+    internal static void SavePresets(List<UserPreset> presets, string directory) =>
+        StoreFiles.Write(presets, Path.Combine(directory, PresetsFile));
 }
