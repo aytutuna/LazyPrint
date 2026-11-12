@@ -99,7 +99,8 @@ public sealed record PaperSize(string RawValue, string Pwg, string Label, PaperG
 }
 
 /// <summary>A size a picker offers; <see cref="Id"/> is what <see cref="PrintSettings.PaperId"/> keeps.</summary>
-public sealed record PaperOption(string Id, string Label, string Detail);
+/// <param name="Group">The heading the entry sits under in a grouped picker: "" for Automatic and Custom size, else <see cref="PaperSizes.CommonGroup"/>, a group's name or <see cref="PaperSizes.PrinterGroup"/>.</param>
+public sealed record PaperOption(string Id, string Label, string Detail, string Group = "");
 
 /// <summary>What a paper picker lists and which entry shows as chosen (<see cref="PaperSizes.Choices"/>).</summary>
 public sealed record PaperChoices(IReadOnlyList<PaperOption> Options, string Selected);
@@ -120,9 +121,27 @@ public static class PaperSizes
     /// <summary>Every size, Automatic first.</summary>
     public static IReadOnlyList<PaperSize> All => PaperSize.All;
 
-    /// <summary>The sizes a list puts at the top, after Automatic and the region's usual one.</summary>
-    private static readonly PaperSize[] Common =
-        [PaperSize.Letter, PaperSize.A4, PaperSize.Legal, PaperSize.A3, PaperSize.A5, PaperSize.Tabloid, PaperSize.Photo4x6, PaperSize.Photo5x7];
+    /// <summary>The heading of the sizes a list puts first.</summary>
+    public const string CommonGroup = "Most common";
+
+    /// <summary>The heading of the sizes a printer lists that the catalogue has no name for.</summary>
+    public const string PrinterGroup = "Printer sizes";
+
+    private static readonly PaperGroup[] GroupOrder =
+        [PaperGroup.Us, PaperGroup.IsoA, PaperGroup.IsoB, PaperGroup.JisB, PaperGroup.Photo, PaperGroup.Envelope, PaperGroup.Card];
+
+    /// <summary>The heading a group's sizes sit under.</summary>
+    public static string GroupLabel(PaperGroup group) => group switch
+    {
+        PaperGroup.Us => "US",
+        PaperGroup.IsoA => "ISO A",
+        PaperGroup.IsoB => "ISO B",
+        PaperGroup.JisB => "JIS B",
+        PaperGroup.Photo => "Photo",
+        PaperGroup.Envelope => "Envelopes",
+        PaperGroup.Card => "Cards",
+        _ => "",
+    };
 
     /// <summary>Portrait width × height in points; null for <see cref="PaperSize.Auto"/>.</summary>
     public static LayoutSize? Points(PaperSize size) => PwgSize(size.Pwg);
@@ -185,11 +204,18 @@ public static class PaperSizes
         return null;
     }
 
-    /// <summary>The sizes as pickers list them: Automatic, the region's usual size, the common ones, then the rest in catalogue order.</summary>
+    /// <summary>The sizes a list shows first: Letter, Legal, Tabloid, photo and envelope sizes where Letter is used, A4, A5, A3 and the metric ones elsewhere.</summary>
+    public static IReadOnlyList<PaperSize> CommonFor(string? regionCode) => UsesInches(regionCode)
+        ? [PaperSize.Letter, PaperSize.Legal, PaperSize.Tabloid, PaperSize.Photo4x6, PaperSize.Photo5x7, PaperSize.Photo8x10, PaperSize.A4, PaperSize.EnvNumber10]
+        : [PaperSize.A4, PaperSize.A5, PaperSize.A3, PaperSize.Photo10x15, PaperSize.Photo13x18, PaperSize.Letter, PaperSize.EnvDl];
+
+    /// <summary>The sizes as pickers list them: Automatic, the common ones for the region, then each group by area.</summary>
     public static IReadOnlyList<PaperSize> DisplayOrder(string? regionCode)
     {
-        var first = new[] { PaperSize.Auto, DefaultForRegion(regionCode) }.Concat(Common).Distinct().ToList();
-        return [.. first, .. All.Except(first)];
+        var common = CommonFor(regionCode);
+        var rest = GroupOrder.SelectMany(group => All.Where(size => size.Group == group && !common.Contains(size))
+            .OrderBy(size => { var p = Points(size)!.Value; return p.Width * p.Height; }));
+        return [PaperSize.Auto, .. common, .. rest];
     }
 
     /// <summary>
@@ -359,27 +385,24 @@ public static class PaperSizes
     }
 
     /// <summary>
-    /// What a picker lists and shows as chosen: Automatic, then the printer's sizes (the region's usual first, then by area),
-    /// or the usual set when it lists none, and Custom size when it takes a range. A chosen size the printer does not list
-    /// is shown as Custom size when its range takes it, else as an entry of its own.
+    /// What a picker lists and shows as chosen: Automatic, the common sizes for the region, every other size by group, the
+    /// sizes the printer lists that have no name here, and Custom size when it takes a range. Every size can be chosen
+    /// whatever the printer lists. A chosen size that is not an entry is shown as Custom size when the range takes it, else
+    /// as an entry of its own.
     /// </summary>
     public static PaperChoices Choices(PrinterCapabilities? printer, string? chosenId, string? regionCode)
     {
         var options = new List<PaperOption> { new("auto", PaperSize.Auto.Label, PaperSize.Auto.Detail) };
-        var listed = Listed(printer);
-        if (listed.Count == 0)
+        var common = CommonFor(regionCode);
+        foreach (var size in DisplayOrder(regionCode).Where(size => size != PaperSize.Auto))
         {
-            options.AddRange(DisplayOrder(regionCode).Where(size => size != PaperSize.Auto)
-                .Select(size => new PaperOption(size.RawValue, size.Label, size.Detail)));
+            options.Add(new PaperOption(size.RawValue, size.Label, size.Detail, common.Contains(size) ? CommonGroup : GroupLabel(size.Group)));
         }
-        else
+        foreach (var size in Listed(printer).Where(size => Match(size) is null).OrderBy(size => size.Width * size.Height))
         {
-            var usual = Points(DefaultForRegion(regionCode))!.Value;
-            options.AddRange(listed.OrderBy(size => Same(size, usual) ? 0 : 1).ThenBy(size => size.Width * size.Height)
-                .Select(size => OptionFor(size, regionCode)));
+            options.Add(OptionFor(size, regionCode, printer) with { Group = PrinterGroup });
         }
         var range = printer?.CustomPaper;
-        if (range is not null) options.Add(new PaperOption(CustomId, "Custom size", ""));
 
         string selected = "auto";
         if (PointsOf(chosenId) is { } chosen)
@@ -390,10 +413,11 @@ public static class PaperSizes
             else if (options.Any(o => o.Id == id)) selected = id;
             else
             {
-                options.Add(OptionFor(chosen, regionCode));
+                options.Add(OptionFor(chosen, regionCode, printer) with { Group = PrinterGroup });
                 selected = id;
             }
         }
+        if (range is not null) options.Add(new PaperOption(CustomId, "Custom size", ""));
         return new PaperChoices(options, selected);
     }
 
@@ -413,12 +437,22 @@ public static class PaperSizes
         return CustomSizeId(width, height, regionCode, printer);
     }
 
-    /// <summary>The entry for a sheet: the named size's own label and detail, else its name or its dimensions.</summary>
-    private static PaperOption OptionFor(LayoutSize size, string? regionCode)
+    /// <summary>The entry for a sheet without a catalogue name: the name the printer gives it ("Small photo"), else its dimensions.</summary>
+    private static PaperOption OptionFor(LayoutSize size, string? regionCode, PrinterCapabilities? printer)
     {
-        if (Match(size) is { } named) return new PaperOption(named.RawValue, named.Label, named.Detail);
         string dimensions = DimensionText(size, regionCode);
-        return NameOf(size) is { } name ? new PaperOption(IdFor(size), name, dimensions) : new PaperOption(IdFor(size), dimensions, "");
+        return ListedName(printer, size) is { } pwg && FriendlyName(pwg) is { Length: > 0 } name
+            ? new PaperOption(IdFor(size), name, dimensions)
+            : new PaperOption(IdFor(size), dimensions, "");
+    }
+
+    /// <summary>The middle of a PWG name as words: "om_small-photo_100x150mm" is "Small photo".</summary>
+    private static string FriendlyName(string pwg)
+    {
+        string[] parts = pwg.Split('_');
+        if (parts.Length < 3) return "";
+        string text = parts[1].Replace('-', ' ');
+        return text.Length == 0 || char.IsDigit(text[0]) ? "" : char.ToUpperInvariant(text[0]) + text[1..];
     }
 
     private static bool Same(LayoutSize a, LayoutSize b) =>
