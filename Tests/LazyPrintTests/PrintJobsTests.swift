@@ -452,13 +452,13 @@ final class PrintJobsTests: XCTestCase {
     }
 
     func test_layoutOptions_carryTheOrientation() {
-        XCTAssertEqual(PrintJobs.layoutOptions(makeSettings { $0.orientation = .landscape }, task: .document).orientation, .landscape)
+        XCTAssertEqual(PrintJobs.layoutOptions(makeSettings { $0.orientation = .landscape }).orientation, .landscape)
     }
 
     func test_layoutOptions_carryTheMarginInPoints() {
         let cases: [(MarginChoice, Int, Int)] = [(MarginChoice.none, 0, 0), (.small, 0, 6), (.normal, 0, 12), (.custom, 20, 20), (.custom, 900, 50)]
         for (choice, custom, millimetres) in cases {
-            let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom }, task: .document)
+            let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom })
             XCTAssertEqual(options.margin, Double(millimetres) * 72 / 25.4, accuracy: 1e-6)
         }
     }
