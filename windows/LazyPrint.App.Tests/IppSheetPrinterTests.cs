@@ -157,7 +157,7 @@ public sealed class IppSheetPrinterTests : IDisposable
     [Fact]
     public async Task APdfWithAMarginOrAPosterIsDrawnHere()
     {
-        await SentFormat(Job(s => s.Margin = MarginChoice.Small, 1, Plain()), "%PDF-1.4");
+        await SentFormat(Job(s => s.Margin = MarginChoice.Printer, 1, Plain()), "%PDF-1.4");
         Assert.NotEqual("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
         await SentFormat(Job(s => s.Poster = 2, 1, Plain()), "%PDF-1.4");
         Assert.NotEqual("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);

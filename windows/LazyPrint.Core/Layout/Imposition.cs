@@ -21,15 +21,15 @@ public static class Imposition
 
     /// <summary>
     /// The sheets for <paramref name="pages"/> (several documents run on as one) on paper with the
-    /// printable <paramref name="area"/>. When any back may turn (two-sided, booklet) both sides use
-    /// <see cref="PrintableArea.Symmetric"/>.
+    /// printer's <paramref name="area"/>. Pages are laid out inside the chosen margin alone, equal on every side; the
+    /// printer's own edge never moves them, it only cuts what reaches into it.
     /// </summary>
     public static SheetPlan Plan(IReadOnlyList<SourcePage> pages, LayoutOptions options, PrintableArea area)
     {
         bool poster = options.Poster is >= 2 and <= 4;
         bool duplex = !poster && (options.Booklet || options.Sides != Sides.OneSided);
-        var used = duplex ? area.Symmetric : area;
-        var laid = WithMargin(used, options.Margin);
+        double margin = options.Margin;
+        var laid = new PrintableArea(area.Paper, new LayoutInsets(margin, margin, margin, margin));
         var notes = new Notes();
         var sheets = poster ? PosterSheets(pages, options, laid, notes)
             : options.Booklet ? BookletSheets(pages, options, laid, notes)
@@ -38,27 +38,18 @@ public static class Imposition
         var warnings = new List<PlanWarning>();
         if (notes.Clipped > ClipTolerance) warnings.Add(new PlanWarning.Clipped(notes.Clipped));
         if (notes.Padding > 0) warnings.Add(new PlanWarning.PaddedWithBlanks(notes.Padding));
-        int percent = (int)Math.Round(notes.SmallestScale * 100);
-        if (percent < 100) warnings.Add(new PlanWarning.Shrunk(percent));
         int printed = notes.Printed is { } scale ? (int)Math.Round(scale * 100) : 100;
-        return new SheetPlan(used, sheets, duplex, warnings, printed);
+        return new SheetPlan(area, sheets, duplex, warnings, printed);
     }
 
     /// <summary>
-    /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins
-    /// (the same after <see cref="PrintableArea.Symmetric"/>).
+    /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins.
     /// </summary>
     public static double Edge(PrintableArea area)
     {
         var m = area.Margins;
         double points = Math.Max(Math.Max(m.Top, m.Bottom), Math.Max(m.Left, m.Right));
         return Math.Round(points * 25.4 / 72, 1);
-    }
-
-    private static PrintableArea WithMargin(PrintableArea area, double margin)
-    {
-        var m = area.Margins;
-        return area with { Margins = new LayoutInsets(Math.Max(m.Top, margin), Math.Max(m.Left, margin), Math.Max(m.Bottom, margin), Math.Max(m.Right, margin)) };
     }
 
     /// <summary>
@@ -80,7 +71,6 @@ public static class Imposition
 
             double scale = FitScale(page.Size.Width, page.Size.Height, new LayoutRect(0, 0, totalWidth, totalHeight));
             double posterWidth = page.Size.Width * scale, posterHeight = page.Size.Height * scale;
-            notes.SmallestScale = Math.Min(notes.SmallestScale, scale);
             for (int row = 0; row < n; row++)
             {
                 for (int column = 0; column < n; column++)
@@ -201,14 +191,15 @@ public static class Imposition
         double factor = scaling is Scaling.ShrinkToFit or Scaling.ActualSize ? Math.Clamp(scale, 10, 400) / 100.0 : 1;
         var sized = new LayoutSize(page.Size.Width * factor, page.Size.Height * factor);
         var shown = Shown(sized, cell, scaling, false);
+        // Shown measures a crop in the sized page; a placement's is in the page's own points.
+        if (shown.Crop is { } sizedCrop && factor != 1)
+        {
+            shown = shown with { Crop = new LayoutRect(sizedCrop.X / factor, sizedCrop.Y / factor, sizedCrop.Width / factor, sizedCrop.Height / factor) };
+        }
         notes.Printed = Math.Min(notes.Printed ?? double.MaxValue, factor * shown.Scale);
         if (scaling == Scaling.ActualSize)
         {
-            notes.Clipped = Math.Max(notes.Clipped, Math.Max(shown.Frame.Width - cell.Width, shown.Frame.Height - cell.Height) / 2);
-        }
-        else if (scaling is Scaling.ShrinkToFit or Scaling.Fit)
-        {
-            notes.SmallestScale = Math.Min(notes.SmallestScale, factor * shown.Scale);
+            notes.Clipped = Math.Max(notes.Clipped, Math.Max(sized.Width - cell.Width, sized.Height - cell.Height) / 2);
         }
         return Place(page, shown, landscape, false, area.Paper);
     }
@@ -274,7 +265,14 @@ public static class Imposition
             _ => Math.Min(1, FitScale(width, height, cell)),
         };
         double w = width * scale, h = height * scale;
-        return new Fitted(new LayoutRect(cell.X + (cell.Width - w) / 2, cell.Y + (cell.Height - h) / 2, w, h), null, scale);
+        var frame = new LayoutRect(cell.X + (cell.Width - w) / 2, cell.Y + (cell.Height - h) / 2, w, h);
+        if (!turn && (w > cell.Width + Epsilon || h > cell.Height + Epsilon))
+        {
+            var visible = Intersect(frame, cell);
+            var crop = new LayoutRect((visible.X - frame.X) / scale, (visible.Y - frame.Y) / scale, visible.Width / scale, visible.Height / scale);
+            return new Fitted(visible, crop, scale);
+        }
+        return new Fitted(frame, null, scale);
     }
 
     /// <summary>
@@ -325,7 +323,6 @@ public static class Imposition
     {
         public double Clipped;
         public int Padding;
-        public double SmallestScale = 1;
         public double? Printed;
     }
 }

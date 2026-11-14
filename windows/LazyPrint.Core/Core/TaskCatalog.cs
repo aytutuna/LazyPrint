@@ -120,9 +120,9 @@ public static class TaskCatalog
             case PrintTask.Handouts:
                 return s with { PagesPerSheet = 2, PageBorders = true };
             case PrintTask.Photos:
-                return s with { LayoutStyle = LayoutStyle.PhotoPrints, Quality = QualityChoice.Best, Color = ColorChoice.Color };
+                return s with { LayoutStyle = LayoutStyle.PhotoPrints, Margin = MarginChoice.None, Quality = QualityChoice.Best, Color = ColorChoice.Color };
             case PrintTask.PhotoSheet:
-                return s with { LayoutStyle = LayoutStyle.PhotoSheet, PagesPerSheet = 4, Scaling = Scaling.Fill };
+                return s with { LayoutStyle = LayoutStyle.PhotoSheet, Margin = MarginChoice.None, PagesPerSheet = 4, Scaling = Scaling.Fill };
             default:
                 return settings with { TaskId = task.RawValue() };
         }

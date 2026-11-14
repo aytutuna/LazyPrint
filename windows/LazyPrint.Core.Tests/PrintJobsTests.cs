@@ -27,7 +27,7 @@ public class PrintJobsTests
 
     private static PrintSettings Settings(Action<PrintSettings>? change = null)
     {
-        var settings = new PrintSettings { PaperId = "a4" };
+        var settings = new PrintSettings { PaperId = "a4", Margin = MarginChoice.None };
         change?.Invoke(settings);
         return settings;
     }
@@ -42,12 +42,12 @@ public class PrintJobsTests
     public void LayoutOptions_AreTheSettings()
     {
         var options = PrintJobs.LayoutOptions(
-            Settings(s => { s.PagesPerSheet = 4; s.RightToLeft = true; s.PageBorders = true; s.Scaling = Scaling.Fit; s.Sides = Sides.ShortEdge; }));
+            Settings(s => { s.PagesPerSheet = 4; s.RightToLeft = true; s.PageBorders = true; s.Scaling = Scaling.Fit; s.Sides = Sides.ShortEdge; }), null);
         Assert.Equal(new LayoutOptions
         {
             PagesPerSheet = 4, RightToLeft = true, PageBorders = true, Scaling = Scaling.Fit, Sides = Sides.ShortEdge,
         }, options);
-        Assert.True(PrintJobs.LayoutOptions(Settings(s => s.Booklet = true)).Booklet);
+        Assert.True(PrintJobs.LayoutOptions(Settings(s => s.Booklet = true), null).Booklet);
     }
 
     [Fact]
@@ -56,11 +56,11 @@ public class PrintJobsTests
         var settings = Settings(s => { s.Booklet = true; s.Sides = Sides.LongEdge; });
         foreach (var style in new[] { LayoutStyle.PhotoPrints, LayoutStyle.PhotoSheet })
         {
-            var options = PrintJobs.LayoutOptions(settings with { LayoutStyle = style });
+            var options = PrintJobs.LayoutOptions(settings with { LayoutStyle = style }, null);
             Assert.False(options.Booklet);
             Assert.Equal(Sides.OneSided, options.Sides);
         }
-        Assert.Equal(Sides.LongEdge, PrintJobs.LayoutOptions(settings).Sides);
+        Assert.Equal(Sides.LongEdge, PrintJobs.LayoutOptions(settings, null).Sides);
     }
 
     [Fact]
@@ -257,8 +257,8 @@ public class PrintJobsTests
     {
         var big = new LoadedDocument("Poster", new DocumentKind.Pdf(false), [new LayoutSize(1000, 1400)]);
         var shrunk = Plan([big], Settings(s => s.Color = ColorChoice.Gray), Hp);
-        Assert.Single(shrunk.Notes);
-        Assert.StartsWith("Shrunk to ", shrunk.Notes[0]);
+        
+        Assert.Empty(shrunk.Notes);
 
         var clipped = Plan([big], Settings(s => { s.Scaling = Scaling.ActualSize; s.Color = ColorChoice.Gray; }), Hp);
         Assert.Single(clipped.Notes);
@@ -298,10 +298,10 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void Plan_MarginNone_FallsBackToThePrinterEdge()
+    public void Plan_PrinterMargin_IsThePrintersEdge()
     {
         var printer = WithEntries(A4Entry(432));
-        var area = Plan([Doc(1)], Settings(), printer).Plan.Area;
+        var area = Plan([Doc(1)], Settings(s => s.Margin = MarginChoice.Printer), printer).Plan.Area;
         Assert.Equal(432 * 72.0 / 2540, area.Margins.Left, 1e-9);
         Assert.Equal(4.3, Imposition.Edge(area));
     }
@@ -310,7 +310,7 @@ public class PrintJobsTests
     public void Plan_MarginSmall_IsNeverBorderless()
     {
         var printer = WithEntries(A4Entry(432), A4Entry(0));
-        foreach (var margin in new[] { MarginChoice.Small, MarginChoice.Normal, MarginChoice.Custom })
+        foreach (var margin in new[] { MarginChoice.Printer, MarginChoice.Normal, MarginChoice.Custom })
         {
             var settings = Settings(s => s.Margin = margin);
             Assert.False(PrintJobs.WantsBorderless(settings, printer));
@@ -371,7 +371,7 @@ public class PrintJobsTests
         Assert.Equal("auto-fit", Sent(With("auto", "auto-fit", "fit", "none")));
         Assert.Equal("fit", Sent(With("auto", "fit", "none")));
         Assert.Null(Sent(With("auto", "none")));
-        settings = settings with { Margin = MarginChoice.Small };
+        settings = settings with { Margin = MarginChoice.Printer };
         Assert.Equal("auto", Sent(With("auto", "auto-fit", "fit", "none")));
     }
 
@@ -384,29 +384,32 @@ public class PrintJobsTests
         Assert.Equal(0, PrintJobs.Edge(Settings(s => s.LayoutStyle = LayoutStyle.PhotoPrints), MarginChoice.None, printer));
         var borderless = WithEntries(A4Entry(432), A4Entry(0));
         Assert.Equal(0, PrintJobs.Edge(Settings(), MarginChoice.None, borderless));
-        Assert.Equal(4.3, PrintJobs.Edge(Settings(), MarginChoice.Small, borderless));
+        Assert.Equal(4.3, PrintJobs.Edge(Settings(), MarginChoice.Printer, borderless));
     }
 
     [Fact]
-    public void PrintedScale_DemoLetter_Is96()
+    public void PrintedScale_DemoLetter_IsSetByTheMarginNotThePrintersEdge()
     {
         var printer = WithEntries(new MediaEntry([], 21590, 27940, false, new MediaMargins(432, 432, 432, 432), null, null));
         var letter = new LoadedDocument("Letter", new DocumentKind.Pdf(false), [new LayoutSize(612, 792)]);
-        var plan = Plan([letter], Settings(s => s.PaperId = "letter"), printer).Plan;
+        var onTheEdge = Plan([letter], Settings(s => { s.PaperId = "letter"; s.Margin = MarginChoice.None; }), printer).Plan;
+        Assert.Equal(100, onTheEdge.PrintedScale);
+        Assert.Empty(onTheEdge.Warnings);
+        var plan = Plan([letter], Settings(s => { s.PaperId = "letter"; s.Margin = MarginChoice.Printer; }), printer).Plan;
         Assert.Equal(96, plan.PrintedScale);
-        Assert.Contains(plan.Warnings, w => w is PlanWarning.Shrunk { Percent: 96 });
+        Assert.Empty(plan.Warnings);
         var actual = Settings(s => { s.PaperId = "letter"; s.Scaling = Scaling.ActualSize; s.Scale = 150; });
         Assert.Equal(150, Plan([letter], actual, printer).Plan.PrintedScale);
     }
 
     [Fact]
-    public void Edge_IsTheLargestSide_AndSymmetricWhenDuplex()
+    public void Edge_IsTheLargestSide_AndTheAreaIsNotSymmetrisedWhenDuplex()
     {
         var printer = WithEntries(new MediaEntry([], 21000, 29700, false, new MediaMargins(300, 100, 640, 200), null, null));
         var oneSided = Plan([Doc(1)], Settings(), printer).Plan;
         Assert.Equal(6.4, Imposition.Edge(oneSided.Area));
         var duplex = Plan([Doc(2)], Settings(s => s.Sides = Sides.LongEdge), printer).Plan;
-        Assert.Equal(duplex.Area.Margins.Top, duplex.Area.Margins.Bottom);
+        Assert.Equal(oneSided.Area, duplex.Area);
         Assert.Equal(6.4, Imposition.Edge(duplex.Area));
         Assert.Equal(3, Imposition.Edge(new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(3 * 72 / 25.4, 0, 0, 0))));
     }
@@ -645,28 +648,36 @@ public class PrintJobsTests
     public void LayoutOptions_CarryTheOrientation()
     {
         Assert.Equal(SheetOrientation.Landscape,
-            PrintJobs.LayoutOptions(Settings(s => s.Orientation = SheetOrientation.Landscape)).Orientation);
+            PrintJobs.LayoutOptions(Settings(s => s.Orientation = SheetOrientation.Landscape), null).Orientation);
     }
 
     [Theory]
     [InlineData(MarginChoice.None, 0, 0)]
-    [InlineData(MarginChoice.Small, 0, 6)]
+    [InlineData(MarginChoice.Printer, 0, 6.4)]
     [InlineData(MarginChoice.Normal, 0, 12)]
     [InlineData(MarginChoice.Custom, 20, 20)]
     [InlineData(MarginChoice.Custom, 900, 50)]
-    public void LayoutOptions_CarryTheMarginInPoints(MarginChoice choice, int custom, int millimetres)
+    public void LayoutOptions_CarryTheMarginInPoints(MarginChoice choice, int custom, double millimetres)
     {
-        var options = PrintJobs.LayoutOptions(Settings(s => { s.Margin = choice; s.MarginMm = custom; }));
+        var options = PrintJobs.LayoutOptions(Settings(s => { s.Margin = choice; s.MarginMm = custom; }), null);
         Assert.Equal(millimetres * 72 / 25.4, options.Margin, 6);
+    }
+
+    [Fact]
+    public void LayoutOptions_PrinterMargin_IsThePrintersEdgeOrQuarterInchWithoutOne()
+    {
+        var settings = Settings(s => s.Margin = MarginChoice.Printer);
+        Assert.Equal(4.3 * 72 / 25.4, PrintJobs.LayoutOptions(settings, WithEntries(A4Entry(432))).Margin, 6);
+        Assert.Equal(6.4 * 72 / 25.4, PrintJobs.LayoutOptions(settings, null).Margin, 6);
     }
 
     [Fact]
     public void LayoutOptions_PhotosHaveNoMarginAndNoPoster()
     {
         var settings = Settings(s => { s.Margin = MarginChoice.Normal; s.Poster = 2; });
-        Assert.Equal(0, PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoPrints }).Margin);
-        Assert.Equal(0, PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoSheet }).Poster);
-        Assert.Equal(2, PrintJobs.LayoutOptions(settings).Poster);
+        Assert.Equal(0, PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoPrints }, null).Margin);
+        Assert.Equal(0, PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoSheet }, null).Poster);
+        Assert.Equal(2, PrintJobs.LayoutOptions(settings, null).Poster);
     }
 
     [Fact]

@@ -61,13 +61,13 @@ public class ImpositionTests
     }
 
     [Fact]
-    public void Plan_LargePageShrinkToFit_IsMadeSmallerAndWarns()
+    public void Plan_LargePageShrinkToFit_IsMadeSmaller()
     {
         var plan = Plan([Page(0, A4.Width, A4.Height)], new LayoutOptions());
         // A4 is about 50 pt taller than Letter and 17 pt narrower: the height decides.
         double scale = 792 / A4.Height, width = A4.Width * scale;
         AssertRect((612 - width) / 2, 0, width, 792, Assert.Single(Front(plan).Placements).Frame);
-        Assert.Equal([new PlanWarning.Shrunk(94)], plan.Warnings);
+        Assert.Empty(plan.Warnings);
     }
 
     [Fact]
@@ -82,7 +82,9 @@ public class ImpositionTests
     public void Plan_PageLargerThanAreaActualSize_IsCutAndWarns()
     {
         var plan = Plan([Page(0, 700, 900)], new LayoutOptions { Scaling = Scaling.ActualSize });
-        AssertRect(-44, -54, 700, 900, Assert.Single(Front(plan).Placements).Frame);
+        var placement = Assert.Single(Front(plan).Placements);
+        AssertRect(0, 0, 612, 792, placement.Frame);
+        AssertRect(44, 54, 612, 792, placement.Crop!.Value);
         // 108 pt too tall, half of it off each side.
         Assert.Equal([new PlanWarning.Clipped(54)], plan.Warnings);
     }
@@ -124,12 +126,11 @@ public class ImpositionTests
     }
 
     [Fact]
-    public void Plan_LandscapePageWithMargins_IsCentredInTheTurnedPrintableArea()
+    public void Plan_LandscapePageWithMargin_IsCentredInTheTurnedPaper()
     {
-        var area = new PrintableArea(Letter, new LayoutInsets(Top: 20, Left: 10, Bottom: 40, Right: 30));
-        var plan = Plan([Page(0, 366, 286)], new LayoutOptions(), area);
-        // The reading view is 732 wide (792 - 20 - 40) and 572 high (612 - 10 - 30), its top the paper's left edge.
-        AssertRect(153, 203, 286, 366, Assert.Single(Front(plan).Placements).Frame);
+        var plan = Plan([Page(0, 366, 286)], new LayoutOptions { Margin = 20 });
+        // The reading view is 752 wide (792 - 40) and 572 high (612 - 40), its top the paper's left edge.
+        AssertRect(163, 213, 286, 366, Assert.Single(Front(plan).Placements).Frame);
     }
 
     [Fact]
@@ -162,15 +163,14 @@ public class ImpositionTests
     // MARK: - Two-sided
 
     [Fact]
-    public void Plan_TwoSided_UsesTheSymmetricAreaOnBothSides()
+    public void Plan_TwoSided_LaysBothSidesInTheMarginAndKeepsThePrintersArea()
     {
         var area = new PrintableArea(Letter, new LayoutInsets(20, 10, 40, 30));
-        var plan = Plan(Portrait(2), new LayoutOptions { Sides = Sides.LongEdge }, area);
-        Assert.Equal(area.Symmetric, plan.Area);
-        Assert.Equal(new LayoutInsets(40, 30, 40, 30), plan.Area.Margins);
+        var plan = Plan(Portrait(2), new LayoutOptions { Sides = Sides.LongEdge, Margin = 36 }, area);
+        Assert.Equal(area, plan.Area);
         // Both pages shrink to the same box, so the back lines up with the front.
-        double scale = Math.Min((612 - 60) / 612.0, (792 - 80) / 792.0);
-        AssertRect((612 - 612 * scale) / 2, 40, 612 * scale, 792 * scale, Assert.Single(Front(plan).Placements).Frame);
+        double scale = Math.Min((612 - 72) / 612.0, (792 - 72) / 792.0);
+        AssertRect((612 - 612 * scale) / 2, (792 - 792 * scale) / 2, 612 * scale, 792 * scale, Assert.Single(Front(plan).Placements).Frame);
         Assert.Equal(Front(plan).Placements[0].Frame, Back(plan).Placements[0].Frame);
     }
 
@@ -467,7 +467,7 @@ public class ImpositionTests
         Assert.True(plan.Duplex);
         Assert.Equal(2, plan.SideCount);
         Assert.Equal(2, Front(plan).Placements.Count);
-        Assert.Equal(Whole(Letter).Symmetric, plan.Area);
+        Assert.Equal(Whole(Letter), plan.Area);
     }
 
     [Fact]
@@ -482,10 +482,9 @@ public class ImpositionTests
     }
 
     [Fact]
-    public void Plan_BookletWithMargins_SplitsAtTheCentreLineAndMeetsThePrintableArea()
+    public void Plan_BookletWithMargin_SplitsAtTheCentreLineAndMeetsTheMargin()
     {
-        var area = new PrintableArea(Letter, new LayoutInsets(10, 20, 10, 20));
-        var front = Front(Plan(Portrait(4), new LayoutOptions { Booklet = true }, area));
+        var front = Front(Plan(Portrait(4), new LayoutOptions { Booklet = true, Margin = 10 }));
         // In the 792 x 612 view the printable box starts 10 in from the left; each half is 386 wide, the fold at 396.
         var left = front.Placements.Single(p => p.Page.Index == 3).Frame;
         var right = front.Placements.Single(p => p.Page.Index == 0).Frame;
@@ -582,18 +581,44 @@ public class ImpositionTests
     }
 
     [Fact]
-    public void Plan_MarginWithShrinkToFit_ShrinksALargePageAndWarns()
+    public void Plan_MarginWithShrinkToFit_ShrinksALargePage()
     {
         var plan = Plan([Page(0, 612, 792)], new LayoutOptions { Margin = 36 });
         AssertRect(36, (792 - 540 * 792 / 612.0) / 2, 540, 540 * 792 / 612.0, Front(plan).Placements[0].Frame);
-        Assert.Contains(plan.Warnings, w => w is PlanWarning.Shrunk);
+        Assert.Empty(plan.Warnings);
     }
 
     [Fact]
-    public void Plan_Margin_NeverGoesBelowThePrintersOwn()
+    public void Plan_PrintersEdge_DoesNotMoveTheContent()
     {
         var plan = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fit, Margin = 10 }, Margins(Letter, 36));
-        AssertRect(36, (792 - 540 * 792 / 612.0) / 2, 540, 540 * 792 / 612.0, Front(plan).Placements[0].Frame);
+        AssertRect(10, (792 - 592 * 792 / 612.0) / 2, 592, 592 * 792 / 612.0, Front(plan).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_MarginZeroOnABorderedArea_CoversTheWholeSheet()
+    {
+        var plan = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fit }, Margins(Letter, 36));
+        AssertRect(0, 0, 612, 792, Front(plan).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_ActualSizeBeyondTheMargin_IsCroppedToIt()
+    {
+        var plan = Plan([Page(0, 612, 792)], new LayoutOptions { Scaling = Scaling.ActualSize, Scale = 200, Margin = 36 });
+        var placement = Assert.Single(Front(plan).Placements);
+        AssertRect(36, 36, 540, 720, placement.Frame);
+        // The 2x page is centred, so the margin keeps its middle: a 540 x 720 window, in the page's own points.
+        Assert.NotNull(placement.Crop);
+        AssertRect((1224 - 540) / 4.0, (1584 - 720) / 4.0, 270, 360, placement.Crop!.Value);
+        Assert.Contains(plan.Warnings, w => w is PlanWarning.Clipped);
+    }
+
+    [Fact]
+    public void Plan_ActualSizeInsideTheMargin_HasNoCrop()
+    {
+        var plan = Plan([Page(0, 300, 400)], new LayoutOptions { Scaling = Scaling.ActualSize, Margin = 36 });
+        Assert.Null(Assert.Single(Front(plan).Placements).Crop);
     }
 
     [Fact]
@@ -612,7 +637,9 @@ public class ImpositionTests
     public void Plan_Margin_AppliesAtActualSizeAndFill()
     {
         var actual = Plan([Page(0, 300, 400)], new LayoutOptions { Scaling = Scaling.ActualSize, Margin = 200 });
-        AssertRect(156, 196, 300, 400, Front(actual).Placements[0].Frame);
+        var cut = Front(actual).Placements[0];
+        AssertRect(200, 200, 212, 392, cut.Frame);
+        AssertRect(44, 4, 212, 392, cut.Crop!.Value);
         Assert.Equal([new PlanWarning.Clipped(44)], actual.Warnings);
         var fill = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fill, Margin = 100 });
         AssertRect(100, 100, 412, 592, Front(fill).Placements[0].Frame);

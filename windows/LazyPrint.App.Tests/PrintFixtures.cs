@@ -41,7 +41,7 @@ internal static class PrintFixtures
 
     public static PrintSettings Letter(Action<PrintSettings>? edit = null)
     {
-        var settings = new PrintSettings { PaperId = "letter" };
+        var settings = new PrintSettings { PaperId = "letter", Margin = MarginChoice.None };
         edit?.Invoke(settings);
         return settings;
     }

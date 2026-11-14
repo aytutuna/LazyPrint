@@ -207,7 +207,7 @@ public class PdfSheetWriterTests
     }
 
     [Fact]
-    public async Task NothingIsDrawnOutsideThePrintableArea()
+    public async Task TheStripThePrinterCannotPrintIsDrawn()
     {
         var document = await Open("mixed.pdf");
         var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(100, 100, 100, 100));
@@ -215,8 +215,8 @@ public class PdfSheetWriterTests
 
         var at = Read(Write(document, side, area));
 
-        AssertColor(Pixels.White, at(50, 50), "the margin");
-        AssertColor(Pixels.Red, at(300, 300), "inside it");
+        AssertColor(Pixels.Red, at(50, 50), "the printer's edge");
+        AssertColor(Pixels.Red, at(300, 300), "inside the printable area");
     }
 
     private sealed class Bytes(byte[] file) : IOriginalFiles

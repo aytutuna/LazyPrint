@@ -132,8 +132,8 @@ public partial class MainWindow
         foreach (int n in PagesPerSide) PerSideBox.Items.Add(Item(n == 1 ? "1 (one per side)" : $"{n} per side", n));
         PosterBox.Items.Add(Item("Off", 0));
         for (int n = 2; n <= 4; n++) PosterBox.Items.Add(Item($"{n} × {n} sheets", n, "One page enlarged across the sheets, with an overlap and cut marks"));
-        MarginBox.Items.Add(Item(PrintText.MarginLabel(MarginChoice.None, 0), MarginChoice.None, "Only what the printer cannot reach"));
-        foreach (var choice in new[] { MarginChoice.Small, MarginChoice.Normal, MarginChoice.Custom })
+        MarginBox.Items.Add(Item(PrintText.MarginLabel(MarginChoice.None, 0), MarginChoice.None, "No margin; the printer cuts what it cannot reach"));
+        foreach (var choice in new[] { MarginChoice.Printer, MarginChoice.Normal, MarginChoice.Custom })
             MarginBox.Items.Add(Item(PrintText.MarginLabel(choice, 0), choice));
         PageSelectionBox.Items.Add(Item("All pages", PageSelection.All));
         PageSelectionBox.Items.Add(Item("Odd pages only", PageSelection.Odd, "Pages 1, 3, 5 and so on"));
@@ -316,7 +316,7 @@ public partial class MainWindow
             _edge = PrintJobs.Edge(s, s.Margin, caps);
             _printedScale = plan?.Plan.PrintedScale;
             foreach (var item in MarginBox.Items.OfType<ComboBoxItem>())
-                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, PrintJobs.Edge(s, (MarginChoice)item.Tag, caps), s.MarginMm);
+                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, PrintJobs.Edge(s, (MarginChoice)item.Tag, caps));
             Select(MarginBox, s.Margin);
             MarginBox.IsEnabled = state.MarginEnabled;
             MarginBox.ToolTip = state.MarginReason;

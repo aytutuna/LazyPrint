@@ -65,7 +65,7 @@ public sealed record PrintSettings
     /// <summary>Percent, 10 to 400 (<see cref="LayoutOptions.Scale"/>).</summary>
     public int Scale { get; set; } = 100;
     public SheetOrientation Orientation { get; set; } = SheetOrientation.Automatic;
-    public MarginChoice Margin { get; set; } = MarginChoice.None;
+    public MarginChoice Margin { get; set; } = MarginChoice.Printer;
     /// <summary>Millimetres, 0 to <see cref="MarginChoices.MaxMillimetres"/>; what <see cref="MarginChoice.Custom"/> means.</summary>
     public int MarginMm { get; set; } = 10;
     /// <summary>0 for no poster, else 2, 3 or 4 sheets across and down (<see cref="LayoutOptions.Poster"/>).</summary>

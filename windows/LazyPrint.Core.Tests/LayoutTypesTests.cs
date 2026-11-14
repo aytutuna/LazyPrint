@@ -26,21 +26,6 @@ public class LayoutTypesTests
     }
 
     [Fact]
-    public void Symmetric_RaisesEachMarginToTheLargerOfItAndItsOpposite()
-    {
-        Assert.Equal(new LayoutInsets(30, 40, 30, 40), Uneven.Symmetric.Margins);
-        Assert.Equal(Letter, Uneven.Symmetric.Paper);
-        AssertRect(40, 30, 532, 732, Uneven.Symmetric.Printable);
-    }
-
-    [Fact]
-    public void Symmetric_AlreadySymmetric_IsUnchanged()
-    {
-        var area = Margins(Letter, 12);
-        Assert.Equal(area, area.Symmetric);
-    }
-
-    [Fact]
     public void LayoutOptions_Defaults_AreOnePageShrunkToFitOneSided()
     {
         var options = new LayoutOptions();

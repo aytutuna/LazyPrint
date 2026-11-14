@@ -25,18 +25,6 @@ public readonly record struct PrintableArea(LayoutSize Paper, LayoutInsets Margi
         Margins.Left, Margins.Top,
         Math.Max(0, Paper.Width - Margins.Left - Margins.Right),
         Math.Max(0, Paper.Height - Margins.Top - Margins.Bottom));
-
-    /// <summary>
-    /// Each margin raised to the larger of it and its opposite, so a side turned 180° lands in the same box.
-    /// </summary>
-    public PrintableArea Symmetric
-    {
-        get
-        {
-            double vertical = Math.Max(Margins.Top, Margins.Bottom), horizontal = Math.Max(Margins.Left, Margins.Right);
-            return new PrintableArea(Paper, new LayoutInsets(vertical, horizontal, vertical, horizontal));
-        }
-    }
 }
 
 /// <summary>One page of one document, at the size it is shown (after a page's rotation or a photo's orientation).</summary>
@@ -49,7 +37,7 @@ public enum Scaling
     ShrinkToFit,
     /// <summary>Made as large as fits.</summary>
     Fit,
-    /// <summary>100 %, cut by the margins if it must be (<see cref="PlanWarning.Clipped"/>).</summary>
+    /// <summary>100 %, cut at the margin if it must be (<see cref="PlanWarning.Clipped"/>).</summary>
     ActualSize,
     /// <summary>Fills its frame, cropped in the middle (photos).</summary>
     Fill,
@@ -95,9 +83,8 @@ public sealed record LayoutOptions
     /// <summary>The orientation of the sheets. A booklet is always a landscape spread and ignores it.</summary>
     public SheetOrientation Orientation { get; init; } = SheetOrientation.Automatic;
     /// <summary>
-    /// A distance kept clear on every sheet edge, in points, on top of what the printer cannot reach. Used when pages are
-    /// sized to fit (<see cref="Scaling.ShrinkToFit"/>, <see cref="Scaling.Fit"/>, several per side, a booklet, a poster); not at
-    /// <see cref="Scaling.ActualSize"/> on a lone page, nor with <see cref="Scaling.Fill"/>.
+    /// The distance kept clear on every sheet edge, in points. It is the whole margin: the printer's own edge is not added to
+    /// it, and pages are laid out inside it whatever the scaling.
     /// </summary>
     public double Margin { get; init; }
     /// <summary>
@@ -107,11 +94,11 @@ public sealed record LayoutOptions
     public int Poster { get; init; }
 }
 
-/// <summary>The margin choices. Stored as the camelCase name.</summary>
+/// <summary>The margin choices. Stored as the camelCase name; "small" in an older file is <see cref="Printer"/>.</summary>
 public enum MarginChoice
 {
     None,
-    Small,
+    Printer,
     Normal,
     Custom,
 }
@@ -120,16 +107,16 @@ public static class MarginChoices
 {
     public const int MaxMillimetres = 50;
 
-    /// <summary>0, 6, 12, or the custom distance held between 0 and <see cref="MaxMillimetres"/>.</summary>
-    public static int Millimetres(MarginChoice choice, int custom) => choice switch
+    /// <summary>0, the printer's edge, 12, or the custom distance held between 0 and <see cref="MaxMillimetres"/>.</summary>
+    public static double Millimetres(MarginChoice choice, int custom, double printerEdge) => choice switch
     {
-        MarginChoice.Small => 6,
+        MarginChoice.Printer => printerEdge,
         MarginChoice.Normal => 12,
         MarginChoice.Custom => Math.Clamp(custom, 0, MaxMillimetres),
         _ => 0,
     };
 
-    public static double Points(MarginChoice choice, int custom) => Millimetres(choice, custom) * 72 / 25.4;
+    public static double Points(MarginChoice choice, int custom, double printerEdge) => Millimetres(choice, custom, printerEdge) * 72 / 25.4;
 }
 
 /// <summary>Where one page goes on a sheet side.</summary>
@@ -157,19 +144,17 @@ public abstract record PlanWarning
 {
     private PlanWarning() { }
 
-    /// <summary>Pages printed at real size run past the printable area by this much on their worst side.</summary>
+    /// <summary>Pages printed at real size run past the margin by this much on their worst side.</summary>
     public sealed record Clipped(double Points) : PlanWarning;
     /// <summary>A booklet was filled up with blank pages.</summary>
     public sealed record PaddedWithBlanks(int Count) : PlanWarning;
-    /// <summary>The smallest scale a page was made, as a whole percent.</summary>
-    public sealed record Shrunk(int Percent) : PlanWarning;
 }
 
 /// <summary>The sheets of a job.</summary>
-/// <param name="Area">The area actually used: symmetric when backs may turn.</param>
+/// <param name="Area">The printer's area for the paper, for the ticket and the borderless decision; the layout is in the margin.</param>
 /// <param name="Sheets">In printing order.</param>
 /// <param name="Duplex">Every sheet has a back (blank if need be), so <see cref="SideCount"/> is even.</param>
-/// <param name="Warnings">In the order clipped, padded, shrunk.</param>
+/// <param name="Warnings">In the order clipped, padded.</param>
 /// <param name="PrintedScale">The size, in whole percent, the smallest page alone on its side really prints at (it can be above 100 for
 /// fit or fill); 100 when no page is alone on its side.</param>
 public sealed record SheetPlan(PrintableArea Area, IReadOnlyList<Sheet> Sheets, bool Duplex, IReadOnlyList<PlanWarning> Warnings,

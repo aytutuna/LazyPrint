@@ -284,7 +284,7 @@ public class SheetRendererTests
     }
 
     [Fact]
-    public async Task APlacementOutsideThePrintableAreaIsCut()
+    public async Task APlacementInTheStripThePrinterCannotPrintIsDrawn()
     {
         var (document, renderer) = await Open("red-letter.pdf");
         var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(72, 72, 72, 72));
@@ -294,12 +294,12 @@ public class SheetRendererTests
 
         Pixels.AssertColor(Pixels.Red, bitmap, 306, 396);
         Pixels.AssertColor(Pixels.Red, bitmap, 80, 80);
-        Pixels.AssertColor(Pixels.White, bitmap, 60, 396);
-        Pixels.AssertColor(Pixels.White, bitmap, 306, 780);
+        Pixels.AssertColor(Pixels.Red, bitmap, 60, 396);
+        Pixels.AssertColor(Pixels.Red, bitmap, 306, 780);
     }
 
     [Fact]
-    public async Task BordersAreCutByThePrintableArea()
+    public async Task BordersInTheStripThePrinterCannotPrintAreDrawn()
     {
         var renderer = new SheetRenderer([], _loader);
         var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(72, 72, 72, 72));
@@ -307,13 +307,12 @@ public class SheetRendererTests
 
         var bitmap = await Sta(() => renderer.Render(side, area, 144));
 
-        // The left edge is at 30 pt, in the margin: pixel 60 at 144 dpi. The top edge, at 100 pt, shows.
-        foreach (int x in Enumerable.Range(58, 5)) Pixels.AssertColor(Pixels.White, bitmap, x, 400, 2);
-        Assert.Contains(Enumerable.Range(198, 4), y => Pixels.At(bitmap, 300, y).R < 200);
+        // The left edge is at 30 pt, in the strip: pixel 60 at 144 dpi.
+        Assert.Contains(Enumerable.Range(58, 5), x => Pixels.At(bitmap, x, 400).R < 200);
     }
 
     [Fact]
-    public async Task TestPageItemsAreCutByThePrintableArea()
+    public async Task TestPageItemsAreNotCutByThePrintableArea()
     {
         var renderer = new SheetRenderer([], _loader);
         var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(0, 72, 0, 0));
@@ -326,26 +325,27 @@ public class SheetRendererTests
         var upright = await Sta(() => renderer.Render(Side(), area, 72, items));
         var turned = await Sta(() => renderer.Render(Side(), area, 72, items, turned: true));
 
-        Pixels.AssertColor(Pixels.White, upright, 30, 50);
-        Pixels.AssertColor(Pixels.Red, upright, 85, 50);
+        Pixels.AssertColor(Pixels.Red, upright, 30, 50);
         Pixels.AssertColor(Pixels.Blue, upright, 560, 50);
-        // Half a turn puts the red square at the bottom right and the blue one at the bottom left, where the margin is.
+        // Half a turn puts the red square at the bottom right and the blue one at the bottom left.
         Pixels.AssertColor(Pixels.Red, turned, 560, 750);
-        Pixels.AssertColor(Pixels.White, turned, 30, 750);
+        Pixels.AssertColor(Pixels.Blue, turned, 30, 750);
         Pixels.AssertColor(Pixels.Blue, turned, 100, 750);
     }
 
     [Fact]
-    public async Task TheMarkIsCutByThePrintableArea()
+    public async Task TheMarkSitsInTheCornerOfThePrintableArea()
     {
         var renderer = new SheetRenderer([], _loader);
-        var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(100, 100, 688, 508));
+        var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(100, 100, 0, 0));
 
         var bitmap = await Sta(() => renderer.Render(Side(), area, 600, null, true));
 
-        // The dot would be 8 pt in, outside a printable area 4 pt wide.
+        // The dot is 8 pt in from the printable corner, not from the paper's.
         int x = (int)((100 + 8) * 600 / 72);
-        Assert.Equal((255, 255, 255), Pixels.At(bitmap, x, x));
+        Assert.Equal((250, 250, 250), Pixels.At(bitmap, x, x));
+        int y = (int)(8 * 600 / 72);
+        Assert.Equal((255, 255, 255), Pixels.At(bitmap, y, y));
     }
 
     /// <summary>Hands back plain pages and writes down what size each was asked for.</summary>

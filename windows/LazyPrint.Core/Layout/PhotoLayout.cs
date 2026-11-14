@@ -40,11 +40,11 @@ public static class PhotoLayout
     /// <summary>
     /// As many prints of the size as fit on each sheet (the cells turned when more fit), 3 mm apart, in
     /// photo order; a photo whose orientation differs from its cell is turned a quarter counterclockwise.
-    /// A size larger than the printable area is one print per sheet, made smaller to fit.
+    /// A size larger than the paper is one print per sheet, made smaller to fit.
     /// </summary>
     public static SheetPlan Plan(IReadOnlyList<SourcePage> photos, PhotoOptions options, PrintableArea area)
     {
-        var cells = Cells(options.Size.Size, area.Printable);
+        var cells = Cells(options.Size.Size, Laid(area));
         int copies = Math.Max(1, options.CopiesEach);
         var placements = new List<Placement>();
         foreach (var photo in photos)
@@ -73,7 +73,7 @@ public static class PhotoLayout
     /// </summary>
     public static IReadOnlyList<TestPageItem> CutMarks(SheetSide side, PhotoOptions options, PrintableArea area)
     {
-        var cells = Cells(options.Size.Size, area.Printable);
+        var cells = Cells(options.Size.Size, Laid(area));
         return cells.Count < 2 ? [] : Corners(cells.Take(side.Placements.Count));
     }
 
@@ -101,6 +101,9 @@ public static class PhotoLayout
         }
         return marks;
     }
+
+    /// <summary>Photo layouts have no margin of their own, so they use the whole paper; the printer cuts what reaches its edge.</summary>
+    private static LayoutRect Laid(PrintableArea area) => new(0, 0, area.Paper.Width, area.Paper.Height);
 
     private static List<LayoutRect> Cells(LayoutSize? size, LayoutRect printable)
     {

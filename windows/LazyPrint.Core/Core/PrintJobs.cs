@@ -34,7 +34,7 @@ public static class PrintJobs
     /// <summary>
     /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
     /// </summary>
-    public static LayoutOptions LayoutOptions(PrintSettings settings)
+    public static LayoutOptions LayoutOptions(PrintSettings settings, PrinterCapabilities? printer)
     {
         bool photos = settings.LayoutStyle.IsPhoto();
         return new LayoutOptions
@@ -47,7 +47,7 @@ public static class PrintJobs
             PageBorders = settings.PageBorders,
             Scale = settings.Scale,
             Orientation = settings.Orientation,
-            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm),
+            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm, Edge(settings, MarginChoice.Printer, printer)),
             Poster = photos ? 0 : settings.Poster,
         };
     }
@@ -118,7 +118,7 @@ public static class PrintJobs
         var area = Area(settings, printer);
         var plan = photos
             ? PhotoLayout.Plan(pages, new PhotoOptions(PhotoSizeOf(settings.PhotoSizeId), 1, settings.PhotoFill, settings.CutMarks), area)
-            : Imposition.Plan(pages, LayoutOptions(settings), area);
+            : Imposition.Plan(pages, LayoutOptions(settings, printer), area);
 
         bool manual = plan.Duplex && printer?.SidesSupported.Contains("two-sided-long-edge") != true;
         IReadOnlyList<DuplexPass> passes;
@@ -274,7 +274,6 @@ public static class PrintJobs
         {
             PlanWarning.PaddedWithBlanks padded => PrintText.BlanksAdded(padded.Count),
             PlanWarning.Clipped clipped => PrintText.EdgesCut(Math.Max(1, (int)Math.Round(clipped.Points * 25.4 / 72))),
-            PlanWarning.Shrunk shrunk => PrintText.Shrunk(shrunk.Percent),
             _ => "",
         }).Where(text => text.Length > 0)];
         if (settings.Color == ColorChoice.Color && printer is { PrintColorModesSupported: { Count: > 0 } modes }

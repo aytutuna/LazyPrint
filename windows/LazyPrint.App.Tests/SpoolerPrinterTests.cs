@@ -176,14 +176,14 @@ public sealed class SpoolerPrinterTests : IDisposable
         };
         var user = new PrintSettings
         {
-            PaperId = "a4", Color = ColorChoice.Gray, Quality = QualityChoice.Draft, Copies = 3, Sides = Sides.LongEdge, Margin = MarginChoice.Small,
+            PaperId = "a4", Color = ColorChoice.Gray, Quality = QualityChoice.Draft, Copies = 3, Sides = Sides.LongEdge, Margin = MarginChoice.Printer,
         };
         var area = PrintJobs.Area(SheetJob.ItemSettings(user), printer);
         var job = SheetJob.OfItems("c", "Test page", PrintFixtures.Printer(), printer, user, area, [new DrawnItems([])]);
         var ticket = PrintJobs.Ticket(job.Plan, job.Settings, "application/pdf", printer, "x");
 
         Assert.Equal("a4", job.Settings.PaperId);
-        Assert.Equal(MarginChoice.Small, job.Settings.Margin);
+        Assert.Equal(MarginChoice.Printer, job.Settings.Margin);
         Assert.Equal("color", ticket.ColorMode);
         Assert.Equal(4, ticket.Quality);
         Assert.Equal(1, ticket.Copies);
@@ -193,7 +193,7 @@ public sealed class SpoolerPrinterTests : IDisposable
     [Fact]
     public void TheTicketAsksForBorderlessExactlyWhenThePlanWasLaidOutWithoutMargins()
     {
-        var bordered = SpoolerPrinter.Ticket(PrintFixtures.Job(PrintFixtures.Letter(s => s.Margin = MarginChoice.Small), pages: 1), 0, null);
+        var bordered = SpoolerPrinter.Ticket(PrintFixtures.Job(PrintFixtures.Letter(s => s.Margin = MarginChoice.Printer), pages: 1), 0, null);
         Assert.Equal(PageBorderless.None, bordered.PageBorderless);
 
         var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(0, 0, 0, 0));

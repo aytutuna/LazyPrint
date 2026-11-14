@@ -175,6 +175,9 @@ public class PrintTaskTests
         Assert.Equal(ColorChoice.Color, photos.Color);
         Assert.False(photos.Booklet);
         Assert.True(photos.CutMarks);
+        Assert.Equal(MarginChoice.None, photos.Margin);
+        Assert.Equal(MarginChoice.None, TaskCatalog.Apply(PrintTask.PhotoSheet, start, null).Margin);
+        Assert.Equal(MarginChoice.Printer, TaskCatalog.Apply(PrintTask.Booklet, start with { Margin = MarginChoice.None }, null).Margin);
 
         var sheet = TaskCatalog.Apply(PrintTask.PhotoSheet, start, null);
         Assert.Equal("photoSheet", sheet.TaskId);

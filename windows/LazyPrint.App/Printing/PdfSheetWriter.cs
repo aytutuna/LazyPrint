@@ -56,16 +56,6 @@ public sealed class PdfSheetWriter : IDisposable
             }
             Mark(page, side, area, items, marked, turned);
             Pdfium.FPDFPage_GenerateContent(page);
-
-            // Placements and marks alike stop at the printable area.
-            var printable = area.Printable;
-            if (printable.Width < paper.Width || printable.Height < paper.Height)
-            {
-                var clip = Pdfium.FPDF_CreateClipPath((float)printable.X, (float)(paper.Height - printable.Y - printable.Height),
-                                                      (float)(printable.X + printable.Width), (float)(paper.Height - printable.Y));
-                Pdfium.FPDFPage_InsertClipPath(page, clip);
-                Pdfium.FPDF_DestroyClipPath(clip);
-            }
             Pdfium.FPDF_ClosePage(page);
         }
     }

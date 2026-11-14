@@ -397,6 +397,7 @@ internal sealed class CamelCaseEnumConverter<T> : JsonConverter<T> where T : str
             ByName.TryAdd(camelCase, value);
             ByValue.TryAdd(value, camelCase);
         }
+        if (typeof(T) == typeof(MarginChoice)) ByName["small"] = (T)(object)MarginChoice.Printer;
     }
 
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

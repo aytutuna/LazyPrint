@@ -94,7 +94,7 @@ public static class StatusLine
         return i < shorts.Count ? $"{shown} +{shorts.Count - i}" : shown;
     }
 
-    /// <summary>"Shrunk to 82 %" after a message reads "… · shrunk to 82 %"; "2 blank added" stays as it is.</summary>
+    /// <summary>"Edges cut off (3 mm)" after a message reads "… · edges cut off (3 mm)"; "2 blank added" stays as it is.</summary>
     private static string LowerFirst(string text) =>
         text.Length > 0 && char.IsUpper(text[0]) ? char.ToLowerInvariant(text[0]) + text[1..] : text;
 

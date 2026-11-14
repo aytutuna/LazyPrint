@@ -131,20 +131,21 @@ public class InspectorSectionsTests
     {
         Assert.Equal("Poster 3 × 3", InspectorSections.LayoutSummary(new PrintSettings { Poster = 3, PagesPerSheet = 4, RightToLeft = true }));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
-        Assert.Equal("Fit to page · 6 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit, Margin = MarginChoice.Small }));
+        Assert.Equal("Fit to page · 6.4 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit, Margin = MarginChoice.Printer }, edge: 6.4));
         Assert.Equal("Actual size · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize, Margin = MarginChoice.Normal }));
         Assert.Equal("Fill · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
         Assert.Equal("Poster 2 × 2 · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Poster = 2, Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
     }
 
     [Fact]
-    public void Summary_MarginNoneWithAnEdge_ShowsTheEdge()
+    public void Summary_PrintersMarginShowsTheEdge_NoneShowsNothing()
     {
         Assert.Equal("4.3 mm margins", InspectorSections.LayoutSummary(new PrintSettings(), edge: 4.3));
         Assert.Equal("3 mm margins", InspectorSections.LayoutSummary(new PrintSettings(), edge: 3));
         Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings()));
+        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.None }, edge: 4.3));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }, edge: 4.3));
-        Assert.Equal("6.4 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Small }, edge: 6.4));
+        Assert.Equal("6.4 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Printer }, edge: 6.4));
         Assert.Equal("Actual size · 4.3 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }, edge: 4.3));
         Assert.Equal("Fill · 4.3 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill }, edge: 4.3));
     }

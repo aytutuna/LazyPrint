@@ -41,7 +41,7 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.False(s.PageBorders);
         Assert.Equal(Scaling.ShrinkToFit, s.Scaling);
         Assert.Equal(SheetOrientation.Automatic, s.Orientation);
-        Assert.Equal(MarginChoice.None, s.Margin);
+        Assert.Equal(MarginChoice.Printer, s.Margin);
         Assert.Equal(0, s.Poster);
         Assert.Equal(PageSelection.All, s.PageSelection);
         Assert.False(s.ReverseOrder);
@@ -92,6 +92,15 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Equal(Sides.LongEdge, s.Sides);
         Assert.Equal(new PrintSettings { Sides = Sides.LongEdge }, s);
     }
+    [Fact]
+    public void Settings_WithTheOldSmallMargin_LoadThePrintersMargin()
+    {
+        File.WriteAllText(Settings, """{"margin": "small"}""");
+        Assert.Equal(MarginChoice.Printer, SettingsStore.Load(_directory)!.Margin);
+        File.WriteAllText(Settings, """{"margin": "printer"}""");
+        Assert.Equal(MarginChoice.Printer, SettingsStore.Load(_directory)!.Margin);
+    }
+
 
     [Fact]
     public void Settings_SavedInAPhotoTask_KeepTheirPhotoLayout()

@@ -91,7 +91,7 @@ public static class InspectorSections
         {
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
-        double margin = s.LayoutStyle.IsPhoto() ? 0 : Math.Max(MarginChoices.Millimetres(s.Margin, s.MarginMm), edge);
+        double margin = s.LayoutStyle.IsPhoto() ? 0 : MarginChoices.Millimetres(s.Margin, s.MarginMm, edge);
         if (margin > 0) parts.Add($"{PrintText.Millimetres(margin)} margins");
         return Join(parts);
     }

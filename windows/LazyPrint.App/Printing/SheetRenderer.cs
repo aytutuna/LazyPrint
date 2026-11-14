@@ -49,7 +49,7 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
         Draw(bitmap, dc => dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, paper.Width, paper.Height)));
         foreach (var placement in side.Placements)
         {
-            Draw(bitmap, dc => DrawPlacement(dc, placement, area, dpi));
+            Draw(bitmap, dc => DrawPlacement(dc, placement, dpi));
         }
         Draw(bitmap, dc => DrawMarks(dc, side, area, items, marked, turned, dpi));
         bitmap.Freeze();
@@ -87,7 +87,7 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
         bitmap.Render(visual);
     }
 
-    private void DrawPlacement(DrawingContext dc, Placement placement, PrintableArea area, double dpi)
+    private void DrawPlacement(DrawingContext dc, Placement placement, double dpi)
     {
         if (placement.Page.Document < 0 || placement.Page.Document >= documents.Count) return;
         var frame = placement.Frame;
@@ -99,12 +99,9 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
         var picture = pages.Render(documents[placement.Page.Document], placement.Page.Index, placement.Crop,
                                    Pixels(width, dpi), Pixels(height, dpi));
 
-        var printable = area.Printable;
-        dc.PushClip(new RectangleGeometry(new Rect(printable.X, printable.Y, printable.Width, printable.Height)));
         dc.PushTransform(new TranslateTransform(frame.X + frame.Width / 2, frame.Y + frame.Height / 2));
         dc.PushTransform(new RotateTransform(placement.Turns * 90));
         dc.DrawImage(picture, new Rect(-width / 2, -height / 2, width, height));
-        dc.Pop();
         dc.Pop();
         dc.Pop();
     }
@@ -113,7 +110,6 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
                                   bool marked, bool turned, double dpi)
     {
         var printable = area.Printable;
-        dc.PushClip(new RectangleGeometry(new Rect(printable.X, printable.Y, printable.Width, printable.Height)));
         if (side.Borders)
         {
             var pen = new Pen(new SolidColorBrush(Color.FromRgb(128, 128, 128)), BorderWidth);
@@ -152,7 +148,6 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
             dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(250, 250, 250)), null,
                            new Point(printable.X + MarkInset, printable.Y + MarkInset), MarkRadius, MarkRadius);
         }
-        dc.Pop();
     }
 
     private static void DrawItem(DrawingContext dc, TestPageItem item, double dpi)
@@ -222,7 +217,7 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
             dc.PushTransform(new ScaleTransform(DipsPerPoint, DipsPerPoint));
             foreach (var placement in _side.Placements)
             {
-                _renderer.DrawPlacement(dc, placement, _area, _dpi);
+                _renderer.DrawPlacement(dc, placement, _dpi);
             }
             DrawMarks(dc, _side, _area, _items, _marked, _turned, _dpi);
             dc.Pop();

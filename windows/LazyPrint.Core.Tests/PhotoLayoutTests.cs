@@ -39,7 +39,7 @@ public class PhotoLayoutTests
     [InlineData("8x10", false, 18, 1)]
     [InlineData("3.5x5", false, 0, 4)]
     [InlineData("wallet", false, 0, 9)]
-    [InlineData("wallet", false, 18, 8)]
+    [InlineData("wallet", false, 18, 9)]
     [InlineData("10x15cm", true, 0, 2)]
     [InlineData("13x18cm", true, 0, 2)]
     [InlineData("page", false, 0, 1)]
@@ -64,12 +64,12 @@ public class PhotoLayoutTests
     }
 
     [Fact]
-    public void Plan_FourBySixWithMargins_TurnsTheCellsWhenMoreFit()
+    public void Plan_FourBySixOnNarrowPaper_TurnsTheCellsWhenMoreFit()
     {
-        var plan = Plan(Photos(2), new PhotoOptions(Size("4x6")), Margins(Letter, 18));
+        var plan = Plan(Photos(2), new PhotoOptions(Size("4x6")), Whole(new LayoutSize(450, 700)));
         var placements = plan.Sheets[0].Front.Placements;
-        AssertRect((612 - 432) / 2.0, (792 - (576 + Gap)) / 2, 432, 288, placements[0].Frame);
-        AssertRect((612 - 432) / 2.0, (792 - (576 + Gap)) / 2 + 288 + Gap, 432, 288, placements[1].Frame);
+        AssertRect((450 - 432) / 2.0, (700 - (576 + Gap)) / 2, 432, 288, placements[0].Frame);
+        AssertRect((450 - 432) / 2.0, (700 - (576 + Gap)) / 2 + 288 + Gap, 432, 288, placements[1].Frame);
         // A portrait photo in a landscape cell is turned a quarter counterclockwise.
         Assert.All(placements, p => Assert.Equal(3, p.Turns));
     }
@@ -84,7 +84,7 @@ public class PhotoLayoutTests
     [Fact]
     public void Plan_LandscapePhotoInATurnedCell_IsNotTurned()
     {
-        var plan = Plan(Photos(2, 432, 288), new PhotoOptions(Size("4x6")), Margins(Letter, 18));
+        var plan = Plan(Photos(2, 432, 288), new PhotoOptions(Size("4x6")), Whole(new LayoutSize(450, 700)));
         Assert.All(plan.Sheets[0].Front.Placements, p => Assert.Equal(0, p.Turns));
     }
 
@@ -128,12 +128,13 @@ public class PhotoLayoutTests
     }
 
     [Fact]
-    public void Plan_WholePage_FillsThePrintableArea()
+    public void Plan_WholePage_FillsThePaperWhateverThePrintersEdge()
     {
         var area = new PrintableArea(Letter, new LayoutInsets(10, 20, 30, 40));
-        var plan = Plan(Photos(2, 552, 752), new PhotoOptions(Size("page")), area);
+        var plan = Plan(Photos(2, 612, 792), new PhotoOptions(Size("page")), area);
         Assert.Equal(2, plan.Sheets.Count);
-        AssertRect(20, 10, 552, 752, plan.Sheets[0].Front.Placements[0].Frame);
+        Assert.Equal(area, plan.Area);
+        AssertRect(0, 0, 612, 792, plan.Sheets[0].Front.Placements[0].Frame);
     }
 
     [Fact]

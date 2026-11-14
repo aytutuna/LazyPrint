@@ -118,9 +118,6 @@ public static class PrintText
 
     public const string PrintedInGray = "Printed in gray: this printer has no color";
 
-    /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
-    public static string Shrunk(int percent) => $"Shrunk to {percent} %";
-
     /// <summary>A distance to one decimal, the ".0" dropped: "4.3 mm", "3 mm".</summary>
     public static string Millimetres(double millimetres) => $"{millimetres.ToString("0.#", CultureInfo.InvariantCulture)} mm";
 
@@ -130,25 +127,14 @@ public static class PrintText
     /// <summary>Under the Scale box when the page prints at another size than it says: "Prints at 96 %".</summary>
     public static string PrintsAt(int percent) => $"Prints at {percent} %";
 
-    /// <summary>What a Margins choice reads: its own name and size, or its name and the printer's limit when that is larger than the choice.</summary>
-    public static string MarginLabel(MarginChoice choice, double edge, int customMm = 0)
+    /// <summary>What a Margins choice reads: "None", "Printer's margin, 4.3 mm", "Normal, 12 mm", "Custom".</summary>
+    public static string MarginLabel(MarginChoice choice, double edge) => choice switch
     {
-        string name = choice switch
-        {
-            MarginChoice.Small => "Small",
-            MarginChoice.Normal => "Normal",
-            MarginChoice.Custom => "Custom",
-            _ => "None",
-        };
-        int mm = MarginChoices.Millimetres(choice, customMm);
-        if (edge > mm) return $"{name}, printer limit {Millimetres(edge)}";
-        return choice switch
-        {
-            MarginChoice.Small => "Small, 6 mm",
-            MarginChoice.Normal => "Normal, 12 mm",
-            _ => name,
-        };
-    }
+        MarginChoice.Printer => $"Printer's margin, {Millimetres(edge)}",
+        MarginChoice.Normal => "Normal, 12 mm",
+        MarginChoice.Custom => "Custom",
+        _ => "None",
+    };
 
     /// <summary>The layout style's name in the Layout section: "Pages", "Photo prints", "Photo sheet".</summary>
     public static string LayoutStyleTitle(LayoutStyle style) => style switch
