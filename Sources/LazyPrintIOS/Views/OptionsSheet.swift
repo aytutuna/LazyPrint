@@ -178,11 +178,20 @@ struct OptionsSheet: View {
                    },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {
-                Stepper(value: $state.settings.marginMm, in: 0...MarginChoices.maxMillimetres) {
-                    LabeledContent("Margin", value: "\(state.settings.marginMm) mm")
+                HStack {
+                    Text("Margin")
+                    Spacer()
+                    TextField("Margin", value: $state.settings.marginMm, format: .number.precision(.fractionLength(0...1)))
+                        .keyboardType(.numbersAndPunctuation)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 56)
+                        .accessibilityIdentifier("print.marginMmField")
+                    Text("mm")
+                    Stepper("Margin", value: $state.settings.marginMm, in: 0...Double(MarginChoices.maxMillimetres), step: 0.1)
+                        .labelsHidden()
+                        .accessibilityIdentifier("print.marginMm")
                 }
                 .disabled(!rules.marginEnabled)
-                .accessibilityIdentifier("print.marginMm")
             }
             if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
         }

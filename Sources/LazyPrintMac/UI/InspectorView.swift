@@ -192,12 +192,20 @@ struct InspectorView: View {
                 .disabled(!rules.marginEnabled)
                 if let reason = rules.marginReason { note(reason) }
                 if state.settings.margin == .custom {
-                    Stepper(value: $state.settings.marginMm, in: 0...MarginChoices.maxMillimetres) {
-                        Text("\(state.settings.marginMm) mm")
+                    HStack {
+                        TextField("Margin in millimetres", value: $state.settings.marginMm,
+                                  format: .number.precision(.fractionLength(0...1)))
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 56)
+                            .accessibilityLabel("Margin in millimetres, typed")
+                        Text("mm")
+                        Stepper("Margin in millimetres", value: $state.settings.marginMm,
+                                in: 0...Double(MarginChoices.maxMillimetres), step: 0.1)
+                            .labelsHidden()
+                            .accessibilityLabel("Margin in millimetres")
+                            .accessibilityValue(PrintText.millimetres(state.settings.marginMm))
                     }
                     .disabled(!rules.marginEnabled)
-                    .accessibilityLabel("Margin in millimetres")
-                    .accessibilityValue("\(state.settings.marginMm) mm")
                 }
                 if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
             }

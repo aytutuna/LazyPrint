@@ -80,6 +80,14 @@ final class UserPresetsTests: XCTestCase {
         XCTAssertEqual(loaded[0].settings.paperId, "a5")
     }
 
+    func test_aPresetWithAWholeNumberMargin_loadsAsDecimal() throws {
+        try Data(#"[{"name": "Wide", "settings": {"margin": "custom", "marginMm": 15}}]"#.utf8).write(to: presetsURL)
+
+        let loaded = SettingsStore.loadPresets(in: directory)
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].settings.marginMm, 15.0)
+    }
+
     func test_anUnreadableFile_isKeptAside() throws {
         try Data("not json {".utf8).write(to: presetsURL)
 

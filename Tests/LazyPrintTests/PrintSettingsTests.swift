@@ -119,6 +119,23 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(s.pagesPerSheet, 2)
     }
 
+    func test_settings_loadTheMarginAsDecimalRoundedAndClamped() throws {
+        let cases: [(String, Double)] = [("10", 10), ("3.2", 3.2), ("3.25", 3.3), ("80", 50), ("-4", 0)]
+        for (json, expected) in cases {
+            try write(#"{"margin": "custom", "marginMm": "# + json + "}", to: settingsURL)
+            XCTAssertEqual(SettingsStore.load(in: directory)?.marginMm, expected, json)
+        }
+    }
+
+    func test_settings_saveAWholeMarginWithoutADecimalPoint() throws {
+        var s = PrintSettings()
+        s.marginMm = 10
+        SettingsStore.save(s, in: directory)
+        let json = try String(contentsOf: settingsURL, encoding: .utf8)
+        XCTAssertTrue(json.contains(#""marginMm" : 10"#))
+        XCTAssertFalse(json.contains(#""marginMm" : 10."#))
+    }
+
     func test_settings_withTheOldSmallMargin_loadThePrintersMargin() throws {
         try write(#"{"margin": "small"}"#, to: settingsURL)
         XCTAssertEqual(SettingsStore.load(in: directory)?.margin, .printer)

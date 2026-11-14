@@ -84,7 +84,7 @@ public struct LayoutOptions: Equatable, Sendable {
 
 public enum SheetOrientation: String, Codable, CaseIterable, Sendable { case automatic, portrait, landscape }
 public enum MarginChoice: String, Codable, CaseIterable, Sendable { case none, printer, normal, custom }   // 0 mm, the printer's edge, 12 mm, or `marginMm`; "small" in an older file loads as printer
-public enum MarginChoices { static func millimetres(_ choice: MarginChoice, custom: Int, printerEdge: Double) -> Double; static func points(_ choice: MarginChoice, custom: Int, printerEdge: Double) -> Double }   // C#: MarginChoices.Millimetres, Points
+public enum MarginChoices { static func millimetres(_ choice: MarginChoice, custom: Double, printerEdge: Double) -> Double; static func points(_ choice: MarginChoice, custom: Double, printerEdge: Double) -> Double; static func round(_ millimetres: Double) -> Double }   // C#: MarginChoices.Millimetres, Points, Round; round clamps to 0...50 and rounds to 0.1
 public enum PageSelection: String, Codable, CaseIterable, Sendable { case all, odd, even }
 
 public struct Placement: Equatable, Sendable {
@@ -372,7 +372,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var scale: Int = 100
     public var orientation: SheetOrientation = .automatic   // saved as "orientation"
     public var margin: MarginChoice = .printer     // saved as "margin": none, printer (the printer's own edge; an older file's "small" reads as this), normal (12 mm) or custom
-    public var marginMm: Int = 10               // saved as "marginMm": 0...50, what custom means (MarginChoices.millimetres)
+    public var marginMm: Double = 10            // saved as "marginMm": 0...50 in steps of 0.1 (rounded and clamped when set and when loaded, so a whole number in an older file loads as it is), what custom means (MarginChoices.millimetres); the Windows slider and the Mac and iPhone steppers move 0.1 mm and the value can be typed with a comma or a point
     public var poster: Int = 0                  // saved as "poster": 0 for no poster, else 2, 3 or 4
     public var pageSelection: PageSelection = .all          // not saved: asked for one job at a time
     public var reverseOrder: Bool = false                   // not saved

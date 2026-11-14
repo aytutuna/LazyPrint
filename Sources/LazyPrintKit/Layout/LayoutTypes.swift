@@ -179,18 +179,23 @@ public enum MarginChoice: String, Codable, CaseIterable, Sendable {
 public enum MarginChoices {
     public static let maxMillimetres = 50
 
-    /// 0, the printer's edge, 12, or the custom distance held between 0 and `maxMillimetres`.
-    public static func millimetres(_ choice: MarginChoice, custom: Int, printerEdge: Double) -> Double {
+    /// 0, the printer's edge, 12, or the custom distance held between 0 and `maxMillimetres` in steps of 0.1.
+    public static func millimetres(_ choice: MarginChoice, custom: Double, printerEdge: Double) -> Double {
         switch choice {
         case .none: return 0
         case .printer: return printerEdge
         case .normal: return 12
-        case .custom: return Double(min(max(custom, 0), maxMillimetres))
+        case .custom: return round(custom)
         }
     }
 
-    public static func points(_ choice: MarginChoice, custom: Int, printerEdge: Double) -> Double {
+    public static func points(_ choice: MarginChoice, custom: Double, printerEdge: Double) -> Double {
         millimetres(choice, custom: custom, printerEdge: printerEdge) * 72 / 25.4
+    }
+
+    /// Clamped to 0 to `maxMillimetres` and rounded to 0.1, so 3.2 + 0.1 is 3.3 and compares equal to it.
+    public static func round(_ millimetres: Double) -> Double {
+        millimetres.isNaN ? 0 : (min(max(millimetres, 0), Double(maxMillimetres)) * 10).rounded(.toNearestOrAwayFromZero) / 10
     }
 }
 

@@ -57,8 +57,8 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var scale = 100
     public var orientation = SheetOrientation.automatic
     public var margin = MarginChoice.printer
-    /// Millimetres, 0 to `MarginChoices.maxMillimetres`; what `MarginChoice.custom` means.
-    public var marginMm = 10
+    /// Millimetres to 0.1, 0 to `MarginChoices.maxMillimetres`; what `MarginChoice.custom` means. A whole number in an older file loads as it is.
+    public var marginMm: Double = 10 { didSet { marginMm = MarginChoices.round(marginMm) } }
     /// 0 for no poster, else 2, 3 or 4 sheets across and down (`LayoutOptions.poster`).
     public var poster = 0
     /// Odd or even pages only, and the reverse order: asked for one job at a time, so not saved (`PagePicker`).
@@ -123,7 +123,7 @@ extension PrintSettings {
         scale = c.decodeLenient(forKey: .scale, default: scale)
         orientation = c.decodeLenient(forKey: .orientation, default: orientation)
         margin = c.decodeLenient(forKey: .margin, default: margin)
-        marginMm = c.decodeLenient(forKey: .marginMm, default: marginMm)
+        marginMm = MarginChoices.round(c.decodeLenient(forKey: .marginMm, default: marginMm))
         poster = c.decodeLenient(forKey: .poster, default: poster)
         paperId = c.decodeLenient(forKey: .paperId, default: paperId)
         mediaSource = c.decodeLenient(forKey: .mediaSource, default: mediaSource)

@@ -668,7 +668,8 @@ final class PrintJobsTests: XCTestCase {
     }
 
     func test_layoutOptions_carryTheMarginInPoints() {
-        let cases: [(MarginChoice, Int, Double)] = [(MarginChoice.none, 0, 0), (.printer, 0, 6.4), (.normal, 0, 12), (.custom, 20, 20), (.custom, 900, 50)]
+        let cases: [(MarginChoice, Double, Double)] = [(MarginChoice.none, 0, 0), (.printer, 0, 6.4), (.normal, 0, 12), (.custom, 20, 20), (.custom, 3.2, 3.2),
+                                                       (.custom, 3.25, 3.3), (.custom, 900, 50)]
         for (choice, custom, millimetres) in cases {
             let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom }, printer: nil)
             XCTAssertEqual(options.margin, millimetres * 72 / 25.4, accuracy: 1e-6)
