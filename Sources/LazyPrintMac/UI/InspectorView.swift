@@ -452,7 +452,7 @@ private struct CustomPaperFields: View {
     }
 }
 
-/// The custom margin typed in millimetres with a comma or a point, next to a stepper; taken to 0.1 mm and shown as taken.
+/// The custom margin typed in millimetres with a comma or a point, next to a stepper; taken to 0.01 mm and shown as taken.
 private struct MarginMmFields: View {
     @EnvironmentObject private var state: AppState
     @State private var text = ""
@@ -472,7 +472,7 @@ private struct MarginMmFields: View {
                     in: 0...Double(MarginChoices.maxMillimetres), step: 0.1)
                 .labelsHidden()
                 .accessibilityLabel("Margin in millimetres")
-                .accessibilityValue(PrintText.millimetres(state.settings.marginMm))
+                .accessibilityValue(PrintText.marginMillimetres(state.settings.marginMm))
         }
         .onAppear { load() }
         .onChange(of: state.settings.marginMm) { _, _ in
@@ -485,7 +485,7 @@ private struct MarginMmFields: View {
 
     private func load() {
         let mm: Double = state.settings.marginMm
-        text = mm == mm.rounded() ? String(Int(mm)) : String(mm)
+        text = String(PrintText.marginMillimetres(mm).dropLast(3))
         shown = text
     }
 

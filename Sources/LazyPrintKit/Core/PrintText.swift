@@ -148,6 +148,15 @@ public enum PrintText {
         return (tenths == tenths.rounded() ? String(Int(tenths)) : String(format: "%.1f", tenths)) + " mm"
     }
 
+    /// The custom margin to two decimals, trailing zeros dropped: "0.05 mm", "3.2 mm", "10 mm".
+    public static func marginMillimetres(_ value: Double) -> String {
+        let hundredths = (value * 100).rounded(.toNearestOrAwayFromZero) / 100
+        var text = String(format: "%.2f", hundredths)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text + " mm"
+    }
+
     /// Under Margins when the margin is smaller than the printer's own edge.
     public static func printerEdgeNote(_ edge: Double) -> String {
         "This printer can't print the outer \(millimetres(edge))"

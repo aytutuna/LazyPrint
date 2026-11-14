@@ -406,7 +406,7 @@ private struct MarginMmFields: View {
             Stepper("Margin", value: $state.settings.marginMm, in: 0...Double(MarginChoices.maxMillimetres), step: 0.1)
                 .labelsHidden()
                 .accessibilityLabel("Margin in millimetres")
-                .accessibilityValue(PrintText.millimetres(state.settings.marginMm))
+                .accessibilityValue(PrintText.marginMillimetres(state.settings.marginMm))
                 .accessibilityIdentifier("print.marginMm")
         }
         .onAppear { load() }
@@ -420,7 +420,7 @@ private struct MarginMmFields: View {
 
     private func load() {
         let mm: Double = state.settings.marginMm
-        text = mm == mm.rounded() ? String(Int(mm)) : String(mm)
+        text = String(PrintText.marginMillimetres(mm).dropLast(3))
         shown = text
     }
 

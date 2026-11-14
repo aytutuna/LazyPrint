@@ -125,6 +125,8 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = MarginChoice.none }), "No margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 20 }), "20 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 0.05 }), "0.05 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 3.2 }), "3.2 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }), "Actual size")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }), "Fill")
     }

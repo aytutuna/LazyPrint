@@ -37,7 +37,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var scale = 100
     public var orientation = SheetOrientation.automatic
     public var margin = MarginChoice.printer
-    /// Millimetres to 0.1, 0 to `MarginChoices.maxMillimetres`; what `MarginChoice.custom` means. A whole number in an older file loads as it is.
+    /// Millimetres to 0.01, 0 to `MarginChoices.maxMillimetres`; what `MarginChoice.custom` means. A whole number in an older file loads as it is.
     public var marginMm: Double = 10 { didSet { marginMm = MarginChoices.round(marginMm) } }
     /// 0 for no poster, else 2, 3 or 4 sheets across and down (`LayoutOptions.poster`).
     public var poster = 0

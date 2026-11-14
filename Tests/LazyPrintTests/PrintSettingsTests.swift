@@ -117,8 +117,15 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(s.pagesPerSheet, 2)
     }
 
-    func test_settings_loadTheMarginAsDecimalRoundedAndClamped() throws {
-        let cases: [(String, Double)] = [("10", 10), ("3.2", 3.2), ("3.25", 3.3), ("80", 50), ("-4", 0)]
+    func test_marginMm_arrowStepFromAHundredthLandsOnTheNextTenth() {
+        var s = PrintSettings()
+        s.marginMm = 0.05
+        s.marginMm += 0.1
+        XCTAssertEqual(s.marginMm, 0.15)
+    }
+
+    func test_settings_loadTheMarginToHundredthsAndClamped() throws {
+        let cases: [(String, Double)] = [("10", 10), ("3.2", 3.2), ("3.25", 3.25), ("3.256", 3.26), ("0.05", 0.05), ("80", 50), ("-4", 0)]
         for (json, expected) in cases {
             try write(#"{"margin": "custom", "marginMm": "# + json + "}", to: settingsURL)
             XCTAssertEqual(SettingsStore.load(in: directory)?.marginMm, expected, json)
@@ -127,7 +134,7 @@ final class PrintSettingsTests: XCTestCase {
 
     func test_pendingBacks_loadTheMarginAsDecimalRounded() throws {
         let url = directory.appendingPathComponent("pending-backs.json")
-        for (json, expected) in [("10", 10.0), ("3.25", 3.3)] {
+        for (json, expected) in [("10", 10.0), ("3.256", 3.26)] {
             try write(#"{"printerId": "p", "settings": {"margin": "custom", "marginMm": "# + json + #"}, "paths": []}"#, to: url)
             XCTAssertEqual(PendingBacks.load(in: directory)?.settings.marginMm, expected, json)
         }
