@@ -37,19 +37,21 @@ public static class PrintJobs
     public static LayoutOptions LayoutOptions(PrintSettings settings, PrinterCapabilities? printer)
     {
         bool photos = settings.LayoutStyle.IsPhoto();
+        bool photoPrints = settings.LayoutStyle == LayoutStyle.PhotoPrints;
         return new LayoutOptions
         {
-            PagesPerSheet = settings.PagesPerSheet,
+            PagesPerSheet = photoPrints ? 1 : settings.PagesPerSheet,
             Booklet = settings.Booklet && !photos,
             RightToLeft = settings.RightToLeft,
-            Scaling = settings.Scaling,
+            Scaling = photoPrints ? settings.PhotoFill ? Scaling.Fill : Scaling.Fit : settings.Scaling,
             Sides = photos ? Sides.OneSided : settings.Sides,
             PageBorders = settings.PageBorders,
             Scale = settings.Scale,
             Orientation = settings.Orientation,
             Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
             Poster = photos ? 0 : settings.Poster,
-            CutMarks = settings.LayoutStyle == LayoutStyle.PhotoSheet && settings.CutMarks,
+            CellSize = photoPrints ? PhotoSizeOf(settings.PhotoSizeId).Size : null,
+            CutMarks = photos && settings.CutMarks,
         };
     }
 
@@ -109,8 +111,7 @@ public static class PrintJobs
     /// <summary>
     /// The sheets of a job. The pages of all documents run on as one, and <paramref name="pageRange"/> (0-based, as
     /// <see cref="PageRange.Parse"/> gives it) counts along that run; an index past its end is skipped. The settings' odd or even pages and
-    /// reverse order (<see cref="PagePicker"/>) come next, before the layout. Photo prints
-    /// are laid out by <see cref="PhotoLayout"/>, everything else by <see cref="Imposition"/>. A printer without
+    /// reverse order (<see cref="PagePicker"/>) come next, before the layout, which <see cref="Imposition"/> plans. A printer without
     /// two-sided gets the fronts and the backs as two passes, the backs turned and ordered for the learnt
     /// <see cref="PrinterPrefs.PaperPath"/>.
     /// </summary>
@@ -123,11 +124,7 @@ public static class PrintJobs
         var chosen = pageRange?.Where(i => i >= 0 && i < all.Count) ?? Enumerable.Range(0, all.Count);
         var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();
 
-        bool photos = settings.LayoutStyle == LayoutStyle.PhotoPrints;
-        var area = Area(settings, printer);
-        var plan = photos
-            ? PhotoLayout.Plan(pages, new PhotoOptions(PhotoSizeOf(settings.PhotoSizeId), 1, settings.PhotoFill, settings.CutMarks), area)
-            : Imposition.Plan(pages, LayoutOptions(settings, printer), area);
+        var plan = Imposition.Plan(pages, LayoutOptions(settings, printer), Area(settings, printer));
 
         bool manual = plan.Duplex && printer?.SidesSupported.Contains("two-sided-long-edge") != true;
         IReadOnlyList<DuplexPass> passes;

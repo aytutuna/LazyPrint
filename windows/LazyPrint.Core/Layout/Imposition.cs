@@ -11,6 +11,7 @@ namespace LazyPrint.Core;
 public static class Imposition
 {
     private const double Epsilon = 1e-9;
+    private const double SizeSlack = 1e-6;
 
     /// <summary>Less than this much cut off (0.05 in, Lazy Scan's clip warning) is not worth a warning.</summary>
     private const double ClipTolerance = 0.05 * 72;
@@ -100,7 +101,8 @@ public static class Imposition
         bool turnBacks = options.Sides == Sides.ShortEdge;
         bool landscape = perSide > 1 && pages.Count > 0 && ChooseLandscape(pages[0].Size, options, area);
         var (rows, columns) = Grid(options.PagesPerSheet, landscape);
-        var scaling = perSide > 1 && options.Scaling != Scaling.Fill ? Scaling.Fit : options.Scaling;
+        bool cells = perSide > 1 || options.CellSize is not null;
+        var scaling = cells && options.Scaling != Scaling.Fill ? Scaling.Fit : options.Scaling;
         bool borders = options.PageBorders && perSide > 1;
 
         SheetSide Side(IEnumerable<SourcePage> sidePages)
@@ -108,15 +110,21 @@ public static class Imposition
             var placements = new List<Placement>();
             foreach (var page in sidePages)
             {
-                if (perSide == 1)
+                if (perSide == 1 && options.CellSize is null)
                 {
                     placements.Add(Alone(page, area, scaling, options.Scale, options.Orientation, notes));
+                    continue;
+                }
+                if (perSide == 1)
+                {
+                    bool own = options.Orientation == SheetOrientation.Automatic ? page.Size.Width > page.Size.Height : options.Orientation == SheetOrientation.Landscape;
+                    placements.Add(InCell(page, ViewPrintable(area, own), scaling, own, area.Paper, options.CellSize));
                     continue;
                 }
                 int index = placements.Count, row = index / columns, column = index % columns;
                 if (options.RightToLeft) column = columns - 1 - column;
                 var cell = CellAt(ViewPrintable(area, landscape), rows, columns, row, column);
-                placements.Add(InCell(page, cell, scaling, landscape, area.Paper));
+                placements.Add(InCell(page, cell, scaling, landscape, area.Paper, options.CellSize));
             }
             return new SheetSide(placements, borders, options.CutMarks ? MarkCells(placements, perSide > 1, area.Printable) : null);
         }
@@ -216,10 +224,29 @@ public static class Imposition
     }
 
     /// <summary>A page in one cell of a reading view, turned a quarter counterclockwise only when that makes it strictly larger.</summary>
-    private static Placement InCell(SourcePage page, LayoutRect cell, Scaling scaling, bool landscape, LayoutSize paper)
+    private static Placement InCell(SourcePage page, LayoutRect cell, Scaling scaling, bool landscape, LayoutSize paper,
+                                    LayoutSize? size = null)
     {
+        if (size is { } print && Sized(page, cell, print) is { } sized)
+            return Place(page, Shown(page.Size, sized.Region, scaling, sized.Turn), landscape, sized.Turn, paper);
         bool turn = FitScale(page.Size.Height, page.Size.Width, cell) > FitScale(page.Size.Width, page.Size.Height, cell) + Epsilon;
         return Place(page, Shown(page.Size, cell, scaling, turn), landscape, turn, paper);
+    }
+
+    /// <summary>
+    /// The part of <paramref name="cell"/> a print of <paramref name="size"/> (portrait) takes, centred, in the page's own
+    /// orientation when that fits and the other way round when only that does; null when neither fits, where the print is the cell.
+    /// </summary>
+    private static (LayoutRect Region, bool Turn)? Sized(SourcePage page, LayoutRect cell, LayoutSize size)
+    {
+        bool landscape = page.Size.Width > page.Size.Height;
+        foreach (bool sideways in new[] { landscape, !landscape })
+        {
+            double width = sideways ? size.Height : size.Width, height = sideways ? size.Width : size.Height;
+            if (width > cell.Width + SizeSlack || height > cell.Height + SizeSlack) continue;
+            return (new LayoutRect(cell.X + (cell.Width - width) / 2, cell.Y + (cell.Height - height) / 2, width, height), sideways != landscape);
+        }
+        return null;
     }
 
     private static Placement Place(SourcePage page, Fitted shown, bool landscape, bool turned, LayoutSize paper)
@@ -323,13 +350,6 @@ public static class Imposition
                 Turns = (p.Turns + 2) % 4,
             })],
         };
-
-    /// <summary>Placing a page in a cell, shared with <see cref="PhotoLayout"/>.</summary>
-    internal static (LayoutRect Frame, LayoutRect? Crop) FitInCell(LayoutSize page, LayoutRect cell, bool fill, bool turn)
-    {
-        var shown = Shown(page, cell, fill ? Scaling.Fill : Scaling.Fit, turn);
-        return (shown.Frame, shown.Crop);
-    }
 
     private sealed class Notes
     {

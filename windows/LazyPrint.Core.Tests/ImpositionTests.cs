@@ -779,4 +779,182 @@ public class ImpositionTests
         Assert.Equal(Plan(Portrait(1), new LayoutOptions()), Plan(Portrait(1), new LayoutOptions { Poster = 1 }));
         Assert.Single(Plan(Portrait(1), new LayoutOptions { Poster = 5 }).Sheets);
     }
+
+    private static readonly LayoutSize FourBySix = new(288, 432);
+
+    private static List<SourcePage> Photos(int count, double width = 288, double height = 432) =>
+        [.. Enumerable.Range(0, count).Select(i => Page(i, width, height))];
+
+    private static LayoutOptions Prints(LayoutSize? size = null, Scaling scaling = Scaling.Fill) =>
+        new() { CellSize = size ?? FourBySix, Scaling = scaling, CutMarks = true };
+
+    [Fact]
+    public void Plan_PrintSize_IsCentredInTheCellAtItsOwnSize()
+    {
+        var plan = Plan(Photos(3), Prints());
+        Assert.Equal(3, plan.Sheets.Count);
+        var placement = Front(plan).Placements[0];
+        AssertRect(162, 180, 288, 432, placement.Frame);
+        Assert.Equal(0, placement.Turns);
+        Assert.Null(placement.Crop);
+    }
+
+    [Fact]
+    public void Plan_PrintSize_TheCountDecidesTheCellsNotTheSize()
+    {
+        var plan = Plan(Photos(8, 288, 360), new LayoutOptions { CellSize = FourBySix, PagesPerSheet = 4, Orientation = SheetOrientation.Portrait });
+        Assert.Equal(2, plan.Sheets.Count);
+        Assert.Equal(4, Front(plan).Placements.Count);
+        Assert.All(Front(plan).Placements, p => Assert.True(p.Frame.Width <= 306 + 1e-6 && p.Frame.Height <= 396 + 1e-6));
+    }
+
+    [Fact]
+    public void Plan_PrintSize_IsTurnedWhenOnlyTheOtherWayRoundFits()
+    {
+        var plan = Plan(Photos(2), new LayoutOptions { CellSize = FourBySix, Scaling = Scaling.Fill, PagesPerSheet = 2, Orientation = SheetOrientation.Portrait });
+        var placements = Front(plan).Placements;
+        AssertRect(90, 54, 432, 288, placements[0].Frame);
+        AssertRect(90, 450, 432, 288, placements[1].Frame);
+        Assert.All(placements, p => Assert.Equal(3, p.Turns));
+    }
+
+    [Fact]
+    public void Plan_PrintSize_ALandscapePhotoGetsALandscapePrint()
+    {
+        var plan = Plan(Photos(1, 432, 288), Prints());
+        var placement = Assert.Single(Front(plan).Placements);
+        AssertRect(162, 180, 288, 432, placement.Frame);
+        Assert.Equal(3, placement.Turns);
+        Assert.Null(placement.Crop);
+    }
+
+    [Fact]
+    public void Plan_PrintSize_ThatDoesNotFitTheCell_IsTheWholeCell()
+    {
+        var plan = Plan(Photos(1, 612, 792), new LayoutOptions { CellSize = new LayoutSize(576, 720), Scaling = Scaling.Fill, Margin = 72 });
+        var placement = Assert.Single(Front(plan).Placements);
+        AssertRect(72, 72, 468, 648, placement.Frame);
+        Assert.Empty(Front(plan).CutCells);
+    }
+
+    [Fact]
+    public void Plan_PrintSize_TooLargeForACellOfSeveral_FillsTheCellTurnedWhenThatIsLarger()
+    {
+        var plan = Plan(Photos(2), new LayoutOptions { CellSize = new LayoutSize(576, 720), Scaling = Scaling.Fill, PagesPerSheet = 2, Orientation = SheetOrientation.Portrait });
+        AssertRect(0, 0, 612, 396, Front(plan).Placements[0].Frame);
+        Assert.Equal(3, Front(plan).Placements[0].Turns);
+    }
+
+    [Fact]
+    public void Plan_PrintSizeWithAMargin_CentresInTheLaidArea()
+    {
+        var plan = Plan(Photos(1), Prints() with { Margin = 36 }, Margins(Letter, 20));
+        AssertRect(162, 180, 288, 432, Front(plan).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_FillWithAnotherAspect_CropsInTheMiddle()
+    {
+        // A 4:3 landscape photo in a 6 x 4 print: scale max(432 / 800, 288 / 600) = 0.54.
+        var plan = Plan(Photos(1, 800, 600), Prints());
+        var placement = Assert.Single(Front(plan).Placements);
+        Assert.Equal(3, placement.Turns);
+        double shown = 288 / 0.54;
+        AssertRect(0, (600 - shown) / 2, 800, shown, placement.Crop!.Value);
+        AssertRect(162, 180, 288, 432, placement.Frame);
+    }
+
+    [Fact]
+    public void Plan_FitWithAnotherAspect_KeepsTheWholePhotoWithBands()
+    {
+        var plan = Plan(Photos(1, 800, 600), Prints(scaling: Scaling.Fit));
+        var placement = Assert.Single(Front(plan).Placements);
+        Assert.Null(placement.Crop);
+        // 384 x 288 in the 432 x 288 print, centred.
+        AssertRect(162, 204, 288, 384, placement.Frame);
+    }
+
+    [Theory]
+    [InlineData(Scaling.ShrinkToFit)]
+    [InlineData(Scaling.ActualSize)]
+    public void Plan_PrintSize_TreatsShrinkToFitAndActualSizeAsFit_AndIgnoresScale(Scaling scaling)
+    {
+        var expected = Plan(Photos(1, 800, 600), Prints(scaling: Scaling.Fit));
+        var plan = Plan(Photos(1, 800, 600), Prints(scaling: scaling) with { Scale = 200 });
+        Assert.Equal(expected, plan);
+        Assert.Equal(100, plan.PrintedScale);
+    }
+
+    [Fact]
+    public void Plan_PrintSize_IgnoresThePrintersEdge()
+    {
+        var plan = Plan(Photos(1), Prints(), new PrintableArea(Letter, new LayoutInsets(10, 20, 30, 40)));
+        AssertRect(162, 180, 288, 432, Front(plan).Placements[0].Frame);
+    }
+
+    [Fact]
+    public void Plan_PrintSize_IsIgnoredByBookletsAndPosters()
+    {
+        Assert.Equal(Plan(Portrait(4), new LayoutOptions { Booklet = true }), Plan(Portrait(4), new LayoutOptions { Booklet = true, CellSize = FourBySix }));
+        Assert.Equal(Plan(Portrait(1), new LayoutOptions { Poster = 2 }), Plan(Portrait(1), new LayoutOptions { Poster = 2, CellSize = FourBySix }));
+    }
+
+    [Fact]
+    public void Plan_PrintSize_TwoSided_GivesEachSideItsOwnCell()
+    {
+        var plan = Plan(Photos(2), Prints() with { Sides = Sides.LongEdge });
+        Assert.Single(plan.Sheets);
+        Assert.Equal(0, Front(plan).Placements[0].Page.Index);
+        Assert.Equal(1, Back(plan).Placements[0].Page.Index);
+    }
+
+    [Fact]
+    public void Plan_PrintSize_HasNoWarnings()
+    {
+        var plan = Plan(Photos(2), Prints());
+        Assert.Empty(plan.Warnings);
+        Assert.All(plan.Sheets, s => Assert.False(s.Front.Borders));
+    }
+
+    [Fact]
+    public void CutCells_APrintSmallerThanTheLaidArea_IsMarkedAtThePrint()
+    {
+        var plan = Plan(Photos(1), Prints());
+        Assert.Equal([Front(plan).Placements[0].Frame], Front(plan).CutCells);
+    }
+
+    [Fact]
+    public void CutCells_SeveralPrints_AreTheFramesOfThePrints()
+    {
+        var plan = Plan(Photos(2), Prints() with { PagesPerSheet = 2, Orientation = SheetOrientation.Portrait });
+        Assert.Equal(Front(plan).Placements.Select(p => p.Frame), Front(plan).CutCells);
+        Assert.Equal(2, Front(plan).CutCells.Count);
+    }
+
+    [Fact]
+    public void CutCells_FollowThePrintedPhoto_WhenItIsFitted()
+    {
+        var plan = Plan(Photos(1, 800, 600), Prints(scaling: Scaling.Fit));
+        Assert.Equal(Front(plan).Placements.Select(p => p.Frame), Front(plan).CutCells);
+        Assert.True(Front(plan).CutCells[0].Height < 432);
+    }
+
+    [Fact]
+    public void CutCells_WithoutCutMarks_AreEmpty()
+    {
+        Assert.Empty(Front(Plan(Photos(1), Prints() with { CutMarks = false })).CutCells);
+    }
+
+    [Fact]
+    public void CutCells_PartlyFilledLastSheet_StillHasThem()
+    {
+        var plan = Plan(Photos(3), Prints() with { PagesPerSheet = 2, Orientation = SheetOrientation.Portrait });
+        Assert.Single(Front(plan, 1).CutCells);
+    }
+
+    [Fact]
+    public void Plan_NoPhotos_HasNoSheets()
+    {
+        Assert.Empty(Plan([], Prints()).Sheets);
+    }
 }

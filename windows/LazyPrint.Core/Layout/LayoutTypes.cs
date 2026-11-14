@@ -92,6 +92,12 @@ public sealed record LayoutOptions
     /// Any other number is no poster; a poster comes before <see cref="Booklet"/> and <see cref="PagesPerSheet"/>.
     /// </summary>
     public int Poster { get; init; }
+    /// <summary>
+    /// A print size, portrait: the most each page takes of its cell. It is printed at that size, centred, when it fits the cell
+    /// (turned when only the other way round fits), else the page takes the whole cell. Booklets and posters ignore it; a lone
+    /// page is sized like a cell, so <see cref="Scale"/> and actual size do not apply.
+    /// </summary>
+    public LayoutSize? CellSize { get; init; }
     /// <summary>Short marks at the corners of each printed page when there are several on a side or one smaller than the margin's area.</summary>
     public bool CutMarks { get; init; }
 }

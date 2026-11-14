@@ -64,6 +64,19 @@ public class PrintJobsTests
     }
 
     [Fact]
+    public void LayoutOptions_PhotoPrintsAskForTheSizeAsAMaximumAndFillOrFit()
+    {
+        var settings = Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PhotoSizeId = "5x7"; s.PagesPerSheet = 4; });
+        var options = PrintJobs.LayoutOptions(settings, null);
+        Assert.Equal(new LayoutSize(360, 504), options.CellSize);
+        Assert.Equal(1, options.PagesPerSheet);
+        Assert.Equal(Scaling.Fill, options.Scaling);
+        Assert.Equal(Scaling.Fit, PrintJobs.LayoutOptions(settings with { PhotoFill = false }, null).Scaling);
+        Assert.Null(PrintJobs.LayoutOptions(settings with { PhotoSizeId = "page" }, null).CellSize);
+        Assert.Null(PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoSheet }, null).CellSize);
+    }
+
+    [Fact]
     public void ThePresetPickedLastDoesNotChangeThePlan()
     {
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);

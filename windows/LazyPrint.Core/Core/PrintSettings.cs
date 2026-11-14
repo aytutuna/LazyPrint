@@ -19,7 +19,7 @@ public enum QualityChoice
 }
 
 /// <summary>
-/// How the pages are laid on the sheet: the usual way (<see cref="Imposition"/>), one photo size per print (<see cref="PhotoLayout"/>),
+/// How the pages are laid on the sheet: the usual way (<see cref="Imposition"/>), one photo size per print,
 /// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
 /// Twin of Swift <c>LayoutStyle</c>.
 /// </summary>
