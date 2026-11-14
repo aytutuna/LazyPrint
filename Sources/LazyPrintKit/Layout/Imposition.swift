@@ -24,8 +24,7 @@ public enum Imposition {
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan {
         let poster = (2...4).contains(options.poster)
         let duplex = !poster && (options.booklet || options.sides != .oneSided)
-        let margin = options.margin
-        let laid = PrintableArea(paper: area.paper, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
+        let laid = laidArea(area, options)
         let notes = Notes()
         let sheets: [Sheet]
         if poster {
@@ -41,6 +40,31 @@ public enum Imposition {
         if notes.padding > 0 { warnings.append(.paddedWithBlanks(count: notes.padding)) }
         let printed = notes.lone.map { Int(($0 * 100).rounded(.toNearestOrEven)) } ?? 100
         return SheetPlan(area: area, sheets: sheets, duplex: duplex, warnings: warnings, printedScale: printed)
+    }
+
+    private static func laidArea(_ area: PrintableArea, _ options: LayoutOptions) -> PrintableArea {
+        let margin = options.margin
+        return PrintableArea(paper: area.paper, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
+    }
+
+    /// Whether a print of `size` (portrait) fits one cell of the layout, either way round, in any reading view the orientation
+    /// allows. A booklet and a poster ignore the size, so any fits.
+    public static func sizeFits(_ options: LayoutOptions, area: PrintableArea, size: LayoutSize) -> Bool {
+        if options.booklet || (2...4).contains(options.poster) { return true }
+        let laid = laidArea(area, options)
+        let views: [Bool]
+        switch options.orientation {
+        case .portrait: views = [false]
+        case .landscape: views = [true]
+        case .automatic: views = [false, true]
+        }
+        for landscape in views {
+            let (rows, columns) = grid(options.pagesPerSheet, landscape: landscape)
+            let cell = cellAt(viewPrintable(laid, landscape: landscape), rows: rows, columns: columns, row: 0, column: 0)
+            if size.width <= cell.width + sizeSlack && size.height <= cell.height + sizeSlack
+                || size.height <= cell.width + sizeSlack && size.width <= cell.height + sizeSlack { return true }
+        }
+        return false
     }
 
     /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins.

@@ -37,8 +37,29 @@ public struct JobPlan: Equatable, Sendable {
 public enum PrintJobs {
     private static let collatedCopies = "separate-documents-collated-copies"
 
-    /// The layout the settings ask for.
+    /// The layout the settings ask for. A print size that does not fit one cell is planned as the largest that fits; the
+    /// settings keep it.
     public static func layoutOptions(_ settings: PrintSettings, printer: PrinterCapabilities?) -> LayoutOptions {
+        var options = layoutOf(settings, printer: printer)
+        if let size = photoSize(settings.photoSizeId).size,
+           Imposition.sizeFits(options, area: area(settings, printer: printer), size: size) {
+            options.cellSize = size
+        }
+        return options
+    }
+
+    /// The print sizes a picker offers: those that fit one cell at the pages per side, paper, margin and orientation in use,
+    /// then "Largest that fits". A saved size that no longer fits is planned as the last, and the settings keep it.
+    public static func photoSizes(_ settings: PrintSettings, printer: PrinterCapabilities?) -> [PhotoSize] {
+        let options = layoutOf(settings, printer: printer)
+        let paper = area(settings, printer: printer)
+        return PhotoSize.all.filter { (photo: PhotoSize) -> Bool in
+            guard let size = photo.size else { return true }
+            return Imposition.sizeFits(options, area: paper, size: size)
+        }
+    }
+
+    private static func layoutOf(_ settings: PrintSettings, printer: PrinterCapabilities?) -> LayoutOptions {
         LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
                       booklet: settings.booklet,
                       rightToLeft: settings.rightToLeft,
@@ -50,7 +71,6 @@ public enum PrintJobs {
                       margin: MarginChoices.points(settings.margin, custom: settings.marginMm,
                                                    printerEdge: printerMargin(settings, printer: printer)),
                       poster: settings.poster,
-                      cellSize: photoSize(settings.photoSizeId).size,
                       cutMarks: settings.cutMarks)
     }
 

@@ -152,23 +152,23 @@ struct InspectorView: View {
             if rules.showRightToLeft { Toggle("Right to left", isOn: $state.settings.rightToLeft) }
             if rules.showBorders { Toggle("Page borders", isOn: $state.settings.pageBorders) }
             field("Scaling") {
-                Picker("Scaling", selection: $state.settings.scaling) {
-                    Text("Shrink to fit").tag(Scaling.shrinkToFit)
+                Picker("Scaling", selection: Binding(
+                    get: { rules.scalingFitOnly && state.settings.scaling != .fill ? Scaling.fit : state.settings.scaling },
+                    set: { state.settings.scaling = $0 })) {
+                    if !rules.scalingFitOnly { Text("Shrink to fit").tag(Scaling.shrinkToFit) }
                     Text("Fit to page").tag(Scaling.fit)
-                    Text("Actual size").tag(Scaling.actualSize)
+                    if !rules.scalingFitOnly { Text("Actual size").tag(Scaling.actualSize) }
                     Text("Fill").tag(Scaling.fill)
                 }
                 .labelsHidden()
                 .disabled(rules.poster)
-                if state.settings.scaling == .actualSize || state.settings.scaling == .shrinkToFit {
+                if rules.showScale {
                     Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                         Text("\(state.settings.scale) %")
                     }
-                    .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1 || state.settings.photoSizeId != "page" || rules.poster)
                     .accessibilityLabel("Scale")
                     .accessibilityValue("\(state.settings.scale) %")
-                    if let printed, printed != state.settings.scale, !rules.poster, !state.settings.booklet,
-                       state.settings.pagesPerSheet == 1, state.settings.photoSizeId == "page" {
+                    if let printed, printed != state.settings.scale {
                         note(PrintText.printsAt(printed))
                     }
                 }
@@ -258,8 +258,11 @@ struct InspectorView: View {
     private func photosSection(_ rules: Rules) -> some View {
         InspectorSection(id: InspectorSections.photos, icon: "photo", summary: InspectorSections.photosSummary(state.settings)) {
             field("Size") {
-                Picker("Size", selection: $state.settings.photoSizeId) {
-                    ForEach(PhotoSize.all, id: \.id) { size in
+                let sizes = PrintJobs.photoSizes(state.settings, printer: state.capabilities)
+                Picker("Size", selection: Binding(
+                    get: { sizes.contains { $0.id == state.settings.photoSizeId } ? state.settings.photoSizeId : "page" },
+                    set: { state.settings.photoSizeId = $0 })) {
+                    ForEach(sizes, id: \.id) { size in
                         Text(size.title).tag(size.id)
                     }
                 }
@@ -345,6 +348,8 @@ struct InspectorView: View {
         var bookletReason: String?
         var posterEnabled = true
         var posterReason: String?
+        var scalingFitOnly = false
+        var showScale = false
         var marginEnabled = true
         var marginReason: String?
         var colorEnabled = true
@@ -376,6 +381,11 @@ struct InspectorView: View {
             bookletReason = poster ? "Set by Poster" : nil
             posterEnabled = poster || (!s.booklet && s.pagesPerSheet == 1)
             posterReason = posterEnabled ? nil : "Needs one page per side"
+            // Several pages or a print size that fits fit or fill their space; Scale is for a lone page only.
+            let alone = !poster && !s.booklet && s.pagesPerSheet == 1
+            let lone = alone && PrintJobs.layoutOptions(s, printer: capabilities).cellSize == nil
+            scalingFitOnly = !lone
+            showScale = lone && (s.scaling == .shrinkToFit || s.scaling == .actualSize)
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

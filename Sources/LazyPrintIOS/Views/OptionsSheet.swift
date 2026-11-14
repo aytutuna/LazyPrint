@@ -153,17 +153,16 @@ struct OptionsSheet: View {
                     .accessibilityIdentifier("print.borders")
             }
             Choice(title: "Scaling", selection: Binding(
-                get: { rules.scalingLimited && state.settings.scaling != .fill ? Scaling.fit : state.settings.scaling },
+                get: { rules.scalingFitOnly && state.settings.scaling != .fill ? Scaling.fit : state.settings.scaling },
                 set: { (scaling: Scaling) in state.settings.scaling = scaling }),
-                   options: rules.scalingLimited ? [("Fit to page", Scaling.fit), ("Fill", Scaling.fill)] : Self.scalings,
-                   enabled: !rules.poster, reason: rules.scalingReason, id: "print.scaling")
+                   options: rules.scalingFitOnly ? [("Fit to page", Scaling.fit), ("Fill", Scaling.fill)] : Self.scalings,
+                   enabled: !rules.poster, id: "print.scaling")
             Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                 LabeledContent("Scale", value: "\(state.settings.scale) %")
             }
-            .disabled(rules.scalingLimited || state.settings.scaling == .fit || state.settings.scaling == .fill)
+            .disabled(!rules.showScale)
             .accessibilityIdentifier("print.scale")
-            if let printed, printed != state.settings.scale, !rules.scalingLimited, !rules.poster,
-               state.settings.scaling == .shrinkToFit || state.settings.scaling == .actualSize {
+            if let printed, printed != state.settings.scale, rules.showScale {
                 note(PrintText.printsAt(printed))
             }
             Choice(title: "Margins", selection: Binding(
@@ -226,8 +225,11 @@ struct OptionsSheet: View {
 
     private func photosSection(_ rules: Rules) -> some View {
         Section(InspectorSections.title(InspectorSections.photos)) {
-            Choice(title: "Size", selection: $state.settings.photoSizeId,
-                   options: PhotoSize.all.map { (size: PhotoSize) -> (String, String) in (size.title, size.id) },
+            let sizes: [PhotoSize] = PrintJobs.photoSizes(state.settings, printer: state.capabilities)
+            Choice(title: "Size", selection: Binding(
+                get: { sizes.contains { (size: PhotoSize) -> Bool in size.id == state.settings.photoSizeId } ? state.settings.photoSizeId : "page" },
+                set: { (id: String) in state.settings.photoSizeId = id }),
+                   options: sizes.map { (size: PhotoSize) -> (String, String) in (size.title, size.id) },
                    id: "print.photoSize")
             Toggle("Cut marks", isOn: $state.settings.cutMarks)
                 .accessibilityIdentifier("print.cutMarks")
@@ -281,8 +283,8 @@ struct OptionsSheet: View {
         var colorReason: String?
         var qualityEnabled = true
         var qualityReason: String?
-        var scalingLimited = false
-        var scalingReason: String?
+        var scalingFitOnly = false
+        var showScale = false
         var paperNote: String?
 
         init(settings s: PrintSettings, capabilities: PrinterCapabilities?) {
@@ -308,8 +310,11 @@ struct OptionsSheet: View {
             bookletReason = poster ? "Set by Poster" : nil
             posterEnabled = poster || (!s.booklet && s.pagesPerSheet == 1)
             posterReason = posterEnabled ? nil : "Needs one page per side"
-            scalingLimited = s.booklet || s.pagesPerSheet > 1 || poster || s.photoSizeId != "page"
-            scalingReason = scalingLimited ? "Pages are fitted to their spaces" : nil
+            // Several pages or a print size that fits fit or fill their space; Scale is for a lone page only.
+            let alone: Bool = !poster && !s.booklet && s.pagesPerSheet == 1
+            let lone: Bool = alone && PrintJobs.layoutOptions(s, printer: capabilities).cellSize == nil
+            scalingFitOnly = !lone
+            showScale = lone && (s.scaling == .shrinkToFit || s.scaling == .actualSize)
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

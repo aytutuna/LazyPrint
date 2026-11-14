@@ -80,9 +80,9 @@ final class PrintJobsTests: XCTestCase {
     }
 
     func test_layoutOptions_aPrintSizeIsAMaximumPerCellAndCutMarksFollowTheSetting() {
-        let settings = makeSettings { $0.photoSizeId = "5x7"; $0.pagesPerSheet = 4; $0.scaling = .fill; $0.cutMarks = true }
+        let settings = makeSettings { $0.photoSizeId = "3.5x5"; $0.pagesPerSheet = 4; $0.scaling = .fill; $0.cutMarks = true }
         let options = PrintJobs.layoutOptions(settings, printer: nil)
-        XCTAssertEqual(options.cellSize, LayoutSize(width: 360, height: 504))
+        XCTAssertEqual(options.cellSize, LayoutSize(width: 252, height: 360))
         XCTAssertEqual(options.pagesPerSheet, 4)
         XCTAssertEqual(options.scaling, .fill)
         XCTAssertTrue(options.cutMarks)
@@ -711,6 +711,28 @@ final class PrintJobsTests: XCTestCase {
             let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom }, printer: nil)
             XCTAssertEqual(options.margin, millimetres * 72 / 25.4, accuracy: 1e-6)
         }
+    }
+
+    func test_photoSizes_areTheOnesThatFitOneCell_andTheLargestThatFitsLast() {
+        let alone = PrintJobs.photoSizes(makeSettings { $0.paperId = "a4" }, printer: nil).map(\.id)
+        XCTAssertTrue(alone.contains("8x10"))
+        XCTAssertEqual(alone.last, "page")
+
+        let four = PrintJobs.photoSizes(makeSettings { $0.paperId = "a4"; $0.pagesPerSheet = 4 }, printer: nil).map(\.id)
+        XCTAssertEqual(four, ["3.5x5", "wallet", "page"])
+
+        let tight = PrintJobs.photoSizes(makeSettings { $0.paperId = "a4"; $0.margin = .custom; $0.marginMm = 50 }, printer: nil).map(\.id)
+        XCTAssertFalse(tight.contains("8x10"))
+    }
+
+    func test_layoutOptions_aSavedSizeThatNoLongerFitsIsTheLargestThatFits_andTheSettingsKeepIt() {
+        let settings = makeSettings { $0.paperId = "a4"; $0.pagesPerSheet = 4; $0.photoSizeId = "4x6" }
+        XCTAssertNil(PrintJobs.layoutOptions(settings, printer: nil).cellSize)
+        XCTAssertEqual(settings.photoSizeId, "4x6")
+
+        var alone = settings
+        alone.pagesPerSheet = 1
+        XCTAssertNotNil(PrintJobs.layoutOptions(alone, printer: nil).cellSize)
     }
 
     func test_layoutOptions_printerMargin_isThePrintersEdgeOrQuarterInchWithoutOne() {
