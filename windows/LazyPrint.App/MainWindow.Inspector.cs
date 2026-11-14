@@ -324,7 +324,7 @@ public partial class MainWindow
             MarginMmSlider.IsEnabled = state.MarginEnabled;
             MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
             MarginMmBox.IsEnabled = state.MarginEnabled;
-            MarginMmBox.Text = s.MarginMm.ToString("0.#", CultureInfo.CurrentCulture);
+            if (!MarginMmBox.IsKeyboardFocused) ShowMarginMm(s.MarginMm);
             double? edge = PrintJobs.PrinterEdge(s, caps);
             bool cutByEdge = state.MarginEnabled && edge is { } e
                 && e > Math.Round(MarginChoices.Millimetres(s.Margin, s.MarginMm, printerMargin), 1);
@@ -422,8 +422,14 @@ public partial class MainWindow
     {
         if (_updatingUi || !IsLoaded) return;
         ViewModel.Settings.MarginMm = e.NewValue;
-        MarginMmBox.Text = ViewModel.Settings.MarginMm.ToString("0.#", CultureInfo.CurrentCulture);
+        ShowMarginMm(ViewModel.Settings.MarginMm);
         ViewModel.SettingsEdited();
+    }
+
+    private void ShowMarginMm(double mm)
+    {
+        _shownMarginMm = mm.ToString("0.#", CultureInfo.CurrentCulture);
+        MarginMmBox.Text = _shownMarginMm;
     }
 
     private void MarginMm_KeyDown(object sender, KeyEventArgs e)
@@ -435,12 +441,14 @@ public partial class MainWindow
     private void MarginMm_Committed(object sender, RoutedEventArgs e)
     {
         if (_updatingUi || !IsLoaded) return;
+        if (MarginMmBox.Text == _shownMarginMm) return;
         string text = MarginMmBox.Text.Trim().Replace(',', '.');
         if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double mm))
         {
             ViewModel.Settings.MarginMm = mm;
             ViewModel.SettingsEdited();
         }
+        ShowMarginMm(ViewModel.Settings.MarginMm);
         PushSettingsToUi();
     }
 

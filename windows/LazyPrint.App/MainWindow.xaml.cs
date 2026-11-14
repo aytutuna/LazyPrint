@@ -24,6 +24,7 @@ public partial class MainWindow : Window
 
     private bool _updatingUi;
     private string _shownWidth = "", _shownHeight = "";
+    private string _shownMarginMm = "";
     private readonly DispatcherTimer _printerPoll = new() { Interval = PrinterPollInterval };
     private readonly DispatcherTimer _statusPoll = new() { Interval = StatusPollInterval };
 
