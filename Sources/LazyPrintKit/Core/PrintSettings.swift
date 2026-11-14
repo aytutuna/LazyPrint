@@ -14,7 +14,7 @@ public enum QualityChoice: String, Codable, CaseIterable, Sendable {
     case best
 }
 
-/// How the pages are laid on the sheet: the usual way (`Imposition`), one photo size per print (`PhotoLayout`),
+/// How the pages are laid on the sheet: the usual way (`Imposition`), one photo size per print,
 /// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
 /// Twin of C# `LayoutStyle`.
 public enum LayoutStyle: String, Codable, CaseIterable, Sendable {

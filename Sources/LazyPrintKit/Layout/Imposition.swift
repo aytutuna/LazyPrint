@@ -8,6 +8,7 @@ import Foundation
 /// and turned 180° for a short-edge flip and for every booklet.
 public enum Imposition {
     private static let epsilon: Double = 1e-9
+    private static let sizeSlack: Double = 1e-6
 
     /// Less than this much cut off (0.05 in, Lazy Scan's clip warning) is not worth a warning.
     private static let clipTolerance: Double = 0.05 * 72
@@ -91,14 +92,21 @@ public enum Imposition {
         let turnBacks = options.sides == .shortEdge
         let landscape = perSide > 1 && !pages.isEmpty && chooseLandscape(pages[0].size, options: options, area: area)
         let (rows, columns) = grid(options.pagesPerSheet, landscape: landscape)
-        let scaling: Scaling = perSide > 1 && options.scaling != .fill ? .fit : options.scaling
+        let cells = perSide > 1 || options.cellSize != nil
+        let scaling: Scaling = cells && options.scaling != .fill ? .fit : options.scaling
         let borders = options.pageBorders && perSide > 1
 
         func side(_ sidePages: [SourcePage]) -> SheetSide {
             var placements: [Placement] = []
             for page in sidePages {
-                if perSide == 1 {
+                if perSide == 1 && options.cellSize == nil {
                     placements.append(alone(page, area: area, scaling: scaling, scale: options.scale, orientation: options.orientation, notes: notes))
+                    continue
+                }
+                if perSide == 1 {
+                    let own = options.orientation == .automatic ? page.size.width > page.size.height : options.orientation == .landscape
+                    placements.append(inCell(page, cell: viewPrintable(area, landscape: own), scaling: scaling, landscape: own,
+                                             paper: area.paper, size: options.cellSize))
                     continue
                 }
                 let index = placements.count
@@ -106,7 +114,8 @@ public enum Imposition {
                 var column = index % columns
                 if options.rightToLeft { column = columns - 1 - column }
                 let cell = cellAt(viewPrintable(area, landscape: landscape), rows: rows, columns: columns, row: row, column: column)
-                placements.append(inCell(page, cell: cell, scaling: scaling, landscape: landscape, paper: area.paper))
+                placements.append(inCell(page, cell: cell, scaling: scaling, landscape: landscape, paper: area.paper,
+                                         size: options.cellSize))
             }
             return SheetSide(placements: placements, borders: borders,
                              cutCells: options.cutMarks ? markCells(placements, several: perSide > 1, laid: area.printable) : [])
@@ -205,11 +214,30 @@ public enum Imposition {
     }
 
     /// A page in one cell of a reading view, turned a quarter counterclockwise only when that makes it strictly larger.
-    private static func inCell(_ page: SourcePage, cell: LayoutRect, scaling: Scaling, landscape: Bool, paper: LayoutSize) -> Placement {
+    private static func inCell(_ page: SourcePage, cell: LayoutRect, scaling: Scaling, landscape: Bool, paper: LayoutSize,
+                               size: LayoutSize? = nil) -> Placement {
+        if let size, let fit = sizedRegion(page, cell: cell, size: size) {
+            return place(page, shown: shown(page.size, cell: fit.region, scaling: scaling, turn: fit.turn),
+                         landscape: landscape, turned: fit.turn, paper: paper)
+        }
         let upright = fitScale(page.size.width, page.size.height, cell)
         let sideways = fitScale(page.size.height, page.size.width, cell)
         let turn = sideways > upright + epsilon
         return place(page, shown: shown(page.size, cell: cell, scaling: scaling, turn: turn), landscape: landscape, turned: turn, paper: paper)
+    }
+
+    /// The part of `cell` a print of `size` (portrait) takes, centred, in the page's own orientation when that fits and the
+    /// other way round when only that does; nil when neither fits, where the print is the cell.
+    private static func sizedRegion(_ page: SourcePage, cell: LayoutRect, size: LayoutSize) -> (region: LayoutRect, turn: Bool)? {
+        let landscape = page.size.width > page.size.height
+        for sideways in [landscape, !landscape] {
+            let width = sideways ? size.height : size.width
+            let height = sideways ? size.width : size.height
+            if width > cell.width + sizeSlack || height > cell.height + sizeSlack { continue }
+            let region = LayoutRect(x: cell.x + (cell.width - width) / 2, y: cell.y + (cell.height - height) / 2, width: width, height: height)
+            return (region, sideways != landscape)
+        }
+        return nil
     }
 
     private static func place(_ page: SourcePage, shown: Fitted, landscape: Bool, turned: Bool, paper: LayoutSize) -> Placement {
@@ -321,12 +349,6 @@ public enum Imposition {
             return turnedPlacement
         }
         return result
-    }
-
-    /// Placing a page in a cell, shared with `PhotoLayout`.
-    static func fitInCell(_ page: LayoutSize, cell: LayoutRect, fill: Bool, turn: Bool) -> (frame: LayoutRect, crop: LayoutRect?) {
-        let fitted = shown(page, cell: cell, scaling: fill ? .fill : .fit, turn: turn)
-        return (fitted.frame, fitted.crop)
     }
 
     private final class Notes {

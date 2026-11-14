@@ -668,4 +668,168 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(makePlan(portraitPages(1), LayoutOptions()), makePlan(portraitPages(1), LayoutOptions(poster: 1)))
         XCTAssertEqual(makePlan(portraitPages(1), LayoutOptions(poster: 5)).sheets.count, 1)
     }
+
+    // MARK: Print sizes
+
+    private let fourBySix = LayoutSize(width: 288, height: 432)
+
+    private func photos(_ count: Int, _ width: Double = 288, _ height: Double = 432) -> [SourcePage] {
+        (0..<count).map { makePage($0, width, height) }
+    }
+
+    private func prints(_ size: LayoutSize? = nil, scaling: Scaling = .fill) -> LayoutOptions {
+        LayoutOptions(scaling: scaling, cellSize: size ?? fourBySix, cutMarks: true)
+    }
+
+    func test_plan_printSize_isCentredInTheCellAtItsOwnSize() throws {
+        let plan = makePlan(photos(3), prints())
+        XCTAssertEqual(plan.sheets.count, 3)
+        let placement = try XCTUnwrap(frontSide(plan).placements.first)
+        assertLayoutRect(162, 180, 288, 432, placement.frame)
+        XCTAssertEqual(placement.turns, 0)
+        XCTAssertNil(placement.crop)
+    }
+
+    func test_plan_printSize_theCountDecidesTheCellsNotTheSize() {
+        let options = LayoutOptions(pagesPerSheet: 4, orientation: .portrait, cellSize: fourBySix)
+        let plan = makePlan(photos(8, 288, 360), options)
+        XCTAssertEqual(plan.sheets.count, 2)
+        XCTAssertEqual(frontSide(plan).placements.count, 4)
+        for placement in frontSide(plan).placements {
+            XCTAssertLessThanOrEqual(placement.frame.width, 306 + 1e-6)
+            XCTAssertLessThanOrEqual(placement.frame.height, 396 + 1e-6)
+        }
+    }
+
+    func test_plan_printSize_isTurnedWhenOnlyTheOtherWayRoundFits() {
+        let plan = makePlan(photos(2), LayoutOptions(pagesPerSheet: 2, scaling: .fill, orientation: .portrait, cellSize: fourBySix))
+        let placements = frontSide(plan).placements
+        assertLayoutRect(90, 54, 432, 288, placements[0].frame)
+        assertLayoutRect(90, 450, 432, 288, placements[1].frame)
+        for placement in placements { XCTAssertEqual(placement.turns, 3) }
+    }
+
+    func test_plan_printSize_aLandscapePhotoGetsALandscapePrint() throws {
+        let plan = makePlan(photos(1, 432, 288), prints())
+        let placement = try onlyElement(frontSide(plan).placements)
+        assertLayoutRect(162, 180, 288, 432, placement.frame)
+        XCTAssertEqual(placement.turns, 3)
+        XCTAssertNil(placement.crop)
+    }
+
+    func test_plan_printSize_thatDoesNotFitTheCell_isTheWholeCell() throws {
+        let options = LayoutOptions(scaling: .fill, margin: 72, cellSize: LayoutSize(width: 576, height: 720))
+        let plan = makePlan(photos(1, 612, 792), options)
+        assertLayoutRect(72, 72, 468, 648, try onlyElement(frontSide(plan).placements).frame)
+        XCTAssertTrue(frontSide(plan).cutCells.isEmpty)
+    }
+
+    func test_plan_printSize_tooLargeForACellOfSeveral_fillsTheCellTurnedWhenThatIsLarger() {
+        let options = LayoutOptions(pagesPerSheet: 2, scaling: .fill, orientation: .portrait, cellSize: LayoutSize(width: 576, height: 720))
+        let plan = makePlan(photos(2), options)
+        assertLayoutRect(0, 0, 612, 396, frontSide(plan).placements[0].frame)
+        XCTAssertEqual(frontSide(plan).placements[0].turns, 3)
+    }
+
+    func test_plan_printSizeWithAMargin_centresInTheLaidArea() {
+        var options = prints()
+        options.margin = 36
+        let plan = makePlan(photos(1), options, area: paperWithMargins(layoutLetter, 20))
+        assertLayoutRect(162, 180, 288, 432, frontSide(plan).placements[0].frame)
+    }
+
+    func test_plan_fillWithAnotherAspect_cropsInTheMiddle() throws {
+        // A 4:3 landscape photo in a 6 x 4 print: scale max(432 / 800, 288 / 600) = 0.54.
+        let plan = makePlan(photos(1, 800, 600), prints())
+        let placement = try onlyElement(frontSide(plan).placements)
+        XCTAssertEqual(placement.turns, 3)
+        let shown = 288 / 0.54
+        assertLayoutRect(0, (600 - shown) / 2, 800, shown, try XCTUnwrap(placement.crop))
+        assertLayoutRect(162, 180, 288, 432, placement.frame)
+    }
+
+    func test_plan_fitWithAnotherAspect_keepsTheWholePhotoWithBands() throws {
+        let plan = makePlan(photos(1, 800, 600), prints(scaling: .fit))
+        let placement = try onlyElement(frontSide(plan).placements)
+        XCTAssertNil(placement.crop)
+        // 384 x 288 in the 432 x 288 print, centred.
+        assertLayoutRect(162, 204, 288, 384, placement.frame)
+    }
+
+    func test_plan_printSize_treatsShrinkToFitAndActualSizeAsFit_andIgnoresScale() {
+        let expected = makePlan(photos(1, 800, 600), prints(scaling: .fit))
+        for scaling in [Scaling.shrinkToFit, .actualSize] {
+            var options = prints(scaling: scaling)
+            options.scale = 200
+            let plan = makePlan(photos(1, 800, 600), options)
+            XCTAssertEqual(plan, expected)
+            XCTAssertEqual(plan.printedScale, 100)
+        }
+    }
+
+    func test_plan_printSize_ignoresThePrintersEdge() {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 10, left: 40, bottom: 30, right: 20))
+        let plan = makePlan(photos(1), prints(), area: area)
+        assertLayoutRect(162, 180, 288, 432, frontSide(plan).placements[0].frame)
+    }
+
+    func test_plan_printSize_isIgnoredByBookletsAndPosters() {
+        XCTAssertEqual(makePlan(portraitPages(4), LayoutOptions(booklet: true)),
+                       makePlan(portraitPages(4), LayoutOptions(booklet: true, cellSize: fourBySix)))
+        XCTAssertEqual(makePlan(portraitPages(1), LayoutOptions(poster: 2)),
+                       makePlan(portraitPages(1), LayoutOptions(poster: 2, cellSize: fourBySix)))
+    }
+
+    func test_plan_printSize_twoSided_givesEachSideItsOwnCell() {
+        var options = prints()
+        options.sides = .longEdge
+        let plan = makePlan(photos(2), options)
+        XCTAssertEqual(plan.sheets.count, 1)
+        XCTAssertEqual(frontSide(plan).placements[0].page.index, 0)
+        XCTAssertEqual(backSide(plan).placements[0].page.index, 1)
+    }
+
+    func test_plan_printSize_hasNoWarnings() {
+        let plan = makePlan(photos(2), prints())
+        XCTAssertTrue(plan.warnings.isEmpty)
+        for sheet in plan.sheets { XCTAssertFalse(sheet.front.borders) }
+    }
+
+    func test_cutCells_aPrintSmallerThanTheLaidArea_isMarkedAtThePrint() {
+        let plan = makePlan(photos(1), prints())
+        XCTAssertEqual(frontSide(plan).cutCells, [frontSide(plan).placements[0].frame])
+    }
+
+    func test_cutCells_severalPrints_areTheFramesOfThePrints() {
+        var options = prints()
+        options.pagesPerSheet = 2
+        options.orientation = .portrait
+        let plan = makePlan(photos(2), options)
+        XCTAssertEqual(frontSide(plan).cutCells, frontSide(plan).placements.map(\.frame))
+        XCTAssertEqual(frontSide(plan).cutCells.count, 2)
+    }
+
+    func test_cutCells_followThePrintedPhoto_whenItIsFitted() {
+        let plan = makePlan(photos(1, 800, 600), prints(scaling: .fit))
+        XCTAssertEqual(frontSide(plan).cutCells, frontSide(plan).placements.map(\.frame))
+        XCTAssertLessThan(frontSide(plan).cutCells[0].height, 432)
+    }
+
+    func test_cutCells_withoutCutMarks_areEmpty() {
+        var options = prints()
+        options.cutMarks = false
+        XCTAssertTrue(frontSide(makePlan(photos(1), options)).cutCells.isEmpty)
+    }
+
+    func test_cutCells_partlyFilledLastSheet_stillHasThem() {
+        var options = prints()
+        options.pagesPerSheet = 2
+        options.orientation = .portrait
+        let plan = makePlan(photos(3), options)
+        XCTAssertEqual(frontSide(plan, 1).cutCells.count, 1)
+    }
+
+    func test_plan_noPhotos_hasNoSheets() {
+        XCTAssertTrue(makePlan([], prints()).sheets.isEmpty)
+    }
 }

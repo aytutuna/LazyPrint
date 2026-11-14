@@ -74,6 +74,23 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).sides, .longEdge)
     }
 
+    func test_layoutOptions_photoPrintsAskForTheSizeAsAMaximumAndFillOrFit() {
+        let settings = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "5x7"; $0.pagesPerSheet = 4 }
+        let options = PrintJobs.layoutOptions(settings, printer: nil)
+        XCTAssertEqual(options.cellSize, LayoutSize(width: 360, height: 504))
+        XCTAssertEqual(options.pagesPerSheet, 1)
+        XCTAssertEqual(options.scaling, .fill)
+        var fit = settings
+        fit.photoFill = false
+        XCTAssertEqual(PrintJobs.layoutOptions(fit, printer: nil).scaling, .fit)
+        var whole = settings
+        whole.photoSizeId = "page"
+        XCTAssertNil(PrintJobs.layoutOptions(whole, printer: nil).cellSize)
+        var sheet = settings
+        sheet.layoutStyle = .photoSheet
+        XCTAssertNil(PrintJobs.layoutOptions(sheet, printer: nil).cellSize)
+    }
+
     func test_thePresetPickedLast_doesNotChangeThePlan() {
         let pages = [doc(5), photoDoc]
         for task in PrintTask.allCases {

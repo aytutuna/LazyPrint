@@ -40,10 +40,11 @@ public enum PrintJobs {
     /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
     public static func layoutOptions(_ settings: PrintSettings, printer: PrinterCapabilities?) -> LayoutOptions {
         let photos = settings.layoutStyle.isPhoto
-        return LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
+        let photoPrints = settings.layoutStyle == .photoPrints
+        return LayoutOptions(pagesPerSheet: photoPrints ? 1 : settings.pagesPerSheet,
                              booklet: settings.booklet && !photos,
                              rightToLeft: settings.rightToLeft,
-                             scaling: settings.scaling,
+                             scaling: photoPrints ? (settings.photoFill ? .fill : .fit) : settings.scaling,
                              sides: photos ? .oneSided : settings.sides,
                              pageBorders: settings.pageBorders,
                              scale: settings.scale,
@@ -51,7 +52,8 @@ public enum PrintJobs {
                              margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm,
                                                                        printerEdge: printerMargin(settings, printer: printer)),
                              poster: photos ? 0 : settings.poster,
-                             cutMarks: settings.layoutStyle == .photoSheet && settings.cutMarks)
+                             cellSize: photoPrints ? photoSize(settings.photoSizeId).size : nil,
+                             cutMarks: photos && settings.cutMarks)
     }
 
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless
@@ -108,9 +110,8 @@ public enum PrintJobs {
 
     /// The sheets of a job. The pages of all documents run on as one, and `pageRange` (0-based, as
     /// `PageRange.parse` gives it) counts along that run; an index past its end is skipped. The settings' odd or even pages and
-    /// reverse order (`PagePicker`) come next, before the layout. Photo prints
-    /// are laid out by `PhotoLayout`, everything else by `Imposition`. A printer without two-sided gets the
-    /// fronts and the backs as two passes, the backs turned and ordered for the learnt `PrinterPrefs.paperPath`.
+    /// reverse order (`PagePicker`) come next, before the layout, which `Imposition` plans. A printer without
+    /// two-sided gets the fronts and the backs as two passes, the backs turned and ordered for the learnt `PrinterPrefs.paperPath`.
     public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings,
                             printer: PrinterCapabilities?, prefs: PrinterPrefs) -> JobPlan {
         var all = [SourcePage]()
@@ -122,15 +123,7 @@ public enum PrintJobs {
         let chosen = (pageRange ?? Array(0..<all.count)).filter { $0 >= 0 && $0 < all.count }
         let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
-        let printable = area(settings, printer: printer)
-        let layout: SheetPlan
-        if settings.layoutStyle == .photoPrints {
-            let options = PhotoOptions(size: photoSize(settings.photoSizeId), copiesEach: 1, fill: settings.photoFill,
-                                       cutMarks: settings.cutMarks)
-            layout = PhotoLayout.plan(pages, options: options, area: printable)
-        } else {
-            layout = Imposition.plan(pages, options: layoutOptions(settings, printer: printer), area: printable)
-        }
+        let layout = Imposition.plan(pages, options: layoutOptions(settings, printer: printer), area: area(settings, printer: printer))
 
         let manual = layout.duplex && !(printer?.sidesSupported.contains("two-sided-long-edge") ?? false)
         let passes: [DuplexPass]

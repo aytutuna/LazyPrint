@@ -1,6 +1,6 @@
 import Foundation
 
-// Twin of windows/LazyPrint.Core/Layout/PhotoLayout.cs: prints of a fixed size, as many as fit on a sheet.
+// Twin of windows/LazyPrint.Core/Layout/PhotoLayout.cs: the print sizes a photo can be printed at.
 
 /// A print size.
 public struct PhotoSize: Equatable, Sendable {
@@ -8,7 +8,7 @@ public struct PhotoSize: Equatable, Sendable {
     public var id: String
     /// What a picker shows: "4 × 6 in", "10 × 15 cm", "Whole page".
     public var title: String
-    /// Portrait, in points; nil is the whole printable area.
+    /// Portrait, in points; nil is as large as the cell allows.
     public var size: LayoutSize?
 
     public init(id: String, title: String, size: LayoutSize?) {
@@ -35,98 +35,4 @@ public struct PhotoSize: Equatable, Sendable {
         PhotoSize(id: "13x18cm", title: "13 \u{00D7} 18 cm", size: centimetres(13, 18)),
         PhotoSize(id: "page", title: "Whole page", size: nil),
     ]
-}
-
-/// What `PhotoLayout.plan` is asked for.
-public struct PhotoOptions: Equatable, Sendable {
-    /// The print size.
-    public var size: PhotoSize
-    /// How many prints of each photo.
-    public var copiesEach: Int
-    /// Crop to fill the size; false fits the whole photo with white bands.
-    public var fill: Bool
-    /// Short gray marks at the corners when several fit on a sheet.
-    public var cutMarks: Bool
-
-    public init(size: PhotoSize, copiesEach: Int = 1, fill: Bool = true, cutMarks: Bool = true) {
-        self.size = size
-        self.copiesEach = copiesEach
-        self.fill = fill
-        self.cutMarks = cutMarks
-    }
-}
-
-public enum PhotoLayout {
-    private static let gap: Double = 3 * 72 / 25.4
-    private static let epsilon: Double = 1e-6
-
-    /// As many prints of the size as fit on each sheet (the cells turned when more fit), 3 mm apart, in
-    /// photo order; a photo whose orientation differs from its cell is turned a quarter counterclockwise.
-    /// A size larger than the paper is one print per sheet, made smaller to fit.
-    public static func plan(_ photos: [SourcePage], options: PhotoOptions, area: PrintableArea) -> SheetPlan {
-        let cells = layoutCells(for: options.size.size, printable: laid(area))
-        let copies = max(1, options.copiesEach)
-        var placements: [Placement] = []
-        for photo in photos {
-            for _ in 0..<copies {
-                let cell = cells[placements.count % cells.count]
-                let turn = (cell.width > cell.height && photo.size.height > photo.size.width)
-                    || (cell.height > cell.width && photo.size.width > photo.size.height)
-                let fitted = Imposition.fitInCell(photo.size, cell: cell, fill: options.fill, turn: turn)
-                placements.append(Placement(page: photo, frame: fitted.frame, turns: turn ? 3 : 0, crop: fitted.crop))
-            }
-        }
-
-        var sheets: [Sheet] = []
-        var start = 0
-        while start < placements.count {
-            let end = min(start + cells.count, placements.count)
-            let side = Array(placements[start..<end])
-            let marks = options.cutMarks ? Imposition.markCells(side, several: cells.count > 1, laid: laid(area)) : []
-            sheets.append(Sheet(front: SheetSide(placements: side, borders: false, cutCells: marks), back: nil))
-            start += cells.count
-        }
-        return SheetPlan(area: area, sheets: sheets, duplex: false, warnings: [])
-    }
-
-    /// Photo layouts have no margin of their own, so they use the whole paper; the printer cuts what reaches its edge.
-    private static func laid(_ area: PrintableArea) -> LayoutRect {
-        LayoutRect(x: 0, y: 0, width: area.paper.width, height: area.paper.height)
-    }
-
-    private static func layoutCells(for size: LayoutSize?, printable: LayoutRect) -> [LayoutRect] {
-        guard let size else { return [printable] }
-        let upright = grid(size.width, size.height, in: printable)
-        let sideways = grid(size.height, size.width, in: printable)
-        let best = sideways.count > upright.count ? sideways : upright
-        if !best.isEmpty { return best }
-
-        let turned = LayoutSize(width: size.height, height: size.width)
-        let uprightScale = fitScale(size, in: printable)
-        let sidewaysScale = fitScale(turned, in: printable)
-        let (shape, scale) = sidewaysScale > uprightScale ? (turned, sidewaysScale) : (size, uprightScale)
-        let width = shape.width * scale
-        let height = shape.height * scale
-        return [LayoutRect(x: printable.x + (printable.width - width) / 2, y: printable.y + (printable.height - height) / 2,
-                           width: width, height: height)]
-    }
-
-    private static func fitScale(_ size: LayoutSize, in area: LayoutRect) -> Double {
-        min(area.width / size.width, area.height / size.height)
-    }
-
-    private static func grid(_ width: Double, _ height: Double, in area: LayoutRect) -> [LayoutRect] {
-        let columns = Int(((area.width + gap + epsilon) / (width + gap)).rounded(.down))
-        let rows = Int(((area.height + gap + epsilon) / (height + gap)).rounded(.down))
-        let left = area.x + (area.width - (Double(columns) * width + Double(columns - 1) * gap)) / 2
-        let top = area.y + (area.height - (Double(rows) * height + Double(rows - 1) * gap)) / 2
-        var cells: [LayoutRect] = []
-        for row in 0..<max(0, rows) {
-            for column in 0..<max(0, columns) {
-                cells.append(LayoutRect(x: left + Double(column) * (width + gap), y: top + Double(row) * (height + gap),
-                                        width: width, height: height))
-            }
-        }
-        return cells
-    }
 }

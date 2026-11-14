@@ -138,12 +138,17 @@ public struct LayoutOptions: Equatable, Sendable {
     /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
     /// Any other number is no poster; a poster comes before `booklet` and `pagesPerSheet`.
     public var poster: Int
+    /// A print size, portrait: the most each page takes of its cell. It is printed at that size, centred, when it fits the cell
+    /// (turned when only the other way round fits), else the page takes the whole cell. Booklets and posters ignore it; a lone
+    /// page is sized like a cell, so `scale` and actual size do not apply.
+    public var cellSize: LayoutSize?
     /// Short marks at the corners of each printed page when there are several on a side or one smaller than the margin's area.
     public var cutMarks: Bool
 
     public init(pagesPerSheet: Int = 1, booklet: Bool = false, rightToLeft: Bool = false,
                 scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100,
-                orientation: SheetOrientation = .automatic, margin: Double = 0, poster: Int = 0, cutMarks: Bool = false) {
+                orientation: SheetOrientation = .automatic, margin: Double = 0, poster: Int = 0,
+                cellSize: LayoutSize? = nil, cutMarks: Bool = false) {
         self.pagesPerSheet = pagesPerSheet
         self.booklet = booklet
         self.rightToLeft = rightToLeft
@@ -154,6 +159,7 @@ public struct LayoutOptions: Equatable, Sendable {
         self.orientation = orientation
         self.margin = margin
         self.poster = poster
+        self.cellSize = cellSize
         self.cutMarks = cutMarks
     }
 }

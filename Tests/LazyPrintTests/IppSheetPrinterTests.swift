@@ -326,8 +326,8 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         let document = try DocumentLoader().load(file)
         let area = wholePaper(LayoutSize(width: 288, height: 432))
-        var plan = PhotoLayout.plan([SourcePage(document: 0, index: 0, size: document.loaded.pages[0])],
-                                    options: PhotoOptions(size: PhotoSize.all[0]), area: area)
+        var plan = Imposition.plan([SourcePage(document: 0, index: 0, size: document.loaded.pages[0])],
+                                   options: LayoutOptions(scaling: .fill, cellSize: PhotoSize.all[0].size), area: area)
         if edge > 0 { plan.area = paperWithMargins(area.paper, edge) }
         let jobPlan = JobPlan(plan: plan, manualDuplex: false, passes: [DuplexPass(sides: [plan.sheets[0].front], marked: [])],
                               copiesInJob: 1, notes: [])
