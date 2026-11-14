@@ -31,8 +31,7 @@ public static class Imposition
     {
         bool poster = options.Poster is >= 2 and <= 4;
         bool duplex = !poster && (options.Booklet || options.Sides != Sides.OneSided);
-        double margin = options.Margin;
-        var laid = new PrintableArea(area.Paper, new LayoutInsets(margin, margin, margin, margin));
+        var laid = Laid(area, options);
         var notes = new Notes();
         var sheets = poster ? PosterSheets(pages, options, laid, notes)
             : options.Booklet ? BookletSheets(pages, options, laid, notes)
@@ -43,6 +42,33 @@ public static class Imposition
         if (notes.Padding > 0) warnings.Add(new PlanWarning.PaddedWithBlanks(notes.Padding));
         int printed = notes.Printed is { } scale ? (int)Math.Round(scale * 100) : 100;
         return new SheetPlan(area, sheets, duplex, warnings, printed);
+    }
+
+    private static PrintableArea Laid(PrintableArea area, LayoutOptions options) =>
+        new(area.Paper, new LayoutInsets(options.Margin, options.Margin, options.Margin, options.Margin));
+
+    /// <summary>
+    /// Whether a print of <paramref name="size"/> (portrait) fits one cell of the layout, either way round, in any reading view
+    /// the orientation allows. A booklet and a poster ignore the size, so any fits.
+    /// </summary>
+    public static bool SizeFits(LayoutOptions options, PrintableArea area, LayoutSize size)
+    {
+        if (options.Booklet || options.Poster is >= 2 and <= 4) return true;
+        var laid = Laid(area, options);
+        bool[] views = options.Orientation switch
+        {
+            SheetOrientation.Portrait => [false],
+            SheetOrientation.Landscape => [true],
+            _ => [false, true],
+        };
+        foreach (bool landscape in views)
+        {
+            var (rows, columns) = Grid(options.PagesPerSheet, landscape);
+            var cell = CellAt(ViewPrintable(laid, landscape), rows, columns, 0, 0);
+            if (size.Width <= cell.Width + SizeSlack && size.Height <= cell.Height + SizeSlack
+                || size.Height <= cell.Width + SizeSlack && size.Width <= cell.Height + SizeSlack) return true;
+        }
+        return false;
     }
 
     /// <summary>

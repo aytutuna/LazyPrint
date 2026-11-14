@@ -17,7 +17,7 @@ public sealed record InspectorState(
     bool ShowBorders,
     bool ShowOrientation,
     bool ScalingEnabled,
-    string? ScalingReason,
+    bool ScalingFitOnly,
     bool ShowScale,
     bool BookletEnabled,
     string? BookletReason,
@@ -42,8 +42,9 @@ public sealed record InspectorState(
         string? byHand = twoSided && capabilities is not null && !canTurn ? ShortText.ByHand : null;
 
         bool alone = !poster && !s.Booklet && s.PagesPerSheet == 1;
-        // A print size makes the page a cell, so Scale does not apply.
-        bool lone = alone && s.PhotoSizeId == "page";
+        // A print size that fits makes the page a cell, so Scale does not apply.
+        bool sized = alone && PrintJobs.LayoutOptions(s, capabilities).CellSize is not null;
+        bool lone = alone && !sized;
 
         bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
@@ -64,12 +65,12 @@ public sealed record InspectorState(
             ShowRightToLeft: !poster && (s.Booklet || s.PagesPerSheet > 1),
             ShowBorders: !poster && !s.Booklet && s.PagesPerSheet > 1,
             ShowOrientation: !s.Booklet,
-            ScalingEnabled: (alone || !poster && s.Scaling == Scaling.Fill),
-            ScalingReason: alone || !poster && s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
+            ScalingEnabled: !poster,
+            ScalingFitOnly: !lone,
             ShowScale: lone && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize,
             BookletEnabled: !poster,
             BookletReason: poster ? ShortText.PosterPages : null,
-            PosterEnabled: (poster || !s.Booklet && s.PagesPerSheet == 1),
+            PosterEnabled: poster || !s.Booklet && s.PagesPerSheet == 1,
             PosterReason: poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
             MarginEnabled: true,
             MarginReason: null,

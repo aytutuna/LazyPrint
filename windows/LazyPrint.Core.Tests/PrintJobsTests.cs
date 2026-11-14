@@ -71,9 +71,9 @@ public class PrintJobsTests
     [Fact]
     public void LayoutOptions_APrintSizeIsAMaximumPerCellAndCutMarksFollowTheSetting()
     {
-        var settings = Settings(s => { s.PhotoSizeId = "5x7"; s.PagesPerSheet = 4; s.Scaling = Scaling.Fill; s.CutMarks = true; });
+        var settings = Settings(s => { s.PhotoSizeId = "3.5x5"; s.PagesPerSheet = 4; s.Scaling = Scaling.Fill; s.CutMarks = true; });
         var options = PrintJobs.LayoutOptions(settings, null);
-        Assert.Equal(new LayoutSize(360, 504), options.CellSize);
+        Assert.Equal(new LayoutSize(252, 360), options.CellSize);
         Assert.Equal(4, options.PagesPerSheet);
         Assert.Equal(Scaling.Fill, options.Scaling);
         Assert.True(options.CutMarks);
@@ -701,6 +701,30 @@ public class PrintJobsTests
     {
         var options = PrintJobs.LayoutOptions(Settings(s => { s.Margin = choice; s.MarginMm = custom; }), null);
         Assert.Equal(millimetres * 72 / 25.4, options.Margin, 6);
+    }
+
+    [Fact]
+    public void PhotoSizes_AreTheOnesThatFitOneCell_AndTheLargestThatFitsLast()
+    {
+        var alone = PrintJobs.PhotoSizes(Settings(s => s.PaperId = "a4"), null).Select(p => p.Id).ToList();
+        Assert.Contains("8x10", alone);
+        Assert.Equal("page", alone[^1]);
+
+        var four = PrintJobs.PhotoSizes(Settings(s => { s.PaperId = "a4"; s.PagesPerSheet = 4; }), null).Select(p => p.Id).ToList();
+        Assert.Equal(["3.5x5", "wallet", "page"], four);
+
+        var tight = PrintJobs.PhotoSizes(Settings(s => { s.PaperId = "a4"; s.Margin = MarginChoice.Custom; s.MarginMm = 50; }), null).Select(p => p.Id);
+        Assert.DoesNotContain("8x10", tight);
+    }
+
+    [Fact]
+    public void LayoutOptions_ASavedSizeThatNoLongerFitsIsTheLargestThatFits_AndTheSettingsKeepIt()
+    {
+        var settings = Settings(s => { s.PaperId = "a4"; s.PagesPerSheet = 4; s.PhotoSizeId = "4x6"; });
+        Assert.Null(PrintJobs.LayoutOptions(settings, null).CellSize);
+        Assert.Equal("4x6", settings.PhotoSizeId);
+
+        Assert.NotNull(PrintJobs.LayoutOptions(settings with { PagesPerSheet = 1 }, null).CellSize);
     }
 
     [Fact]

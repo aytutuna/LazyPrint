@@ -140,14 +140,16 @@ public partial class MainWindow
         OrientationBox.Items.Add(Item("Automatic", SheetOrientation.Automatic, "Each page keeps the way it is turned"));
         OrientationBox.Items.Add(Item("Portrait", SheetOrientation.Portrait, "Every sheet is upright"));
         OrientationBox.Items.Add(Item("Landscape", SheetOrientation.Landscape, "Every sheet is on its side"));
-        ScalingBox.Items.Add(Item("Shrink to fit", Scaling.ShrinkToFit, "Large pages are made smaller, the others print at real size"));
-        ScalingBox.Items.Add(Item("Fit to page", Scaling.Fit, "Each page is made as large as fits"));
-        ScalingBox.Items.Add(Item("Actual size", Scaling.ActualSize, "100 %; the edges the printer cannot reach are cut off"));
-        ScalingBox.Items.Add(Item("Fill", Scaling.Fill, "Each page fills its space, cropped in the middle"));
+        _scalingItems =
+        [
+            Item("Shrink to fit", Scaling.ShrinkToFit, "Large pages are made smaller, the others print at real size"),
+            Item("Fit to page", Scaling.Fit, "Each page is made as large as fits"),
+            Item("Actual size", Scaling.ActualSize, "100 %; the edges the printer cannot reach are cut off"),
+            Item("Fill", Scaling.Fill, "Each page fills its space, cropped in the middle"),
+        ];
         QualityBox.Items.Add(Item("Normal", QualityChoice.Normal));
         QualityBox.Items.Add(Item("Draft", QualityChoice.Draft, "Faster, uses less ink"));
         QualityBox.Items.Add(Item("Best", QualityChoice.Best, "Slower, the finest print"));
-        foreach (var photo in PhotoSize.All) PhotoSizeBox.Items.Add(Item(photo.Title, photo.Id));
     }
 
     private static string Region => RegionInfo.CurrentRegion.TwoLetterISORegionName;
@@ -230,6 +232,34 @@ public partial class MainWindow
         PushSettingsToUi();
     }
 
+    /// <summary>Several pages or a print size fit or fill their space; Shrink to fit and Actual size are shown as Fit then, and the setting is kept.</summary>
+    private void ShowScalings(PrintSettings s, InspectorState state)
+    {
+        var wanted = _scalingItems.Where(i => !state.ScalingFitOnly || i.Tag is Scaling.Fit or Scaling.Fill).ToList();
+        if (!ScalingBox.Items.Cast<object>().SequenceEqual(wanted))
+        {
+            ScalingBox.Items.Clear();
+            foreach (var item in wanted) ScalingBox.Items.Add(item);
+        }
+        _shownScaling = state.ScalingFitOnly && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize ? Scaling.Fit : s.Scaling;
+        Select(ScalingBox, _shownScaling);
+        ScalingBox.IsEnabled = state.ScalingEnabled;
+    }
+
+    /// <summary>Only the print sizes that fit a cell; a saved size that does not is shown as the largest that fits and kept.</summary>
+    private void ShowPhotoSizes(PrintSettings s)
+    {
+        var sizes = PrintJobs.PhotoSizes(s, ViewModel.SelectedCapabilities);
+        var shown = PhotoSizeBox.Items.OfType<ComboBoxItem>().Select(i => i.Tag);
+        if (!shown.SequenceEqual(sizes.Select(p => (object)p.Id)))
+        {
+            PhotoSizeBox.Items.Clear();
+            foreach (var photo in sizes) PhotoSizeBox.Items.Add(Item(photo.Title, photo.Id));
+        }
+        _shownPhotoSize = sizes.Any(p => p.Id == s.PhotoSizeId) ? s.PhotoSizeId : "page";
+        Select(PhotoSizeBox, _shownPhotoSize);
+    }
+
     private static void Select(ComboBox box, object tag)
     {
         var item = box.Items.OfType<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, tag));
@@ -292,10 +322,7 @@ public partial class MainWindow
             RightToLeftBox.IsChecked = s.RightToLeft;
             BordersBox.Visibility = state.ShowBorders ? Visibility.Visible : Visibility.Collapsed;
             BordersBox.IsChecked = s.PageBorders;
-            Select(ScalingBox, s.Scaling);
-            ScalingBox.IsEnabled = state.ScalingEnabled;
-            ScalingBox.ToolTip = state.ScalingReason;
-            Show(ScalingReasonRow, ScalingReasonText, state.ScalingReason);
+            ShowScalings(s, state);
             ScaleRow.Visibility = state.ShowScale ? Visibility.Visible : Visibility.Collapsed;
             ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
             ScaleText.Text = $"{s.Scale} %";
@@ -345,7 +372,7 @@ public partial class MainWindow
             Show(ColorReasonRow, ColorReasonText, state.ColorReason);
 
             // Photos
-            Select(PhotoSizeBox, s.PhotoSizeId);
+            ShowPhotoSizes(s);
             CutMarksBox.IsChecked = s.CutMarks;
         }
         finally
@@ -383,7 +410,7 @@ public partial class MainWindow
         if (state.PosterEnabled && TagOf<int?>(PosterBox) is { } poster) s.Poster = poster;
         s.RightToLeft = RightToLeftBox.IsChecked == true;
         s.PageBorders = BordersBox.IsChecked == true;
-        if (state.ScalingEnabled && TagOf<Scaling?>(ScalingBox) is { } scaling) s.Scaling = scaling;
+        if (state.ScalingEnabled && TagOf<Scaling?>(ScalingBox) is { } scaling && scaling != _shownScaling) s.Scaling = scaling;
         if (state.MarginEnabled && TagOf<MarginChoice?>(MarginBox) is { } margin) s.Margin = margin;
         if (TagOf<string>(PaperBox) is { } paper)
         {
@@ -393,7 +420,7 @@ public partial class MainWindow
         if (PaperTypeRow.Visibility == Visibility.Visible && TagOf<string>(PaperTypeBox) is { } paperType) s.MediaType = paperType;
         if (state.QualityEnabled && TagOf<QualityChoice?>(QualityBox) is { } quality) s.Quality = quality;
         if (state.ColorEnabled) s.Color = ColorGray.IsChecked == true ? ColorChoice.Gray : ColorChoice.Color;
-        if (TagOf<string>(PhotoSizeBox) is { } photo) s.PhotoSizeId = photo;
+        if (TagOf<string>(PhotoSizeBox) is { } photo && photo != _shownPhotoSize) s.PhotoSizeId = photo;
         s.CutMarks = CutMarksBox.IsChecked == true;
         ViewModel.SettingsEdited();
     }

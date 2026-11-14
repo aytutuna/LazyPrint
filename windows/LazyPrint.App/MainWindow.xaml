@@ -563,10 +563,6 @@
                                                       AutomationProperties.Name="Scaling"
                                                       ToolTipService.ShowOnDisabled="True"
                                                       SelectionChanged="Setting_Changed" />
-                                            <DockPanel x:Name="ScalingReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
-                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
-                                                <TextBlock x:Name="ScalingReasonText" Style="{StaticResource ReasonText}" />
-                                            </DockPanel>
                                             <DockPanel x:Name="ScaleRow" Margin="0,8,0,0" Visibility="Collapsed">
                                                 <TextBlock x:Name="ScaleText" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
                                                            VerticalAlignment="Center" Style="{StaticResource BodyText}" />

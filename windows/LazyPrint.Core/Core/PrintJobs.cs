@@ -32,7 +32,25 @@ public static class PrintJobs
     private const string CollatedCopies = "separate-documents-collated-copies";
 
     /// <summary>The layout the settings ask for.</summary>
-    public static LayoutOptions LayoutOptions(PrintSettings settings, PrinterCapabilities? printer) => new()
+    public static LayoutOptions LayoutOptions(PrintSettings settings, PrinterCapabilities? printer)
+    {
+        var options = LayoutOf(settings, printer);
+        var size = PhotoSizeOf(settings.PhotoSizeId).Size;
+        return size is { } print && Imposition.SizeFits(options, Area(settings, printer), print) ? options with { CellSize = print } : options;
+    }
+
+    /// <summary>
+    /// The print sizes a picker offers: those that fit one cell at the pages per side, paper, margin and orientation in use,
+    /// then "Largest that fits". A saved size that no longer fits is planned as the last, and the settings keep it.
+    /// </summary>
+    public static IReadOnlyList<PhotoSize> PhotoSizes(PrintSettings settings, PrinterCapabilities? printer)
+    {
+        var options = LayoutOf(settings, printer);
+        var area = Area(settings, printer);
+        return PhotoSize.All.Where(p => p.Size is not { } size || Imposition.SizeFits(options, area, size)).ToList();
+    }
+
+    private static LayoutOptions LayoutOf(PrintSettings settings, PrinterCapabilities? printer) => new()
     {
         PagesPerSheet = settings.PagesPerSheet,
         Booklet = settings.Booklet,
@@ -44,7 +62,6 @@ public static class PrintJobs
         Orientation = settings.Orientation,
         Margin = MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
         Poster = settings.Poster,
-        CellSize = PhotoSizeOf(settings.PhotoSizeId).Size,
         CutMarks = settings.CutMarks,
     };
 

@@ -31,8 +31,6 @@ internal static class ShortText
     public const string FilesQueued = "They are added when the job ends.";
     /// <summary>Why a locked PDF is not added when its password is not given.</summary>
     public const string LockedLeftOut = "It needs a password, so it was left out.";
-    /// <summary>Scaling while pages share a side or fold into a booklet: they are fitted to their space.</summary>
-    public const string PagesFit = "Pages fit their space";
     /// <summary>Color while the printer prints gray only.</summary>
     public const string GrayOnly = "This printer prints gray only";
     /// <summary>Quality while the printer does not list any.</summary>

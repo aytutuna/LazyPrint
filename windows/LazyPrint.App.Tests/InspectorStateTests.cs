@@ -40,28 +40,20 @@ public sealed class InspectorStateTests
     }
 
     [Fact]
-    public void ScalingIsGreyedOutUnderSeveralPagesPerSideAndBookletsWithItsReason()
+    public void ScalingStaysChangeableAndOffersOnlyFitAndFillWhenPagesShareTheirSpace()
     {
-        var one = For(new PrintSettings());
-        Assert.True(one.ScalingEnabled);
-        Assert.Null(one.ScalingReason);
-
-        foreach (var s in new[] { new PrintSettings { PagesPerSheet = 4 }, new PrintSettings { Booklet = true } })
+        Assert.False(For(new PrintSettings()).ScalingFitOnly);
+        foreach (var s in new[]
+        {
+            new PrintSettings { PagesPerSheet = 4 }, new PrintSettings { Booklet = true },
+            new PrintSettings { PhotoSizeId = "4x6" }, new PrintSettings { PagesPerSheet = 4, Scaling = Scaling.Fill },
+        })
         {
             var state = For(s);
-            Assert.False(state.ScalingEnabled);
-            Assert.Equal("Pages fit their space", state.ScalingReason);
+            Assert.True(state.ScalingEnabled);
+            Assert.True(state.ScalingFitOnly);
             Assert.False(state.ShowScale);
         }
-    }
-
-    [Fact]
-    public void FillStaysChangeableUnderSeveralPagesPerSide()
-    {
-        var state = For(new PrintSettings { PagesPerSheet = 4, Scaling = Scaling.Fill });
-
-        Assert.True(state.ScalingEnabled);
-        Assert.Null(state.ScalingReason);
     }
 
     [Fact]
@@ -117,6 +109,17 @@ public sealed class InspectorStateTests
 
         Assert.False(For(new PrintSettings { PhotoSizeId = "4x6", Booklet = true }).SidesEnabled);
         Assert.False(For(new PrintSettings { PhotoSizeId = "4x6", Poster = 2 }).PagesPerSideEnabled);
+    }
+
+    [Fact]
+    public void ASizeTheCellCannotHoldIsPlannedAsTheLargestThatFitsSoScaleStaysUsable()
+    {
+        var state = For(new PrintSettings { PhotoSizeId = "8x10", PagesPerSheet = 4 });
+        Assert.True(state.ScalingFitOnly);
+
+        var alone = For(new PrintSettings { PhotoSizeId = "8x10", PaperId = "a6" });
+        Assert.True(alone.ShowScale);
+        Assert.False(alone.ScalingFitOnly);
     }
 
     [Fact]
