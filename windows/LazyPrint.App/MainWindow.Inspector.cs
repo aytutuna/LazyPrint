@@ -25,7 +25,6 @@ public partial class MainWindow
     private bool _settingSections;
     /// <summary>What the inspector showed last; edits to a control that is greyed out are not written back.</summary>
     private InspectorState? _inspector;
-    private double _edge;
     private int? _printedScale;
 
     private static readonly int[] PagesPerSide = [1, 2, 4, 6, 9, 16];
@@ -313,10 +312,10 @@ public partial class MainWindow
                 ScalePrintsAtText.Visibility = Visibility.Collapsed;
             }
             var caps = ViewModel.SelectedCapabilities;
-            _edge = PrintJobs.Edge(s, s.Margin, caps);
             _printedScale = plan?.Plan.PrintedScale;
+            double printerMargin = PrintJobs.PrinterMargin(s, caps);
             foreach (var item in MarginBox.Items.OfType<ComboBoxItem>())
-                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, PrintJobs.Edge(s, (MarginChoice)item.Tag, caps));
+                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, printerMargin);
             Select(MarginBox, s.Margin);
             MarginBox.IsEnabled = state.MarginEnabled;
             MarginBox.ToolTip = state.MarginReason;
@@ -325,9 +324,11 @@ public partial class MainWindow
             MarginMmSlider.IsEnabled = state.MarginEnabled;
             MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
             MarginMmText.Text = $"{s.MarginMm} mm";
-            bool belowLimit = s.Margin == MarginChoice.Custom && s.MarginMm < _edge;
-            MarginLimitText.Text = belowLimit ? PrintText.PrinterLimitHint(_edge) : "";
-            MarginLimitText.Visibility = belowLimit ? Visibility.Visible : Visibility.Collapsed;
+            double? edge = PrintJobs.PrinterEdge(s, caps);
+            bool cutByEdge = state.MarginEnabled && edge is { } e
+                && e > Math.Round(MarginChoices.Millimetres(s.Margin, s.MarginMm, printerMargin), 1);
+            MarginEdgeText.Text = cutByEdge ? PrintText.PrinterEdgeNote(edge!.Value) : "";
+            MarginEdgeText.Visibility = cutByEdge ? Visibility.Visible : Visibility.Collapsed;
 
             // Paper
             ShowPaper(s);
@@ -439,13 +440,13 @@ public partial class MainWindow
         var s = ViewModel.Settings;
         foreach (var section in _sections)
         {
-            string summary = InspectorSections.Summary(section.Id, s, _edge, _printedScale);
+            string summary = InspectorSections.Summary(section.Id, s, _printedScale);
             bool changed = summary.Length > 0 && section.Id != InspectorSections.Photos;
             bool collapsed = !section.Expander.IsExpanded;
             section.Summary.Text = summary;
             section.Summary.Visibility = collapsed && summary.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             section.Dot.Visibility = collapsed && changed ? Visibility.Visible : Visibility.Collapsed;
-            AutomationProperties.SetName(section.Expander, InspectorSections.HeaderName(section.Id, s, _edge, _printedScale));
+            AutomationProperties.SetName(section.Expander, InspectorSections.HeaderName(section.Id, s, _printedScale));
         }
     }
 

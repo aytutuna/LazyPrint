@@ -24,7 +24,8 @@ public class PrintTextTests
         Assert.Equal("Printer's margin, 6 mm", PrintText.MarginLabel(MarginChoice.Printer, 6));
         Assert.Equal("Normal, 12 mm", PrintText.MarginLabel(MarginChoice.Normal, 13));
         Assert.Equal("Custom", PrintText.MarginLabel(MarginChoice.Custom, 4.3));
-        Assert.Equal("Printer limit 4.3 mm", PrintText.PrinterLimitHint(4.3));
+        Assert.Equal("This printer can't print the outer 4.3 mm", PrintText.PrinterEdgeNote(4.3));
+        Assert.Equal("This printer can't print the outer 6 mm", PrintText.PrinterEdgeNote(6));
         Assert.Equal("Prints at 96 %", PrintText.PrintsAt(96));
     }
 

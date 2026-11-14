@@ -376,15 +376,24 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void Edge_IsZeroForPhotoLayouts_AndTheChoicesOwnOtherwise()
+    public void PrinterEdge_IsNullWithoutAnEntry_ZeroWhenBorderless_AndTheLargestSideOtherwise()
     {
+        Assert.Null(PrintJobs.PrinterEdge(Settings(), null));
+        Assert.Null(PrintJobs.PrinterEdge(Settings(), new PrinterCapabilities()));
         var printer = WithEntries(A4Entry(432));
-        Assert.Equal(4.3, PrintJobs.Edge(Settings(), MarginChoice.Normal, printer));
-        Assert.Equal(0, PrintJobs.Edge(Settings(s => s.LayoutStyle = LayoutStyle.PhotoSheet), MarginChoice.Normal, printer));
-        Assert.Equal(0, PrintJobs.Edge(Settings(s => s.LayoutStyle = LayoutStyle.PhotoPrints), MarginChoice.None, printer));
+        Assert.Equal(4.3, PrintJobs.PrinterEdge(Settings(), printer));
+        Assert.Equal(4.3, PrintJobs.PrinterEdge(Settings(s => s.Margin = MarginChoice.None), printer));
         var borderless = WithEntries(A4Entry(432), A4Entry(0));
-        Assert.Equal(0, PrintJobs.Edge(Settings(), MarginChoice.None, borderless));
-        Assert.Equal(4.3, PrintJobs.Edge(Settings(), MarginChoice.Printer, borderless));
+        Assert.Equal(0, PrintJobs.PrinterEdge(Settings(s => s.Margin = MarginChoice.None), borderless));
+        Assert.Equal(4.3, PrintJobs.PrinterEdge(Settings(s => s.Margin = MarginChoice.Normal), borderless));
+    }
+
+    [Fact]
+    public void PrinterMargin_IsTheEdgeOfTheBorderedArea_AndAQuarterInchWithoutAnEntry()
+    {
+        var borderless = WithEntries(A4Entry(432), A4Entry(0));
+        Assert.Equal(4.3, PrintJobs.PrinterMargin(Settings(s => s.Margin = MarginChoice.None), borderless));
+        Assert.Equal(6.4, PrintJobs.PrinterMargin(Settings(), null));
     }
 
     [Fact]

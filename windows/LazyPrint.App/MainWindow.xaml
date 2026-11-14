@@ -598,7 +598,7 @@
                                                         AutomationProperties.Name="Margin in millimetres"
                                                         ValueChanged="MarginMmSlider_ValueChanged" />
                                             </DockPanel>
-                                            <TextBlock x:Name="MarginLimitText" Margin="0,4,0,0" Visibility="Collapsed" Style="{StaticResource ReasonText}" />
+                                            <TextBlock x:Name="MarginEdgeText" Margin="0,4,0,0" Visibility="Collapsed" Style="{StaticResource ReasonText}" />
                                         </StackPanel>
                                     </Expander>
 

@@ -67,11 +67,10 @@ public static class InspectorSections
     }
 
     /// <summary>
-    /// "2 per side · Borders", "Booklet · Right to left"; "" for one page per side. <paramref name="edge"/> is the printer's own
-    /// margin (<see cref="Imposition.Edge"/>), which a margin cannot go below; <paramref name="printedScale"/> is what a lone
+    /// "2 per side · Borders", "Booklet · Right to left"; "" for one page per side. <paramref name="printedScale"/> is what a lone
     /// page really prints at (<see cref="SheetPlan.PrintedScale"/>) when the plan is known.
     /// </summary>
-    public static string LayoutSummary(PrintSettings s, double edge = 0, int? printedScale = null)
+    public static string LayoutSummary(PrintSettings s, int? printedScale = null)
     {
         var parts = new List<string>();
         bool poster = s.Poster is >= 2 and <= 4;
@@ -91,7 +90,8 @@ public static class InspectorSections
         {
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
-        double margin = s.LayoutStyle.IsPhoto() ? 0 : MarginChoices.Millimetres(s.Margin, s.MarginMm, edge);
+        // The printer's own margin is the default, so it adds nothing here.
+        double margin = s.LayoutStyle.IsPhoto() ? 0 : MarginChoices.Millimetres(s.Margin, s.MarginMm, 0);
         if (margin > 0) parts.Add($"{PrintText.Millimetres(margin)} margins");
         return Join(parts);
     }
@@ -116,10 +116,10 @@ public static class InspectorSections
     }
 
     /// <summary>The summary a collapsed header shows for <paramref name="s"/>; "" for none (the printer's section has none).</summary>
-    public static string Summary(string section, PrintSettings s, double edge = 0, int? printedScale = null) => section switch
+    public static string Summary(string section, PrintSettings s, int? printedScale = null) => section switch
     {
         Pages => PagesSummary(s),
-        Layout => LayoutSummary(s, edge, printedScale),
+        Layout => LayoutSummary(s, printedScale),
         Paper => PaperSummary(s),
         Photos => PhotosSummary(s),
         _ => "",
@@ -129,6 +129,6 @@ public static class InspectorSections
     /// The header's accessible name: the title, then the summary when there is one ("Layout, 2 per
     /// side · Borders").
     /// </summary>
-    public static string HeaderName(string section, PrintSettings s, double edge = 0, int? printedScale = null) =>
-        Summary(section, s, edge, printedScale) is { Length: > 0 } summary ? $"{Title(section)}, {summary}" : Title(section);
+    public static string HeaderName(string section, PrintSettings s, int? printedScale = null) =>
+        Summary(section, s, printedScale) is { Length: > 0 } summary ? $"{Title(section)}, {summary}" : Title(section);
 }

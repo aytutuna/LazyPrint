@@ -121,8 +121,8 @@ public static class PrintText
     /// <summary>A distance to one decimal, the ".0" dropped: "4.3 mm", "3 mm".</summary>
     public static string Millimetres(double millimetres) => $"{millimetres.ToString("0.#", CultureInfo.InvariantCulture)} mm";
 
-    /// <summary>Under a custom margin that is smaller than the printer's own: "Printer limit 4.3 mm".</summary>
-    public static string PrinterLimitHint(double edge) => $"Printer limit {Millimetres(edge)}";
+    /// <summary>Under Margins when the margin is smaller than the printer's own edge.</summary>
+    public static string PrinterEdgeNote(double edge) => $"This printer can't print the outer {Millimetres(edge)}";
 
     /// <summary>Under the Scale box when the page prints at another size than it says: "Prints at 96 %".</summary>
     public static string PrintsAt(int percent) => $"Prints at {percent} %";

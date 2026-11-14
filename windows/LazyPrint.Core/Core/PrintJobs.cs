@@ -47,7 +47,7 @@ public static class PrintJobs
             PageBorders = settings.PageBorders,
             Scale = settings.Scale,
             Orientation = settings.Orientation,
-            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm, Edge(settings, MarginChoice.Printer, printer)),
+            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
             Poster = photos ? 0 : settings.Poster,
         };
     }
@@ -75,11 +75,19 @@ public static class PrintJobs
         Area(settings.PaperId, printer, WantsBorderless(settings, printer), MatchType(settings, printer));
 
     /// <summary>
-    /// The printer's edge (<see cref="Imposition.Edge"/>) the settings would have with <paramref name="margin"/> chosen instead,
-    /// 0 for photo layouts: None can be borderless where Small is not, so each choice in the Margins list is told its own.
+    /// How far the printer's own edge reaches in on the paper the settings print on (<see cref="Imposition.Edge"/>), 0 when the
+    /// layout is borderless; null when the printer has no entry for the paper (or there is no printer), where the edge is only a guess.
     /// </summary>
-    public static double Edge(PrintSettings settings, MarginChoice margin, PrinterCapabilities? printer) =>
-        settings.LayoutStyle.IsPhoto() ? 0 : Imposition.Edge(Area(settings with { Margin = margin }, printer));
+    public static double? PrinterEdge(PrintSettings settings, PrinterCapabilities? printer)
+    {
+        var size = Sheet(settings.PaperId, printer);
+        if (printer?.Match(size, WantsBorderless(settings, printer), MatchType(settings, printer)) is null) return null;
+        return Imposition.Edge(Area(settings, printer));
+    }
+
+    /// <summary>The distance <see cref="MarginChoice.Printer"/> keeps clear: the edge of the bordered area, 0.25 in without an entry.</summary>
+    public static double PrinterMargin(PrintSettings settings, PrinterCapabilities? printer) =>
+        Imposition.Edge(Area(settings with { Margin = MarginChoice.Printer }, printer));
 
     /// <summary>
     /// Whether the layout asks for the paper without margins: margin None for every layout, and for photo prints a photo
