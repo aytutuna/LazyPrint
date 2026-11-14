@@ -52,8 +52,19 @@ public sealed record SheetJob(string Name, PrinterInfo Printer, PrinterCapabilit
                               IReadOnlyList<DrawnItems>? Items = null, PhotoOptions? Marks = null, bool FrameMarks = false)
 {
     /// <summary>
-    /// A one-sided job of sides drawn from drawing items alone, one sheet each. <paramref name="settings"/> are the ones
-    /// <paramref name="area"/> was chosen from, so the ticket's paper is matched the same way.
+    /// What a job of drawn items takes from the user's settings: the paper, its type, the tray and the margin. Everything else
+    /// is the default, so a test page is in color at normal quality whatever the user's document is set to.
+    /// </summary>
+    public static PrintSettings ItemSettings(PrintSettings user) => new()
+    {
+        PaperId = user.PaperId, MediaType = user.MediaType, MediaSource = user.MediaSource,
+        Margin = user.Margin, MarginMm = user.MarginMm,
+    };
+
+    /// <summary>
+    /// A one-sided job of sides drawn from drawing items alone, one sheet each. The ticket's paper is matched from the
+    /// <paramref name="settings"/> the <paramref name="area"/> was chosen with (<see cref="PrintJobs.Area(PrintSettings, PrinterCapabilities?)"/>),
+    /// so the two agree on the paper type.
     /// </summary>
     public static SheetJob OfItems(string id, string name, PrinterInfo printer, PrinterCapabilities? capabilities, PrintSettings settings,
                                    PrintableArea area, IReadOnlyList<DrawnItems> sides)
@@ -61,7 +72,7 @@ public sealed record SheetJob(string Name, PrinterInfo Printer, PrinterCapabilit
         var empty = new SheetSide([], false);
         var sheets = sides.Select(_ => new Sheet(empty, null)).ToList();
         var plan = new JobPlan(new SheetPlan(area, sheets, false, []), false, [new DuplexPass([.. sheets.Select(s => s.Front)], [])], 1, []);
-        return new SheetJob(name, printer, capabilities, settings with { Copies = 1, Sides = Sides.OneSided }, plan, [], id, sides);
+        return new SheetJob(name, printer, capabilities, ItemSettings(settings), plan, [], id, sides);
     }
 }
 

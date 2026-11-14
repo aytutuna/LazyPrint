@@ -123,27 +123,33 @@ public sealed class PrinterCapabilities
     /// <summary>
     /// The database entry for a paper (portrait, in points), each side within <see cref="PaperSizes.FitTolerance"/>: the first
     /// with zero margins when <paramref name="borderless"/>, else the first with margins; the other kind when only that exists.
-    /// With a <paramref name="type"/> (a paper type keyword, or <see cref="MediaChoices.Auto"/>) a zero-margin entry counts only
-    /// when it has no type of its own, has that type, or the type is automatic and the entry's is plain paper; null ignores types.
-    /// Its <see cref="MediaEntry.PrintableArea"/> is the area to lay out on and the entry is what the job sends.
+    /// A borderless entry also has to suit the paper <paramref name="type"/> (a paper type keyword, or <see cref="MediaChoices.Auto"/>):
+    /// one without a type, one of that type, or, for automatic, one of plain paper. A null type takes any entry. A borderless
+    /// entry that does not suit is the last resort, so a size listed only that way gives the same entry whether or not
+    /// borderless was asked for. Its <see cref="MediaEntry.PrintableArea"/> is the area to lay out on and the entry is what the job sends.
     /// </summary>
     public MediaEntry? Match(LayoutSize paper, bool borderless = false, string? type = null)
     {
-        MediaEntry? other = null;
+        MediaEntry? other = null, unsuited = null;
         foreach (MediaEntry entry in MediaColDatabase)
         {
             if (entry.IsVariable || entry.Margins is not { } margins) continue;
-            if (type is not null && margins.IsZero && !TypeFits(entry.Type, type)) continue;
             if (Math.Abs(MediaEntry.Points(entry.Width) - paper.Width) > PaperSizes.FitTolerance) continue;
             if (Math.Abs(MediaEntry.Points(entry.Height) - paper.Height) > PaperSizes.FitTolerance) continue;
-            if (margins.IsZero == borderless) return entry;
+            if (margins.IsZero == borderless)
+            {
+                if (!borderless || TypeFits(entry.Type, type)) return entry;
+                unsuited ??= entry;
+                continue;
+            }
             other ??= entry;
         }
-        return other;
+        return other ?? unsuited;
     }
 
-    private static bool TypeFits(string? entryType, string type) =>
-        entryType is null || entryType == type || type == MediaChoices.Auto && entryType is "stationery" or "stationery-inkjet";
+    private static bool TypeFits(string? entryType, string? type) =>
+        entryType is null || type is null || entryType == type
+        || type == MediaChoices.Auto && entryType is "stationery" or "stationery-inkjet";
 
     /// <summary>Reads a Get-Printer-Attributes response; an attribute that is missing or of an unexpected type gives its default.</summary>
     public static PrinterCapabilities From(IppMessage message)

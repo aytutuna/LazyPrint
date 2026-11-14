@@ -83,7 +83,7 @@ public static class InspectorSections
         if (!poster && !s.Booklet && s.PagesPerSheet > 1 && s.PageBorders) parts.Add("Borders");
         if (!poster && (s.Booklet || s.PagesPerSheet > 1) && s.RightToLeft) parts.Add("Right to left");
         if (!poster && !s.Booklet && s.PagesPerSheet == 1 && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize
-            && (printedScale ?? s.Scale) is var percent and not 100)
+            && (s.LayoutStyle.IsPhoto() ? s.Scale : printedScale ?? s.Scale) is var percent and not 100)
         {
             parts.Add($"{percent} %");
         }
@@ -91,7 +91,7 @@ public static class InspectorSections
         {
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
-        double margin = Math.Max(MarginChoices.Millimetres(s.Margin, s.MarginMm), s.LayoutStyle.IsPhoto() ? 0 : edge);
+        double margin = s.LayoutStyle.IsPhoto() ? 0 : Math.Max(MarginChoices.Millimetres(s.Margin, s.MarginMm), edge);
         if (margin > 0) parts.Add($"{PrintText.Millimetres(margin)} margins");
         return Join(parts);
     }

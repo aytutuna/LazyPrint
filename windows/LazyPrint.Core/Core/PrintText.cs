@@ -124,26 +124,29 @@ public static class PrintText
     /// <summary>A distance to one decimal, the ".0" dropped: "4.3 mm", "3 mm".</summary>
     public static string Millimetres(double millimetres) => $"{millimetres.ToString("0.#", CultureInfo.InvariantCulture)} mm";
 
-    /// <summary>The margin the printer itself keeps, shown where a smaller one was asked for: "4.3 mm (printer limit)".</summary>
-    public static string PrinterLimit(double edge) => $"{Millimetres(edge)} (printer limit)";
-
     /// <summary>Under a custom margin that is smaller than the printer's own: "Printer limit 4.3 mm".</summary>
     public static string PrinterLimitHint(double edge) => $"Printer limit {Millimetres(edge)}";
 
     /// <summary>Under the Scale box when the page prints at another size than it says: "Prints at 96 %".</summary>
     public static string PrintsAt(int percent) => $"Prints at {percent} %";
 
-    /// <summary>What a Margins choice reads: its own name, or the printer's limit when that is larger than the choice.</summary>
-    public static string MarginLabel(MarginChoice choice, double edge)
+    /// <summary>What a Margins choice reads: its own name and size, or its name and the printer's limit when that is larger than the choice.</summary>
+    public static string MarginLabel(MarginChoice choice, double edge, int customMm = 0)
     {
-        int mm = MarginChoices.Millimetres(choice, 0);
-        if (choice != MarginChoice.Custom && edge > mm) return PrinterLimit(edge);
+        string name = choice switch
+        {
+            MarginChoice.Small => "Small",
+            MarginChoice.Normal => "Normal",
+            MarginChoice.Custom => "Custom",
+            _ => "None",
+        };
+        int mm = MarginChoices.Millimetres(choice, customMm);
+        if (edge > mm) return $"{name}, printer limit {Millimetres(edge)}";
         return choice switch
         {
             MarginChoice.Small => "Small, 6 mm",
             MarginChoice.Normal => "Normal, 12 mm",
-            MarginChoice.Custom => "Custom",
-            _ => "None",
+            _ => name,
         };
     }
 

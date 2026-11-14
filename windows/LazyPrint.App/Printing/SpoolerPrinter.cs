@@ -222,7 +222,7 @@ public sealed class SpoolerPrinter(IPageRenderer pages, IOriginalFiles? files = 
     /// <summary>
     /// The ticket every job is printed under, merged over the driver's default ticket so its saved preferences cannot impose
     /// the sheets a second time: the paper of the plan (with the driver's name for it), portrait, no scaling, no binding,
-    /// one page to a sheet, pages in standard order, two-sided on the long edge or one-sided, the copies the plan leaves to
+    /// one page to a sheet, pages in standard order, borderless exactly when the plan laid out without margins, two-sided on the long edge or one-sided, the copies the plan leaves to
     /// the printer with their collation, color or gray, and the quality. What the printer does not list
     /// (<paramref name="caps"/>) is left out.
     /// </summary>
@@ -239,6 +239,8 @@ public sealed class SpoolerPrinter(IPageRenderer pages, IOriginalFiles? files = 
             PagesPerSheet = 1,
             PageOrder = PageOrder.Standard,
         };
+        var borderless = area.Margins == default ? PageBorderless.Borderless : PageBorderless.None;
+        if (Lists(caps?.PageBorderlessCapability, borderless)) ticket.PageBorderless = borderless;
         bool twoSided = job.Plan.Plan.Duplex && !job.Plan.ManualDuplex;
         var duplexing = twoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided;
         if (Lists(caps?.DuplexingCapability, duplexing)) ticket.Duplexing = duplexing;

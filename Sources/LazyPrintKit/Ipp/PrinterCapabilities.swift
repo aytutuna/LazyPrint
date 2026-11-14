@@ -156,6 +156,8 @@ public struct PrinterCapabilities: Equatable, Sendable {
     public var mediaColSupported = [String]()
     public var mediaColReady = [MediaEntry]()
     public var mediaColDatabase = [MediaEntry]()
+    /// False for an iPhone AirPrint queue: only a photo job (photo output) can print to the edge through it.
+    public var documentsBorderless = true
     public var mediaReady = [String]()
     /// media-supported: the sizes by name ("iso_a3_297x420mm"), as a printer without a media-col-database lists them.
     public var mediaSupported = [String]()

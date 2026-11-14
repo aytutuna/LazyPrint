@@ -597,6 +597,18 @@ public class ImpositionTests
     }
 
     [Fact]
+    public void PrintedScale_IsThatOfALonePage()
+    {
+        Assert.Equal(100, Plan([Page(0, 300, 400)], new LayoutOptions()).PrintedScale);
+        Assert.Equal(50, Plan([Page(0, 300, 400)], new LayoutOptions { Scale = 50 }).PrintedScale);
+        Assert.Equal(198, Plan([Page(0, 300, 400)], new LayoutOptions { Scaling = Scaling.Fit }).PrintedScale);
+        Assert.Equal(94, Plan([Page(0, A4.Width, A4.Height)], new LayoutOptions()).PrintedScale);
+        Assert.Equal(100, Plan(Portrait(2), new LayoutOptions { PagesPerSheet = 2 }).PrintedScale);
+        Assert.Equal(100, Plan(Portrait(2), new LayoutOptions { Booklet = true }).PrintedScale);
+        Assert.Equal(100, Plan([], new LayoutOptions()).PrintedScale);
+    }
+
+    [Fact]
     public void Plan_Margin_AppliesAtActualSizeAndFill()
     {
         var actual = Plan([Page(0, 300, 400)], new LayoutOptions { Scaling = Scaling.ActualSize, Margin = 200 });

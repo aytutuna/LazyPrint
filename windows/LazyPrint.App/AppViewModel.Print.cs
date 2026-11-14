@@ -618,9 +618,10 @@ public sealed partial class AppViewModel
     {
         if (SelectedPrinter is not { } printer || IsBusy || IsAddingFiles || _manual is not null) return;
         var caps = SelectedCapabilities;
-        var area = PrintJobs.Area(Settings, caps);
+        var settings = SheetJob.ItemSettings(Settings);
+        var area = PrintJobs.Area(settings, caps);
         var info = new TestPageInfo(printer.Name, printer.Model ?? caps?.MakeAndModel ?? "", printer.Address ?? "", DateTime.Now.ToString("g"));
-        await PrintItemsAsync("Test page", printer, caps, Settings, area, [new DrawnItems(TestPage.Make(area, info))], announce: true);
+        await PrintItemsAsync("Test page", printer, caps, settings, area, [new DrawnItems(TestPage.Make(area, info))], announce: true);
     }
 
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>

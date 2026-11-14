@@ -45,13 +45,23 @@ public struct SheetJob: Sendable {
         self.frameMarks = frameMarks
     }
 
+    /// What a job of drawn items takes from the user's settings: the paper, its type, the tray and the margin. Everything
+    /// else is the default, so a test page is in color at normal quality whatever the user's document is set to.
+    static func itemSettings(_ user: PrintSettings) -> PrintSettings {
+        var kept = PrintSettings()
+        kept.paperId = user.paperId
+        kept.mediaType = user.mediaType
+        kept.mediaSource = user.mediaSource
+        kept.margin = user.margin
+        kept.marginMm = user.marginMm
+        return kept
+    }
+
     /// A one-sided job of sides drawn from drawing items alone, one sheet each. The ticket's paper is matched from the
     /// `settings` the `area` was chosen with (`PrintJobs.area`), so the two agree on the paper type.
     public static func ofItems(name: String, printer: PrinterInfo, capabilities: PrinterCapabilities?, area: PrintableArea,
                                sides: [DrawnItems], settings: PrintSettings = PrintSettings(), id: String = "") -> SheetJob {
-        var settings = settings
-        settings.copies = 1
-        settings.sides = .oneSided
+        let settings = itemSettings(settings)
         let empty = SheetSide(placements: [], borders: false)
         let sheets = sides.map { _ in Sheet(front: empty, back: nil) }
         let plan = JobPlan(plan: SheetPlan(area: area, sheets: sheets, duplex: false, warnings: []), manualDuplex: false,

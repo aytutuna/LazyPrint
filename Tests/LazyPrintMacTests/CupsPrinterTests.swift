@@ -19,5 +19,12 @@ final class CupsPrinterTests: XCTestCase {
         XCTAssertEqual(CupsPrinter.jobState(0), .waiting)
         XCTAssertEqual(CupsPrinter.jobState(42), .waiting)
     }
+
+    func test_mediaFlags_aBorderlessSheetPrefersBorderlessSizes() {
+        let borderless = CupsPrinter.mediaFlags(borderless: true)
+        let bordered = CupsPrinter.mediaFlags(borderless: false)
+        XCTAssertEqual(borderless.count, 2)
+        XCTAssertTrue(Set(borderless).isDisjoint(with: bordered))
+    }
 }
 #endif

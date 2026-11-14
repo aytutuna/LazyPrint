@@ -135,13 +135,15 @@ extension AppState {
     }
 
     /// The iPhone's queue can only guess at paper, so an IPP printer it is matched to gives the sizes it lists, whatever
-    /// they are (the paper picker takes any size). Not its custom range: AirPrint prints on the nearest paper it lists.
+    /// they are (the paper picker takes any size). Not its custom range: AirPrint prints on the nearest paper it lists. Its
+    /// borderless entries stay for photo jobs, but a document can't be sent borderless through AirPrint.
     @discardableResult
     static func useListedPapers(_ own: inout PrinterCapabilities, from ipp: PrinterCapabilities, platform: AppPlatform) -> Bool {
         guard platform == .ios, !PaperSizes.listed(ipp).isEmpty else { return false }
-        guard own.mediaColDatabase != ipp.mediaColDatabase || own.mediaSupported != ipp.mediaSupported else { return false }
+        guard own.mediaColDatabase != ipp.mediaColDatabase || own.mediaSupported != ipp.mediaSupported || own.documentsBorderless else { return false }
         own.mediaColDatabase = ipp.mediaColDatabase
         own.mediaSupported = ipp.mediaSupported
+        own.documentsBorderless = false
         return true
     }
 
@@ -274,7 +276,9 @@ extension AppState {
             } else if var own = capabilitiesById[id] {
                 if Self.useListedPapers(&own, from: capabilities, platform: platform) { capabilitiesById[id] = own }
             } else {
-                capabilitiesById[id] = capabilities
+                var stand = capabilities
+                if platform == .ios { stand.documentsBorderless = false }
+                capabilitiesById[id] = stand
             }
         }
         rebuildPrinters()

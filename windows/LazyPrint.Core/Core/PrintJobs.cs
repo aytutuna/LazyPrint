@@ -75,6 +75,13 @@ public static class PrintJobs
         Area(settings.PaperId, printer, WantsBorderless(settings, printer), MatchType(settings, printer));
 
     /// <summary>
+    /// The printer's edge (<see cref="Imposition.Edge"/>) the settings would have with <paramref name="margin"/> chosen instead,
+    /// 0 for photo layouts: None can be borderless where Small is not, so each choice in the Margins list is told its own.
+    /// </summary>
+    public static double Edge(PrintSettings settings, MarginChoice margin, PrinterCapabilities? printer) =>
+        settings.LayoutStyle.IsPhoto() ? 0 : Imposition.Edge(Area(settings with { Margin = margin }, printer));
+
+    /// <summary>
     /// Whether the layout asks for the paper without margins: margin None for every layout, and for photo prints a photo
     /// that is the whole page or as large as the paper. The printer may have no such entry, then its edge stays.
     /// </summary>
@@ -141,7 +148,8 @@ public static class PrintJobs
     /// planned (no scaling, two-sided on the long edge whatever the flip, since the planner turns the backs), and a manual
     /// pass is one-sided. Quality, scaling and the copies' collation are asked for only when the printer lists them.
     /// A paper the printer has no entry for is sent as a media-col with the margins laid out when it lists media-col-supported.
-    /// A document <paramref name="asIs"/> is the printer's to scale ("auto" for shrink to fit, "fit"), and goes two-sided on
+    /// A document <paramref name="asIs"/> is the printer's to scale ("auto" for shrink to fit, "fit"; on borderless media "auto-fit"
+    /// or "fit", since "auto" fills zero-margin media), and goes two-sided on
     /// the short edge when asked and listed.
     /// </summary>
     public static IppJobTicket Ticket(JobPlan job, PrintSettings settings, string format, PrinterCapabilities? printer, string name,
@@ -167,16 +175,16 @@ public static class PrintJobs
             mode,
             Media(area, printer, MatchType(settings, printer), MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer), settings.MediaType == MediaChoices.Auto),
             printer?.PrintQualitySupported.Contains(quality) == true ? quality : null,
-            PrintScaling(settings.Scaling, printer, asIs),
+            PrintScaling(settings.Scaling, printer, asIs, area.Margins == default),
             hasCopies && settings.Collate && printer?.MultipleDocumentHandlingSupported.Contains(CollatedCopies) == true);
     }
 
-    private static string? PrintScaling(Scaling scaling, PrinterCapabilities? printer, bool asIs)
+    private static string? PrintScaling(Scaling scaling, PrinterCapabilities? printer, bool asIs, bool borderless)
     {
         var listed = printer?.PrintScalingSupported ?? [];
         string[] wanted = !asIs ? ["none"]
             : scaling == Scaling.Fit ? ["fit", "auto"]
-            : scaling == Scaling.ShrinkToFit ? ["auto", "fit"]
+            : scaling == Scaling.ShrinkToFit ? borderless ? ["auto-fit", "fit"] : ["auto", "fit"]
             : ["none"];
         return wanted.FirstOrDefault(w => listed.Contains(w));
     }

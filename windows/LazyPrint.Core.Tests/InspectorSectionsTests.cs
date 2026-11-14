@@ -119,6 +119,14 @@ public class InspectorSectionsTests
     }
 
     [Fact]
+    public void Summary_PhotoLayouts_ShowNoMarginPart()
+    {
+        var sheet = new PrintSettings { LayoutStyle = LayoutStyle.PhotoSheet, Margin = MarginChoice.Normal };
+        Assert.Equal("Photo sheet", InspectorSections.LayoutSummary(sheet, 4.3));
+        Assert.Equal("Photo sheet", InspectorSections.LayoutSummary(sheet with { Margin = MarginChoice.None }, 4.3, 96));
+    }
+
+    [Fact]
     public void LayoutSummary_NamesAPosterAndTheMarginsThatApply()
     {
         Assert.Equal("Poster 3 × 3", InspectorSections.LayoutSummary(new PrintSettings { Poster = 3, PagesPerSheet = 4, RightToLeft = true }));

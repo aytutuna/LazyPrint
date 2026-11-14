@@ -153,25 +153,24 @@ public enum PrintText {
         return (tenths == tenths.rounded() ? String(Int(tenths)) : String(format: "%.1f", tenths)) + " mm"
     }
 
-    /// The margin the printer itself keeps, shown where a smaller one was asked for: "4.3 mm (printer limit)".
-    public static func printerLimit(_ edge: Double) -> String {
-        "\(millimetres(edge)) (printer limit)"
-    }
-
     /// Under a custom margin that is smaller than the printer's own: "Printer limit 4.3 mm".
     public static func printerLimitHint(_ edge: Double) -> String {
         "Printer limit \(millimetres(edge))"
     }
 
-    /// What a Margins choice reads: its own name, or the printer's limit when that is larger than the choice.
-    public static func marginLabel(_ choice: MarginChoice, edge: Double) -> String {
-        if choice != .custom && edge > Double(MarginChoices.millimetres(choice, custom: 0)) { return printerLimit(edge) }
+    /// What a Margins choice reads: its own name, then the printer's limit when that is larger than the choice
+    /// ("None, printer limit 4.3 mm"). A custom choice is measured by the value `custom` the user typed.
+    public static func marginLabel(_ choice: MarginChoice, edge: Double, custom: Int) -> String {
+        let name: String
+        let plain: String
         switch choice {
-        case .none: return "None"
-        case .small: return "Small, 6 mm"
-        case .normal: return "Normal, 12 mm"
-        case .custom: return "Custom"
+        case .none: name = "None"; plain = "None"
+        case .small: name = "Small"; plain = "Small, 6 mm"
+        case .normal: name = "Normal"; plain = "Normal, 12 mm"
+        case .custom: name = "Custom"; plain = "Custom"
         }
+        let limited = edge > Double(MarginChoices.millimetres(choice, custom: custom))
+        return limited ? "\(name), printer limit \(millimetres(edge))" : plain
     }
 
     /// Under the Scale box when the page prints at another size than it says: "Prints at 96 %".

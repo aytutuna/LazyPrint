@@ -251,7 +251,7 @@ extension AppState {
     public func printTestPage() async {
         guard let printer = selectedPrinter, !isBusy, manual == nil else { return }
         let caps = capabilities
-        let area = PrintJobs.area(settings, printer: caps)
+        let area = PrintJobs.area(SheetJob.itemSettings(settings), printer: caps)
         let date = Date().formatted(date: .numeric, time: .shortened)
         let info = TestPageInfo(printerName: printer.name, model: printer.model ?? caps?.makeAndModel ?? "",
                                 address: printer.address ?? "", date: date)

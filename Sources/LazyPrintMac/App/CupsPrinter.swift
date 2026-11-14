@@ -190,6 +190,14 @@ public final class CupsPrinter: SheetPrinter {
         return prepared
     }
 
+    /// How the queue is asked for the paper, closest match last. A borderless sheet asks for an exact borderless size, then
+    /// for that size with the smallest margins the queue has, never the default margins.
+    static func mediaFlags(borderless: Bool) -> [UInt32] {
+        let exact = UInt32(CUPS_MEDIA_FLAGS_EXACT)
+        let edge = UInt32(CUPS_MEDIA_FLAGS_BORDERLESS)
+        return borderless ? [exact | edge, edge] : [exact, UInt32(CUPS_MEDIA_FLAGS_DEFAULT)]
+    }
+
     private static func mediaName(queue: String, paper: LayoutSize, borderless: Bool) -> String? {
         guard let dest = cupsGetNamedDest(nil, queue, nil) else { return nil }
         defer { cupsFreeDests(1, dest) }
@@ -197,8 +205,7 @@ public final class CupsPrinter: SheetPrinter {
         defer { cupsFreeDestInfo(info) }
         let width = Int32((paper.width * 2540 / 72).rounded())
         let length = Int32((paper.height * 2540 / 72).rounded())
-        let exact = UInt32(CUPS_MEDIA_FLAGS_EXACT) | (borderless ? UInt32(CUPS_MEDIA_FLAGS_BORDERLESS) : 0)
-        for flags in [exact, UInt32(CUPS_MEDIA_FLAGS_DEFAULT)] {
+        for flags in mediaFlags(borderless: borderless) {
             var size = cups_size_t()
             if cupsGetDestMediaBySize(nil, dest, info, width, length, flags, &size) != 0 {
                 return withUnsafePointer(to: &size.media) { pointer in

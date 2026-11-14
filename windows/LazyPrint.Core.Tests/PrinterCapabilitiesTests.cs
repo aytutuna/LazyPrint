@@ -165,7 +165,18 @@ public class PrinterCapabilitiesTests
         var inkjet = new PrinterCapabilities { MediaColDatabase = [Entry(300, "stationery"), Entry(0, "stationery-inkjet")] };
         Assert.True(inkjet.Match(A4, borderless: true, type: MediaChoices.Auto)!.Margins!.Value.IsZero);
         var onlyBorderless = new PrinterCapabilities { MediaColDatabase = [Entry(0, "photographic-glossy")] };
-        Assert.Null(onlyBorderless.Match(A4, type: MediaChoices.Auto));
+        Assert.True(onlyBorderless.Match(A4, type: MediaChoices.Auto)!.Margins!.Value.IsZero);
+    }
+
+    [Fact]
+    public void Match_ABorderlessEntryThatDoesNotSuit_IsTheLastResort()
+    {
+        var only = new PrinterCapabilities
+        {
+            MediaColDatabase = [new([], 21000, 29700, false, new MediaMargins(0, 0, 0, 0), "photographic-glossy", null)],
+        };
+        Assert.Equal("photographic-glossy", only.Match(A4, borderless: true, type: MediaChoices.Auto)!.Type);
+        Assert.Equal("photographic-glossy", only.Match(A4, borderless: false, type: MediaChoices.Auto)!.Type);
     }
 
     [Fact]

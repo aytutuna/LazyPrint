@@ -88,7 +88,7 @@ public enum PrintJobs {
         if settings.layoutStyle.isPhoto {
             return settings.layoutStyle == .photoPrints && borderless(settings.photoSizeId, sheet: sheet(settings.paperId, printer))
         }
-        return settings.margin == .none
+        return settings.margin == .none && printer?.documentsBorderless != false
     }
 
     /// The paper type a borderless entry has to suit; nil for a photo layout, which takes any.
@@ -147,7 +147,7 @@ public enum PrintJobs {
     /// planned (no scaling, two-sided on the long edge whatever the flip, since the planner turns the backs), and a manual
     /// pass is one-sided. Quality, scaling and the copies' collation are asked for only when the printer lists them.
     /// A paper the printer has no entry for is sent as a media-col with the margins laid out when it lists media-col-supported.
-    /// A document `asIs` is the printer's to scale ("auto" for shrink to fit, "fit"), and goes two-sided on the short edge
+    /// A document `asIs` is the printer's to scale ("auto" for shrink to fit, or "auto-fit" and "fit" on borderless media; "fit" for fit), and goes two-sided on the short edge
     /// when asked and listed.
     public static func ticket(_ job: JobPlan, settings: PrintSettings, format: String, printer: PrinterCapabilities?,
                               name: String, asIs: Bool = false) -> IppJobTicket {
@@ -182,11 +182,13 @@ public enum PrintJobs {
                             media: media(sheet, printer, type: MediaChoices.type(settings, printer), source: MediaChoices.source(settings, printer),
                                          autoType: settings.mediaType == MediaChoices.auto, matchType: matchType(settings, printer)),
                             quality: printer?.printQualitySupported.contains(quality) == true ? quality : nil,
-                            scaling: printScaling(settings.scaling, printer: printer, asIs: asIs),
+                            scaling: printScaling(settings.scaling, printer: printer, asIs: asIs,
+                                                  borderless: sheet.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)),
                             collatedCopies: collated)
     }
 
-    private static func printScaling(_ scaling: Scaling, printer: PrinterCapabilities?, asIs: Bool) -> String? {
+    /// On borderless media "auto" is fill (PWG 5100.13), so shrink to fit asks for "auto-fit" or "fit" there.
+    private static func printScaling(_ scaling: Scaling, printer: PrinterCapabilities?, asIs: Bool, borderless: Bool) -> String? {
         let listed = printer?.printScalingSupported ?? []
         let wanted: [String]
         if !asIs {
@@ -194,7 +196,7 @@ public enum PrintJobs {
         } else if scaling == .fit {
             wanted = ["fit", "auto"]
         } else if scaling == .shrinkToFit {
-            wanted = ["auto", "fit"]
+            wanted = borderless ? ["auto-fit", "fit"] : ["auto", "fit"]
         } else {
             wanted = ["none"]
         }

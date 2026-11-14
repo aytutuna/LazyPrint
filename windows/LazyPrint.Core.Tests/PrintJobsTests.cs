@@ -346,6 +346,48 @@ public class PrintJobsTests
     }
 
     [Fact]
+    public void Ticket_MediaCol_FollowsTheAreaWhenOnlyAnUnsuitedBorderlessEntryExists()
+    {
+        var printer = WithEntries(A4Entry(0, "photographic-glossy"));
+        var settings = Settings();
+        var job = Plan([Doc(1)], settings, printer);
+        var ticket = PrintJobs.Ticket(job, settings, "application/pdf", printer, "x");
+        Assert.Equal(NoMargins, job.Plan.Area.Margins);
+        Assert.Equal(printer.MediaColDatabase[0].Attributes, ticket.Media.Entry);
+    }
+
+    [Fact]
+    public void Ticket_ShrinkToFitOnBorderlessMedia_NeverAsksForAuto()
+    {
+        var settings = Settings(s => s.Scaling = Scaling.ShrinkToFit);
+        string? Sent(PrinterCapabilities printer)
+        {
+            var job = Plan([Doc(1)], settings, printer);
+            return PrintJobs.Ticket(job, settings, "application/pdf", printer, "x", asIs: true).Scaling;
+        }
+        PrinterCapabilities With(params string[] scaling) =>
+            new() { MediaColDatabase = [A4Entry(432), A4Entry(0)], PrintScalingSupported = scaling };
+
+        Assert.Equal("auto-fit", Sent(With("auto", "auto-fit", "fit", "none")));
+        Assert.Equal("fit", Sent(With("auto", "fit", "none")));
+        Assert.Null(Sent(With("auto", "none")));
+        settings = settings with { Margin = MarginChoice.Small };
+        Assert.Equal("auto", Sent(With("auto", "auto-fit", "fit", "none")));
+    }
+
+    [Fact]
+    public void Edge_IsZeroForPhotoLayouts_AndTheChoicesOwnOtherwise()
+    {
+        var printer = WithEntries(A4Entry(432));
+        Assert.Equal(4.3, PrintJobs.Edge(Settings(), MarginChoice.Normal, printer));
+        Assert.Equal(0, PrintJobs.Edge(Settings(s => s.LayoutStyle = LayoutStyle.PhotoSheet), MarginChoice.Normal, printer));
+        Assert.Equal(0, PrintJobs.Edge(Settings(s => s.LayoutStyle = LayoutStyle.PhotoPrints), MarginChoice.None, printer));
+        var borderless = WithEntries(A4Entry(432), A4Entry(0));
+        Assert.Equal(0, PrintJobs.Edge(Settings(), MarginChoice.None, borderless));
+        Assert.Equal(4.3, PrintJobs.Edge(Settings(), MarginChoice.Small, borderless));
+    }
+
+    [Fact]
     public void PrintedScale_DemoLetter_Is96()
     {
         var printer = WithEntries(new MediaEntry([], 21590, 27940, false, new MediaMargins(432, 432, 432, 432), null, null));

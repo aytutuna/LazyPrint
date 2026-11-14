@@ -303,7 +303,7 @@ public partial class MainWindow
             ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
             ScaleText.Text = $"{s.Scale} %";
             var plan = ViewModel.Plan();
-            if (state.ShowScale && plan is not null && plan.Plan.PrintedScale != s.Scale)
+            if (state.ShowScale && !s.LayoutStyle.IsPhoto() && plan is not null && plan.Plan.PrintedScale != s.Scale)
             {
                 ScalePrintsAtText.Text = PrintText.PrintsAt(plan.Plan.PrintedScale);
                 ScalePrintsAtText.Visibility = Visibility.Visible;
@@ -312,13 +312,11 @@ public partial class MainWindow
             {
                 ScalePrintsAtText.Visibility = Visibility.Collapsed;
             }
-            _edge = Imposition.Edge(PrintJobs.Area(s, ViewModel.SelectedCapabilities));
-            _printedScale = plan?.Plan.PrintedScale;
             var caps = ViewModel.SelectedCapabilities;
-            double noneEdge = Imposition.Edge(PrintJobs.Area(s with { Margin = MarginChoice.None }, caps));
-            double keptEdge = Imposition.Edge(PrintJobs.Area(s with { Margin = MarginChoice.Small }, caps));
+            _edge = PrintJobs.Edge(s, s.Margin, caps);
+            _printedScale = plan?.Plan.PrintedScale;
             foreach (var item in MarginBox.Items.OfType<ComboBoxItem>())
-                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, (MarginChoice)item.Tag == MarginChoice.None ? noneEdge : keptEdge);
+                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, PrintJobs.Edge(s, (MarginChoice)item.Tag, caps), s.MarginMm);
             Select(MarginBox, s.Margin);
             MarginBox.IsEnabled = state.MarginEnabled;
             MarginBox.ToolTip = state.MarginReason;

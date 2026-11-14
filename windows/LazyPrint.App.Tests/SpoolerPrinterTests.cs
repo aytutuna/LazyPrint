@@ -167,6 +167,41 @@ public sealed class SpoolerPrinterTests : IDisposable
     }
 
     [Fact]
+    public void OfItems_KeepsOnlyThePaperTypeTrayAndMarginOfTheUser()
+    {
+        var printer = new PrinterCapabilities
+        {
+            PrintColorModesSupported = ["color", "monochrome"],
+            PrintQualitySupported = [3, 4, 5],
+        };
+        var user = new PrintSettings
+        {
+            PaperId = "a4", Color = ColorChoice.Gray, Quality = QualityChoice.Draft, Copies = 3, Sides = Sides.LongEdge, Margin = MarginChoice.Small,
+        };
+        var area = PrintJobs.Area(SheetJob.ItemSettings(user), printer);
+        var job = SheetJob.OfItems("c", "Test page", PrintFixtures.Printer(), printer, user, area, [new DrawnItems([])]);
+        var ticket = PrintJobs.Ticket(job.Plan, job.Settings, "application/pdf", printer, "x");
+
+        Assert.Equal("a4", job.Settings.PaperId);
+        Assert.Equal(MarginChoice.Small, job.Settings.Margin);
+        Assert.Equal("color", ticket.ColorMode);
+        Assert.Equal(4, ticket.Quality);
+        Assert.Equal(1, ticket.Copies);
+        Assert.Equal("one-sided", ticket.Sides);
+    }
+
+    [Fact]
+    public void TheTicketAsksForBorderlessExactlyWhenThePlanWasLaidOutWithoutMargins()
+    {
+        var bordered = SpoolerPrinter.Ticket(PrintFixtures.Job(PrintFixtures.Letter(s => s.Margin = MarginChoice.Small), pages: 1), 0, null);
+        Assert.Equal(PageBorderless.None, bordered.PageBorderless);
+
+        var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(0, 0, 0, 0));
+        var items = SheetJob.OfItems("c", "check", PrintFixtures.Printer(), null, new PrintSettings(), area, [new DrawnItems([])]);
+        Assert.Equal(PageBorderless.Borderless, SpoolerPrinter.Ticket(items, 0, null).PageBorderless);
+    }
+
+    [Fact]
     public void AnItemsJobOnATypedBorderlessAreaSendsThatEntry()
     {
         MediaEntry Entry(int margin, string type) =>

@@ -19,13 +19,16 @@ public class PrintTextTests
     [Fact]
     public void MarginLabel_None_ShowsThePrinterLimit()
     {
-        Assert.Equal("4.3 mm (printer limit)", PrintText.MarginLabel(MarginChoice.None, 4.3));
+        Assert.Equal("None, printer limit 4.3 mm", PrintText.MarginLabel(MarginChoice.None, 4.3));
         Assert.Equal("None", PrintText.MarginLabel(MarginChoice.None, 0));
-        Assert.Equal("6.4 mm (printer limit)", PrintText.MarginLabel(MarginChoice.Small, 6.4));
+        Assert.Equal("Small, printer limit 6.4 mm", PrintText.MarginLabel(MarginChoice.Small, 6.4));
         Assert.Equal("Small, 6 mm", PrintText.MarginLabel(MarginChoice.Small, 4.3));
+        Assert.Equal("Normal, printer limit 13 mm", PrintText.MarginLabel(MarginChoice.Normal, 13));
         Assert.Equal("Normal, 12 mm", PrintText.MarginLabel(MarginChoice.Normal, 6.4));
-        Assert.Equal("Custom", PrintText.MarginLabel(MarginChoice.Custom, 4.3));
-        Assert.Equal("3 mm (printer limit)", PrintText.PrinterLimit(3));
+        Assert.Equal("Custom, printer limit 4.3 mm", PrintText.MarginLabel(MarginChoice.Custom, 4.3));
+        Assert.Equal("Custom", PrintText.MarginLabel(MarginChoice.Custom, 0));
+        Assert.Equal("Custom", PrintText.MarginLabel(MarginChoice.Custom, 4.3, 20));
+        Assert.Equal("Custom, printer limit 4.3 mm", PrintText.MarginLabel(MarginChoice.Custom, 4.3, 2));
         Assert.Equal("Printer limit 4.3 mm", PrintText.PrinterLimitHint(4.3));
         Assert.Equal("Prints at 96 %", PrintText.PrintsAt(96));
     }

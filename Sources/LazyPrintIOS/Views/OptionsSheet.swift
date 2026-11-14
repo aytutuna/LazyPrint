@@ -165,7 +165,7 @@ struct OptionsSheet: View {
             }
             .disabled(rules.scalingLimited || rules.photoPrints || state.settings.scaling == .fit || state.settings.scaling == .fill)
             .accessibilityIdentifier("print.scale")
-            if let printed, printed != state.settings.scale, !rules.scalingLimited, !rules.photoPrints, !rules.poster,
+            if let printed, printed != state.settings.scale, !rules.scalingLimited, !state.settings.layoutStyle.isPhoto, !rules.poster,
                state.settings.scaling == .shrinkToFit || state.settings.scaling == .actualSize {
                 note(PrintText.printsAt(printed))
             }
@@ -173,7 +173,7 @@ struct OptionsSheet: View {
                 get: { state.settings.margin },
                 set: { (margin: MarginChoice) in state.settings.margin = margin }),
                    options: MarginChoice.allCases.map { (choice: MarginChoice) -> (String, MarginChoice) in
-                       (PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge), choice)
+                       (PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge, custom: state.settings.marginMm), choice)
                    },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {

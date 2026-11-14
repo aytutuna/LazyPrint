@@ -15,12 +15,15 @@ final class PrintTextTests: XCTestCase {
     }
 
     func test_marginLabel_none_showsThePrinterLimit() {
-        XCTAssertEqual(PrintText.marginLabel(.none, edge: 4.3), "4.3 mm (printer limit)")
-        XCTAssertEqual(PrintText.marginLabel(.none, edge: 0), "None")
-        XCTAssertEqual(PrintText.marginLabel(.small, edge: 6.4), "6.4 mm (printer limit)")
-        XCTAssertEqual(PrintText.marginLabel(.small, edge: 4.3), "Small, 6 mm")
-        XCTAssertEqual(PrintText.marginLabel(.normal, edge: 4.3), "Normal, 12 mm")
-        XCTAssertEqual(PrintText.marginLabel(.custom, edge: 4.3), "Custom")
+        XCTAssertEqual(PrintText.marginLabel(.none, edge: 4.3, custom: 0), "None, printer limit 4.3 mm")
+        XCTAssertEqual(PrintText.marginLabel(.none, edge: 0, custom: 0), "None")
+        XCTAssertEqual(PrintText.marginLabel(.small, edge: 6.4, custom: 0), "Small, printer limit 6.4 mm")
+        XCTAssertEqual(PrintText.marginLabel(.normal, edge: 13, custom: 0), "Normal, printer limit 13 mm")
+        XCTAssertEqual(PrintText.marginLabel(.small, edge: 4.3, custom: 0), "Small, 6 mm")
+        XCTAssertEqual(PrintText.marginLabel(.normal, edge: 4.3, custom: 0), "Normal, 12 mm")
+        XCTAssertEqual(PrintText.marginLabel(.custom, edge: 4.3, custom: 0), "Custom, printer limit 4.3 mm")
+        XCTAssertEqual(PrintText.marginLabel(.custom, edge: 0, custom: 0), "Custom")
+        XCTAssertEqual(PrintText.marginLabel(.custom, edge: 4.3, custom: 20), "Custom")
         XCTAssertEqual(PrintText.printerLimitHint(4.3), "Printer limit 4.3 mm")
         XCTAssertEqual(PrintText.printsAt(96), "Prints at 96 %")
         XCTAssertEqual(PrintText.millimetres(3), "3 mm")

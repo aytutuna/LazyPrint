@@ -130,6 +130,13 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }, edge: 4.3), "Fill · 4.3 mm margins")
     }
 
+    func test_summary_photoLayouts_showNoMarginPart() {
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.layoutStyle = .photoSheet; $0.margin = .normal }, edge: 4.3),
+                       "Photo sheet")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.layoutStyle = .photoSheet }, edge: 4.3, printedScale: 96),
+                       "Photo sheet")
+    }
+
     func test_summary_aLonePageShowsWhatItPrintsAt() {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }, edge: 4.3, printedScale: 96), "96 % \u{00B7} 4.3 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }, printedScale: 50), "50 %")

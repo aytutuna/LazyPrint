@@ -278,6 +278,7 @@ public sealed class WindowsPrinters : IPrinterSystem
             var capabilities = queue.GetPrintCapabilities();
             var papers = new List<MediaEntry>();
             bool custom = false;
+            bool borderless = capabilities.PageBorderlessCapability.Contains(PageBorderless.Borderless);
             foreach (var size in capabilities.PageMediaSizeCapability)
             {
                 // An entry without a size is how a driver lists the sizes it takes on request.
@@ -289,6 +290,15 @@ public sealed class WindowsPrinters : IPrinterSystem
                     var area = queue.GetPrintCapabilities(new PrintTicket { PageMediaSize = size }).PageImageableArea;
                     if (area is null) continue;
                     papers.Add(PrinterMapping.Entry(width, height, area.OriginWidth, area.OriginHeight, area.ExtentWidth, area.ExtentHeight));
+                    if (borderless)
+                    {
+                        var whole = queue.GetPrintCapabilities(new PrintTicket { PageMediaSize = size, PageBorderless = PageBorderless.Borderless }).PageImageableArea;
+                        if (whole is not null)
+                        {
+                            var entry = PrinterMapping.Entry(width, height, whole.OriginWidth, whole.OriginHeight, whole.ExtentWidth, whole.ExtentHeight);
+                            if (entry.Margins is { Top: 0, Left: 0, Bottom: 0, Right: 0 } && !papers.Contains(entry)) papers.Add(entry);
+                        }
+                    }
                 }
                 catch (Exception e) when (e is PrintQueueException or PrintSystemException or InvalidOperationException)
                 {

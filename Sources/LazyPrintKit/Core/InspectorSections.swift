@@ -85,7 +85,7 @@ public enum InspectorSections {
         if !poster && !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
         if !poster && (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
         if !poster && !s.booklet && s.pagesPerSheet == 1 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
-            let percent = printedScale ?? s.scale
+            let percent = s.layoutStyle.isPhoto ? s.scale : printedScale ?? s.scale
             if percent != 100 { parts.append("\(percent) %") }
         }
         if !poster && s.scaling != .shrinkToFit {
@@ -95,7 +95,7 @@ public enum InspectorSections {
             default: parts.append("Fill")
             }
         }
-        let margin: Double = max(Double(MarginChoices.millimetres(s.margin, custom: s.marginMm)), s.layoutStyle.isPhoto ? 0 : edge)
+        let margin: Double = s.layoutStyle.isPhoto ? 0 : max(Double(MarginChoices.millimetres(s.margin, custom: s.marginMm)), edge)
         if margin > 0 { parts.append("\(PrintText.millimetres(margin)) margins") }
         return join(parts)
     }

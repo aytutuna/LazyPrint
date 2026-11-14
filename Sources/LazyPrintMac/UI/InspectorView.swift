@@ -175,7 +175,7 @@ struct InspectorView: View {
                     .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1 || rules.poster || rules.photoPrints)
                     .accessibilityLabel("Scale")
                     .accessibilityValue("\(state.settings.scale) %")
-                    if let printed, printed != state.settings.scale, !rules.photoPrints, !rules.poster, !state.settings.booklet,
+                    if let printed, printed != state.settings.scale, !state.settings.layoutStyle.isPhoto, !rules.poster, !state.settings.booklet,
                        state.settings.pagesPerSheet == 1 {
                         note(PrintText.printsAt(printed))
                     }
@@ -184,7 +184,7 @@ struct InspectorView: View {
             field("Margins") {
                 Picker("Margins", selection: $state.settings.margin) {
                     ForEach(MarginChoice.allCases, id: \.self) { choice in
-                        Text(PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge)).tag(choice)
+                        Text(PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge, custom: state.settings.marginMm)).tag(choice)
                     }
                 }
                 .labelsHidden()
