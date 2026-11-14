@@ -88,6 +88,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 bool whole = placed.Count == document.Pages.Count;
                 bool plain = settings.LayoutStyle == LayoutStyle.Pages && settings.Poster == 0 && (settings.Margin == MarginChoice.None || settings.Margin == MarginChoice.Custom && settings.MarginMm == 0)
                     && settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
+                    && (job.Plan.Plan.Area.Margins == default || job.Plan.Plan.PrintedScale == 100)
                     && (settings.Scale == 100 || settings.Scaling == Scaling.Fit)
                     && (settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit
                     || settings.Scaling == Scaling.ActualSize && caps.PrintScalingSupported.Contains("none"));
@@ -96,8 +97,10 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             case DocumentKind.Photo:
                 var paper = job.Plan.Plan.Area.Paper;
                 var photo = document.Pages[0];
-                // Only a photo the plan laid out filling the paper upright goes as it is: a margin or a forced orientation shrinks or turns it.
+                // Only a photo the plan laid out filling the paper upright goes as it is, and only on borderless media: a margin or a
+                // forced orientation shrinks or turns it, and a bordered printer would scale it into its edge.
                 bool ownSize = placed.Count == 1
+                               && job.Plan.Plan.Area.Margins == default
                                && job.Plan.Plan.Sheets[0].Front.Placements[0] is { Turns: 0 } placement
                                && (Math.Abs(placement.Frame.Width - paper.Width) <= PaperSizes.FitTolerance
                                    || Math.Abs(placement.Frame.Height - paper.Height) <= PaperSizes.FitTolerance)

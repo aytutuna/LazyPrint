@@ -372,7 +372,7 @@ public class PrintJobsTests
         Assert.Equal("fit", Sent(With("auto", "fit", "none")));
         Assert.Null(Sent(With("auto", "none")));
         settings = settings with { Margin = MarginChoice.Printer };
-        Assert.Equal("auto", Sent(With("auto", "auto-fit", "fit", "none")));
+        Assert.Equal("none", Sent(With("auto", "auto-fit", "fit", "none")));
     }
 
     [Fact]
@@ -469,18 +469,27 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void Ticket_ADocumentSentAsIs_IsScaledByThePrinter_AndFlippedOnTheEdgeAskedFor()
+    public void Ticket_ADocumentSentAsIs_IsScaledByThePrinterOnlyOnBorderlessMedia_AndFlippedOnTheEdgeAskedFor()
     {
         var settings = Settings(s => { s.Sides = Sides.ShortEdge; s.Scaling = Scaling.ShrinkToFit; });
         var job = Plan([Doc(2)], settings, Hp);
         var ticket = PrintJobs.Ticket(job, settings, "application/pdf", Hp, "x", asIs: true);
         Assert.Equal("two-sided-short-edge", ticket.Sides);
-        Assert.Equal("auto", ticket.Scaling);
+        Assert.Equal("none", ticket.Scaling);
 
         var fit = Settings(s => s.Scaling = Scaling.Fit);
-        Assert.Equal("fit", PrintJobs.Ticket(Plan([Doc(1)], fit, Hp), fit, "application/pdf", Hp, "x", asIs: true).Scaling);
+        Assert.Equal("none", PrintJobs.Ticket(Plan([Doc(1)], fit, Hp), fit, "application/pdf", Hp, "x", asIs: true).Scaling);
+
+        var borderless = new PrinterCapabilities
+        {
+            SidesSupported = ["one-sided", "two-sided-long-edge"],
+            MediaColDatabase = [A4Entry(432), A4Entry(0)],
+            PrintScalingSupported = ["auto", "auto-fit", "fit", "none"],
+        };
+        Assert.Equal("fit", PrintJobs.Ticket(Plan([Doc(1)], fit, borderless), fit, "application/pdf", borderless, "x", asIs: true).Scaling);
+        Assert.Equal("auto-fit", PrintJobs.Ticket(Plan([Doc(1)], settings, borderless), settings, "application/pdf", borderless, "x", asIs: true).Scaling);
         var onlyFit = new PrinterCapabilities { PrintScalingSupported = ["fit", "none"] };
-        Assert.Equal("fit", PrintJobs.Ticket(job, settings, "application/pdf", onlyFit, "x", asIs: true).Scaling);
+        Assert.Equal("none", PrintJobs.Ticket(job, settings, "application/pdf", onlyFit, "x", asIs: true).Scaling);
         Assert.Null(PrintJobs.Ticket(job, settings, "application/pdf", Plain, "x", asIs: true).Scaling);
         Assert.Equal("none", PrintJobs.Ticket(job, settings, "application/pdf", Hp, "x").Scaling);
         Assert.Equal("two-sided-long-edge", PrintJobs.Ticket(job, settings, "application/pdf", Hp, "x").Sides);

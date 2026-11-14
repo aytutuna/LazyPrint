@@ -148,9 +148,9 @@ public static class PrintJobs
     /// planned (no scaling, two-sided on the long edge whatever the flip, since the planner turns the backs), and a manual
     /// pass is one-sided. Quality, scaling and the copies' collation are asked for only when the printer lists them.
     /// A paper the printer has no entry for is sent as a media-col with the margins laid out when it lists media-col-supported.
-    /// A document <paramref name="asIs"/> is the printer's to scale ("auto" for shrink to fit, "fit"; on borderless media "auto-fit"
-    /// or "fit", since "auto" fills zero-margin media), and goes two-sided on
-    /// the short edge when asked and listed.
+    /// A document <paramref name="asIs"/> on borderless media is the printer's to scale ("auto-fit" or "fit" for shrink to fit,
+    /// "fit"; "auto" would fill zero-margin media); on bordered media it is only sent when nothing needs scaling, so it
+    /// asks for none. It goes two-sided on the short edge when asked and listed.
     /// </summary>
     public static IppJobTicket Ticket(JobPlan job, PrintSettings settings, string format, PrinterCapabilities? printer, string name,
                                       bool asIs = false)
@@ -182,9 +182,9 @@ public static class PrintJobs
     private static string? PrintScaling(Scaling scaling, PrinterCapabilities? printer, bool asIs, bool borderless)
     {
         var listed = printer?.PrintScalingSupported ?? [];
-        string[] wanted = !asIs ? ["none"]
+        string[] wanted = !asIs || !borderless ? ["none"]
             : scaling == Scaling.Fit ? ["fit", "auto"]
-            : scaling == Scaling.ShrinkToFit ? borderless ? ["auto-fit", "fit"] : ["auto", "fit"]
+            : scaling == Scaling.ShrinkToFit ? ["auto-fit", "fit"]
             : ["none"];
         return wanted.FirstOrDefault(w => listed.Contains(w));
     }

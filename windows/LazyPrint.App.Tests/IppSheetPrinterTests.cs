@@ -37,7 +37,7 @@ public sealed class IppSheetPrinterTests : IDisposable
         PrintFixtures.Job(PrintFixtures.Letter(edit), pages, PrintFixtures.Printer(PrinterRoute.Ipp), caps ?? IppFixtures.Capabilities(name));
 
     /// <summary>A black and white printer that takes PDF and PWG raster, with what the test changes.</summary>
-    private static PrinterCapabilities Plain(int copies = 99, string[]? sides = null, bool jpeg = false) => new()
+    private static PrinterCapabilities Plain(int copies = 99, string[]? sides = null, bool jpeg = false, MediaEntry[]? media = null) => new()
     {
         DocumentFormatsSupported = jpeg ? ["application/pdf", "image/jpeg", "image/pwg-raster"] : ["application/pdf", "image/pwg-raster"],
         PwgRasterResolutions = [(300, 300)],
@@ -45,6 +45,7 @@ public sealed class IppSheetPrinterTests : IDisposable
         SidesSupported = sides ?? ["one-sided", "two-sided-long-edge"],
         CopiesSupported = (1, copies),
         PrintColorModesSupported = ["monochrome"],
+        MediaColDatabase = media ?? [],
     };
 
     private IEnumerable<LoopbackRequest> Sent(IppOperation operation) =>
@@ -166,9 +167,31 @@ public sealed class IppSheetPrinterTests : IDisposable
     [Fact]
     public async Task APhotoFillingTheSheetGoesAsItIs()
     {
-        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain(jpeg: true), new DocumentKind.Photo());
+        var caps = Plain(jpeg: true, media: [LetterEntry(432), LetterEntry(0)]);
+        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), caps, new DocumentKind.Photo());
         Assert.Equal("image/jpeg", await SentFormat(job, "jpeg bytes"));
     }
+
+    [Fact]
+    public async Task APhotoOnPaperWithAnEdgeIsDrawnHereNotScaledIntoIt()
+    {
+        var caps = Plain(jpeg: true, media: [LetterEntry(432)]);
+        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), caps, new DocumentKind.Photo());
+        Assert.NotEqual("image/jpeg", await SentFormat(job, "jpeg bytes"));
+    }
+
+    [Fact]
+    public async Task APdfThatNeedsShrinkingOnPaperWithAnEdgeIsDrawnHere()
+    {
+        var a4 = new[] { new LayoutSize(595, 842) };
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => s.Scaling = Scaling.ShrinkToFit), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain(),
+                                    sizes: a4);
+        await SentFormat(job, "%PDF-1.4");
+        Assert.NotEqual("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
+    }
+
+    private static MediaEntry LetterEntry(int margin) =>
+        new([], 21590, 27940, false, new MediaMargins(margin, margin, margin, margin), null, null);
 
     [Fact]
     public async Task APhotoOnAPrinterThatTakesPdfButNotJpegIsDrawnAsPdfNotSentAsIs()
