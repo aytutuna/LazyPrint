@@ -127,6 +127,14 @@ final class PrintSettingsTests: XCTestCase {
         }
     }
 
+    func test_pendingBacks_loadTheMarginAsDecimalRounded() throws {
+        let url = directory.appendingPathComponent("pending-backs.json")
+        for (json, expected) in [("10", 10.0), ("3.25", 3.3)] {
+            try write(#"{"printerId": "p", "settings": {"margin": "custom", "marginMm": "# + json + #"}, "paths": []}"#, to: url)
+            XCTAssertEqual(PendingBacks.load(in: directory)?.settings.marginMm, expected, json)
+        }
+    }
+
     func test_settings_saveAWholeMarginWithoutADecimalPoint() throws {
         var s = PrintSettings()
         s.marginMm = 10

@@ -178,20 +178,8 @@ struct OptionsSheet: View {
                    },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {
-                HStack {
-                    Text("Margin")
-                    Spacer()
-                    TextField("Margin", value: $state.settings.marginMm, format: .number.precision(.fractionLength(0...1)))
-                        .keyboardType(.numbersAndPunctuation)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 56)
-                        .accessibilityIdentifier("print.marginMmField")
-                    Text("mm")
-                    Stepper("Margin", value: $state.settings.marginMm, in: 0...Double(MarginChoices.maxMillimetres), step: 0.1)
-                        .labelsHidden()
-                        .accessibilityIdentifier("print.marginMm")
-                }
-                .disabled(!rules.marginEnabled)
+                MarginMmFields()
+                    .disabled(!rules.marginEnabled)
             }
             if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
         }
@@ -414,6 +402,56 @@ private struct CustomPaperFields: View {
         }
         state.settings.paperId = PaperSizes.customSizeId(width: w, height: h, region: Locale.current.region?.identifier,
                                                          printer: state.capabilities)
+        load()
+    }
+}
+
+/// The custom margin typed in millimetres with a comma or a point, next to a stepper; taken to 0.1 mm and shown as taken.
+private struct MarginMmFields: View {
+    @EnvironmentObject private var state: AppState
+    @State private var text = ""
+    @State private var shown = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack {
+            Text("Margin")
+            Spacer()
+            TextField("Margin", text: $text)
+                .focused($focused)
+                .keyboardType(.numbersAndPunctuation)
+                .onSubmit { commit() }
+                .multilineTextAlignment(.trailing)
+                .frame(width: 56)
+                .accessibilityLabel("Margin in millimetres, typed")
+                .accessibilityIdentifier("print.marginMmField")
+            Text("mm")
+            Stepper("Margin", value: $state.settings.marginMm, in: 0...Double(MarginChoices.maxMillimetres), step: 0.1)
+                .labelsHidden()
+                .accessibilityLabel("Margin in millimetres")
+                .accessibilityValue(PrintText.millimetres(state.settings.marginMm))
+                .accessibilityIdentifier("print.marginMm")
+        }
+        .onAppear { load() }
+        .onChange(of: state.settings.marginMm) { _, _ in
+            if !focused { load() }
+        }
+        .onChange(of: focused) { _, now in
+            if !now { commit() }
+        }
+    }
+
+    private func load() {
+        let mm: Double = state.settings.marginMm
+        text = mm == mm.rounded() ? String(Int(mm)) : String(mm)
+        shown = text
+    }
+
+    private func commit() {
+        guard text != shown else { return }
+        if let mm: Double = Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")) {
+            state.settings.marginMm = mm
+        }
         load()
     }
 }
