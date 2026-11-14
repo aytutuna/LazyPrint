@@ -200,7 +200,8 @@ final class ScreenshotTests: XCTestCase {
         let key = "inspector." + InspectorSections.layout
         UserDefaults.standard.set(true, forKey: key)
         addTeardownBlock { UserDefaults.standard.removeObject(forKey: key) }
-        try await capture(ContentView(tab: .print), of: state, name: "margin-none", in: folder)
+        // Tall enough for the inspector to reach the margins without scrolling.
+        try await capture(ContentView(tab: .print), of: state, name: "margin-none", in: folder, size: CGSize(width: 1280, height: 1150))
     }
 
     func test_jobs() async throws {
