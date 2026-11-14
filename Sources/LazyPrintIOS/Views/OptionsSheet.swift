@@ -106,7 +106,7 @@ struct OptionsSheet: View {
             Toggle("Reverse order", isOn: $state.settings.reverseOrder)
                 .accessibilityIdentifier("print.reverse")
             Choice(title: "Two-sided", selection: Binding(
-                get: { state.settings.layoutStyle.isPhoto || (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
+                get: { (2...4).contains(state.settings.poster) ? Sides.oneSided : state.settings.booklet ? Sides.longEdge : state.settings.sides },
                 set: { (sides: Sides) in state.settings.sides = sides }),
                    options: [("Off", Sides.oneSided), ("Long edge", Sides.longEdge), ("Short edge", Sides.shortEdge)],
                    segmented: true, enabled: rules.sidesEnabled, reason: rules.sidesReason ?? rules.sidesNote,
@@ -118,14 +118,10 @@ struct OptionsSheet: View {
         let printed: Int? = state.jobPlan?.plan.printedScale
         let printerMargin: Double = PrintJobs.printerMargin(state.settings, printer: state.capabilities)
         let chosen: Double = MarginChoices.millimetres(state.settings.margin, custom: state.settings.marginMm, printerEdge: printerMargin)
-        let edge: Double? = PrintJobs.printerEdge(state.settings, printer: state.capabilities)
+        let photosOnly: Bool = PrintJobs.photosOnly(state.documents.map { (document: OpenedDocument) -> LoadedDocument in document.loaded })
+        let edge: Double? = PrintJobs.printerEdge(state.settings, printer: state.capabilities, photosOnly: photosOnly)
         let cutByEdge: Bool = rules.marginEnabled && (edge ?? 0) > (chosen * 10).rounded(.toNearestOrEven) / 10
         return Section(InspectorSections.title(InspectorSections.layout)) {
-            Choice(title: "Style", selection: Binding(
-                get: { state.settings.layoutStyle },
-                set: { (style: LayoutStyle) in state.settings.layoutStyle = style }),
-                   options: LayoutStyle.allCases.map { (style: LayoutStyle) -> (String, LayoutStyle) in (PrintText.layoutStyleTitle(style), style) },
-                   id: "print.layoutStyle")
             Choice(title: "Pages per side", selection: Binding(
                 get: { state.settings.booklet ? 2 : (Self.perSide.contains(state.settings.pagesPerSheet) ? state.settings.pagesPerSheet : 1) },
                 set: { (count: Int) in state.settings.pagesPerSheet = count }),
@@ -160,13 +156,13 @@ struct OptionsSheet: View {
                 get: { rules.scalingLimited && state.settings.scaling != .fill ? Scaling.fit : state.settings.scaling },
                 set: { (scaling: Scaling) in state.settings.scaling = scaling }),
                    options: rules.scalingLimited ? [("Fit to page", Scaling.fit), ("Fill", Scaling.fill)] : Self.scalings,
-                   enabled: !rules.poster && !rules.photoPrints, reason: rules.scalingReason, id: "print.scaling")
+                   enabled: !rules.poster, reason: rules.scalingReason, id: "print.scaling")
             Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
                 LabeledContent("Scale", value: "\(state.settings.scale) %")
             }
-            .disabled(rules.scalingLimited || rules.photoPrints || state.settings.scaling == .fit || state.settings.scaling == .fill)
+            .disabled(rules.scalingLimited || state.settings.scaling == .fit || state.settings.scaling == .fill)
             .accessibilityIdentifier("print.scale")
-            if let printed, printed != state.settings.scale, !rules.scalingLimited, !state.settings.layoutStyle.isPhoto, !rules.poster,
+            if let printed, printed != state.settings.scale, !rules.scalingLimited, !rules.poster,
                state.settings.scaling == .shrinkToFit || state.settings.scaling == .actualSize {
                 note(PrintText.printsAt(printed))
             }
@@ -232,15 +228,9 @@ struct OptionsSheet: View {
         Section(InspectorSections.title(InspectorSections.photos)) {
             Choice(title: "Size", selection: $state.settings.photoSizeId,
                    options: PhotoSize.all.map { (size: PhotoSize) -> (String, String) in (size.title, size.id) },
-                   enabled: rules.photoSizeEnabled, reason: rules.photoSizeReason, id: "print.photoSize")
-            Toggle("Fill the size", isOn: $state.settings.photoFill)
-                .disabled(!rules.photoFillEnabled)
-                .accessibilityIdentifier("print.fill")
-            if let reason = rules.photoFillReason { note(reason) }
+                   id: "print.photoSize")
             Toggle("Cut marks", isOn: $state.settings.cutMarks)
-                .disabled(!rules.cutMarksEnabled)
                 .accessibilityIdentifier("print.cutMarks")
-            if let reason = rules.cutMarksReason { note(reason) }
         }
     }
 
@@ -281,19 +271,12 @@ struct OptionsSheet: View {
         var showBorders = false
         var showOrientation = true
         var poster = false
-        var photoPrints = false
         var bookletEnabled = true
         var bookletReason: String?
         var posterEnabled = true
         var posterReason: String?
         var marginEnabled = true
         var marginReason: String?
-        var photoSizeEnabled = false
-        var photoSizeReason: String?
-        var photoFillEnabled = false
-        var photoFillReason: String?
-        var cutMarksEnabled = false
-        var cutMarksReason: String?
         var colorEnabled = true
         var colorReason: String?
         var qualityEnabled = true
@@ -303,8 +286,6 @@ struct OptionsSheet: View {
         var paperNote: String?
 
         init(settings s: PrintSettings, capabilities: PrinterCapabilities?) {
-            let photos: Bool = s.layoutStyle.isPhoto
-            let photoPrints: Bool = s.layoutStyle == .photoPrints
             let canTurn: Bool = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided: Bool = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
@@ -314,30 +295,21 @@ struct OptionsSheet: View {
             let poster: Bool = (2...4).contains(s.poster)
 
             showCollate = s.copies > 1
-            sidesEnabled = !s.booklet && !poster && !photos
-            sidesReason = photos ? "Photos print one-sided" : poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
-            sidesNote = twoSided && !photos && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
-            pagesPerSideEnabled = !s.booklet && !poster && !photoPrints
-            pagesPerSideReason = photoPrints ? "Set by Photo prints" : poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
+            sidesEnabled = !s.booklet && !poster
+            sidesReason = poster ? "Posters are one-sided" : (s.booklet ? "Booklets are two-sided" : nil)
+            sidesNote = twoSided && capabilities != nil && !canTurn ? "By hand, in two passes" : nil
+            pagesPerSideEnabled = !s.booklet && !poster
+            pagesPerSideReason = poster ? "Set by Poster" : (s.booklet ? "Set by Booklet" : nil)
             showRightToLeft = !poster && (s.booklet || s.pagesPerSheet > 1)
             showBorders = !poster && !s.booklet && s.pagesPerSheet > 1
             showOrientation = !s.booklet
             self.poster = poster
-            self.photoPrints = photoPrints
-            bookletEnabled = !poster && !photos
-            bookletReason = photos ? "Not for photos" : poster ? "Set by Poster" : nil
-            posterEnabled = !photos && (poster || (!s.booklet && s.pagesPerSheet == 1))
-            posterReason = photos ? "Not for photos" : (posterEnabled ? nil : "Needs one page per side")
-            marginEnabled = !photos
-            marginReason = photos ? "Photos print without margins" : nil
-            scalingLimited = s.booklet || s.pagesPerSheet > 1 || poster
-            scalingReason = photoPrints ? "Set by Photo prints" : (scalingLimited ? "Pages are fitted to their spaces" : nil)
-            photoSizeEnabled = photoPrints
-            photoSizeReason = photoPrints ? nil : "Needs the Photo prints layout"
-            photoFillEnabled = photoPrints
-            photoFillReason = photoPrints ? nil : "Needs the Photo prints layout"
-            cutMarksEnabled = photos
-            cutMarksReason = photos ? nil : "Needs a photo layout"
+            bookletEnabled = !poster
+            bookletReason = poster ? "Set by Poster" : nil
+            posterEnabled = poster || (!s.booklet && s.pagesPerSheet == 1)
+            posterReason = posterEnabled ? nil : "Needs one page per side"
+            scalingLimited = s.booklet || s.pagesPerSheet > 1 || poster || s.photoSizeId != "page"
+            scalingReason = scalingLimited ? "Pages are fitted to their spaces" : nil
             colorEnabled = !grayOnly
             colorReason = grayOnly ? "This printer prints gray only" : nil
             qualityEnabled = !noQuality

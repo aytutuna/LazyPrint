@@ -101,7 +101,7 @@ public final class IppSheetPrinter: SheetPrinter {
                   placed.enumerated().allSatisfy({ $0.element.document == 0 && $0.element.index == first + $0.offset }) else { return nil }
             let whole = placed.count == document.pages.count
             let settings = job.settings
-            let plain = settings.layoutStyle == .pages && settings.poster == 0
+            let plain = settings.poster == 0 && settings.photoSizeId == "page"
                 && (settings.margin == .none || settings.margin == .custom && settings.marginMm == 0)
                 && settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
                 && (job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)

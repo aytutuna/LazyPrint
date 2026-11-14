@@ -279,9 +279,9 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
     }
 
-    func test_aPdfUnderPhotoPrints_isDrawnHereNotSentAsItIs() async throws {
+    func test_aPdfWithAPrintSize_isDrawnHereNotSentAsItIs() async throws {
         let (url, bytes) = try original()
-        try await printer(original: url).print(try job({ $0.layoutStyle = .photoPrints }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+        try await printer(original: url).print(try job({ $0.photoSizeId = "4x6" }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
 
         XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
     }

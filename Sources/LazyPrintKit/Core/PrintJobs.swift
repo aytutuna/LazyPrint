@@ -37,23 +37,21 @@ public struct JobPlan: Equatable, Sendable {
 public enum PrintJobs {
     private static let collatedCopies = "separate-documents-collated-copies"
 
-    /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
+    /// The layout the settings ask for.
     public static func layoutOptions(_ settings: PrintSettings, printer: PrinterCapabilities?) -> LayoutOptions {
-        let photos = settings.layoutStyle.isPhoto
-        let photoPrints = settings.layoutStyle == .photoPrints
-        return LayoutOptions(pagesPerSheet: photoPrints ? 1 : settings.pagesPerSheet,
-                             booklet: settings.booklet && !photos,
-                             rightToLeft: settings.rightToLeft,
-                             scaling: photoPrints ? (settings.photoFill ? .fill : .fit) : settings.scaling,
-                             sides: photos ? .oneSided : settings.sides,
-                             pageBorders: settings.pageBorders,
-                             scale: settings.scale,
-                             orientation: settings.orientation,
-                             margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm,
-                                                                       printerEdge: printerMargin(settings, printer: printer)),
-                             poster: photos ? 0 : settings.poster,
-                             cellSize: photoPrints ? photoSize(settings.photoSizeId).size : nil,
-                             cutMarks: photos && settings.cutMarks)
+        LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
+                      booklet: settings.booklet,
+                      rightToLeft: settings.rightToLeft,
+                      scaling: settings.scaling,
+                      sides: settings.sides,
+                      pageBorders: settings.pageBorders,
+                      scale: settings.scale,
+                      orientation: settings.orientation,
+                      margin: MarginChoices.points(settings.margin, custom: settings.marginMm,
+                                                   printerEdge: printerMargin(settings, printer: printer)),
+                      poster: settings.poster,
+                      cellSize: photoSize(settings.photoSizeId).size,
+                      cutMarks: settings.cutMarks)
     }
 
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless
@@ -72,19 +70,29 @@ public enum PrintJobs {
     }
 
     /// The area the settings lay out on: borderless when `wantsBorderless`, for a document on the paper type it was asked for.
-    public static func area(_ settings: PrintSettings, printer: PrinterCapabilities?) -> PrintableArea {
-        area(paperId: settings.paperId, printer: printer, borderless: wantsBorderless(settings, printer: printer),
+    /// `photosOnly` is whether every document of the job is a photo (see `wantsBorderless`).
+    public static func area(_ settings: PrintSettings, printer: PrinterCapabilities?, photosOnly: Bool = false) -> PrintableArea {
+        area(paperId: settings.paperId, printer: printer, borderless: wantsBorderless(settings, printer: printer, photosOnly: photosOnly),
              type: matchType(settings, printer))
+    }
+
+    /// Whether every document is a photo; a job with no documents is not one.
+    public static func photosOnly(_ documents: [LoadedDocument]) -> Bool {
+        !documents.isEmpty && documents.allSatisfy { (document: LoadedDocument) -> Bool in
+            if case .photo = document.kind { return true }
+            return false
+        }
     }
 
     /// How far the printer's own edge reaches in on the paper the settings print on (`Imposition.edge`), 0 when the layout is
     /// borderless; nil when the printer has no entry for the paper (or there is no printer), where the edge is only a guess.
-    public static func printerEdge(_ settings: PrintSettings, printer: PrinterCapabilities?) -> Double? {
+    public static func printerEdge(_ settings: PrintSettings, printer: PrinterCapabilities?, photosOnly: Bool = false) -> Double? {
         let size = sheet(settings.paperId, printer)
-        guard printer?.match(size, borderless: wantsBorderless(settings, printer: printer), type: matchType(settings, printer)) != nil else {
+        let borderless = wantsBorderless(settings, printer: printer, photosOnly: photosOnly)
+        guard printer?.match(size, borderless: borderless, type: matchType(settings, printer)) != nil else {
             return nil
         }
-        return Imposition.edge(area(settings, printer: printer))
+        return Imposition.edge(area(settings, printer: printer, photosOnly: photosOnly))
     }
 
     /// The distance `MarginChoice.printer` keeps clear: the edge of the bordered area, 0.25 in without an entry.
@@ -94,18 +102,15 @@ public enum PrintJobs {
         return Imposition.edge(area(s, printer: printer))
     }
 
-    /// Margin None asks for the whole sheet, whatever the layout and scaling. A photo layout is borderless when its photo is
-    /// the whole page or as large as the paper, and a photo sheet never.
-    public static func wantsBorderless(_ settings: PrintSettings, printer: PrinterCapabilities?) -> Bool {
-        if settings.layoutStyle.isPhoto {
-            return settings.layoutStyle == .photoPrints && borderless(settings.photoSizeId, sheet: sheet(settings.paperId, printer))
-        }
-        return settings.margin == .none && printer?.documentsBorderless != false
+    /// Margin None asks for the whole sheet, whatever the layout and scaling. A printer that can't print documents borderless
+    /// (AirPrint) still can photos, so a job of photos alone asks for it. The printer may have no such entry, then its edge stays.
+    public static func wantsBorderless(_ settings: PrintSettings, printer: PrinterCapabilities?, photosOnly: Bool = false) -> Bool {
+        settings.margin == .none && (photosOnly || printer?.documentsBorderless != false)
     }
 
-    /// The paper type a borderless entry has to suit; nil for a photo layout, which takes any.
+    /// The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks.
     private static func matchType(_ settings: PrintSettings, _ printer: PrinterCapabilities?) -> String? {
-        settings.layoutStyle.isPhoto ? nil : MediaChoices.type(settings, printer) ?? MediaChoices.auto
+        MediaChoices.type(settings, printer) ?? MediaChoices.auto
     }
 
     /// The sheets of a job. The pages of all documents run on as one, and `pageRange` (0-based, as
@@ -123,7 +128,8 @@ public enum PrintJobs {
         let chosen = (pageRange ?? Array(0..<all.count)).filter { $0 >= 0 && $0 < all.count }
         let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
-        let layout = Imposition.plan(pages, options: layoutOptions(settings, printer: printer), area: area(settings, printer: printer))
+        let sheetArea = area(settings, printer: printer, photosOnly: photosOnly(documents))
+        let layout = Imposition.plan(pages, options: layoutOptions(settings, printer: printer), area: sheetArea)
 
         let manual = layout.duplex && !(printer?.sidesSupported.contains("two-sided-long-edge") ?? false)
         let passes: [DuplexPass]
@@ -249,12 +255,6 @@ public enum PrintJobs {
         return IppMediaChoice(entry: members.count > 1 ? members : nil, name: name)
     }
 
-    /// A photo is borderless when it is the whole page, or as large as the paper it goes on.
-    private static func borderless(_ photoSizeId: String, sheet: LayoutSize) -> Bool {
-        guard let photo = photoSize(photoSizeId).size else { return true }
-        return abs(photo.width - sheet.width) <= PaperSizes.fitTolerance && abs(photo.height - sheet.height) <= PaperSizes.fitTolerance
-    }
-
     /// The paper a job goes on, portrait, in points.
     public static func sheet(_ paperId: String, _ printer: PrinterCapabilities?) -> LayoutSize {
         let known = PaperSizes.pointsOf(paperId) ?? loaded(printer) ?? PaperSizes.points(usualPaper())
@@ -267,7 +267,7 @@ public enum PrintJobs {
     }
 
     private static func photoSize(_ id: String) -> PhotoSize {
-        PhotoSize.all.first { $0.id == id } ?? PhotoSize.all[0]
+        PhotoSize.all.first { $0.id == id } ?? PhotoSize.all[PhotoSize.all.count - 1]
     }
 
     /// The first ready paper of the printer that has a fixed size (media-col-ready, else media-ready), portrait, in points.

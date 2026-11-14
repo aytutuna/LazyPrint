@@ -42,6 +42,12 @@ final class PrintJobsTests: XCTestCase {
         return settings
     }
 
+    private func makePhotos(_ change: (inout PrintSettings) -> Void = { _ in }, printer: PrinterCapabilities? = nil) -> PrintSettings {
+        var settings = TaskCatalog.apply(.photos, to: makeSettings(), printer: printer ?? epson)
+        change(&settings)
+        return settings
+    }
+
     private func makePlan(_ documents: [LoadedDocument], _ settings: PrintSettings, _ printer: PrinterCapabilities?,
                           range: [Int]? = nil, prefs: PrinterPrefs = PrinterPrefs()) -> JobPlan {
         PrintJobs.plan(documents, pageRange: range, settings: settings, printer: printer, prefs: prefs)
@@ -62,33 +68,30 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertTrue(PrintJobs.layoutOptions(makeSettings { $0.booklet = true }, printer: nil).booklet)
     }
 
-    func test_layoutOptions_photoLayoutsPrintOneSideNoBooklet() {
-        let settings = makeSettings { $0.booklet = true; $0.sides = .longEdge }
-        for style in [LayoutStyle.photoPrints, .photoSheet] {
-            var photo = settings
-            photo.layoutStyle = style
-            let options = PrintJobs.layoutOptions(photo, printer: nil)
-            XCTAssertFalse(options.booklet)
-            XCTAssertEqual(options.sides, .oneSided)
+    func test_layoutOptions_aPrintSizeKeepsSidesBookletPosterAndMargin() {
+        let settings = makeSettings {
+            $0.booklet = true; $0.sides = .longEdge; $0.poster = 2; $0.margin = .normal; $0.photoSizeId = "4x6"
         }
-        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).sides, .longEdge)
+        let options = PrintJobs.layoutOptions(settings, printer: nil)
+        XCTAssertTrue(options.booklet)
+        XCTAssertEqual(options.sides, .longEdge)
+        XCTAssertEqual(options.poster, 2)
+        XCTAssertEqual(options.margin, MarginChoices.points(.normal, custom: 0, printerEdge: 0))
     }
 
-    func test_layoutOptions_photoPrintsAskForTheSizeAsAMaximumAndFillOrFit() {
-        let settings = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "5x7"; $0.pagesPerSheet = 4 }
+    func test_layoutOptions_aPrintSizeIsAMaximumPerCellAndCutMarksFollowTheSetting() {
+        let settings = makeSettings { $0.photoSizeId = "5x7"; $0.pagesPerSheet = 4; $0.scaling = .fill; $0.cutMarks = true }
         let options = PrintJobs.layoutOptions(settings, printer: nil)
         XCTAssertEqual(options.cellSize, LayoutSize(width: 360, height: 504))
-        XCTAssertEqual(options.pagesPerSheet, 1)
+        XCTAssertEqual(options.pagesPerSheet, 4)
         XCTAssertEqual(options.scaling, .fill)
-        var fit = settings
-        fit.photoFill = false
-        XCTAssertEqual(PrintJobs.layoutOptions(fit, printer: nil).scaling, .fit)
+        XCTAssertTrue(options.cutMarks)
         var whole = settings
         whole.photoSizeId = "page"
         XCTAssertNil(PrintJobs.layoutOptions(whole, printer: nil).cellSize)
-        var sheet = settings
-        sheet.layoutStyle = .photoSheet
-        XCTAssertNil(PrintJobs.layoutOptions(sheet, printer: nil).cellSize)
+        var plain = settings
+        plain.cutMarks = false
+        XCTAssertFalse(PrintJobs.layoutOptions(plain, printer: nil).cutMarks)
     }
 
     func test_thePresetPickedLast_doesNotChangeThePlan() {
@@ -247,7 +250,7 @@ final class PrintJobsTests: XCTestCase {
 
     func test_plan_photos_areLaidOutAtTheirSize() throws {
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let job = makePlan([photo], makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "4x6" }, epson)
+        let job = makePlan([photo], makeSettings { $0.photoSizeId = "4x6" }, epson)
         let sheet = try onlyElement(job.plan.sheets)
         let width = try XCTUnwrap(PhotoSize.all[0].size).width
         for placement in sheet.front.placements {
@@ -255,9 +258,9 @@ final class PrintJobsTests: XCTestCase {
         }
     }
 
-    func test_plan_wholePagePhotos_areBorderlessWhenThePrinterHasIt() throws {
+    func test_plan_marginNone_isBorderlessWhenThePrinterHasItWhateverThePrintSize() throws {
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let job = makePlan([photo], makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "page" }, epson)
+        let job = makePlan([photo], makePhotos { $0.photoSizeId = "page" }, epson)
         XCTAssertEqual(job.plan.area.margins, noMargins)
         XCTAssertEqual(job.plan.sheets.count, 1)
     }
@@ -309,15 +312,16 @@ final class PrintJobsTests: XCTestCase {
         }
     }
 
-    func test_plan_marginNone_keepsThePhotoRules() {
+    func test_plan_marginNone_isBorderlessForAnyPrintSizeAndOnlyWithMarginNone() {
         let printer = twoKinds()
-        let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let sheet = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "4x6"; $0.margin = .printer }
-        XCTAssertNotEqual(makePlan([photo], sheet, printer).plan.area.margins, noMargins)
-        let whole = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "page"; $0.margin = .printer }
-        XCTAssertEqual(makePlan([photo], whole, printer).plan.area.margins, noMargins)
-        let photoSheet = makeSettings { $0.layoutStyle = .photoSheet }
-        XCTAssertNotEqual(makePlan([photo], photoSheet, printer).plan.area.margins, noMargins)
+        for size in ["4x6", "page"] {
+            let none = makeSettings { $0.photoSizeId = size }
+            XCTAssertEqual(makePlan([photoDoc], none, printer).plan.area.margins, noMargins, size)
+            var bordered = none
+            bordered.margin = .printer
+            XCTAssertNotEqual(makePlan([photoDoc], bordered, printer).plan.area.margins, noMargins, size)
+        }
+        XCTAssertEqual(makePlan([photoDoc], makeSettings { $0.pagesPerSheet = 4 }, printer).plan.area.margins, noMargins)
     }
 
     func test_plan_marginNone_asksForBorderlessOnlyOnAMatchingPaperType() {
@@ -409,9 +413,20 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertFalse(own.documentsBorderless)
         XCTAssertFalse(AppState.useListedPapers(&own, from: ipp, platform: .ios))
         XCTAssertFalse(PrintJobs.wantsBorderless(makeSettings { $0.paperId = "a4"; $0.margin = .none }, printer: own))
+        XCTAssertTrue(PrintJobs.wantsBorderless(makeSettings { $0.paperId = "a4"; $0.margin = .none }, printer: own, photosOnly: true))
+        XCTAssertFalse(PrintJobs.wantsBorderless(makeSettings { $0.paperId = "a4"; $0.margin = .printer }, printer: own, photosOnly: true))
+        XCTAssertEqual(makePlan([photoDoc], makeSettings(), own).plan.area.margins, noMargins)
+        XCTAssertNotEqual(makePlan([doc(1)], makeSettings(), own).plan.area.margins, noMargins)
+        XCTAssertNotEqual(makePlan([photoDoc, doc(1)], makeSettings(), own).plan.area.margins, noMargins)
         XCTAssertEqual(PrintJobs.area(paperId: "a4", printer: own, borderless: true).margins, noMargins)
         var mac = PrinterCapabilities()
         XCTAssertFalse(AppState.useListedPapers(&mac, from: ipp, platform: .mac))
+    }
+
+    func test_photosOnly_isTrueOnlyWhenEveryDocumentIsAPhoto() {
+        XCTAssertTrue(PrintJobs.photosOnly([photoDoc, photoDoc]))
+        XCTAssertFalse(PrintJobs.photosOnly([photoDoc, doc(1)]))
+        XCTAssertFalse(PrintJobs.photosOnly([]))
     }
 
     func test_printerEdge_isNilWithoutAnEntry_zeroWhenBorderless_andTheLargestSideOtherwise() {
@@ -496,16 +511,21 @@ final class PrintJobsTests: XCTestCase {
                        "one-sided")
     }
 
-    func test_plan_aPhotoOnPaperOfItsOwnSize_isBorderless() throws {
-        let fourBySix = try XCTUnwrap(epson.mediaColDatabase.first { $0.width == 10160 && $0.height == 15240 })
+    func test_plan_aPrintSizeWithMarginNone_isBorderlessOnAnyPaper() throws {
+        let fourBySix = try XCTUnwrap(epson.mediaColDatabase.first {
+            $0.width == 10160 && $0.height == 15240 && ($0.margins?.isZero ?? false)
+        })
         var printer = PrinterCapabilities()
         printer.mediaColDatabase = epson.mediaColDatabase
         printer.mediaColReady = [fourBySix]
+        printer.mediaTypeSupported = [fourBySix.type ?? "photographic"]
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let job = makePlan([photo], makeSettings { $0.layoutStyle = .photoPrints; $0.paperId = "auto"; $0.photoSizeId = "4x6" }, printer)
+        let job = makePlan([photo], makePhotos({ $0.paperId = "auto" }, printer: printer), printer)
         XCTAssertEqual(job.plan.area.margins, noMargins)
-        let onA4 = makePlan([photo], makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "4x6" }, epson)
-        XCTAssertNotEqual(onA4.plan.area.margins, noMargins)
+        let onA4 = makePlan([photo], makePhotos(), epson)
+        XCTAssertEqual(onA4.plan.area.margins, noMargins)
+        let bordered = makePlan([photo], makeSettings { $0.photoSizeId = "4x6"; $0.margin = .printer }, epson)
+        XCTAssertNotEqual(bordered.plan.area.margins, noMargins)
     }
 
     func test_ticket_aDocumentSentAsIs_isScaledByThePrinterOnlyOnBorderlessMedia_andFlippedOnTheEdgeAskedFor() {
@@ -561,10 +581,10 @@ final class PrintJobsTests: XCTestCase {
 
     func test_ticket_borderless_usesTheBorderlessEntry() throws {
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let settings = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "page"; $0.quality = .best }
+        let settings = makePhotos { $0.photoSizeId = "page" }
         let job = makePlan([photo], settings, epson)
         let ticket = PrintJobs.ticket(job, settings: settings, format: "image/pwg-raster", printer: epson, name: "Beach")
-        let entry = try XCTUnwrap(epson.match(a4, borderless: true))
+        let entry = try XCTUnwrap(epson.match(a4, borderless: true, type: settings.mediaType))
         XCTAssertEqual(ticket.media.entry, entry.attributes)
         XCTAssertEqual(ticket.media.name, "iso_a4_210x297mm")
         XCTAssertEqual(ticket.quality, 5)
@@ -702,17 +722,6 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).margin, 6.4 * 72 / 25.4, accuracy: 1e-6)
     }
 
-    func test_layoutOptions_photosHaveNoMarginAndNoPoster() {
-        let settings = makeSettings { $0.margin = .normal; $0.poster = 2 }
-        var prints = settings
-        prints.layoutStyle = .photoPrints
-        var sheet = settings
-        sheet.layoutStyle = .photoSheet
-        XCTAssertEqual(PrintJobs.layoutOptions(prints, printer: nil).margin, 0)
-        XCTAssertEqual(PrintJobs.layoutOptions(sheet, printer: nil).poster, 0)
-        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).poster, 2)
-    }
-
     func test_anySizeAPrinterLists_canBeChosen() {
         let area = PrintJobs.area(paperId: "custom_sheet_297x420mm", printer: nil, borderless: false)
         XCTAssertEqual(area.paper.width, 297 * 72 / 25.4, accuracy: 0.1)
@@ -776,7 +785,7 @@ final class PrintJobsTests: XCTestCase {
     func test_ticket_aPhotoTaskAsksForThePhotoType() throws {
         let caps = withMedia(epson, types: ["stationery", "photographic-glossy"])
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let settings = makeSettings { $0.layoutStyle = .photoPrints }
+        let settings = TaskCatalog.apply(.photos, to: makeSettings(), printer: caps)
         let ticket = PrintJobs.ticket(makePlan([photo], settings, caps), settings: settings, format: "image/jpeg", printer: caps, name: "x")
         XCTAssertEqual(try keyword(ticket, "media-type"), "photographic-glossy")
     }
@@ -790,7 +799,7 @@ final class PrintJobsTests: XCTestCase {
             return entry
         }
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let settings = makeSettings { $0.layoutStyle = .photoPrints }
+        let settings = makeSettings()
         let ticket = PrintJobs.ticket(makePlan([photo], settings, caps), settings: settings, format: "image/jpeg", printer: caps, name: "x")
         XCTAssertEqual(try keyword(ticket, "media-type"), "photographic-glossy")
     }

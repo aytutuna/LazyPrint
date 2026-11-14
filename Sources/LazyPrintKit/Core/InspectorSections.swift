@@ -34,11 +34,11 @@ public enum InspectorSections {
         section == printer || section == pages
     }
 
-    /// The section the settings need when files are opened, if it is not open already: Photos for a photo layout, Layout for a
-    /// booklet or several pages to a side.
+    /// The section the settings need when files are opened, if it is not open already: Photos for a print size, Layout for a
+    /// booklet, a poster or several pages to a side.
     public static func openedBy(_ settings: PrintSettings) -> String? {
-        if settings.layoutStyle.isPhoto { return photos }
-        if settings.booklet || settings.pagesPerSheet > 1 { return layout }
+        if settings.photoSizeId != "page" { return photos }
+        if settings.booklet || settings.pagesPerSheet > 1 || (2...4).contains(settings.poster) { return layout }
         return nil
     }
 
@@ -72,7 +72,6 @@ public enum InspectorSections {
     public static func layoutSummary(_ s: PrintSettings, printedScale: Int? = nil) -> String {
         var parts = [String]()
         let poster = (2...4).contains(s.poster)
-        if s.layoutStyle.isPhoto { parts.append(PrintText.layoutStyleTitle(s.layoutStyle)) }
         if poster {
             parts.append("Poster \(s.poster) \u{00D7} \(s.poster)")
         } else if s.booklet {
@@ -84,7 +83,7 @@ public enum InspectorSections {
         if !poster && !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
         if !poster && (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
         if !poster && !s.booklet && s.pagesPerSheet == 1 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
-            let percent = s.layoutStyle.isPhoto ? s.scale : printedScale ?? s.scale
+            let percent = printedScale ?? s.scale
             if percent != 100 { parts.append("\(percent) %") }
         }
         if !poster && s.scaling != .shrinkToFit {
@@ -95,7 +94,7 @@ public enum InspectorSections {
             }
         }
         // The printer's own margin is the default, so it adds nothing here.
-        if !s.layoutStyle.isPhoto && s.margin != .printer {
+        if s.margin != .printer {
             let margin = MarginChoices.millimetres(s.margin, custom: s.marginMm, printerEdge: 0)
             parts.append(margin > 0 ? "\(PrintText.millimetres(margin)) margins" : "No margins")
         }
@@ -111,10 +110,10 @@ public enum InspectorSections {
         return join(parts)
     }
 
-    /// "4 × 6 in · Fill · Cut marks".
+    /// "4 × 6 in · Cut marks"; "" for the largest that fits and no cut marks.
     public static func photosSummary(_ s: PrintSettings) -> String {
-        let size = PhotoSize.all.first { $0.id == s.photoSizeId }?.title ?? s.photoSizeId
-        var parts = [size, s.photoFill ? "Fill" : "Fit"]
+        var parts = [String]()
+        if s.photoSizeId != "page" { parts.append(PhotoSize.all.first { $0.id == s.photoSizeId }?.title ?? s.photoSizeId) }
         if s.cutMarks { parts.append("Cut marks") }
         return join(parts)
     }

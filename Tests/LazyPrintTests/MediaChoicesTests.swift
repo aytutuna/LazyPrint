@@ -33,26 +33,28 @@ final class MediaChoicesTests: XCTestCase {
         XCTAssertEqual(MediaChoices.type(settings, caps), "labels")
     }
 
-    func test_aPhotoTaskOnAutomatic_picksThePhotoType() {
+    func test_aPhotoPresetOnAutomatic_picksThePhotoType() {
         let caps = printer(sources: [], types: ["stationery", "photographic-glossy", "photographic"])
-        let cases: [(LayoutStyle, String, String?)] = [
-            (.photoPrints, "photographic-glossy", "photographic-glossy"),
+        let cases: [(PrintTask, String, String)] = [
+            (.photos, "photographic-glossy", "photographic-glossy"),
             (.photoSheet, "auto", "photographic"),
-            (.photoPrints, "stationery", "stationery"),
-            (.pages, "auto", nil),
+            (.photos, "stationery", "stationery"),
+            (.document, "auto", "auto"),
         ]
-        for (style, chosen, expected) in cases {
-            var settings = PrintSettings()
-            settings.layoutStyle = style
-            settings.mediaType = chosen
-            XCTAssertEqual(MediaChoices.type(settings, caps), expected, "\(style) \(chosen)")
+        for (task, chosen, expected) in cases {
+            var start = PrintSettings()
+            start.mediaType = chosen
+            let settings = TaskCatalog.apply(task, to: start, printer: caps)
+            XCTAssertEqual(settings.mediaType, expected, "\(task) \(chosen)")
+            XCTAssertEqual(MediaChoices.type(settings, caps), expected == "auto" ? nil : expected, "\(task) \(chosen)")
         }
     }
 
-    func test_aPhotoTaskOnAPrinterWithoutPhotoPaper_asksForNothing() {
-        var settings = PrintSettings()
-        settings.layoutStyle = .photoPrints
-        XCTAssertNil(MediaChoices.type(settings, printer(sources: [], types: ["stationery", "labels"])))
+    func test_aPhotoPresetOnAPrinterWithoutPhotoPaper_leavesTheTypeOnAutomatic() {
+        let caps = printer(sources: [], types: ["stationery", "labels"])
+        let settings = TaskCatalog.apply(.photos, to: PrintSettings(), printer: caps)
+        XCTAssertEqual(settings.mediaType, "auto")
+        XCTAssertNil(MediaChoices.type(settings, caps))
         XCTAssertEqual(MediaChoices.photoType(["stationery", "photographic-satin", "photographic-matte"]), "photographic-satin")
         XCTAssertEqual(MediaChoices.photoType(["photographic-pearl"]), "photographic-pearl")
     }

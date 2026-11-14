@@ -150,12 +150,12 @@ final class PrintTaskTests: XCTestCase {
     }
 
     func test_apply_photos_photoSheet() {
-        let start = settings { $0.color = .gray; $0.photoSizeId = "5x7"; $0.photoFill = false; $0.booklet = true; $0.cutMarks = false }
+        let start = settings { $0.color = .gray; $0.photoSizeId = "5x7"; $0.scaling = .fit; $0.booklet = true; $0.cutMarks = false }
         let photos = TaskCatalog.apply(.photos, to: start, printer: nil)
         XCTAssertEqual(photos.taskId, "photos")
-        XCTAssertEqual(photos.layoutStyle, .photoPrints)
         XCTAssertEqual(photos.photoSizeId, "4x6")
-        XCTAssertTrue(photos.photoFill)
+        XCTAssertEqual(photos.scaling, .fill)
+        XCTAssertEqual(photos.pagesPerSheet, 1)
         XCTAssertEqual(photos.quality, .best)
         XCTAssertEqual(photos.color, .color)
         XCTAssertFalse(photos.booklet)
@@ -166,8 +166,9 @@ final class PrintTaskTests: XCTestCase {
 
         let sheet = TaskCatalog.apply(.photoSheet, to: start, printer: nil)
         XCTAssertEqual(sheet.taskId, "photoSheet")
-        XCTAssertEqual(sheet.layoutStyle, .photoSheet)
-        XCTAssertEqual(TaskCatalog.apply(.booklet, to: sheet, printer: nil).layoutStyle, .pages)
+        XCTAssertEqual(sheet.photoSizeId, "page")
+        XCTAssertEqual(TaskCatalog.apply(.booklet, to: sheet, printer: nil).photoSizeId, "page")
+        XCTAssertFalse(TaskCatalog.apply(.booklet, to: sheet, printer: nil).cutMarks)
         XCTAssertEqual(sheet.pagesPerSheet, 4)
         XCTAssertEqual(sheet.scaling, .fill)
         XCTAssertTrue(sheet.cutMarks)
@@ -202,8 +203,11 @@ final class PrintTaskTests: XCTestCase {
         other.marginMm = 15
         XCTAssertTrue(PrintSettings.sameInUse(document, other))
         other = document
-        other.photoSizeId = "5x7"
+        other.cutMarks = true
         XCTAssertTrue(PrintSettings.sameInUse(document, other))
+        other = document
+        other.photoSizeId = "5x7"
+        XCTAssertFalse(PrintSettings.sameInUse(document, other))
         other = document
         other.orientation = .landscape
         XCTAssertFalse(PrintSettings.sameInUse(document, other))
@@ -221,9 +225,21 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertTrue(PrintSettings.sameInUse(booklet, other))
     }
 
-    func test_sameInUse_countsScaleForALonePageOnAPhotoSheet() {
+    func test_sameInUse_ignoresTheScaleOnceAPrintSizeMakesThePageACell() {
+        var sized = PrintSettings()
+        sized.photoSizeId = "4x6"
+        sized.scaling = .shrinkToFit
+        sized.scale = 50
+        var other = sized
+        other.scale = 100
+        XCTAssertTrue(PrintSettings.sameInUse(sized, other))
+        other = sized
+        other.cutMarks = true
+        XCTAssertFalse(PrintSettings.sameInUse(sized, other))
+    }
+
+    func test_sameInUse_countsScaleForALonePage() {
         var sheet = PrintSettings()
-        sheet.layoutStyle = .photoSheet
         sheet.pagesPerSheet = 1
         sheet.scaling = .shrinkToFit
         sheet.scale = 50

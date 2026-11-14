@@ -44,9 +44,8 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(s.margin, MarginChoice.printer)
         XCTAssertEqual(s.poster, 0)
         XCTAssertEqual(s.paperId, "auto")
-        XCTAssertEqual(s.photoSizeId, "4x6")
-        XCTAssertTrue(s.photoFill)
-        XCTAssertTrue(s.cutMarks)
+        XCTAssertEqual(s.photoSizeId, "page")
+        XCTAssertFalse(s.cutMarks)
     }
 
     func test_settings_roundTrip() {
@@ -70,8 +69,7 @@ final class PrintSettingsTests: XCTestCase {
         s.poster = 3
         s.paperId = "a4"
         s.photoSizeId = "10x15cm"
-        s.photoFill = false
-        s.cutMarks = false
+        s.cutMarks = true
         SettingsStore.save(s, in: directory)
         s.copies = 1
         XCTAssertEqual(SettingsStore.load(in: directory), s)
@@ -151,17 +149,57 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(SettingsStore.load(in: directory)?.margin, .printer)
     }
 
-    func test_settings_savedInAPhotoTask_keepTheirPhotoLayout() throws {
-        try write(#"{"taskId": "photos"}"#, to: settingsURL)
-        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .photoPrints)
-        try write(#"{"taskId": "photoSheet"}"#, to: settingsURL)
-        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .photoSheet)
-        try write(#"{"taskId": "booklet"}"#, to: settingsURL)
-        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .pages)
-        try write(#"{"taskId": "photos", "layoutStyle": "pages"}"#, to: settingsURL)
-        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .pages)
-        try write(#"{"taskId": "photos", "layoutStyle": "poster"}"#, to: settingsURL)
-        XCTAssertEqual(SettingsStore.load(in: directory)?.layoutStyle, .photoPrints)
+    func test_settings_savedWithALayoutStyle_getWhatThatStyleForced() throws {
+        try write(#"""
+            {"layoutStyle": "photoPrints", "photoSizeId": "5x7", "photoFill": false, "cutMarks": true,
+             "pagesPerSheet": 4, "sides": "longEdge", "booklet": true, "poster": 2, "margin": "normal"}
+            """#, to: settingsURL)
+        let prints = try XCTUnwrap(SettingsStore.load(in: directory))
+        XCTAssertEqual(prints.photoSizeId, "5x7")
+        XCTAssertTrue(prints.cutMarks)
+        XCTAssertEqual(prints.scaling, .fit)
+        XCTAssertEqual(prints.pagesPerSheet, 1)
+        XCTAssertEqual(prints.sides, .oneSided)
+        XCTAssertFalse(prints.booklet)
+        XCTAssertEqual(prints.poster, 0)
+        XCTAssertEqual(prints.margin, MarginChoice.none)
+
+        try write(#"{"layoutStyle": "photoPrints", "photoFill": true}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.scaling, .fill)
+
+        try write(#"""
+            {"layoutStyle": "photoSheet", "photoSizeId": "4x6", "pagesPerSheet": 4, "scaling": "fill", "cutMarks": true,
+             "margin": "normal", "poster": 3}
+            """#, to: settingsURL)
+        let sheet = try XCTUnwrap(SettingsStore.load(in: directory))
+        XCTAssertEqual(sheet.photoSizeId, "page")
+        XCTAssertEqual(sheet.pagesPerSheet, 4)
+        XCTAssertEqual(sheet.scaling, .fill)
+        XCTAssertTrue(sheet.cutMarks)
+        XCTAssertEqual(sheet.margin, MarginChoice.none)
+        XCTAssertEqual(sheet.poster, 0)
+
+        try write(#"{"layoutStyle": "pages", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}"#, to: settingsURL)
+        let pages = try XCTUnwrap(SettingsStore.load(in: directory))
+        XCTAssertEqual(pages.photoSizeId, "page")
+        XCTAssertFalse(pages.cutMarks)
+        XCTAssertEqual(pages.margin, .normal)
+    }
+
+    func test_settings_withoutALayoutStyle_areAlreadyCurrent() throws {
+        try write(#"{"taskId": "photos", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}"#, to: settingsURL)
+        let s = try XCTUnwrap(SettingsStore.load(in: directory))
+        XCTAssertEqual(s.photoSizeId, "4x6")
+        XCTAssertTrue(s.cutMarks)
+        XCTAssertEqual(s.margin, .normal)
+    }
+
+    func test_settings_areSavedWithoutTheOldStyleKeys() throws {
+        try write(#"{"layoutStyle": "photoSheet", "photoFill": false}"#, to: settingsURL)
+        SettingsStore.save(try XCTUnwrap(SettingsStore.load(in: directory)), in: directory)
+        let json = try String(contentsOf: settingsURL, encoding: .utf8)
+        XCTAssertFalse(json.contains("layoutStyle"))
+        XCTAssertFalse(json.contains("photoFill"))
     }
 
     func test_settings_unreadable_areMovedAside() throws {

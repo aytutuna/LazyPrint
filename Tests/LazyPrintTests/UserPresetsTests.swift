@@ -126,7 +126,7 @@ final class UserPresetsTests: XCTestCase {
         job.pageSelection = .even
         job.reverseOrder = true
         job.quality = .best
-        job.layoutStyle = .photoPrints
+        job.photoSizeId = "4x6"
 
         let applied = UserPresets.apply(preset, to: job)
 

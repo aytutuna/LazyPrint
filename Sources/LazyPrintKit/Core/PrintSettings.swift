@@ -14,26 +14,6 @@ public enum QualityChoice: String, Codable, CaseIterable, Sendable {
     case best
 }
 
-/// How the pages are laid on the sheet: the usual way (`Imposition`), one photo size per print,
-/// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
-/// Twin of C# `LayoutStyle`.
-public enum LayoutStyle: String, Codable, CaseIterable, Sendable {
-    case pages
-    case photoPrints
-    case photoSheet
-
-    public var isPhoto: Bool { self != .pages }
-
-    /// What a file saved before the layout was a setting meant: the photo tasks decided it.
-    static func fromTaskId(_ taskId: String?) -> LayoutStyle {
-        switch PrintTask.tryParse(taskId) {
-        case .photos: return .photoPrints
-        case .photoSheet: return .photoSheet
-        default: return .pages
-        }
-    }
-}
-
 /// What the user chose for printing. Every property has a default, so older files load (Global rule 5).
 public struct PrintSettings: Codable, Equatable, Sendable {
     /// The `PrintTask` raw value, kept as text so a newer task survives.
@@ -70,38 +50,42 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     public var mediaSource = MediaChoices.auto
     /// A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.
     public var mediaType = MediaChoices.auto
-    public var layoutStyle = LayoutStyle.pages
-    public var photoSizeId = "4x6"
-    public var photoFill = true
-    public var cutMarks = true
+    /// A `PhotoSize` id: the most each print takes of its cell. "page" is the largest that fits.
+    public var photoSizeId = "page"
+    public var cutMarks = false
 
     public init() {}
 
     // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
     public static func sameInUse(_ preset: PrintSettings, _ settings: PrintSettings) -> Bool {
         let poster = (2...4).contains(preset.poster)
-        let alone = preset.layoutStyle != .photoPrints && !poster && !preset.booklet && preset.pagesPerSheet == 1
+        let sized = preset.photoSizeId != "page"
+        let alone = !poster && !preset.booklet && preset.pagesPerSheet == 1 && !sized
         var p = preset
         var s = settings
         p.taskId = nil
         s.taskId = nil
         if p.margin != .custom { p.marginMm = s.marginMm }
-        if p.layoutStyle == .pages {
-            p.photoSizeId = s.photoSizeId
-            p.photoFill = s.photoFill
-            p.cutMarks = s.cutMarks
-        }
         if !(alone && (p.scaling == .shrinkToFit || p.scaling == .actualSize)) { p.scale = s.scale }
         if !(p.booklet || p.pagesPerSheet > 1) || poster { p.rightToLeft = s.rightToLeft }
         if p.pagesPerSheet == 1 && !p.booklet { p.pageBorders = s.pageBorders }
         if p.booklet { p.orientation = s.orientation }
-        if p.layoutStyle.isPhoto || p.booklet || poster { p.sides = s.sides }
+        if p.booklet || poster {
+            p.sides = s.sides
+            p.photoSizeId = s.photoSizeId
+        }
+        if !(p.pagesPerSheet > 1 || sized || poster) { p.cutMarks = s.cutMarks }
         return p == s
     }
 
     enum CodingKeys: String, CodingKey {
         case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
-        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, layoutStyle, photoSizeId, photoFill, cutMarks
+        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, photoSizeId, cutMarks
+    }
+
+    // Read from a file saved while the layout was a style of its own; never written.
+    private enum LegacyKeys: String, CodingKey {
+        case layoutStyle, photoFill
     }
 }
 
@@ -128,10 +112,31 @@ extension PrintSettings {
         paperId = c.decodeLenient(forKey: .paperId, default: paperId)
         mediaSource = c.decodeLenient(forKey: .mediaSource, default: mediaSource)
         mediaType = c.decodeLenient(forKey: .mediaType, default: mediaType)
-        layoutStyle = c.decodeLenient(forKey: .layoutStyle, default: LayoutStyle.fromTaskId(taskId))
         photoSizeId = c.decodeLenient(forKey: .photoSizeId, default: photoSizeId)
-        photoFill = c.decodeLenient(forKey: .photoFill, default: photoFill)
         cutMarks = c.decodeLenient(forKey: .cutMarks, default: cutMarks)
+
+        // A file with a layout style gets the values that style forced; one without is already in the current form.
+        let old = try decoder.container(keyedBy: LegacyKeys.self)
+        guard let style = try? old.decodeIfPresent(String.self, forKey: .layoutStyle) else { return }
+        switch style {
+        case "photoPrints":
+            let fill = try? old.decodeIfPresent(Bool.self, forKey: .photoFill)
+            scaling = fill == false ? .fit : .fill
+            pagesPerSheet = 1
+            sides = .oneSided
+            booklet = false
+            poster = 0
+            margin = MarginChoice.none
+        case "photoSheet":
+            photoSizeId = "page"
+            sides = .oneSided
+            booklet = false
+            poster = 0
+            margin = MarginChoice.none
+        default:
+            photoSizeId = "page"
+            cutMarks = false
+        }
     }
 }
 

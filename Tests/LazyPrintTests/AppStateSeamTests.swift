@@ -919,7 +919,7 @@ final class AppStateSeamTests: XCTestCase {
         let s = rig.state.settings
         XCTAssertEqual(s.paperId, "a5")
         XCTAssertEqual(s.sides, .longEdge)
-        XCTAssertEqual(s.layoutStyle, .pages)
+        XCTAssertEqual(s.photoSizeId, "page")
         XCTAssertEqual(s.copies, 3)
         XCTAssertNil(s.taskId)
         XCTAssertNil(rig.state.task)
@@ -1031,7 +1031,7 @@ final class AppStateSeamTests: XCTestCase {
         await rig.state.startTask(.document)
 
         rig.state.settings.marginMm = 15
-        rig.state.settings.photoSizeId = "5x7"
+        rig.state.settings.cutMarks = true
         XCTAssertEqual(rig.state.currentTask, .document)
 
         rig.state.settings.orientation = .landscape

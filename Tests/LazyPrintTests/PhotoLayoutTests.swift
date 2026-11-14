@@ -13,7 +13,7 @@ final class PhotoLayoutTests: XCTestCase {
         XCTAssertEqual(PhotoSize.all.map(\.id), ["4x6", "5x7", "8x10", "3.5x5", "wallet", "10x15cm", "13x18cm", "page"])
         XCTAssertEqual(try size("4x6").title, "4 × 6 in")
         XCTAssertEqual(try size("10x15cm").title, "10 × 15 cm")
-        XCTAssertEqual(try size("page").title, "Whole page")
+        XCTAssertEqual(try size("page").title, "Largest that fits")
         XCTAssertEqual(try size("4x6").size, LayoutSize(width: 288, height: 432))
         XCTAssertNil(try size("page").size)
         let centimetres = try XCTUnwrap(try size("10x15cm").size)

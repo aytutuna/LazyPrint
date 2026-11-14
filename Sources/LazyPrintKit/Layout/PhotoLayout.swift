@@ -6,7 +6,7 @@ import Foundation
 public struct PhotoSize: Equatable, Sendable {
     /// "4x6", "5x7", "8x10", "3.5x5", "wallet", "10x15cm", "13x18cm" or "page".
     public var id: String
-    /// What a picker shows: "4 × 6 in", "10 × 15 cm", "Whole page".
+    /// What a picker shows: "4 × 6 in", "10 × 15 cm", "Largest that fits".
     public var title: String
     /// Portrait, in points; nil is as large as the cell allows.
     public var size: LayoutSize?
@@ -33,6 +33,6 @@ public struct PhotoSize: Equatable, Sendable {
         PhotoSize(id: "wallet", title: "Wallet, 2.5 \u{00D7} 3.5 in", size: inches(2.5, 3.5)),
         PhotoSize(id: "10x15cm", title: "10 \u{00D7} 15 cm", size: centimetres(10, 15)),
         PhotoSize(id: "13x18cm", title: "13 \u{00D7} 18 cm", size: centimetres(13, 18)),
-        PhotoSize(id: "page", title: "Whole page", size: nil),
+        PhotoSize(id: "page", title: "Largest that fits", size: nil),
     ]
 }

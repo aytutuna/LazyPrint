@@ -1,4 +1,5 @@
 #if os(iOS)
+import ImageIO
 import LazyPrintKit
 import UIKit
 import XCTest
@@ -51,14 +52,36 @@ final class IOSAirPrintPrinterTests: XCTestCase {
 
     func test_outputType_isPhotoForAPhotoJobWithoutMargins() {
         var job = makeJob(color: .color)
-        job.settings.layoutStyle = .photoPrints
+        job.documents = [photo()]
         job.plan.plan.area.margins = LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
 
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .photo)
         job.settings.color = .gray
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .photoGrayscale)
-        job.settings.layoutStyle = .pages
+        job.documents = [photo(), pdf()]
         XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .grayscale)
+        job.documents = [photo()]
+        job.plan.plan.area.margins = LayoutInsets(top: 18, left: 18, bottom: 18, right: 18)
+        XCTAssertEqual(IOSAirPrintPrinter.outputType(for: job), .grayscale)
+    }
+
+    private func photo() -> OpenedDocument {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let source: CGImageSource = CGImageSourceCreateWithData(png as CFData, nil)!
+        return OpenedDocument(loaded: LoadedDocument(name: "Beach", kind: .photo, pages: []), url: URL(fileURLWithPath: "/tmp/beach.png"),
+                              source: .picture(source))
+    }
+
+    private func pdf() -> OpenedDocument {
+        let data = NSMutableData()
+        var box = CGRect(x: 0, y: 0, width: 10, height: 10)
+        let context: CGContext = CGContext(consumer: CGDataConsumer(data: data)!, mediaBox: &box, nil)!
+        context.beginPDFPage(nil)
+        context.endPDFPage()
+        context.closePDF()
+        let document: CGPDFDocument = CGPDFDocument(CGDataProvider(data: data)!)!
+        return OpenedDocument(loaded: LoadedDocument(name: "Report", kind: .pdf(encrypted: false), pages: []),
+                              url: URL(fileURLWithPath: "/tmp/report.pdf"), source: .pdf(document))
     }
 
     @MainActor

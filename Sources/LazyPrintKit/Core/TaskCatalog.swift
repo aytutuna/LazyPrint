@@ -147,19 +147,28 @@ public enum TaskCatalog {
             s.pagesPerSheet = 2
             s.pageBorders = true
         case .photos:
-            s.layoutStyle = .photoPrints
+            s.photoSizeId = "4x6"
+            s.scaling = .fill
+            s.cutMarks = true
             s.margin = MarginChoice.none
             s.quality = .best
             s.color = .color
+            s.mediaType = photoMediaType(s, printer)
         case .photoSheet:
-            s.layoutStyle = .photoSheet
-            s.margin = MarginChoice.none
             s.pagesPerSheet = 4
             s.scaling = .fill
+            s.cutMarks = true
+            s.margin = MarginChoice.none
+            s.mediaType = photoMediaType(s, printer)
         case .testPage, .scanAndPrint, .fromPhone:
             s = settings
             s.taskId = task.rawValue
         }
         return s
+    }
+
+    /// The printer's photo paper unless a type was chosen; the printer picks when it has none.
+    private static func photoMediaType(_ s: PrintSettings, _ printer: PrinterCapabilities?) -> String {
+        s.mediaType == MediaChoices.auto ? MediaChoices.photoType(MediaChoices.types(printer)) ?? MediaChoices.auto : s.mediaType
     }
 }

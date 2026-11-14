@@ -24,7 +24,7 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(opened(.booklet), InspectorSections.layout)
         XCTAssertEqual(opened(.handouts), InspectorSections.layout)
         XCTAssertEqual(opened(.photos), InspectorSections.photos)
-        XCTAssertEqual(opened(.photoSheet), InspectorSections.photos)
+        XCTAssertEqual(opened(.photoSheet), InspectorSections.layout)
         XCTAssertNil(opened(.document))
         XCTAssertNil(opened(.twoSided))
         XCTAssertNil(opened(.testPage))
@@ -43,9 +43,9 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.pagesSummary(s), "")
         XCTAssertEqual(InspectorSections.layoutSummary(s), "")
         XCTAssertEqual(InspectorSections.paperSummary(s), "")
-        XCTAssertEqual(InspectorSections.photosSummary(s), "4 \u{00D7} 6 in \u{00B7} Fill \u{00B7} Cut marks")
+        XCTAssertEqual(InspectorSections.photosSummary(s), "")
         XCTAssertEqual(InspectorSections.headerName(InspectorSections.pages, s), "Pages")
-        XCTAssertEqual(InspectorSections.headerName(InspectorSections.photos, s), "Photos, 4 \u{00D7} 6 in \u{00B7} Fill \u{00B7} Cut marks")
+        XCTAssertEqual(InspectorSections.headerName(InspectorSections.photos, s), "Photos")
     }
 
     func test_summaries_sayWhatIsOn() {
@@ -58,13 +58,12 @@ final class InspectorSectionsTests: XCTestCase {
             $0.quality = .best
             $0.color = .gray
             $0.photoSizeId = "10x15cm"
-            $0.photoFill = false
-            $0.cutMarks = false
+            $0.cutMarks = true
         }
         XCTAssertEqual(InspectorSections.pagesSummary(s), "3 copies \u{00B7} Two-sided")
         XCTAssertEqual(InspectorSections.layoutSummary(s), "2 per side \u{00B7} Borders")
         XCTAssertEqual(InspectorSections.paperSummary(s), "Letter \u{00B7} Best \u{00B7} Gray")
-        XCTAssertEqual(InspectorSections.photosSummary(s), "10 \u{00D7} 15 cm \u{00B7} Fit")
+        XCTAssertEqual(InspectorSections.photosSummary(s), "10 \u{00D7} 15 cm \u{00B7} Cut marks")
         XCTAssertEqual(InspectorSections.headerName(InspectorSections.layout, s), "Layout, 2 per side \u{00B7} Borders")
         XCTAssertEqual(InspectorSections.summary(InspectorSections.layout, s), "2 per side \u{00B7} Borders")
     }
@@ -104,8 +103,8 @@ final class InspectorSectionsTests: XCTestCase {
     }
 
     func test_photosSummary_anUnknownSize_showsItsId() {
-        XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "page" }), "Whole page \u{00B7} Fill \u{00B7} Cut marks")
-        XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "6x8" }), "6x8 \u{00B7} Fill \u{00B7} Cut marks")
+        XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "page"; $0.cutMarks = true }), "Cut marks")
+        XCTAssertEqual(InspectorSections.photosSummary(settings { $0.photoSizeId = "6x8" }), "6x8")
     }
 
     func test_summaries_namePageOrderAndOrientation() {
@@ -130,9 +129,23 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }), "Fill")
     }
 
-    func test_summary_photoLayouts_showNoMarginPart() {
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.layoutStyle = .photoSheet; $0.margin = .normal }), "Photo sheet")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.layoutStyle = .photoSheet }, printedScale: 96), "Photo sheet")
+    func test_summary_photoPresets_showTheirMarginAndWhatTheyPrintAt() {
+        let sheet = TaskCatalog.apply(.photoSheet, to: PrintSettings(), printer: nil)
+        XCTAssertEqual(InspectorSections.layoutSummary(sheet), "4 per side \u{00B7} Fill \u{00B7} No margins")
+        var normal = sheet
+        normal.margin = .normal
+        XCTAssertEqual(InspectorSections.layoutSummary(normal), "4 per side \u{00B7} Fill \u{00B7} 12 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(PrintSettings(), printedScale: 96), "96 %")
+    }
+
+    func test_openedBy_followsTheValuesNotAStyle() {
+        XCTAssertNil(InspectorSections.openedBy(PrintSettings()))
+        XCTAssertEqual(InspectorSections.openedBy(settings { $0.photoSizeId = "4x6" }), InspectorSections.photos)
+        XCTAssertEqual(InspectorSections.openedBy(settings { $0.booklet = true }), InspectorSections.layout)
+        XCTAssertEqual(InspectorSections.openedBy(settings { $0.pagesPerSheet = 4 }), InspectorSections.layout)
+        XCTAssertEqual(InspectorSections.openedBy(settings { $0.poster = 2 }), InspectorSections.layout)
+        XCTAssertEqual(InspectorSections.openedBy(TaskCatalog.apply(.photos, to: PrintSettings(), printer: nil)), InspectorSections.photos)
+        XCTAssertEqual(InspectorSections.openedBy(TaskCatalog.apply(.photoSheet, to: PrintSettings(), printer: nil)), InspectorSections.layout)
     }
 
     func test_summary_aLonePageShowsWhatItPrintsAt() {
