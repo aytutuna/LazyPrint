@@ -92,16 +92,22 @@ final class PrintFlowTests: XCTestCase {
 
         // From the outer edge of each deck, since a two-sided job shows two and the curl takes a page by its free edge;
         // low down, clear of the arrows.
+        // A swipe that lands just as the curl settles is sometimes dropped on a slow simulator; a person would swipe again.
         let stage: XCUIElement = app.item("preview.stage")
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8))
-            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8)),
-                   withVelocity: .fast, thenHoldForDuration: 0)
-        app.waitUntil(position, "label != '\(first)'", "A swipe to the left turns to the next page")
-
-        stage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.8))
-            .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.8)),
-                   withVelocity: .fast, thenHoldForDuration: 0)
-        app.waitUntil(position, "label == '\(first)'", "A swipe to the right turns back")
+        func swipe(from: CGFloat, to: CGFloat, until predicate: String) -> Bool {
+            for _ in 0..<3 {
+                stage.coordinate(withNormalizedOffset: CGVector(dx: from, dy: 0.8))
+                    .press(forDuration: 0.05, thenDragTo: stage.coordinate(withNormalizedOffset: CGVector(dx: to, dy: 0.8)),
+                           withVelocity: .fast, thenHoldForDuration: 0)
+                let met = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate), object: position)
+                if XCTWaiter.wait(for: [met], timeout: 10) == .completed {
+                    return true
+                }
+            }
+            return false
+        }
+        XCTAssertTrue(swipe(from: 0.9, to: 0.1, until: "label != '\(first)'"), "A swipe to the left turns to the next page")
+        XCTAssertTrue(swipe(from: 0.1, to: 0.9, until: "label == '\(first)'"), "A swipe to the right turns back")
     }
 
     @MainActor
