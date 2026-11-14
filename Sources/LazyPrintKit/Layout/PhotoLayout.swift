@@ -58,7 +58,6 @@ public struct PhotoOptions: Equatable, Sendable {
 
 public enum PhotoLayout {
     private static let gap: Double = 3 * 72 / 25.4
-    private static let markLength: Double = 4
     private static let epsilon: Double = 1e-6
 
     /// As many prints of the size as fit on each sheet (the cells turned when more fit), 3 mm apart, in
@@ -82,38 +81,12 @@ public enum PhotoLayout {
         var start = 0
         while start < placements.count {
             let end = min(start + cells.count, placements.count)
-            sheets.append(Sheet(front: SheetSide(placements: Array(placements[start..<end]), borders: false), back: nil))
+            let side = Array(placements[start..<end])
+            let marks = options.cutMarks ? Imposition.markCells(side, several: cells.count > 1, laid: laid(area)) : []
+            sheets.append(Sheet(front: SheetSide(placements: side, borders: false, cutCells: marks), back: nil))
             start += cells.count
         }
         return SheetPlan(area: area, sheets: sheets, duplex: false, warnings: [])
-    }
-
-    /// The cut marks of a planned side, as lines for the renderer: at the corners of the print cells the
-    /// side uses, none when only one print fits on a sheet.
-    public static func cutMarks(_ side: SheetSide, options: PhotoOptions, area: PrintableArea) -> [TestPageItem] {
-        let cells = layoutCells(for: options.size.size, printable: laid(area))
-        if cells.count < 2 { return [] }
-        return corners(of: Array(cells.prefix(side.placements.count)))
-    }
-
-    /// The cut marks of a photo sheet's side, which `Imposition` planned: at the corners of the frames its photos
-    /// are in, none for a side with one photo.
-    public static func frameMarks(_ side: SheetSide) -> [TestPageItem] {
-        side.placements.count < 2 ? [] : corners(of: side.placements.map { $0.frame })
-    }
-
-    private static func corners(of frames: [LayoutRect]) -> [TestPageItem] {
-        var marks: [TestPageItem] = []
-        let gray = TestColor.gray(128)
-        for f in frames {
-            for (x, dx) in [(f.x, -1.0), (f.x + f.width, 1.0)] {
-                for (y, dy) in [(f.y, -1.0), (f.y + f.height, 1.0)] {
-                    marks.append(.line(from: LayoutPoint(x: x, y: y), to: LayoutPoint(x: x + dx * markLength, y: y), width: 0.5, color: gray))
-                    marks.append(.line(from: LayoutPoint(x: x, y: y), to: LayoutPoint(x: x, y: y + dy * markLength), width: 0.5, color: gray))
-                }
-            }
-        }
-        return marks
     }
 
     /// Photo layouts have no margin of their own, so they use the whole paper; the printer cuts what reaches its edge.

@@ -15,6 +15,8 @@ public enum Imposition {
     private static let posterOverlap: Double = 10 * 72 / 25.4
     /// The cut marks of a poster tile are this long, in the strip kept clear around it.
     static let posterMarkLength: Double = 6
+    /// The cut marks at a cell's corners are this long.
+    static let cutMarkLength: Double = 4
 
     /// The sheets for `pages` (several documents run on as one) on paper with the printer's `area`. Pages are laid out inside
     /// the chosen margin alone, equal on every side; the printer's own edge never moves them, it only cuts what reaches into it.
@@ -72,8 +74,8 @@ public enum Imposition {
                     if width < 1 || height < 1 { continue }
                     let crop = LayoutRect(x: left / scale, y: top / scale, width: width / scale, height: height / scale)
                     let shown = Fitted(frame: LayoutRect(x: view.x, y: view.y, width: width, height: height), crop: crop, scale: scale)
-                    let side = SheetSide(placements: [place(page, shown: shown, landscape: landscape, turned: false, paper: area.paper)],
-                                         borders: false, cutMarks: true)
+                    let placed = place(page, shown: shown, landscape: landscape, turned: false, paper: area.paper)
+                    let side = SheetSide(placements: [placed], borders: false, cutCells: [placed.frame])
                     sheets.append(Sheet(front: side, back: nil))
                 }
             }
@@ -106,7 +108,8 @@ public enum Imposition {
                 let cell = cellAt(viewPrintable(area, landscape: landscape), rows: rows, columns: columns, row: row, column: column)
                 placements.append(inCell(page, cell: cell, scaling: scaling, landscape: landscape, paper: area.paper))
             }
-            return SheetSide(placements: placements, borders: borders)
+            return SheetSide(placements: placements, borders: borders,
+                             cutCells: options.cutMarks ? markCells(placements, several: perSide > 1, laid: area.printable) : [])
         }
 
         var sheets: [Sheet] = []
@@ -157,6 +160,13 @@ public enum Imposition {
         let lower = min(start, pages.count)
         let upper = min(start + count, pages.count)
         return Array(pages[lower..<upper])
+    }
+
+    /// The frames to mark: those of a side with several pages, or of a page smaller than the laid area.
+    static func markCells(_ placements: [Placement], several: Bool, laid: LayoutRect) -> [LayoutRect] {
+        let frames = placements.map { $0.frame }
+        let smaller = frames.contains { $0.width < laid.width - epsilon || $0.height < laid.height - epsilon }
+        return several || smaller ? frames : []
     }
 
     /// The grid in a reading view: its longer count runs along the view's longer side.
@@ -299,6 +309,9 @@ public enum Imposition {
     /// Not private: `ManualDuplex` turns backs with it.
     static func turned(_ side: SheetSide, paper: LayoutSize) -> SheetSide {
         var result = side
+        result.cutCells = side.cutCells.map {
+            LayoutRect(x: paper.width - $0.x - $0.width, y: paper.height - $0.y - $0.height, width: $0.width, height: $0.height)
+        }
         result.placements = side.placements.map { placement in
             var turnedPlacement = placement
             turnedPlacement.frame = LayoutRect(x: paper.width - placement.frame.x - placement.frame.width,

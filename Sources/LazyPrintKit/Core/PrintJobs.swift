@@ -50,7 +50,8 @@ public enum PrintJobs {
                              orientation: settings.orientation,
                              margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm,
                                                                        printerEdge: printerMargin(settings, printer: printer)),
-                             poster: photos ? 0 : settings.poster)
+                             poster: photos ? 0 : settings.poster,
+                             cutMarks: settings.layoutStyle == .photoSheet && settings.cutMarks)
     }
 
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless

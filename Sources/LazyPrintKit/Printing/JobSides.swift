@@ -19,7 +19,7 @@ public enum JobSides {
         let sent = job.plan.passes[pass]
         var once = [RenderedSide]()
         for (i, side) in sent.sides.enumerated() {
-            let items = job.items?[i].items ?? cutMarks(job, side)
+            let items = job.items?[i].items ?? []
             once.append(RenderedSide(side: side, items: items, marked: sent.marked.contains(i),
                                      turned: job.items?[i].turned ?? false))
         }
@@ -31,10 +31,5 @@ public enum JobSides {
         return stride(from: 0, to: once.count, by: group).flatMap { start in
             (0..<times).flatMap { _ in Array(once[start..<min(start + group, once.count)]) }
         }
-    }
-
-    private static func cutMarks(_ job: SheetJob, _ side: SheetSide) -> [TestPageItem] {
-        if let options = job.marks { return PhotoLayout.cutMarks(side, options: options, area: job.plan.plan.area) }
-        return job.frameMarks ? PhotoLayout.frameMarks(side) : []
     }
 }

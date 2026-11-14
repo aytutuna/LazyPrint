@@ -109,14 +109,4 @@ final class JobSidesTests: XCTestCase {
         XCTAssertEqual(sides.map { $0.items }, [front, back])
         XCTAssertEqual(sides.map { $0.turned }, [false, true])
     }
-
-    func test_of_aPhotoJobDrawsItsCutMarksOnTheSidesOfDocuments() throws {
-        let document = try openLetterPDF(pages: 1)
-        var job = PrintFixtures.job(PrintFixtures.letter { $0.photoSizeId = "4x6" }, document: document)
-        job.marks = PhotoOptions(size: PhotoSize.all.first(where: { $0.id == "4x6" })!, copiesEach: 1, fill: true, cutMarks: true)
-
-        let side = try XCTUnwrap(JobSides.of(job, pass: 0).first)
-        let expected = PhotoLayout.cutMarks(side.side, options: try XCTUnwrap(job.marks), area: job.plan.plan.area)
-        XCTAssertEqual(side.items, expected)
-    }
 }

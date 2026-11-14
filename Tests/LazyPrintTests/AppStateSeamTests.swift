@@ -1987,7 +1987,8 @@ final class AppStateSeamTests: XCTestCase {
         await rig.state.print()
 
         let side = try XCTUnwrap(JobSides.of(try XCTUnwrap(rig.sheets.jobs.first), pass: 0).first)
-        XCTAssertFalse(side.items.isEmpty)
+        XCTAssertTrue(side.items.isEmpty)
+        XCTAssertFalse(side.side.cutCells.isEmpty)
     }
 
     @MainActor
@@ -2008,7 +2009,7 @@ final class AppStateSeamTests: XCTestCase {
         await rig.state.print()
 
         let side = try XCTUnwrap(JobSides.of(try XCTUnwrap(rig.sheets.jobs.first), pass: 0).first)
-        XCTAssertEqual(side.items.count, 32)
+        XCTAssertEqual(side.side.cutCells.count, 4)
     }
 
     // MARK: Two-sided by hand

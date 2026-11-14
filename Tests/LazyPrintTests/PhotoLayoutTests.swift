@@ -145,54 +145,38 @@ final class PhotoLayoutTests: XCTestCase {
         XCTAssertTrue(PhotoLayout.plan([], options: PhotoOptions(size: try size("4x6")), area: wholePaper(layoutLetter)).sheets.isEmpty)
     }
 
-    func test_cutMarks_severalPrints_marksEachCornerWithTwoGrayLines() throws {
-        let options = PhotoOptions(size: try size("4x6"))
-        let plan = PhotoLayout.plan(photos(2), options: options, area: wholePaper(layoutLetter))
-        let marks = PhotoLayout.cutMarks(plan.sheets[0].front, options: options, area: plan.area)
-        XCTAssertEqual(marks.count, 16)
-        let lines = drawnLines(marks)
-        XCTAssertEqual(lines.count, 16)
-        for line in lines {
-            XCTAssertEqual(line.color, .gray(128))
-            XCTAssertLessThanOrEqual(abs(line.to.x - line.from.x) + abs(line.to.y - line.from.y), 4.0001)
-        }
+    func test_cutCells_severalPrints_areTheFramesOfThePrints() throws {
+        let plan = PhotoLayout.plan(photos(2), options: PhotoOptions(size: try size("4x6")), area: wholePaper(layoutLetter))
+        let side = plan.sheets[0].front
+        XCTAssertEqual(side.cutCells, side.placements.map { $0.frame })
     }
 
-    func test_cutMarks_onePrint_hasNone() throws {
-        let options = PhotoOptions(size: try size("8x10"))
-        let plan = PhotoLayout.plan(photos(1), options: options, area: paperWithMargins(layoutLetter, 18))
-        XCTAssertTrue(PhotoLayout.cutMarks(plan.sheets[0].front, options: options, area: plan.area).isEmpty)
+    func test_cutCells_aPrintSmallerThanTheSheet_isMarked() throws {
+        let plan = PhotoLayout.plan(photos(1), options: PhotoOptions(size: try size("8x10")), area: paperWithMargins(layoutLetter, 18))
+        XCTAssertEqual(plan.sheets[0].front.cutCells.count, 1)
     }
 
-    func test_cutMarks_followThePrintCellsNotThePhoto() throws {
+    func test_cutCells_aWholePagePrint_hasNone() throws {
+        let plan = PhotoLayout.plan(photos(1), options: PhotoOptions(size: try size("page")), area: wholePaper(layoutLetter))
+        XCTAssertTrue(plan.sheets[0].front.cutCells.isEmpty)
+    }
+
+    func test_cutCells_followThePrintedPhoto_whenItIsFitted() throws {
         let options = PhotoOptions(size: try size("4x6"), fill: false)
         let plan = PhotoLayout.plan(photos(2, 800, 600), options: options, area: wholePaper(layoutLetter))
-        let marks = PhotoLayout.cutMarks(plan.sheets[0].front, options: options, area: plan.area)
-        let left = (612 - (576 + gap)) / 2
-        let corner = drawnLines(marks).filter { $0.from.x == left && $0.from.y == (792 - 432) / 2.0 }
-        XCTAssertEqual(corner.count, 2)
-    }
-
-    func test_cutMarks_partlyFilledLastSheet_stillHasThem() throws {
-        let options = PhotoOptions(size: try size("4x6"))
-        let plan = PhotoLayout.plan(photos(3), options: options, area: wholePaper(layoutLetter))
-        XCTAssertEqual(PhotoLayout.cutMarks(plan.sheets[1].front, options: options, area: plan.area).count, 8)
-    }
-
-    func test_frameMarks_aPhotoSheet_marksTheCornersOfEachFrame() {
-        let plan = Imposition.plan(photos(4), options: LayoutOptions(pagesPerSheet: 4, scaling: .fill), area: wholePaper(layoutLetter))
         let side = plan.sheets[0].front
-        let lines = drawnLines(PhotoLayout.frameMarks(side))
-        XCTAssertEqual(lines.count, 32)
-        for placement in side.placements {
-            let frame = placement.frame
-            let corner = lines.filter { $0.from.x == frame.x && $0.from.y == frame.y }
-            XCTAssertGreaterThanOrEqual(corner.count, 2)
-        }
+        XCTAssertEqual(side.cutCells, side.placements.map { $0.frame })
+        XCTAssertLessThan(side.cutCells[0].height, 432)
     }
 
-    func test_frameMarks_onePhoto_hasNone() {
-        let plan = Imposition.plan(photos(1), options: LayoutOptions(pagesPerSheet: 4, scaling: .fill), area: wholePaper(layoutLetter))
-        XCTAssertTrue(PhotoLayout.frameMarks(plan.sheets[0].front).isEmpty)
+    func test_cutCells_partlyFilledLastSheet_stillHasThem() throws {
+        let plan = PhotoLayout.plan(photos(3), options: PhotoOptions(size: try size("4x6")), area: wholePaper(layoutLetter))
+        XCTAssertEqual(plan.sheets[1].front.cutCells.count, 1)
+    }
+
+    func test_cutCells_withoutCutMarks_areEmpty() throws {
+        let options = PhotoOptions(size: try size("4x6"), cutMarks: false)
+        let plan = PhotoLayout.plan(photos(2), options: options, area: wholePaper(layoutLetter))
+        XCTAssertTrue(plan.sheets[0].front.cutCells.isEmpty)
     }
 }

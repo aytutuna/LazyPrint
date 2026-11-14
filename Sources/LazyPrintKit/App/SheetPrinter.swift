@@ -15,8 +15,7 @@ public struct DrawnItems: Equatable, Sendable {
 
 /// A job as it goes to a printer: what the plan laid out, and what it was laid out from. `id` is the job record's, so a
 /// printer that keeps files for a job finds them again for its second pass. A job made of `items` (the test page, the
-/// two-sided check) has no documents: each side of its one pass is drawn from the items at the same index. `marks` asks
-/// for the cut marks of photo prints on the sides of documents, `frameMarks` for those of a photo sheet.
+/// two-sided check) has no documents: each side of its one pass is drawn from the items at the same index.
 public struct SheetJob: Sendable {
     public var name: String
     public var printer: PrinterInfo
@@ -27,12 +26,9 @@ public struct SheetJob: Sendable {
     public var documents: [OpenedDocument]
     public var id: String
     public var items: [DrawnItems]?
-    public var marks: PhotoOptions?
-    public var frameMarks: Bool
 
     public init(name: String, printer: PrinterInfo, capabilities: PrinterCapabilities?, settings: PrintSettings, plan: JobPlan,
-                documents: [OpenedDocument], id: String = "", items: [DrawnItems]? = nil, marks: PhotoOptions? = nil,
-                frameMarks: Bool = false) {
+                documents: [OpenedDocument], id: String = "", items: [DrawnItems]? = nil) {
         self.name = name
         self.printer = printer
         self.capabilities = capabilities
@@ -41,8 +37,6 @@ public struct SheetJob: Sendable {
         self.documents = documents
         self.id = id
         self.items = items
-        self.marks = marks
-        self.frameMarks = frameMarks
     }
 
     /// What a job of drawn items takes from the user's settings: the paper, its type, the tray and the margin. Everything

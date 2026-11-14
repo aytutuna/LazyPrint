@@ -138,10 +138,12 @@ public struct LayoutOptions: Equatable, Sendable {
     /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
     /// Any other number is no poster; a poster comes before `booklet` and `pagesPerSheet`.
     public var poster: Int
+    /// Short marks at the corners of each printed page when there are several on a side or one smaller than the margin's area.
+    public var cutMarks: Bool
 
     public init(pagesPerSheet: Int = 1, booklet: Bool = false, rightToLeft: Bool = false,
                 scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100,
-                orientation: SheetOrientation = .automatic, margin: Double = 0, poster: Int = 0) {
+                orientation: SheetOrientation = .automatic, margin: Double = 0, poster: Int = 0, cutMarks: Bool = false) {
         self.pagesPerSheet = pagesPerSheet
         self.booklet = booklet
         self.rightToLeft = rightToLeft
@@ -152,6 +154,7 @@ public struct LayoutOptions: Equatable, Sendable {
         self.orientation = orientation
         self.margin = margin
         self.poster = poster
+        self.cutMarks = cutMarks
     }
 }
 
@@ -222,13 +225,13 @@ public struct Placement: Equatable, Sendable {
 public struct SheetSide: Equatable, Sendable {
     public var placements: [Placement]
     public var borders: Bool
-    /// Short marks outside each placement's corners, for the tiles of a poster.
-    public var cutMarks: Bool
+    /// On the sheet, the boxes that get short cut marks outside their corners; empty is no marks.
+    public var cutCells: [LayoutRect]
 
-    public init(placements: [Placement], borders: Bool, cutMarks: Bool = false) {
+    public init(placements: [Placement], borders: Bool, cutCells: [LayoutRect] = []) {
         self.placements = placements
         self.borders = borders
-        self.cutMarks = cutMarks
+        self.cutCells = cutCells
     }
 }
 

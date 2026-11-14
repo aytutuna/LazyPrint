@@ -621,18 +621,6 @@ public final class AppState: ObservableObject {
                               printer: capabilities, prefs: selectedPrefs)
     }
 
-    /// What the cut marks of a photo print are laid out from; nil when the settings draw none.
-    static func marks(_ settings: PrintSettings) -> PhotoOptions? {
-        guard settings.layoutStyle == .photoPrints, settings.cutMarks else { return nil }
-        let size = PhotoSize.all.first(where: { $0.id == settings.photoSizeId }) ?? PhotoSize.all[0]
-        return PhotoOptions(size: size, copiesEach: 1, fill: settings.photoFill, cutMarks: true)
-    }
-
-    /// Whether a photo sheet's cut marks are drawn, at the frames its photos were planned into.
-    static func drawsFrameMarks(_ settings: PrintSettings) -> Bool {
-        settings.layoutStyle == .photoSheet && settings.cutMarks
-    }
-
     /// Draws the current side off the main actor; an answer for a side that is no longer the current one is dropped.
     func startPreview() {
         guard let key = sideKey(previewSide) else {
@@ -717,11 +705,7 @@ public final class AppState: ObservableObject {
             if let back = sheet.back { sides.append(back) }
         }
         guard sides.indices.contains(index) else { return nil }
-        let side = sides[index]
-        if let options = Self.marks(settings) {
-            return RenderedSide(side: side, items: PhotoLayout.cutMarks(side, options: options, area: plan.plan.area))
-        }
-        return RenderedSide(side: side, items: Self.drawsFrameMarks(settings) ? PhotoLayout.frameMarks(side) : [])
+        return RenderedSide(side: sides[index])
     }
 
     // MARK: Two-sided card

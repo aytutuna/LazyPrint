@@ -68,8 +68,7 @@ extension AppState {
         let plan = PrintJobs.plan(inputs.documents.map { $0.loaded }, pageRange: inputs.range, settings: inputs.settings,
                                   printer: caps, prefs: prefs(of: printer))
         return SheetJob(name: inputs.name, printer: printer, capabilities: caps, settings: inputs.settings, plan: plan,
-                        documents: inputs.documents, id: id, marks: Self.marks(inputs.settings),
-                        frameMarks: Self.drawsFrameMarks(inputs.settings))
+                        documents: inputs.documents, id: id)
     }
 
     private func keepAgain(_ id: String, _ again: @escaping @MainActor () async -> Void) {

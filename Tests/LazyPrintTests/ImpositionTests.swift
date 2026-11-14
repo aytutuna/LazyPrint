@@ -583,7 +583,7 @@ final class ImpositionTests: XCTestCase {
             XCTAssertNil(sheet.back)
             XCTAssertEqual(sheet.front.placements.count, 1)
             XCTAssertNotNil(sheet.front.placements[0].crop)
-            XCTAssertTrue(sheet.front.cutMarks)
+            XCTAssertEqual(sheet.front.cutCells, [sheet.front.placements[0].frame])
         }
 
         let scale: Double = (2 * 600 - posterOverlap) / 612
@@ -594,6 +594,33 @@ final class ImpositionTests: XCTestCase {
         let third = try XCTUnwrap(frontSide(plan, 2).placements[0].crop)
         XCTAssertTrue(second.x > 0 && second.y == 0)
         XCTAssertTrue(third.x == 0 && third.y > 0)
+    }
+
+    func test_plan_cutMarks_markTheFramesOfEverySideWithSeveralPages() {
+        let plan = makePlan(portraitPages(4), LayoutOptions(pagesPerSheet: 4, cutMarks: true))
+        let side = frontSide(plan)
+        XCTAssertEqual(side.cutCells, side.placements.map { $0.frame })
+    }
+
+    func test_plan_cutMarks_areOffByDefault() {
+        XCTAssertTrue(frontSide(makePlan(portraitPages(4), LayoutOptions(pagesPerSheet: 4))).cutCells.isEmpty)
+    }
+
+    func test_plan_cutMarks_aLonePageNeedsToBeSmallerThanTheLaidArea() {
+        let options = LayoutOptions(cutMarks: true)
+        XCTAssertTrue(frontSide(makePlan(portraitPages(1), options)).cutCells.isEmpty)
+        XCTAssertEqual(frontSide(makePlan([makePage(0, 100, 100)], LayoutOptions(scaling: .actualSize, cutMarks: true))).cutCells.count, 1)
+    }
+
+    func test_plan_cutMarks_areNotMadeForABooklet() {
+        let plan = makePlan(portraitPages(4), LayoutOptions(booklet: true, cutMarks: true))
+        XCTAssertTrue(plan.sheets.allSatisfy { $0.front.cutCells.isEmpty })
+    }
+
+    func test_plan_cutMarks_followTheBackWhenItIsTurned() {
+        let plan = makePlan(portraitPages(4), LayoutOptions(pagesPerSheet: 2, sides: .shortEdge, cutMarks: true))
+        let back = backSide(plan)
+        XCTAssertEqual(back.cutCells, back.placements.map { $0.frame })
     }
 
     func test_plan_poster_tilesOverlapByACentimetre() throws {
