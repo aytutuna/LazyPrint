@@ -126,7 +126,8 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .small }, edge: 6.4), "6.4 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }, edge: 4.3), "12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 3 }, edge: 3), "3 mm margins")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }, edge: 4.3), "Fill")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }, edge: 4.3), "Actual size · 4.3 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }, edge: 4.3), "Fill · 4.3 mm margins")
     }
 
     func test_summary_aLonePageShowsWhatItPrintsAt() {
@@ -140,8 +141,8 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 3; $0.pagesPerSheet = 4; $0.rightToLeft = true }), "Poster 3 \u{00D7} 3")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fit; $0.margin = .small }), "Fit to page \u{00B7} 6 mm margins")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize; $0.margin = .normal }), "Actual size")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill; $0.margin = .normal }), "Fill")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize; $0.margin = .normal }), "Actual size · 12 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill; $0.margin = .normal }), "Fill · 12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 2; $0.scaling = .fill; $0.margin = .normal }),
                        "Poster 2 \u{00D7} 2 \u{00B7} 12 mm margins")
     }
