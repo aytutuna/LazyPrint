@@ -105,9 +105,12 @@ struct InspectorView: View {
 
     private func layoutSection(_ rules: Rules) -> some View {
         let printed = state.jobPlan?.plan.printedScale
-        let edge = PrintJobs.edge(state.settings, margin: state.settings.margin, printer: state.capabilities)
+        let printerMargin = PrintJobs.printerMargin(state.settings, printer: state.capabilities)
+        let chosen = MarginChoices.millimetres(state.settings.margin, custom: state.settings.marginMm, printerEdge: printerMargin)
+        let edge = PrintJobs.printerEdge(state.settings, printer: state.capabilities)
+        let cutByEdge = rules.marginEnabled && (edge ?? 0) > (chosen * 10).rounded(.toNearestOrEven) / 10
         return InspectorSection(id: InspectorSections.layout, icon: "square.grid.2x2",
-                                summary: InspectorSections.layoutSummary(state.settings, edge: edge, printedScale: printed)) {
+                                summary: InspectorSections.layoutSummary(state.settings, printedScale: printed)) {
             field("Style") {
                 Picker("Style", selection: $state.settings.layoutStyle) {
                     ForEach(LayoutStyle.allCases, id: \.self) { style in
@@ -182,8 +185,7 @@ struct InspectorView: View {
             field("Margins") {
                 Picker("Margins", selection: $state.settings.margin) {
                     ForEach(MarginChoice.allCases, id: \.self) { choice in
-                        let choiceEdge = PrintJobs.edge(state.settings, margin: choice, printer: state.capabilities)
-                        Text(PrintText.marginLabel(choice, edge: choiceEdge)).tag(choice)
+                        Text(PrintText.marginLabel(choice, edge: printerMargin)).tag(choice)
                     }
                 }
                 .labelsHidden()
@@ -196,8 +198,8 @@ struct InspectorView: View {
                     .disabled(!rules.marginEnabled)
                     .accessibilityLabel("Margin in millimetres")
                     .accessibilityValue("\(state.settings.marginMm) mm")
-                    if Double(state.settings.marginMm) < edge { note(PrintText.printerLimitHint(edge)) }
                 }
+                if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
             }
         }
     }

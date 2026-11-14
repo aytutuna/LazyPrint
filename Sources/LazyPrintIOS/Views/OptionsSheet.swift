@@ -116,7 +116,10 @@ struct OptionsSheet: View {
 
     private func layoutSection(_ rules: Rules) -> some View {
         let printed: Int? = state.jobPlan?.plan.printedScale
-        let edge: Double = PrintJobs.edge(state.settings, margin: state.settings.margin, printer: state.capabilities)
+        let printerMargin: Double = PrintJobs.printerMargin(state.settings, printer: state.capabilities)
+        let chosen: Double = MarginChoices.millimetres(state.settings.margin, custom: state.settings.marginMm, printerEdge: printerMargin)
+        let edge: Double? = PrintJobs.printerEdge(state.settings, printer: state.capabilities)
+        let cutByEdge: Bool = rules.marginEnabled && (edge ?? 0) > (chosen * 10).rounded(.toNearestOrEven) / 10
         return Section(InspectorSections.title(InspectorSections.layout)) {
             Choice(title: "Style", selection: Binding(
                 get: { state.settings.layoutStyle },
@@ -171,8 +174,7 @@ struct OptionsSheet: View {
                 get: { state.settings.margin },
                 set: { (margin: MarginChoice) in state.settings.margin = margin }),
                    options: MarginChoice.allCases.map { (choice: MarginChoice) -> (String, MarginChoice) in
-                       let choiceEdge: Double = PrintJobs.edge(state.settings, margin: choice, printer: state.capabilities)
-                       return (PrintText.marginLabel(choice, edge: choiceEdge), choice)
+                       return (PrintText.marginLabel(choice, edge: printerMargin), choice)
                    },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {
@@ -181,8 +183,8 @@ struct OptionsSheet: View {
                 }
                 .disabled(!rules.marginEnabled)
                 .accessibilityIdentifier("print.marginMm")
-                if Double(state.settings.marginMm) < edge { note(PrintText.printerLimitHint(edge)) }
             }
+            if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
         }
     }
 

@@ -68,9 +68,8 @@ public enum InspectorSections {
     }
 
     /// "2 per side · Borders", "Booklet · Right to left"; "" for one page per side.
-    /// `edge` is the printer's own margin (`Imposition.edge`), what the Printer's margin choice means; `printedScale` is what a lone
-    /// page really prints at (`SheetPlan.printedScale`) when the plan is known.
-    public static func layoutSummary(_ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
+    /// `printedScale` is what a lone page really prints at (`SheetPlan.printedScale`) when the plan is known.
+    public static func layoutSummary(_ s: PrintSettings, printedScale: Int? = nil) -> String {
         var parts = [String]()
         let poster = (2...4).contains(s.poster)
         if s.layoutStyle.isPhoto { parts.append(PrintText.layoutStyleTitle(s.layoutStyle)) }
@@ -95,7 +94,8 @@ public enum InspectorSections {
             default: parts.append("Fill")
             }
         }
-        let margin: Double = s.layoutStyle.isPhoto ? 0 : MarginChoices.millimetres(s.margin, custom: s.marginMm, printerEdge: edge)
+        // The printer's own margin is the default, so it adds nothing here.
+        let margin: Double = s.layoutStyle.isPhoto ? 0 : MarginChoices.millimetres(s.margin, custom: s.marginMm, printerEdge: 0)
         if margin > 0 { parts.append("\(PrintText.millimetres(margin)) margins") }
         return join(parts)
     }
@@ -118,10 +118,10 @@ public enum InspectorSections {
     }
 
     /// The summary a collapsed header shows for `s`; "" for none (the printer's section has none).
-    public static func summary(_ section: String, _ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
+    public static func summary(_ section: String, _ s: PrintSettings, printedScale: Int? = nil) -> String {
         switch section {
         case pages: return pagesSummary(s)
-        case layout: return layoutSummary(s, edge: edge, printedScale: printedScale)
+        case layout: return layoutSummary(s, printedScale: printedScale)
         case paper: return paperSummary(s)
         case photos: return photosSummary(s)
         default: return ""
@@ -130,8 +130,8 @@ public enum InspectorSections {
 
     /// The header's accessibility label: the title, then the summary when there is one ("Layout, 2 per
     /// side · Borders").
-    public static func headerName(_ section: String, _ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
-        let text = summary(section, s, edge: edge, printedScale: printedScale)
+    public static func headerName(_ section: String, _ s: PrintSettings, printedScale: Int? = nil) -> String {
+        let text = summary(section, s, printedScale: printedScale)
         return text.isEmpty ? title(section) : "\(title(section)), \(text)"
     }
 }

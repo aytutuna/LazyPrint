@@ -397,19 +397,31 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertFalse(AppState.useListedPapers(&mac, from: ipp, platform: .mac))
     }
 
-    func test_edge_isZeroForPhotoLayouts_andTheChoicesOwnOtherwise() {
+    func test_printerEdge_isNilWithoutAnEntry_zeroWhenBorderless_andTheLargestSideOtherwise() {
+        func entry(_ margin: Int) -> MediaEntry {
+            MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
+                       margins: MediaMargins(top: margin, left: margin, bottom: margin, right: margin), type: nil, source: nil)
+        }
+        XCTAssertNil(PrintJobs.printerEdge(makeSettings(), printer: nil))
+        XCTAssertNil(PrintJobs.printerEdge(makeSettings(), printer: PrinterCapabilities()))
+        var printer = PrinterCapabilities()
+        printer.mediaColDatabase = [entry(432)]
+        XCTAssertEqual(PrintJobs.printerEdge(makeSettings(), printer: printer), 4.3)
+        XCTAssertEqual(PrintJobs.printerEdge(makeSettings { $0.margin = MarginChoice.none }, printer: printer), 4.3)
+        printer.mediaColDatabase = [entry(432), entry(0)]
+        XCTAssertEqual(PrintJobs.printerEdge(makeSettings { $0.margin = MarginChoice.none }, printer: printer), 0)
+        XCTAssertEqual(PrintJobs.printerEdge(makeSettings { $0.margin = .normal }, printer: printer), 4.3)
+    }
+
+    func test_printerMargin_isTheEdgeOfTheBorderedArea_andAQuarterInchWithoutAnEntry() {
         func entry(_ margin: Int) -> MediaEntry {
             MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
                        margins: MediaMargins(top: margin, left: margin, bottom: margin, right: margin), type: nil, source: nil)
         }
         var printer = PrinterCapabilities()
-        printer.mediaColDatabase = [entry(432)]
-        XCTAssertEqual(PrintJobs.edge(makeSettings(), margin: .normal, printer: printer), 4.3)
-        XCTAssertEqual(PrintJobs.edge(makeSettings { $0.layoutStyle = .photoSheet }, margin: .normal, printer: printer), 0)
-        XCTAssertEqual(PrintJobs.edge(makeSettings { $0.layoutStyle = .photoPrints }, margin: .none, printer: printer), 0)
         printer.mediaColDatabase = [entry(432), entry(0)]
-        XCTAssertEqual(PrintJobs.edge(makeSettings(), margin: .none, printer: printer), 0)
-        XCTAssertEqual(PrintJobs.edge(makeSettings(), margin: .printer, printer: printer), 4.3)
+        XCTAssertEqual(PrintJobs.printerMargin(makeSettings { $0.margin = MarginChoice.none }, printer: printer), 4.3)
+        XCTAssertEqual(PrintJobs.printerMargin(makeSettings(), printer: nil), 6.4)
     }
 
     func test_edge_isTheLargestSide_andTheAreaIsNotSymmetrisedWhenDuplex() {

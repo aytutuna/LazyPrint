@@ -148,9 +148,9 @@ public enum PrintText {
         return (tenths == tenths.rounded() ? String(Int(tenths)) : String(format: "%.1f", tenths)) + " mm"
     }
 
-    /// Under a custom margin that is smaller than the printer's own: "Printer limit 4.3 mm".
-    public static func printerLimitHint(_ edge: Double) -> String {
-        "Printer limit \(millimetres(edge))"
+    /// Under Margins when the margin is smaller than the printer's own edge.
+    public static func printerEdgeNote(_ edge: Double) -> String {
+        "This printer can't print the outer \(millimetres(edge))"
     }
 
     /// What a Margins choice reads: "None", "Printer's margin, 4.3 mm", "Normal, 12 mm", "Custom".

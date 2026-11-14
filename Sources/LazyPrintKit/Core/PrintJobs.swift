@@ -49,7 +49,7 @@ public enum PrintJobs {
                              scale: settings.scale,
                              orientation: settings.orientation,
                              margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm,
-                                                                       printerEdge: edge(settings, margin: .printer, printer: printer)),
+                                                                       printerEdge: printerMargin(settings, printer: printer)),
                              poster: photos ? 0 : settings.poster)
     }
 
@@ -74,12 +74,20 @@ public enum PrintJobs {
              type: matchType(settings, printer))
     }
 
-    /// The printer's edge (`Imposition.edge`) the settings would have with `margin` chosen instead, 0 for photo layouts: None
-    /// can be borderless where the printer's margin is not, so each choice in the Margins list is told its own.
-    public static func edge(_ settings: PrintSettings, margin: MarginChoice, printer: PrinterCapabilities?) -> Double {
-        if settings.layoutStyle.isPhoto { return 0 }
+    /// How far the printer's own edge reaches in on the paper the settings print on (`Imposition.edge`), 0 when the layout is
+    /// borderless; nil when the printer has no entry for the paper (or there is no printer), where the edge is only a guess.
+    public static func printerEdge(_ settings: PrintSettings, printer: PrinterCapabilities?) -> Double? {
+        let size = sheet(settings.paperId, printer)
+        guard printer?.match(size, borderless: wantsBorderless(settings, printer: printer), type: matchType(settings, printer)) != nil else {
+            return nil
+        }
+        return Imposition.edge(area(settings, printer: printer))
+    }
+
+    /// The distance `MarginChoice.printer` keeps clear: the edge of the bordered area, 0.25 in without an entry.
+    public static func printerMargin(_ settings: PrintSettings, printer: PrinterCapabilities?) -> Double {
         var s = settings
-        s.margin = margin
+        s.margin = .printer
         return Imposition.edge(area(s, printer: printer))
     }
 
