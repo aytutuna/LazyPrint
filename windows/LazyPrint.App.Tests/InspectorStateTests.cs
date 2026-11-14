@@ -22,12 +22,6 @@ public sealed class InspectorStateTests
         Assert.False(state.ShowCollate);
         Assert.False(state.ShowRightToLeft);
         Assert.False(state.ShowBorders);
-        Assert.False(state.PhotoSizeEnabled);
-        Assert.Equal("Needs the Photo prints layout", state.PhotoSizeReason);
-        Assert.False(state.PhotoFillEnabled);
-        Assert.Equal("Needs the Photo prints layout", state.PhotoFillReason);
-        Assert.False(state.CutMarksEnabled);
-        Assert.Equal("Needs a photo layout", state.CutMarksReason);
     }
 
     [Fact]
@@ -93,45 +87,36 @@ public sealed class InspectorStateTests
     }
 
     [Fact]
-    public void PhotoPrintsGreyOutWhatTheyLayOutThemselves()
+    public void PhotoPrintsLeaveEveryControlEnabled()
     {
-        var state = For(Preset(PrintTask.Photos));
+        foreach (var task in new[] { PrintTask.Photos, PrintTask.PhotoSheet })
+        {
+            var state = For(Preset(task));
 
-        Assert.False(state.SidesEnabled);
-        Assert.Equal("Photos print one-sided", state.SidesReason);
-        Assert.False(state.PagesPerSideEnabled);
-        Assert.False(state.BookletEnabled);
-        Assert.False(state.PosterEnabled);
-        Assert.False(state.ScalingEnabled);
-        Assert.False(state.MarginEnabled);
-        Assert.True(state.PhotoSizeEnabled);
-        Assert.Null(state.PhotoSizeReason);
-        Assert.True(state.PhotoFillEnabled);
-        Assert.Null(state.PhotoFillReason);
-        Assert.True(state.CutMarksEnabled);
-        Assert.Null(state.CutMarksReason);
+            Assert.True(state.SidesEnabled);
+            Assert.True(state.PagesPerSideEnabled);
+            Assert.True(state.BookletEnabled);
+            Assert.True(state.MarginEnabled);
+            Assert.Null(state.SidesReason);
+            Assert.Null(state.PagesPerSideReason);
+        }
+        Assert.True(For(Preset(PrintTask.Photos)).PosterEnabled);
+        Assert.False(For(Preset(PrintTask.PhotoSheet)).PosterEnabled);
     }
 
     [Fact]
-    public void AnyPresetCanChooseThePhotoLayoutAgain()
+    public void APrintSizeWithABookletAPosterTwoSidesAndAMarginKeepsTheRulesOfThoseOptions()
     {
-        var state = For(Preset(PrintTask.Booklet) with { LayoutStyle = LayoutStyle.PhotoPrints });
+        var state = For(new PrintSettings { PhotoSizeId = "4x6", Sides = Sides.LongEdge, Margin = MarginChoice.Normal });
 
-        Assert.False(state.SidesEnabled);
-        Assert.True(state.PhotoSizeEnabled);
-    }
+        Assert.True(state.SidesEnabled);
+        Assert.True(state.MarginEnabled);
+        Assert.True(state.BookletEnabled);
+        Assert.True(state.PosterEnabled);
+        Assert.False(state.ShowScale);
 
-    [Fact]
-    public void APhotoSheetKeepsItsSizeGreyedOutWithTheReason()
-    {
-        var state = For(Preset(PrintTask.PhotoSheet));
-
-        Assert.True(state.PagesPerSideEnabled);
-        Assert.False(state.PhotoSizeEnabled);
-        Assert.Equal("Needs the Photo prints layout", state.PhotoSizeReason);
-        Assert.False(state.PhotoFillEnabled);
-        Assert.True(state.CutMarksEnabled);
-        Assert.Null(state.CutMarksReason);
+        Assert.False(For(new PrintSettings { PhotoSizeId = "4x6", Booklet = true }).SidesEnabled);
+        Assert.False(For(new PrintSettings { PhotoSizeId = "4x6", Poster = 2 }).PagesPerSideEnabled);
     }
 
     [Fact]

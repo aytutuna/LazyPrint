@@ -31,29 +31,22 @@ public static class PrintJobs
 {
     private const string CollatedCopies = "separate-documents-collated-copies";
 
-    /// <summary>
-    /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
-    /// </summary>
-    public static LayoutOptions LayoutOptions(PrintSettings settings, PrinterCapabilities? printer)
+    /// <summary>The layout the settings ask for.</summary>
+    public static LayoutOptions LayoutOptions(PrintSettings settings, PrinterCapabilities? printer) => new()
     {
-        bool photos = settings.LayoutStyle.IsPhoto();
-        bool photoPrints = settings.LayoutStyle == LayoutStyle.PhotoPrints;
-        return new LayoutOptions
-        {
-            PagesPerSheet = photoPrints ? 1 : settings.PagesPerSheet,
-            Booklet = settings.Booklet && !photos,
-            RightToLeft = settings.RightToLeft,
-            Scaling = photoPrints ? settings.PhotoFill ? Scaling.Fill : Scaling.Fit : settings.Scaling,
-            Sides = photos ? Sides.OneSided : settings.Sides,
-            PageBorders = settings.PageBorders,
-            Scale = settings.Scale,
-            Orientation = settings.Orientation,
-            Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
-            Poster = photos ? 0 : settings.Poster,
-            CellSize = photoPrints ? PhotoSizeOf(settings.PhotoSizeId).Size : null,
-            CutMarks = photos && settings.CutMarks,
-        };
-    }
+        PagesPerSheet = settings.PagesPerSheet,
+        Booklet = settings.Booklet,
+        RightToLeft = settings.RightToLeft,
+        Scaling = settings.Scaling,
+        Sides = settings.Sides,
+        PageBorders = settings.PageBorders,
+        Scale = settings.Scale,
+        Orientation = settings.Orientation,
+        Margin = MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
+        Poster = settings.Poster,
+        CellSize = PhotoSizeOf(settings.PhotoSizeId).Size,
+        CutMarks = settings.CutMarks,
+    };
 
     /// <summary>
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless
@@ -92,21 +85,12 @@ public static class PrintJobs
     public static double PrinterMargin(PrintSettings settings, PrinterCapabilities? printer) =>
         Imposition.Edge(Area(settings with { Margin = MarginChoice.Printer }, printer));
 
-    /// <summary>
-    /// Whether the layout asks for the paper without margins: margin None for every layout, and for photo prints a photo
-    /// that is the whole page or as large as the paper. The printer may have no such entry, then its edge stays.
-    /// </summary>
-    public static bool WantsBorderless(PrintSettings settings, PrinterCapabilities? printer) =>
-        settings.LayoutStyle switch
-        {
-            LayoutStyle.PhotoPrints => Borderless(settings.PhotoSizeId, Sheet(settings.PaperId, printer)),
-            LayoutStyle.PhotoSheet => false,
-            _ => settings.Margin == MarginChoice.None,
-        };
+    /// <summary>Whether the layout asks for the paper without margins: margin None. The printer may have no such entry, then its edge stays.</summary>
+    public static bool WantsBorderless(PrintSettings settings, PrinterCapabilities? printer) => settings.Margin == MarginChoice.None;
 
-    /// <summary>The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks; none for photos.</summary>
+    /// <summary>The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks.</summary>
     private static string? MatchType(PrintSettings settings, PrinterCapabilities? printer) =>
-        settings.LayoutStyle.IsPhoto() ? null : MediaChoices.Type(settings, printer) ?? MediaChoices.Auto;
+        MediaChoices.Type(settings, printer) ?? MediaChoices.Auto;
 
     /// <summary>
     /// The sheets of a job. The pages of all documents run on as one, and <paramref name="pageRange"/> (0-based, as
@@ -245,11 +229,6 @@ public static class PrintJobs
         return new IppMediaChoice(members.Count > 1 ? members : null, name);
     }
 
-    /// <summary>A photo is borderless when it is the whole page, or as large as the paper it goes on.</summary>
-    private static bool Borderless(string photoSizeId, LayoutSize sheet) =>
-        PhotoSizeOf(photoSizeId).Size is not { } photo
-        || (Math.Abs(photo.Width - sheet.Width) <= PaperSizes.FitTolerance && Math.Abs(photo.Height - sheet.Height) <= PaperSizes.FitTolerance);
-
     /// <summary>The paper a job goes on, portrait, in points.</summary>
     public static LayoutSize Sheet(string paperId, PrinterCapabilities? printer) =>
         (PaperSizes.PointsOf(paperId) ?? Loaded(printer) ?? PaperSizes.Points(UsualPaper()))
@@ -258,7 +237,7 @@ public static class PrintJobs
     private static bool CanCollate(PrintSettings settings, PrinterCapabilities? printer) =>
         !settings.Collate || printer?.MultipleDocumentHandlingSupported.Contains(CollatedCopies) == true;
 
-    private static PhotoSize PhotoSizeOf(string id) => PhotoSize.All.FirstOrDefault(s => s.Id == id) ?? PhotoSize.All[0];
+    private static PhotoSize PhotoSizeOf(string id) => PhotoSize.All.FirstOrDefault(s => s.Id == id) ?? PhotoSize.All[^1];
 
     /// <summary>The first ready paper of the printer that has a fixed size (media-col-ready, else media-ready), portrait, in points.</summary>
     private static LayoutSize? Loaded(PrinterCapabilities? printer)

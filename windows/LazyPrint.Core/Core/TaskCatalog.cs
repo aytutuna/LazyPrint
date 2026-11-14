@@ -120,11 +120,17 @@ public static class TaskCatalog
             case PrintTask.Handouts:
                 return s with { PagesPerSheet = 2, PageBorders = true };
             case PrintTask.Photos:
-                return s with { LayoutStyle = LayoutStyle.PhotoPrints, Margin = MarginChoice.None, Quality = QualityChoice.Best, Color = ColorChoice.Color };
+                return s with { PhotoSizeId = "4x6", Scaling = Scaling.Fill, CutMarks = true, Margin = MarginChoice.None,
+                    Quality = QualityChoice.Best, Color = ColorChoice.Color, MediaType = PhotoMediaType(s, printer) };
             case PrintTask.PhotoSheet:
-                return s with { LayoutStyle = LayoutStyle.PhotoSheet, Margin = MarginChoice.None, PagesPerSheet = 4, Scaling = Scaling.Fill };
+                return s with { PagesPerSheet = 4, Scaling = Scaling.Fill, CutMarks = true, Margin = MarginChoice.None,
+                    MediaType = PhotoMediaType(s, printer) };
             default:
                 return settings with { TaskId = task.RawValue() };
         }
     }
+
+    /// <summary>The printer's photo paper unless a type was chosen; the printer picks when it has none.</summary>
+    private static string PhotoMediaType(PrintSettings s, PrinterCapabilities? printer) =>
+        s.MediaType == MediaChoices.Auto ? MediaChoices.PhotoType(MediaChoices.Types(printer)) ?? MediaChoices.Auto : s.MediaType;
 }

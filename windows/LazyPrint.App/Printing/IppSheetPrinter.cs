@@ -86,7 +86,7 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 var settings = job.Settings;
                 bool ascending = placed.Count > 0 && placed.Select((page, i) => page.Document == 0 && page.Index == placed[0].Index + i).All(ok => ok);
                 bool whole = placed.Count == document.Pages.Count;
-                bool plain = settings.LayoutStyle == LayoutStyle.Pages && settings.Poster == 0 && (settings.Margin == MarginChoice.None || settings.Margin == MarginChoice.Custom && settings.MarginMm == 0)
+                bool plain = settings.Poster == 0 && settings.PhotoSizeId == "page" && (settings.Margin == MarginChoice.None || settings.Margin == MarginChoice.Custom && settings.MarginMm == 0)
                     && settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
                     && (job.Plan.Plan.Area.Margins == default
                         || job.Plan.Plan.PrintedScale == 100 && settings.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize

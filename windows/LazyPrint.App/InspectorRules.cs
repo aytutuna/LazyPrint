@@ -25,12 +25,6 @@ public sealed record InspectorState(
     string? PosterReason,
     bool MarginEnabled,
     string? MarginReason,
-    bool PhotoSizeEnabled,
-    string? PhotoSizeReason,
-    bool PhotoFillEnabled,
-    string? PhotoFillReason,
-    bool CutMarksEnabled,
-    string? CutMarksReason,
     bool ColorEnabled,
     string? ColorReason,
     bool QualityEnabled,
@@ -40,16 +34,16 @@ public sealed record InspectorState(
     /// <param name="capabilities">What the printer in use can do; null while that is not known.</param>
     internal static InspectorState For(PrintSettings s, PrinterCapabilities? capabilities)
     {
-        bool photos = s.LayoutStyle.IsPhoto();
-        bool photoPrints = s.LayoutStyle == LayoutStyle.PhotoPrints;
         bool canTurn = capabilities?.SidesSupported.Contains("two-sided-long-edge") == true;
 
         // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
         bool poster = s.Poster is >= 2 and <= 4;
         bool twoSided = !poster && (s.Booklet || s.Sides != Sides.OneSided);
-        string? byHand = twoSided && !photos && capabilities is not null && !canTurn ? ShortText.ByHand : null;
+        string? byHand = twoSided && capabilities is not null && !canTurn ? ShortText.ByHand : null;
 
         bool alone = !poster && !s.Booklet && s.PagesPerSheet == 1;
+        // A print size makes the page a cell, so Scale does not apply.
+        bool lone = alone && s.PhotoSizeId == "page";
 
         bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
@@ -62,29 +56,23 @@ public sealed record InspectorState(
 
         return new InspectorState(
             ShowCollate: s.Copies > 1,
-            SidesEnabled: !s.Booklet && !poster && !photos,
-            SidesReason: photos ? ShortText.PhotosOneSided : poster ? ShortText.PosterOneSided : s.Booklet ? ShortText.BookletTwoSided : null,
+            SidesEnabled: !s.Booklet && !poster,
+            SidesReason: poster ? ShortText.PosterOneSided : s.Booklet ? ShortText.BookletTwoSided : null,
             SidesNote: byHand,
-            PagesPerSideEnabled: !s.Booklet && !poster && !photoPrints,
-            PagesPerSideReason: photoPrints ? ShortText.PhotoPrintsLayout : poster ? ShortText.PosterPages : s.Booklet ? ShortText.BookletPages : null,
+            PagesPerSideEnabled: !s.Booklet && !poster,
+            PagesPerSideReason: poster ? ShortText.PosterPages : s.Booklet ? ShortText.BookletPages : null,
             ShowRightToLeft: !poster && (s.Booklet || s.PagesPerSheet > 1),
             ShowBorders: !poster && !s.Booklet && s.PagesPerSheet > 1,
             ShowOrientation: !s.Booklet,
-            ScalingEnabled: !photoPrints && (alone || !poster && s.Scaling == Scaling.Fill),
-            ScalingReason: photoPrints ? ShortText.PhotoPrintsLayout : alone || !poster && s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
-            ShowScale: alone && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize,
-            BookletEnabled: !poster && !photos,
-            BookletReason: photos ? ShortText.PhotosNoBooklet : poster ? ShortText.PosterPages : null,
-            PosterEnabled: !photos && (poster || !s.Booklet && s.PagesPerSheet == 1),
-            PosterReason: photos ? ShortText.PhotosNoPoster : poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
-            MarginEnabled: !photos,
-            MarginReason: photos ? ShortText.PhotosNoMargin : null,
-            PhotoSizeEnabled: photoPrints,
-            PhotoSizeReason: photoPrints ? null : ShortText.NeedsPhotoPrints,
-            PhotoFillEnabled: photoPrints,
-            PhotoFillReason: photoPrints ? null : ShortText.NeedsPhotoPrints,
-            CutMarksEnabled: photos,
-            CutMarksReason: photos ? null : ShortText.NeedsPhotoLayout,
+            ScalingEnabled: (alone || !poster && s.Scaling == Scaling.Fill),
+            ScalingReason: alone || !poster && s.Scaling == Scaling.Fill ? null : ShortText.PagesFit,
+            ShowScale: lone && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize,
+            BookletEnabled: !poster,
+            BookletReason: poster ? ShortText.PosterPages : null,
+            PosterEnabled: (poster || !s.Booklet && s.PagesPerSheet == 1),
+            PosterReason: poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
+            MarginEnabled: true,
+            MarginReason: null,
             ColorEnabled: !grayOnly,
             ColorReason: grayOnly ? ShortText.GrayOnly : null,
             QualityEnabled: !noQuality,

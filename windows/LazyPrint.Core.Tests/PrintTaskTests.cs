@@ -165,12 +165,12 @@ public class PrintTaskTests
     [Fact]
     public void Apply_Photos_PhotoSheet()
     {
-        var start = new PrintSettings { Color = ColorChoice.Gray, PhotoSizeId = "5x7", PhotoFill = false, Booklet = true, CutMarks = false };
+        var start = new PrintSettings { Color = ColorChoice.Gray, PhotoSizeId = "5x7", Scaling = Scaling.Fit, Booklet = true, CutMarks = false };
         var photos = TaskCatalog.Apply(PrintTask.Photos, start, null);
         Assert.Equal("photos", photos.TaskId);
-        Assert.Equal(LayoutStyle.PhotoPrints, photos.LayoutStyle);
         Assert.Equal("4x6", photos.PhotoSizeId);
-        Assert.True(photos.PhotoFill);
+        Assert.Equal(Scaling.Fill, photos.Scaling);
+        Assert.Equal(1, photos.PagesPerSheet);
         Assert.Equal(QualityChoice.Best, photos.Quality);
         Assert.Equal(ColorChoice.Color, photos.Color);
         Assert.False(photos.Booklet);
@@ -181,8 +181,9 @@ public class PrintTaskTests
 
         var sheet = TaskCatalog.Apply(PrintTask.PhotoSheet, start, null);
         Assert.Equal("photoSheet", sheet.TaskId);
-        Assert.Equal(LayoutStyle.PhotoSheet, sheet.LayoutStyle);
-        Assert.Equal(LayoutStyle.Pages, TaskCatalog.Apply(PrintTask.Booklet, sheet, null).LayoutStyle);
+        Assert.Equal("page", sheet.PhotoSizeId);
+        Assert.Equal("page", TaskCatalog.Apply(PrintTask.Booklet, sheet, null).PhotoSizeId);
+        Assert.False(TaskCatalog.Apply(PrintTask.Booklet, sheet, null).CutMarks);
         Assert.Equal(4, sheet.PagesPerSheet);
         Assert.Equal(Scaling.Fill, sheet.Scaling);
         Assert.True(sheet.CutMarks);
@@ -222,7 +223,8 @@ public class PrintTaskTests
     {
         var document = TaskCatalog.Apply(PrintTask.Document, new PrintSettings(), Duplex);
         Assert.True(PrintSettings.SameInUse(document, document with { MarginMm = 15 }));
-        Assert.True(PrintSettings.SameInUse(document, document with { PhotoSizeId = "5x7" }));
+        Assert.True(PrintSettings.SameInUse(document, document with { CutMarks = true }));
+        Assert.False(PrintSettings.SameInUse(document, document with { PhotoSizeId = "5x7" }));
         Assert.False(PrintSettings.SameInUse(document, document with { Orientation = SheetOrientation.Landscape }));
 
         var booklet = TaskCatalog.Apply(PrintTask.Booklet, new PrintSettings(), Duplex);
@@ -237,11 +239,19 @@ public class PrintTaskTests
     }
 
     [Fact]
-    public void SameInUse_CountsScaleForALonePageOnAPhotoSheet()
+    public void SameInUse_IgnoresTheScaleOnceAPrintSizeMakesThePageACell()
+    {
+        var sized = new PrintSettings { PhotoSizeId = "4x6", Scaling = Scaling.ShrinkToFit, Scale = 50 };
+        Assert.True(PrintSettings.SameInUse(sized, sized with { Scale = 100 }));
+        Assert.False(PrintSettings.SameInUse(sized, sized with { CutMarks = true }));
+    }
+
+    [Fact]
+    public void SameInUse_CountsScaleForALonePage()
     {
         var sheet = new PrintSettings
         {
-            LayoutStyle = LayoutStyle.PhotoSheet, PagesPerSheet = 1, Scaling = Scaling.ShrinkToFit, Scale = 50,
+            PagesPerSheet = 1, Scaling = Scaling.ShrinkToFit, Scale = 50,
         };
         Assert.False(PrintSettings.SameInUse(sheet, sheet with { Scale = 100 }));
     }

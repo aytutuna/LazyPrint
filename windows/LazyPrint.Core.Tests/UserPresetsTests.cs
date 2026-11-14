@@ -60,6 +60,20 @@ public sealed class UserPresetsTests : IDisposable
     }
 
     [Fact]
+    public void APresetSavedWithALayoutStyleLoadsWithTheNewValues()
+    {
+        File.WriteAllText(PresetsFile, """
+            [{"name": "Prints", "settings": {"layoutStyle": "photoPrints", "photoSizeId": "5x7", "photoFill": false, "margin": "small"}}]
+            """);
+
+        var loaded = Assert.Single(SettingsStore.LoadPresets(_directory)).Settings;
+
+        Assert.Equal("5x7", loaded.PhotoSizeId);
+        Assert.Equal(Scaling.Fit, loaded.Scaling);
+        Assert.Equal(MarginChoice.None, loaded.Margin);
+    }
+
+    [Fact]
     public void UnknownKeysAndBadValuesAreTolerated()
     {
         File.WriteAllText(PresetsFile, """
@@ -129,7 +143,7 @@ public sealed class UserPresetsTests : IDisposable
         var job = new PrintSettings
         {
             PrinterId = "system:HP", TaskId = "photos", Copies = 3, PageSelection = PageSelection.Even, ReverseOrder = true,
-            Quality = QualityChoice.Best, LayoutStyle = LayoutStyle.PhotoPrints,
+            Quality = QualityChoice.Best, PhotoSizeId = "4x6",
         };
 
         var applied = UserPresets.Apply(preset, job);

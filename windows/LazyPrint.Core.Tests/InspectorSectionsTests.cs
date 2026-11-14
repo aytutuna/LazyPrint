@@ -22,7 +22,7 @@ public class InspectorSectionsTests
         Assert.Equal(InspectorSections.Layout, Opened(PrintTask.Booklet));
         Assert.Equal(InspectorSections.Layout, Opened(PrintTask.Handouts));
         Assert.Equal(InspectorSections.Photos, Opened(PrintTask.Photos));
-        Assert.Equal(InspectorSections.Photos, Opened(PrintTask.PhotoSheet));
+        Assert.Equal(InspectorSections.Layout, Opened(PrintTask.PhotoSheet));
         Assert.Null(Opened(PrintTask.Document));
         Assert.Null(Opened(PrintTask.TwoSided));
         Assert.Null(Opened(PrintTask.TestPage));
@@ -43,9 +43,9 @@ public class InspectorSectionsTests
         Assert.Equal("", InspectorSections.PagesSummary(s));
         Assert.Equal("", InspectorSections.LayoutSummary(s));
         Assert.Equal("", InspectorSections.PaperSummary(s));
-        Assert.Equal("4 × 6 in · Fill · Cut marks", InspectorSections.PhotosSummary(s));
+        Assert.Equal("", InspectorSections.PhotosSummary(s));
         Assert.Equal("Pages", InspectorSections.HeaderName(InspectorSections.Pages, s));
-        Assert.Equal("Photos, 4 × 6 in · Fill · Cut marks", InspectorSections.HeaderName(InspectorSections.Photos, s));
+        Assert.Equal("Photos", InspectorSections.HeaderName(InspectorSections.Photos, s));
     }
 
     [Fact]
@@ -55,12 +55,12 @@ public class InspectorSectionsTests
         {
             Copies = 3, Sides = Sides.LongEdge, PagesPerSheet = 2, PageBorders = true,
             PaperId = "letter", Quality = QualityChoice.Best, Color = ColorChoice.Gray,
-            PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
+            PhotoSizeId = "10x15cm", CutMarks = true,
         };
         Assert.Equal("3 copies · Two-sided", InspectorSections.PagesSummary(s));
         Assert.Equal("2 per side · Borders", InspectorSections.LayoutSummary(s));
         Assert.Equal("Letter · Best · Gray", InspectorSections.PaperSummary(s));
-        Assert.Equal("10 × 15 cm · Fit", InspectorSections.PhotosSummary(s));
+        Assert.Equal("10 × 15 cm · Cut marks", InspectorSections.PhotosSummary(s));
         Assert.Equal("Layout, 2 per side · Borders", InspectorSections.HeaderName(InspectorSections.Layout, s));
         Assert.Equal("2 per side · Borders", InspectorSections.Summary(InspectorSections.Layout, s));
     }
@@ -103,8 +103,8 @@ public class InspectorSectionsTests
     [Fact]
     public void PhotosSummary_AnUnknownSize_ShowsItsId()
     {
-        Assert.Equal("Whole page · Fill · Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "page" }));
-        Assert.Equal("6x8 · Fill · Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "6x8" }));
+        Assert.Equal("Cut marks", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "page", CutMarks = true }));
+        Assert.Equal("6x8", InspectorSections.PhotosSummary(new PrintSettings { PhotoSizeId = "6x8" }));
     }
 
     [Fact]
@@ -119,11 +119,24 @@ public class InspectorSectionsTests
     }
 
     [Fact]
-    public void Summary_PhotoLayouts_ShowNoMarginPart()
+    public void Summary_PhotoPresets_ShowTheirMarginAndWhatTheyPrintAt()
     {
-        var sheet = new PrintSettings { LayoutStyle = LayoutStyle.PhotoSheet, Margin = MarginChoice.Normal };
-        Assert.Equal("Photo sheet", InspectorSections.LayoutSummary(sheet));
-        Assert.Equal("Photo sheet", InspectorSections.LayoutSummary(sheet with { Margin = MarginChoice.None }, 96));
+        var sheet = TaskCatalog.Apply(PrintTask.PhotoSheet, new PrintSettings(), null);
+        Assert.Equal("4 per side · Fill · No margins", InspectorSections.LayoutSummary(sheet));
+        Assert.Equal("4 per side · Fill · 12 mm margins", InspectorSections.LayoutSummary(sheet with { Margin = MarginChoice.Normal }));
+        Assert.Equal("96 %", InspectorSections.LayoutSummary(new PrintSettings(), 96));
+    }
+
+    [Fact]
+    public void OpenedBy_FollowsTheValuesNotAStyle()
+    {
+        Assert.Null(InspectorSections.OpenedBy(new PrintSettings()));
+        Assert.Equal(InspectorSections.Photos, InspectorSections.OpenedBy(new PrintSettings { PhotoSizeId = "4x6" }));
+        Assert.Equal(InspectorSections.Layout, InspectorSections.OpenedBy(new PrintSettings { Booklet = true }));
+        Assert.Equal(InspectorSections.Layout, InspectorSections.OpenedBy(new PrintSettings { PagesPerSheet = 4 }));
+        Assert.Equal(InspectorSections.Layout, InspectorSections.OpenedBy(new PrintSettings { Poster = 2 }));
+        Assert.Equal(InspectorSections.Photos, InspectorSections.OpenedBy(TaskCatalog.Apply(PrintTask.Photos, new PrintSettings(), null)));
+        Assert.Equal(InspectorSections.Layout, InspectorSections.OpenedBy(TaskCatalog.Apply(PrintTask.PhotoSheet, new PrintSettings(), null)));
     }
 
     [Fact]

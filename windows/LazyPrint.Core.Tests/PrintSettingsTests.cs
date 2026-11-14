@@ -46,9 +46,8 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Equal(PageSelection.All, s.PageSelection);
         Assert.False(s.ReverseOrder);
         Assert.Equal("auto", s.PaperId);
-        Assert.Equal("4x6", s.PhotoSizeId);
-        Assert.True(s.PhotoFill);
-        Assert.True(s.CutMarks);
+        Assert.Equal("page", s.PhotoSizeId);
+        Assert.False(s.CutMarks);
     }
 
     [Fact]
@@ -58,7 +57,7 @@ public sealed class PrintSettingsTests : IDisposable
         {
             TaskId = "booklet", PrinterId = "ipp:4509a320", Copies = 3, Collate = false, Color = ColorChoice.Gray,
             Quality = QualityChoice.Best, Sides = Sides.ShortEdge, PagesPerSheet = 4, Booklet = true, RightToLeft = true,
-            PageBorders = true, Scaling = Scaling.Fill, Orientation = SheetOrientation.Landscape, Margin = MarginChoice.Custom, MarginMm = 20, Poster = 3, PaperId = "a4", PhotoSizeId = "10x15cm", PhotoFill = false, CutMarks = false,
+            PageBorders = true, Scaling = Scaling.Fill, Orientation = SheetOrientation.Landscape, Margin = MarginChoice.Custom, MarginMm = 20, Poster = 3, PaperId = "a4", PhotoSizeId = "10x15cm", CutMarks = true,
         };
         SettingsStore.Save(s, _directory);
         Assert.Equal(s with { Copies = 1 }, SettingsStore.Load(_directory));
@@ -72,7 +71,7 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Contains("\"quality\": \"draft\"", json);
         Assert.Contains("\"sides\": \"longEdge\"", json);
         Assert.Contains("\"scaling\": \"actualSize\"", json);
-        Assert.Contains("\"photoSizeId\": \"4x6\"", json);
+        Assert.Contains("\"photoSizeId\": \"page\"", json);
         Assert.Contains("\"paperId\": \"auto\"", json);
     }
 
@@ -123,28 +122,72 @@ public sealed class PrintSettingsTests : IDisposable
 
 
     [Fact]
-    public void Settings_SavedInAPhotoTask_KeepTheirPhotoLayout()
+    public void Settings_SavedWithALayoutStyle_GetWhatThatStyleForced()
     {
-        File.WriteAllText(Settings, """{"taskId": "photos"}""");
-        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
-        File.WriteAllText(Settings, """{"taskId": "photoSheet"}""");
-        Assert.Equal(LayoutStyle.PhotoSheet, SettingsStore.Load(_directory)!.LayoutStyle);
-        File.WriteAllText(Settings, """{"taskId": "booklet"}""");
-        Assert.Equal(LayoutStyle.Pages, SettingsStore.Load(_directory)!.LayoutStyle);
-        File.WriteAllText(Settings, """{"taskId": "photos", "layoutStyle": "pages"}""");
-        Assert.Equal(LayoutStyle.Pages, SettingsStore.Load(_directory)!.LayoutStyle);
-        File.WriteAllText(Settings, """{"taskId": "photos", "layoutStyle": "poster"}""");
-        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
+        File.WriteAllText(Settings, """
+            {"layoutStyle": "photoPrints", "photoSizeId": "5x7", "photoFill": false, "cutMarks": true,
+             "pagesPerSheet": 4, "sides": "longEdge", "booklet": true, "poster": 2, "margin": "normal"}
+            """);
+        var prints = SettingsStore.Load(_directory)!;
+        Assert.Equal("5x7", prints.PhotoSizeId);
+        Assert.True(prints.CutMarks);
+        Assert.Equal(Scaling.Fit, prints.Scaling);
+        Assert.Equal(1, prints.PagesPerSheet);
+        Assert.Equal(Sides.OneSided, prints.Sides);
+        Assert.False(prints.Booklet);
+        Assert.Equal(0, prints.Poster);
+        Assert.Equal(MarginChoice.None, prints.Margin);
+        Assert.Null(prints.LayoutStyle);
+
+        File.WriteAllText(Settings, """{"layoutStyle": "photoPrints", "photoFill": true}""");
+        Assert.Equal(Scaling.Fill, SettingsStore.Load(_directory)!.Scaling);
+
+        File.WriteAllText(Settings, """
+            {"layoutStyle": "photoSheet", "photoSizeId": "4x6", "pagesPerSheet": 4, "scaling": "fill", "cutMarks": true, "margin": "normal", "poster": 3}
+            """);
+        var sheet = SettingsStore.Load(_directory)!;
+        Assert.Equal("page", sheet.PhotoSizeId);
+        Assert.Equal(4, sheet.PagesPerSheet);
+        Assert.Equal(Scaling.Fill, sheet.Scaling);
+        Assert.True(sheet.CutMarks);
+        Assert.Equal(MarginChoice.None, sheet.Margin);
+        Assert.Equal(0, sheet.Poster);
+
+        File.WriteAllText(Settings, """{"layoutStyle": "pages", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
+        var pages = SettingsStore.Load(_directory)!;
+        Assert.Equal("page", pages.PhotoSizeId);
+        Assert.False(pages.CutMarks);
+        Assert.Equal(MarginChoice.Normal, pages.Margin);
     }
 
     [Fact]
-    public void Settings_SavedInAPhotoTaskWithAByteOrderMark_KeepTheirPhotoLayout()
+    public void Settings_WithoutALayoutStyle_AreAlreadyCurrent()
     {
-        byte[] json = System.Text.Encoding.UTF8.GetBytes("""{"taskId": "photos"}""");
+        File.WriteAllText(Settings, """{"taskId": "photos", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
+        var s = SettingsStore.Load(_directory)!;
+        Assert.Equal("4x6", s.PhotoSizeId);
+        Assert.True(s.CutMarks);
+        Assert.Equal(MarginChoice.Normal, s.Margin);
+    }
+
+    [Fact]
+    public void Settings_SavedWithAByteOrderMark_StillMigrate()
+    {
+        byte[] json = System.Text.Encoding.UTF8.GetBytes("""{"layoutStyle": "photoPrints", "photoSizeId": "4x6"}""");
         File.WriteAllBytes(Settings, [0xEF, 0xBB, 0xBF, .. json]);
-        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
-        File.WriteAllBytes(Settings, [0xFF, 0xFE, .. System.Text.Encoding.Unicode.GetBytes("""{"taskId": "photos"}""")]);
-        Assert.Equal(LayoutStyle.PhotoPrints, SettingsStore.Load(_directory)!.LayoutStyle);
+        Assert.Equal(Scaling.Fill, SettingsStore.Load(_directory)!.Scaling);
+        File.WriteAllBytes(Settings, [0xFF, 0xFE, .. System.Text.Encoding.Unicode.GetBytes("""{"layoutStyle": "photoPrints", "photoFill": false}""")]);
+        Assert.Equal(Scaling.Fit, SettingsStore.Load(_directory)!.Scaling);
+    }
+
+    [Fact]
+    public void Settings_AreSavedWithoutTheOldStyleKeys()
+    {
+        File.WriteAllText(Settings, """{"layoutStyle": "photoSheet", "photoFill": false}""");
+        SettingsStore.Save(SettingsStore.Load(_directory)!, _directory);
+        string text = File.ReadAllText(Settings);
+        Assert.DoesNotContain("layoutStyle", text);
+        Assert.DoesNotContain("photoFill", text);
     }
 
     [Fact]

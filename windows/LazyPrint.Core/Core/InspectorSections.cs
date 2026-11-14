@@ -37,12 +37,12 @@ public static class InspectorSections
     public static bool OpenByDefault(string section) => section is Printer or Pages;
 
     /// <summary>
-    /// The section the settings need when files are opened, if it is not open already: Photos for a photo layout, Layout for a
-    /// booklet or several pages to a side.
+    /// The section the settings need when files are opened, if it is not open already: Photos for a print size, Layout for a
+    /// booklet, a poster or several pages to a side.
     /// </summary>
     public static string? OpenedBy(PrintSettings settings) =>
-        settings.LayoutStyle.IsPhoto() ? Photos
-        : settings.Booklet || settings.PagesPerSheet > 1 ? Layout
+        settings.PhotoSizeId != "page" ? Photos
+        : settings.Booklet || settings.PagesPerSheet > 1 || settings.Poster is >= 2 and <= 4 ? Layout
         : null;
 
     private const int MaxParts = 3;
@@ -74,7 +74,6 @@ public static class InspectorSections
     {
         var parts = new List<string>();
         bool poster = s.Poster is >= 2 and <= 4;
-        if (s.LayoutStyle.IsPhoto()) parts.Add(PrintText.LayoutStyleTitle(s.LayoutStyle));
         if (poster) parts.Add($"Poster {s.Poster} × {s.Poster}");
         else if (s.Booklet) parts.Add("Booklet");
         else if (s.PagesPerSheet > 1) parts.Add($"{s.PagesPerSheet} per side");
@@ -82,7 +81,7 @@ public static class InspectorSections
         if (!poster && !s.Booklet && s.PagesPerSheet > 1 && s.PageBorders) parts.Add("Borders");
         if (!poster && (s.Booklet || s.PagesPerSheet > 1) && s.RightToLeft) parts.Add("Right to left");
         if (!poster && !s.Booklet && s.PagesPerSheet == 1 && s.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize
-            && (s.LayoutStyle.IsPhoto() ? s.Scale : printedScale ?? s.Scale) is var percent and not 100)
+            && (printedScale ?? s.Scale) is var percent and not 100)
         {
             parts.Add($"{percent} %");
         }
@@ -91,7 +90,7 @@ public static class InspectorSections
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
         // The printer's own margin is the default, so it adds nothing here.
-        if (!s.LayoutStyle.IsPhoto() && s.Margin != MarginChoice.Printer)
+        if (s.Margin != MarginChoice.Printer)
         {
             double margin = MarginChoices.Millimetres(s.Margin, s.MarginMm, 0);
             parts.Add(margin > 0 ? $"{PrintText.Millimetres(margin)} margins" : "No margins");
@@ -109,11 +108,11 @@ public static class InspectorSections
         return Join(parts);
     }
 
-    /// <summary>"4 × 6 in · Fill · Cut marks".</summary>
+    /// <summary>"4 × 6 in · Cut marks"; "" for the largest that fits and no cut marks.</summary>
     public static string PhotosSummary(PrintSettings s)
     {
-        string size = PhotoSize.All.FirstOrDefault(p => p.Id == s.PhotoSizeId)?.Title ?? s.PhotoSizeId;
-        var parts = new List<string> { size, s.PhotoFill ? "Fill" : "Fit" };
+        var parts = new List<string>();
+        if (s.PhotoSizeId != "page") parts.Add(PhotoSize.All.FirstOrDefault(p => p.Id == s.PhotoSizeId)?.Title ?? s.PhotoSizeId);
         if (s.CutMarks) parts.Add("Cut marks");
         return Join(parts);
     }

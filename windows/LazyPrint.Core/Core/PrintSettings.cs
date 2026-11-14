@@ -18,33 +18,8 @@ public enum QualityChoice
     Best,
 }
 
-/// <summary>
-/// How the pages are laid on the sheet: the usual way (<see cref="Imposition"/>), one photo size per print,
-/// or photos on a sheet with cut marks. The photo layouts print one side with no booklet, poster or extra margin.
-/// Twin of Swift <c>LayoutStyle</c>.
-/// </summary>
-public enum LayoutStyle
-{
-    Pages,
-    PhotoPrints,
-    PhotoSheet,
-}
-
-public static class LayoutStyles
-{
-    public static bool IsPhoto(this LayoutStyle style) => style != LayoutStyle.Pages;
-
-    /// <summary>What a file saved before the layout was a setting meant: the photo tasks decided it.</summary>
-    public static LayoutStyle FromTaskId(string? taskId) => PrintTasks.TryParse(taskId) switch
-    {
-        PrintTask.Photos => LayoutStyle.PhotoPrints,
-        PrintTask.PhotoSheet => LayoutStyle.PhotoSheet,
-        _ => LayoutStyle.Pages,
-    };
-}
-
 /// <summary>What the user chose for printing. Every property has a default, so older files load (Global rule 5).</summary>
-public sealed record PrintSettings
+public sealed record PrintSettings : IJsonOnDeserialized
 {
     /// <summary>The <see cref="PrintTask"/> raw value, kept as text so a newer task survives.</summary>
     public string? TaskId { get; set; }
@@ -86,29 +61,59 @@ public sealed record PrintSettings
     public string MediaSource { get; set; } = MediaChoices.Auto;
     /// <summary>A media-type keyword the printer lists ("stationery", "photographic-glossy"); "auto" lets the printer pick.</summary>
     public string MediaType { get; set; } = MediaChoices.Auto;
-    public LayoutStyle LayoutStyle { get; set; } = LayoutStyle.Pages;
-    public string PhotoSizeId { get; set; } = "4x6";
-    public bool PhotoFill { get; set; } = true;
-    public bool CutMarks { get; set; } = true;
+    /// <summary>A <see cref="PhotoSize"/> id: the most each print takes of its cell. "page" is the largest that fits.</summary>
+    public string PhotoSizeId { get; set; } = "page";
+    public bool CutMarks { get; set; }
+
+    // Read from a file saved while the layout was a style of its own; set once by OnDeserialized, never written.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LayoutStyle { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PhotoFill { get; set; }
+
+    /// <summary>A file with a layout style gets the values that style forced; one without is already in the current form.</summary>
+    public void OnDeserialized()
+    {
+        switch (LayoutStyle)
+        {
+            case "photoPrints":
+                Scaling = PhotoFill == false ? Scaling.Fit : Scaling.Fill;
+                PagesPerSheet = 1;
+                Sides = Sides.OneSided;
+                Booklet = false;
+                Poster = 0;
+                Margin = MarginChoice.None;
+                break;
+            case "photoSheet":
+                PhotoSizeId = "page";
+                Sides = Sides.OneSided;
+                Booklet = false;
+                Poster = 0;
+                Margin = MarginChoice.None;
+                break;
+            case not null:
+                PhotoSizeId = "page";
+                CutMarks = false;
+                break;
+        }
+        LayoutStyle = null;
+        PhotoFill = null;
+    }
 
     // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
     public static bool SameInUse(PrintSettings preset, PrintSettings settings)
     {
         bool poster = preset.Poster is >= 2 and <= 4;
-        bool alone = preset.LayoutStyle != LayoutStyle.PhotoPrints && !poster && !preset.Booklet && preset.PagesPerSheet == 1;
+        bool sized = preset.PhotoSizeId != "page";
+        bool alone = !poster && !preset.Booklet && preset.PagesPerSheet == 1 && !sized;
         var p = preset with { TaskId = null };
         if (p.Margin != MarginChoice.Custom) p.MarginMm = settings.MarginMm;
-        if (p.LayoutStyle == LayoutStyle.Pages)
-        {
-            p.PhotoSizeId = settings.PhotoSizeId;
-            p.PhotoFill = settings.PhotoFill;
-            p.CutMarks = settings.CutMarks;
-        }
         if (!(alone && p.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize)) p.Scale = settings.Scale;
         if (!(p.Booklet || p.PagesPerSheet > 1) || poster) p.RightToLeft = settings.RightToLeft;
         if (p.PagesPerSheet == 1 && !p.Booklet) p.PageBorders = settings.PageBorders;
         if (p.Booklet) p.Orientation = settings.Orientation;
-        if (p.LayoutStyle.IsPhoto() || p.Booklet || poster) p.Sides = settings.Sides;
+        if (p.Booklet || poster) { p.Sides = settings.Sides; p.PhotoSizeId = settings.PhotoSizeId; }
+        if (!(p.PagesPerSheet > 1 || sized || poster)) p.CutMarks = settings.CutMarks;
         return p == settings with { TaskId = null };
     }
 }
@@ -170,26 +175,7 @@ public static class SettingsStore
     internal static PrintSettings? Load(string directory)
     {
         string path = Path.Combine(directory, SettingsFile);
-        var settings = StoreFiles.Load<PrintSettings>(path);
-        if (settings is not null && !HasLayoutStyle(path)) settings.LayoutStyle = LayoutStyles.FromTaskId(settings.TaskId);
-        return settings;
-    }
-
-    /// <summary>Whether the file names a layout style that exists; a file that cannot be parsed again counts as having one.</summary>
-    private static bool HasLayoutStyle(string path)
-    {
-        try
-        {
-            using var document = System.Text.Json.JsonDocument.Parse(StoreFiles.ToUtf8(File.ReadAllBytes(path)));
-            if (document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return true;
-            return document.RootElement.TryGetProperty("layoutStyle", out var value)
-                && value.ValueKind == System.Text.Json.JsonValueKind.String
-                && Enum.GetNames<LayoutStyle>().Any(n => string.Equals(n, value.GetString(), StringComparison.OrdinalIgnoreCase));
-        }
-        catch (Exception)
-        {
-            return true;
-        }
+        return StoreFiles.Load<PrintSettings>(path);
     }
 
     internal static void Save(PrintSettings settings, string directory) =>

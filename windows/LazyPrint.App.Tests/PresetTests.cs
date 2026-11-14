@@ -73,7 +73,7 @@ public sealed class PresetTests
         var s = rig.Model.Settings;
         Assert.Equal("a5", s.PaperId);
         Assert.Equal(Sides.LongEdge, s.Sides);
-        Assert.Equal(LayoutStyle.Pages, s.LayoutStyle);
+        Assert.Equal("page", s.PhotoSizeId);
         Assert.Equal(3, s.Copies);
         Assert.Null(s.TaskId);
         Assert.Null(rig.Model.SelectedTask);
@@ -187,7 +187,7 @@ public sealed class PresetTests
         using var rig = new Rig();
         await rig.Model.StartTaskAsync(PrintTask.Document);
 
-        Edit(rig, s => { s.MarginMm = 15; s.PhotoSizeId = "5x7"; });
+        Edit(rig, s => { s.MarginMm = 15; s.CutMarks = true; });
         Assert.Equal(PrintTask.Document, rig.Model.CurrentTask);
 
         Edit(rig, s => s.Orientation = SheetOrientation.Landscape);

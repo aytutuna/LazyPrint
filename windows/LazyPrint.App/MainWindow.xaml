@@ -521,11 +521,7 @@
 
                                     <Expander x:Name="LayoutSection" Style="{StaticResource SectionExpanderStyle}">
                                         <StackPanel>
-                                            <Label Content="St_yle" Target="{Binding ElementName=LayoutStyleBox}" Style="{StaticResource FieldLabel}" />
-                                            <ComboBox x:Name="LayoutStyleBox" HorizontalAlignment="Stretch"
-                                                      AutomationProperties.Name="Layout style"
-                                                      SelectionChanged="Setting_Changed" />
-                                            <Label Content="Pages per sid_e" Target="{Binding ElementName=PerSideBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
+                                            <Label Content="Pages per sid_e" Target="{Binding ElementName=PerSideBox}" Style="{StaticResource FieldLabel}" />
                                             <ComboBox x:Name="PerSideBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Pages per side"
                                                       ToolTipService.ShowOnDisabled="True"
@@ -669,27 +665,11 @@
                                                       AutomationProperties.Name="Photo size"
                                                       ToolTipService.ShowOnDisabled="True"
                                                       SelectionChanged="Setting_Changed" />
-                                            <DockPanel x:Name="PhotoSizeReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
-                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
-                                                <TextBlock x:Name="PhotoSizeReasonText" Style="{StaticResource ReasonText}" />
-                                            </DockPanel>
-                                            <CheckBox x:Name="PhotoFillBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,12,0,0"
-                                                      Content="Fill the size"
-                                                      ToolTip="Off: the whole photo fits, with white bands" ToolTipService.ShowOnDisabled="True"
-                                                      Checked="Setting_Changed" Unchecked="Setting_Changed" />
-                                            <DockPanel x:Name="PhotoFillReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
-                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
-                                                <TextBlock x:Name="PhotoFillReasonText" Style="{StaticResource ReasonText}" />
-                                            </DockPanel>
                                             <CheckBox x:Name="CutMarksBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,0"
                                                       Content="Cut marks"
                                                       ToolTip="Short marks at the corners when several prints fit on a sheet"
                                                       ToolTipService.ShowOnDisabled="True"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
-                                            <DockPanel x:Name="CutMarksReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
-                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
-                                                <TextBlock x:Name="CutMarksReasonText" Style="{StaticResource ReasonText}" />
-                                            </DockPanel>
                                         </StackPanel>
                                     </Expander>
                                 </StackPanel>

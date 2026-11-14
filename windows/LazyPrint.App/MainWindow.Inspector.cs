@@ -147,7 +147,6 @@ public partial class MainWindow
         QualityBox.Items.Add(Item("Normal", QualityChoice.Normal));
         QualityBox.Items.Add(Item("Draft", QualityChoice.Draft, "Faster, uses less ink"));
         QualityBox.Items.Add(Item("Best", QualityChoice.Best, "Slower, the finest print"));
-        foreach (var style in Enum.GetValues<LayoutStyle>()) LayoutStyleBox.Items.Add(Item(PrintText.LayoutStyleTitle(style), style));
         foreach (var photo in PhotoSize.All) PhotoSizeBox.Items.Add(Item(photo.Title, photo.Id));
     }
 
@@ -267,7 +266,7 @@ public partial class MainWindow
             Show(PageRangeProblemRow, PageRangeProblemText, ViewModel.PageRangeError);
             Select(PageSelectionBox, s.PageSelection);
             ReverseBox.IsChecked = s.ReverseOrder;
-            var shownSides = s.LayoutStyle.IsPhoto() || s.Poster is >= 2 and <= 4 ? Sides.OneSided : s.Booklet ? Sides.LongEdge : s.Sides;
+            var shownSides = s.Poster is >= 2 and <= 4 ? Sides.OneSided : s.Booklet ? Sides.LongEdge : s.Sides;
             SidesOne.IsChecked = shownSides == Sides.OneSided;
             SidesLong.IsChecked = shownSides == Sides.LongEdge;
             SidesShort.IsChecked = shownSides == Sides.ShortEdge;
@@ -276,7 +275,6 @@ public partial class MainWindow
             Show(SidesReasonRow, SidesReasonText, state.SidesReason ?? state.SidesNote);
 
             // Layout
-            Select(LayoutStyleBox, s.LayoutStyle);
             Select(PerSideBox, s.Booklet ? 2 : PagesPerSide.Contains(s.PagesPerSheet) ? s.PagesPerSheet : 1);
             PerSideBox.IsEnabled = state.PagesPerSideEnabled;
             PerSideBox.ToolTip = state.PagesPerSideReason;
@@ -302,7 +300,7 @@ public partial class MainWindow
             ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
             ScaleText.Text = $"{s.Scale} %";
             var plan = ViewModel.Plan();
-            if (state.ShowScale && !s.LayoutStyle.IsPhoto() && plan is not null && plan.Plan.PrintedScale != s.Scale)
+            if (state.ShowScale && plan is not null && plan.Plan.PrintedScale != s.Scale)
             {
                 ScalePrintsAtText.Text = PrintText.PrintsAt(plan.Plan.PrintedScale);
                 ScalePrintsAtText.Visibility = Visibility.Visible;
@@ -348,15 +346,7 @@ public partial class MainWindow
 
             // Photos
             Select(PhotoSizeBox, s.PhotoSizeId);
-            PhotoSizeBox.IsEnabled = state.PhotoSizeEnabled;
-            PhotoSizeBox.ToolTip = state.PhotoSizeReason;
-            Show(PhotoSizeReasonRow, PhotoSizeReasonText, state.PhotoSizeReason);
-            PhotoFillBox.IsChecked = s.PhotoFill;
-            PhotoFillBox.IsEnabled = state.PhotoFillEnabled;
-            Show(PhotoFillReasonRow, PhotoFillReasonText, state.PhotoFillReason);
             CutMarksBox.IsChecked = s.CutMarks;
-            CutMarksBox.IsEnabled = state.CutMarksEnabled;
-            Show(CutMarksReasonRow, CutMarksReasonText, state.CutMarksReason);
         }
         finally
         {
@@ -384,7 +374,6 @@ public partial class MainWindow
         if (TagOf<PageSelection?>(PageSelectionBox) is { } selection) s.PageSelection = selection;
         s.ReverseOrder = ReverseBox.IsChecked == true;
         if (state.ShowOrientation && TagOf<SheetOrientation?>(OrientationBox) is { } orientation) s.Orientation = orientation;
-        if (TagOf<LayoutStyle?>(LayoutStyleBox) is { } style) s.LayoutStyle = style;
         if (state.SidesEnabled)
         {
             s.Sides = SidesLong.IsChecked == true ? Sides.LongEdge : SidesShort.IsChecked == true ? Sides.ShortEdge : Sides.OneSided;
@@ -404,8 +393,7 @@ public partial class MainWindow
         if (PaperTypeRow.Visibility == Visibility.Visible && TagOf<string>(PaperTypeBox) is { } paperType) s.MediaType = paperType;
         if (state.QualityEnabled && TagOf<QualityChoice?>(QualityBox) is { } quality) s.Quality = quality;
         if (state.ColorEnabled) s.Color = ColorGray.IsChecked == true ? ColorChoice.Gray : ColorChoice.Color;
-        if (state.PhotoSizeEnabled && TagOf<string>(PhotoSizeBox) is { } photo) s.PhotoSizeId = photo;
-        s.PhotoFill = PhotoFillBox.IsChecked == true;
+        if (TagOf<string>(PhotoSizeBox) is { } photo) s.PhotoSizeId = photo;
         s.CutMarks = CutMarksBox.IsChecked == true;
         ViewModel.SettingsEdited();
     }

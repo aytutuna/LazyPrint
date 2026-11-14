@@ -32,6 +32,13 @@ public class PrintJobsTests
         return settings;
     }
 
+    private static PrintSettings Photos(Action<PrintSettings>? change = null, PrinterCapabilities? printer = null)
+    {
+        var settings = TaskCatalog.Apply(PrintTask.Photos, Settings(), printer ?? Epson);
+        change?.Invoke(settings);
+        return settings;
+    }
+
     private static JobPlan Plan(IReadOnlyList<LoadedDocument> documents, PrintSettings settings, PrinterCapabilities? printer,
                                 IReadOnlyList<int>? range = null, PrinterPrefs? prefs = null) =>
         PrintJobs.Plan(documents, range, settings, printer, prefs ?? new PrinterPrefs());
@@ -51,29 +58,27 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void LayoutOptions_PhotoLayoutsPrintOneSideNoBooklet()
+    public void LayoutOptions_APrintSizeKeepsSidesBookletPosterAndMargin()
     {
-        var settings = Settings(s => { s.Booklet = true; s.Sides = Sides.LongEdge; });
-        foreach (var style in new[] { LayoutStyle.PhotoPrints, LayoutStyle.PhotoSheet })
-        {
-            var options = PrintJobs.LayoutOptions(settings with { LayoutStyle = style }, null);
-            Assert.False(options.Booklet);
-            Assert.Equal(Sides.OneSided, options.Sides);
-        }
-        Assert.Equal(Sides.LongEdge, PrintJobs.LayoutOptions(settings, null).Sides);
+        var settings = Settings(s => { s.Booklet = true; s.Sides = Sides.LongEdge; s.Poster = 2; s.Margin = MarginChoice.Normal; s.PhotoSizeId = "4x6"; });
+        var options = PrintJobs.LayoutOptions(settings, null);
+        Assert.True(options.Booklet);
+        Assert.Equal(Sides.LongEdge, options.Sides);
+        Assert.Equal(2, options.Poster);
+        Assert.Equal(MarginChoices.Points(MarginChoice.Normal, 0, 0), options.Margin);
     }
 
     [Fact]
-    public void LayoutOptions_PhotoPrintsAskForTheSizeAsAMaximumAndFillOrFit()
+    public void LayoutOptions_APrintSizeIsAMaximumPerCellAndCutMarksFollowTheSetting()
     {
-        var settings = Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PhotoSizeId = "5x7"; s.PagesPerSheet = 4; });
+        var settings = Settings(s => { s.PhotoSizeId = "5x7"; s.PagesPerSheet = 4; s.Scaling = Scaling.Fill; s.CutMarks = true; });
         var options = PrintJobs.LayoutOptions(settings, null);
         Assert.Equal(new LayoutSize(360, 504), options.CellSize);
-        Assert.Equal(1, options.PagesPerSheet);
+        Assert.Equal(4, options.PagesPerSheet);
         Assert.Equal(Scaling.Fill, options.Scaling);
-        Assert.Equal(Scaling.Fit, PrintJobs.LayoutOptions(settings with { PhotoFill = false }, null).Scaling);
+        Assert.True(options.CutMarks);
         Assert.Null(PrintJobs.LayoutOptions(settings with { PhotoSizeId = "page" }, null).CellSize);
-        Assert.Null(PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoSheet }, null).CellSize);
+        Assert.False(PrintJobs.LayoutOptions(settings with { CutMarks = false }, null).CutMarks);
     }
 
     [Fact]
@@ -282,7 +287,7 @@ public class PrintJobsTests
     public void Plan_Photos_AreLaidOutAtTheirSize()
     {
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
-        var job = Plan([photo], Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PhotoSizeId = "4x6"; }), Epson);
+        var job = Plan([photo], Settings(s => s.PhotoSizeId = "4x6"), Epson);
         var sheet = Assert.Single(job.Plan.Sheets);
         Assert.All(sheet.Front.Placements, p => Assert.Equal(PhotoSize.All[0].Size!.Value.Width, Math.Min(p.Frame.Width, p.Frame.Height), 0.5));
     }
@@ -437,24 +442,26 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void Plan_WholePagePhotos_AreBorderlessWhenThePrinterHasIt()
+    public void Plan_MarginNone_IsBorderlessWhenThePrinterHasItWhateverThePrintSize()
     {
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
-        var job = Plan([photo], Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PhotoSizeId = "page"; }), Epson);
+        var job = Plan([photo], Photos(s => s.PhotoSizeId = "page"), Epson);
         Assert.Equal(new LayoutInsets(0, 0, 0, 0), job.Plan.Area.Margins);
         Assert.Single(job.Plan.Sheets);
     }
 
     [Fact]
-    public void Plan_APhotoOnPaperOfItsOwnSize_IsBorderless()
+    public void Plan_APrintSizeWithMarginNone_IsBorderlessOnAnyPaper()
     {
-        var fourBySix = Epson.MediaColDatabase.First(e => e.Width == 10160 && e.Height == 15240);
-        var printer = new PrinterCapabilities { MediaColDatabase = Epson.MediaColDatabase, MediaColReady = [fourBySix] };
+        var fourBySix = Epson.MediaColDatabase.First(e => e.Width == 10160 && e.Height == 15240 && e.Margins is { IsZero: true });
+        var printer = new PrinterCapabilities { MediaColDatabase = Epson.MediaColDatabase, MediaColReady = [fourBySix], MediaTypeSupported = [fourBySix.Type ?? "photographic"] };
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
-        var job = Plan([photo], Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PaperId = "auto"; s.PhotoSizeId = "4x6"; }), printer);
+        var job = Plan([photo], Photos(s => s.PaperId = "auto", printer), printer);
         Assert.Equal(new LayoutInsets(0, 0, 0, 0), job.Plan.Area.Margins);
-        var onA4 = Plan([photo], Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PhotoSizeId = "4x6"; }), Epson);
-        Assert.NotEqual(new LayoutInsets(0, 0, 0, 0), onA4.Plan.Area.Margins);
+        var onA4 = Plan([photo], Photos(), Epson);
+        Assert.Equal(new LayoutInsets(0, 0, 0, 0), onA4.Plan.Area.Margins);
+        var bordered = Plan([photo], Settings(s => s.PhotoSizeId = "4x6"), Epson);
+        Assert.NotEqual(new LayoutInsets(0, 0, 0, 0), bordered.Plan.Area.Margins);
     }
 
     // MARK: - Ticket
@@ -539,10 +546,10 @@ public class PrintJobsTests
     public void Ticket_Borderless_UsesTheBorderlessEntry()
     {
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
-        var settings = Settings(s => { s.LayoutStyle = LayoutStyle.PhotoPrints; s.PhotoSizeId = "page"; s.Quality = QualityChoice.Best; });
+        var settings = Photos(s => s.PhotoSizeId = "page");
         var job = Plan([photo], settings, Epson);
         var ticket = PrintJobs.Ticket(job, settings, "image/pwg-raster", Epson, "Beach");
-        Assert.Equal(Epson.Match(A4, borderless: true)!.Attributes, ticket.Media.Entry);
+        Assert.Equal(Epson.Match(A4, borderless: true, settings.MediaType)!.Attributes, ticket.Media.Entry);
         Assert.Equal("iso_a4_210x297mm", ticket.Media.Name);
         Assert.Equal(5, ticket.Quality);
     }
@@ -705,15 +712,6 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void LayoutOptions_PhotosHaveNoMarginAndNoPoster()
-    {
-        var settings = Settings(s => { s.Margin = MarginChoice.Normal; s.Poster = 2; });
-        Assert.Equal(0, PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoPrints }, null).Margin);
-        Assert.Equal(0, PrintJobs.LayoutOptions(settings with { LayoutStyle = LayoutStyle.PhotoSheet }, null).Poster);
-        Assert.Equal(2, PrintJobs.LayoutOptions(settings, null).Poster);
-    }
-
-    [Fact]
     public void AnySizeAPrinterListsCanBeChosen()
     {
         var area = PrintJobs.Area("custom_sheet_297x420mm", null, false);
@@ -782,7 +780,7 @@ public class PrintJobsTests
     {
         var printer = WithMedia(Epson, ["stationery", "photographic-glossy"]);
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
-        var settings = Settings(s => s.LayoutStyle = LayoutStyle.PhotoPrints);
+        var settings = TaskCatalog.Apply(PrintTask.Photos, Settings(), printer);
         var ticket = PrintJobs.Ticket(Plan([photo], settings, printer), settings, "image/jpeg", printer, "x");
         Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
     }
@@ -804,7 +802,7 @@ public class PrintJobsTests
             })],
         };
         var photo = new LoadedDocument("Beach", new DocumentKind.Photo(), [new LayoutSize(432, 288)]);
-        var settings = Settings(s => s.LayoutStyle = LayoutStyle.PhotoPrints);
+        var settings = Settings();
         var ticket = PrintJobs.Ticket(Plan([photo], settings, printer), settings, "image/jpeg", printer, "x");
         Assert.Equal("photographic-glossy", Member(ticket, "media-type"));
     }

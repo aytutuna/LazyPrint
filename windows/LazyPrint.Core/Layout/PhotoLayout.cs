@@ -4,7 +4,7 @@ namespace LazyPrint.Core;
 
 /// <summary>A print size.</summary>
 /// <param name="Id">"4x6", "5x7", "8x10", "3.5x5", "wallet", "10x15cm", "13x18cm" or "page".</param>
-/// <param name="Title">What a picker shows: "4 × 6 in", "10 × 15 cm", "Whole page".</param>
+/// <param name="Title">What a picker shows: "4 × 6 in", "10 × 15 cm", "Largest that fits".</param>
 /// <param name="Size">Portrait, in points; null is as large as the cell allows.</param>
 public sealed record PhotoSize(string Id, string Title, LayoutSize? Size)
 {
@@ -20,6 +20,6 @@ public sealed record PhotoSize(string Id, string Title, LayoutSize? Size)
         new("wallet", "Wallet, 2.5 × 3.5 in", Inches(2.5, 3.5)),
         new("10x15cm", "10 × 15 cm", Centimetres(10, 15)),
         new("13x18cm", "13 × 18 cm", Centimetres(13, 18)),
-        new("page", "Whole page", null),
+        new("page", "Largest that fits", null),
     ];
 }
