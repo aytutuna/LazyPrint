@@ -85,7 +85,7 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertTrue(json.contains("\"quality\" : \"draft\""), json)
         XCTAssertTrue(json.contains("\"sides\" : \"longEdge\""), json)
         XCTAssertTrue(json.contains("\"scaling\" : \"actualSize\""), json)
-        XCTAssertTrue(json.contains("\"photoSizeId\" : \"4x6\""), json)
+        XCTAssertTrue(json.contains("\"photoSizeId\" : \"page\""), json)
         XCTAssertTrue(json.contains("\"paperId\" : \"auto\""), json)
     }
 
