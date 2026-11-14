@@ -307,7 +307,7 @@ public class PrintJobsTests
     }
 
     [Fact]
-    public void Plan_MarginSmall_IsNeverBorderless()
+    public void Plan_MarginPrinter_IsNeverBorderless()
     {
         var printer = WithEntries(A4Entry(432), A4Entry(0));
         foreach (var margin in new[] { MarginChoice.Printer, MarginChoice.Normal, MarginChoice.Custom })

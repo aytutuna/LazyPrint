@@ -120,10 +120,10 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.sides = .longEdge; $0.poster = 2 }), "")
     }
 
-    func test_summary_printersMarginAndNoneShowNothing() {
+    func test_summary_printersMarginShowsNothingAndNoneSaysSo() {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }), "")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .printer }), "")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = MarginChoice.none }), "")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = MarginChoice.none }), "No margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 20 }), "20 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }), "Actual size")

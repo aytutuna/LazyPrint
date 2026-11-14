@@ -138,11 +138,11 @@ public class InspectorSectionsTests
     }
 
     [Fact]
-    public void Summary_PrintersMarginAndNoneShowNothing()
+    public void Summary_PrintersMarginShowsNothing_AndNoneSaysSo()
     {
         Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings()));
         Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Printer }));
-        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.None }));
+        Assert.Equal("No margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.None }));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
         Assert.Equal("20 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 20 }));
         Assert.Equal("Actual size", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }));

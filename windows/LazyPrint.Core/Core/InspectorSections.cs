@@ -91,8 +91,11 @@ public static class InspectorSections
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
         // The printer's own margin is the default, so it adds nothing here.
-        double margin = s.LayoutStyle.IsPhoto() ? 0 : MarginChoices.Millimetres(s.Margin, s.MarginMm, 0);
-        if (margin > 0) parts.Add($"{PrintText.Millimetres(margin)} margins");
+        if (!s.LayoutStyle.IsPhoto() && s.Margin != MarginChoice.Printer)
+        {
+            double margin = MarginChoices.Millimetres(s.Margin, s.MarginMm, 0);
+            parts.Add(margin > 0 ? $"{PrintText.Millimetres(margin)} margins" : "No margins");
+        }
         return Join(parts);
     }
 

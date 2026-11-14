@@ -206,7 +206,7 @@ public class ImpositionTests
     {
         var area = new PrintableArea(Letter, new LayoutInsets(20, 10, 40, 30));
         var plan = Plan([Page(0, 300, 400), Page(1, 300, 400)], new LayoutOptions { Sides = Sides.ShortEdge }, area);
-        // The symmetric area is centred on the paper, so a half turn about the paper's centre keeps the box.
+        // The margin is equal on every side, so a half turn about the paper's centre keeps the box.
         AssertRect(156, 196, 300, 400, Front(plan).Placements[0].Frame);
         AssertRect(156, 196, 300, 400, Back(plan).Placements[0].Frame);
         Assert.Equal(2, Back(plan).Placements[0].Turns);

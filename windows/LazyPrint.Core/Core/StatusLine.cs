@@ -46,7 +46,7 @@ public static class StatusLine
 
     /// <summary>
     /// <paramref name="head"/> with the short warnings found in <paramref name="message"/>, the same
-    /// way <see cref="Short"/> adds them: "Printed · shrunk to 82 %", or the warnings alone when the
+    /// way <see cref="Short"/> adds them: "Printed · edges cut off (3 mm)", or the warnings alone when the
     /// line can't hold both; just <paramref name="head"/> when there are none.
     /// </summary>
     public static string WithWarnings(string head, string message) => Compose(head, Warnings(message));
