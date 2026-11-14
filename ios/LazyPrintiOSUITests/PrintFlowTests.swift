@@ -69,17 +69,17 @@ final class PrintFlowTests: XCTestCase {
         let position: XCUIElement = app.staticTexts["preview.position"]
         let first: String = position.label
 
-        // The arrows sit 30 points in from the paper's edges; VoiceOver has the preview's adjustable action instead.
-        let stage: XCUIElement = app.item("preview.stage")
-        func arrow(onRight: Bool) {
-            stage.coordinate(withNormalizedOffset: CGVector(dx: onRight ? 1 : 0, dy: 0.5))
-                .withOffset(CGVector(dx: onRight ? -30 : 30, dy: 0))
-                .tap()
+        // By the buttons themselves: a tap at a fixed spot missed the back arrow on a slow simulator.
+        func arrow(_ id: String) {
+            let button: XCUIElement = app.buttons[id]
+            XCTAssertTrue(button.waitForExistence(timeout: 30), id)
+            app.waitUntil(button, "hittable == true", id)
+            button.tap()
         }
-        arrow(onRight: true)
+        arrow("print.next")
         app.waitUntil(position, "label != '\(first)'", "The next page")
 
-        arrow(onRight: false)
+        arrow("print.previous")
         app.waitUntil(position, "label == '\(first)'", "Back to the first page")
     }
 
