@@ -88,7 +88,9 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                 bool whole = placed.Count == document.Pages.Count;
                 bool plain = settings.LayoutStyle == LayoutStyle.Pages && settings.Poster == 0 && (settings.Margin == MarginChoice.None || settings.Margin == MarginChoice.Custom && settings.MarginMm == 0)
                     && settings.PagesPerSheet == 1 && !settings.Booklet && settings.Orientation == SheetOrientation.Automatic
-                    && (job.Plan.Plan.Area.Margins == default || job.Plan.Plan.PrintedScale == 100)
+                    && (job.Plan.Plan.Area.Margins == default
+                        || job.Plan.Plan.PrintedScale == 100 && settings.Scaling is Scaling.ShrinkToFit or Scaling.ActualSize
+                        && caps.PrintScalingSupported.Contains("none"))
                     && (settings.Scale == 100 || settings.Scaling == Scaling.Fit)
                     && (settings.Scaling is Scaling.Fit or Scaling.ShrinkToFit
                     || settings.Scaling == Scaling.ActualSize && caps.PrintScalingSupported.Contains("none"));

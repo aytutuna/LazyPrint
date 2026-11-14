@@ -37,8 +37,10 @@ public sealed class IppSheetPrinterTests : IDisposable
         PrintFixtures.Job(PrintFixtures.Letter(edit), pages, PrintFixtures.Printer(PrinterRoute.Ipp), caps ?? IppFixtures.Capabilities(name));
 
     /// <summary>A black and white printer that takes PDF and PWG raster, with what the test changes.</summary>
-    private static PrinterCapabilities Plain(int copies = 99, string[]? sides = null, bool jpeg = false, MediaEntry[]? media = null) => new()
+    private static PrinterCapabilities Plain(int copies = 99, string[]? sides = null, bool jpeg = false, MediaEntry[]? media = null,
+                                                 string[]? scaling = null) => new()
     {
+        PrintScalingSupported = scaling ?? [],
         DocumentFormatsSupported = jpeg ? ["application/pdf", "image/jpeg", "image/pwg-raster"] : ["application/pdf", "image/pwg-raster"],
         PwgRasterResolutions = [(300, 300)],
         PwgRasterTypes = ["sgray_8"],
@@ -186,6 +188,28 @@ public sealed class IppSheetPrinterTests : IDisposable
         var a4 = new[] { new LayoutSize(595, 842) };
         var job = PrintFixtures.Job(PrintFixtures.Letter(s => s.Scaling = Scaling.ShrinkToFit), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain(),
                                     sizes: a4);
+        await SentFormat(job, "%PDF-1.4");
+        Assert.NotEqual("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
+    }
+
+    [Fact]
+    public async Task APdfIsDrawnHereOnPaperWithAnEdgeWhenThePrinterCannotBeAskedForNoScaling()
+    {
+        var job = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain());
+        await SentFormat(job, "%PDF-1.4");
+        Assert.NotEqual("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
+
+        var listed = PrintFixtures.Job(PrintFixtures.Letter(), 1, PrintFixtures.Printer(PrinterRoute.Ipp), Plain(scaling: ["none"]));
+        await SentFormat(listed, "%PDF-1.4");
+        Assert.Equal("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
+    }
+
+    [Fact]
+    public async Task APdfOfMixedSizesUnderFitIsDrawnHereOnPaperWithAnEdge()
+    {
+        var sizes = new[] { new LayoutSize(612, 792), new LayoutSize(420, 595) };
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => s.Scaling = Scaling.Fit), 2, PrintFixtures.Printer(PrinterRoute.Ipp),
+                                    Plain(scaling: ["none"]), sizes: sizes);
         await SentFormat(job, "%PDF-1.4");
         Assert.NotEqual("%PDF-1.4"u8.ToArray(), Sent(IppOperation.PrintJob).Last().Document);
     }

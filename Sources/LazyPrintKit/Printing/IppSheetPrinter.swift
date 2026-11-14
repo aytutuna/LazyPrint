@@ -104,7 +104,9 @@ public final class IppSheetPrinter: SheetPrinter {
             let plain = settings.layoutStyle == .pages && settings.poster == 0
                 && (settings.margin == .none || settings.margin == .custom && settings.marginMm == 0)
                 && settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
-                && (job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0) || job.plan.plan.printedScale == 100)
+                && (job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
+                    || job.plan.plan.printedScale == 100 && (settings.scaling == .shrinkToFit || settings.scaling == .actualSize)
+                    && caps.printScalingSupported.contains("none"))
                 && (settings.scale == 100 || settings.scaling == .fit)
                 && (settings.scaling == .fit || settings.scaling == .shrinkToFit
                     || settings.scaling == .actualSize && caps.printScalingSupported.contains("none"))

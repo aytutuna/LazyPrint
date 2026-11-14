@@ -50,8 +50,10 @@ final class IppSheetPrinterTests: XCTestCase {
     }
 
     /// A black and white printer with what the test changes; PDF only when it is listed.
-    private func plain(_ formats: [String], copies: Int = 99, sides: [String] = ["one-sided", "two-sided-long-edge"]) -> PrinterCapabilities {
+    private func plain(_ formats: [String], copies: Int = 99, sides: [String] = ["one-sided", "two-sided-long-edge"],
+                       scaling: [String] = []) -> PrinterCapabilities {
         var caps = PrinterCapabilities()
+        caps.printScalingSupported = scaling
         caps.documentFormatsSupported = formats
         caps.pwgRasterResolutions = [RasterResolution(x: 300, y: 300)]
         caps.pwgRasterTypes = ["sgray_8"]
@@ -218,12 +220,38 @@ final class IppSheetPrinterTests: XCTestCase {
 
     func test_aPdfPrintedAsItIs_goesAsItIs() async throws {
         let (url, bytes) = try original()
-        try await printer(original: url).print(try job(pages: 3, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+        try await printer(original: url).print(try job(pages: 3, caps: plain(pdfAndRaster, scaling: ["none"])), pass: 0) { _ in }
 
         let request = try XCTUnwrap(sent(.printJob).first)
         XCTAssertEqual(try attribute(request, "document-format"), "application/pdf")
         XCTAssertEqual(try request.document(), bytes)
         XCTAssertEqual(try attribute(request, "sides"), "one-sided")
+    }
+
+    func test_aPdfOnPaperWithAnEdge_isDrawnHereWhenThePrinterCannotBeAskedForNoScaling() async throws {
+        let (url, bytes) = try original()
+        try await printer(original: url).print(try job(pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+
+        XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
+    }
+
+    func test_aPdfOfMixedSizesUnderFit_isDrawnHereOnPaperWithAnEdge() async throws {
+        let (url, bytes) = try original()
+        let file = tempURL("pdf")
+        let context = try XCTUnwrap(CGContext(file as CFURL, mediaBox: nil, nil))
+        for var box in [CGRect(x: 0, y: 0, width: 612, height: 792), CGRect(x: 0, y: 0, width: 420, height: 595)] {
+            context.beginPDFPage([kCGPDFContextMediaBox as String: Data(bytes: &box, count: MemoryLayout<CGRect>.size)] as CFDictionary)
+            context.fill(box.insetBy(dx: 100, dy: 100))
+            context.endPDFPage()
+        }
+        context.closePDF()
+        let mixed = try DocumentLoader().load(file)
+        let settings = PrintFixtures.letter { $0.scaling = .fit }
+        let job = PrintFixtures.job(settings, document: mixed, printer: PrintFixtures.printer(.ipp),
+                                    capabilities: plain(pdfAndRaster, scaling: ["none"]))
+        try await printer(original: url).print(job, pass: 0) { _ in }
+
+        XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
     }
 
     func test_aScaledPdf_isDrawnHereEvenWhenItIsShrunkToFit() async throws {
