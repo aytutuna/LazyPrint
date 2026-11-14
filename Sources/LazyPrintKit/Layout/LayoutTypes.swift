@@ -253,12 +253,16 @@ public struct SheetPlan: Equatable, Sendable {
     public var duplex: Bool
     /// In the order clipped, padded, shrunk.
     public var warnings: [PlanWarning]
+    /// The size, in whole percent, the smallest page alone on its side really prints at (it can be above 100 for fit or
+    /// fill); 100 when no page is alone on its side.
+    public var printedScale: Int
 
-    public init(area: PrintableArea, sheets: [Sheet], duplex: Bool, warnings: [PlanWarning]) {
+    public init(area: PrintableArea, sheets: [Sheet], duplex: Bool, warnings: [PlanWarning], printedScale: Int = 100) {
         self.area = area
         self.sheets = sheets
         self.duplex = duplex
         self.warnings = warnings
+        self.printedScale = printedScale
     }
 
     /// The sides to print: a sheet's front and back.

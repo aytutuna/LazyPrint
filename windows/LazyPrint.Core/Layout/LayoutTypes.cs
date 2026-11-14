@@ -170,10 +170,13 @@ public abstract record PlanWarning
 /// <param name="Sheets">In printing order.</param>
 /// <param name="Duplex">Every sheet has a back (blank if need be), so <see cref="SideCount"/> is even.</param>
 /// <param name="Warnings">In the order clipped, padded, shrunk.</param>
-public sealed record SheetPlan(PrintableArea Area, IReadOnlyList<Sheet> Sheets, bool Duplex, IReadOnlyList<PlanWarning> Warnings)
+/// <param name="PrintedScale">The size, in whole percent, the smallest page alone on its side really prints at (it can be above 100 for
+/// fit or fill); 100 when no page is alone on its side.</param>
+public sealed record SheetPlan(PrintableArea Area, IReadOnlyList<Sheet> Sheets, bool Duplex, IReadOnlyList<PlanWarning> Warnings,
+                               int PrintedScale = 100)
 {
     public bool Equals(SheetPlan? other) =>
-        other is not null && Area == other.Area && Duplex == other.Duplex
+        other is not null && Area == other.Area && Duplex == other.Duplex && PrintedScale == other.PrintedScale
         && Sheets.SequenceEqual(other.Sheets) && Warnings.SequenceEqual(other.Warnings);
 
     public override int GetHashCode() => HashCode.Combine(Area, Sheets.Count, Duplex);

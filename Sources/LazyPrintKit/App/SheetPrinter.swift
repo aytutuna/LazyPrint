@@ -45,14 +45,18 @@ public struct SheetJob: Sendable {
         self.frameMarks = frameMarks
     }
 
-    /// A one-sided job of sides drawn from drawing items alone, one sheet each.
+    /// A one-sided job of sides drawn from drawing items alone, one sheet each. The ticket's paper is matched from the
+    /// `settings` the `area` was chosen with (`PrintJobs.area`), so the two agree on the paper type.
     public static func ofItems(name: String, printer: PrinterInfo, capabilities: PrinterCapabilities?, area: PrintableArea,
-                               sides: [DrawnItems], id: String = "") -> SheetJob {
+                               sides: [DrawnItems], settings: PrintSettings = PrintSettings(), id: String = "") -> SheetJob {
+        var settings = settings
+        settings.copies = 1
+        settings.sides = .oneSided
         let empty = SheetSide(placements: [], borders: false)
         let sheets = sides.map { _ in Sheet(front: empty, back: nil) }
         let plan = JobPlan(plan: SheetPlan(area: area, sheets: sheets, duplex: false, warnings: []), manualDuplex: false,
                            passes: [DuplexPass(sides: sheets.map { $0.front }, marked: [])], copiesInJob: 1, notes: [])
-        return SheetJob(name: name, printer: printer, capabilities: capabilities, settings: PrintSettings(), plan: plan,
+        return SheetJob(name: name, printer: printer, capabilities: capabilities, settings: settings, plan: plan,
                         documents: [], id: id, items: sides)
     }
 }

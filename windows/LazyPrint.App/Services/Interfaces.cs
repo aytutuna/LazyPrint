@@ -51,14 +51,17 @@ public sealed record SheetJob(string Name, PrinterInfo Printer, PrinterCapabilit
                               JobPlan Plan, IReadOnlyList<LoadedDocument> Documents, string Id = "",
                               IReadOnlyList<DrawnItems>? Items = null, PhotoOptions? Marks = null, bool FrameMarks = false)
 {
-    /// <summary>A one-sided job of sides drawn from drawing items alone, one sheet each.</summary>
-    public static SheetJob OfItems(string id, string name, PrinterInfo printer, PrinterCapabilities? capabilities, PrintableArea area,
-                                   IReadOnlyList<DrawnItems> sides)
+    /// <summary>
+    /// A one-sided job of sides drawn from drawing items alone, one sheet each. <paramref name="settings"/> are the ones
+    /// <paramref name="area"/> was chosen from, so the ticket's paper is matched the same way.
+    /// </summary>
+    public static SheetJob OfItems(string id, string name, PrinterInfo printer, PrinterCapabilities? capabilities, PrintSettings settings,
+                                   PrintableArea area, IReadOnlyList<DrawnItems> sides)
     {
         var empty = new SheetSide([], false);
         var sheets = sides.Select(_ => new Sheet(empty, null)).ToList();
         var plan = new JobPlan(new SheetPlan(area, sheets, false, []), false, [new DuplexPass([.. sheets.Select(s => s.Front)], [])], 1, []);
-        return new SheetJob(name, printer, capabilities, new PrintSettings(), plan, [], id, sides);
+        return new SheetJob(name, printer, capabilities, settings with { Copies = 1, Sides = Sides.OneSided }, plan, [], id, sides);
     }
 }
 

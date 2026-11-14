@@ -147,6 +147,38 @@ public enum PrintText {
         "Shrunk to \(percent) %"
     }
 
+    /// A distance to one decimal, the ".0" dropped: "4.3 mm", "3 mm".
+    public static func millimetres(_ value: Double) -> String {
+        let tenths = (value * 10).rounded(.toNearestOrEven) / 10
+        return (tenths == tenths.rounded() ? String(Int(tenths)) : String(format: "%.1f", tenths)) + " mm"
+    }
+
+    /// The margin the printer itself keeps, shown where a smaller one was asked for: "4.3 mm (printer limit)".
+    public static func printerLimit(_ edge: Double) -> String {
+        "\(millimetres(edge)) (printer limit)"
+    }
+
+    /// Under a custom margin that is smaller than the printer's own: "Printer limit 4.3 mm".
+    public static func printerLimitHint(_ edge: Double) -> String {
+        "Printer limit \(millimetres(edge))"
+    }
+
+    /// What a Margins choice reads: its own name, or the printer's limit when that is larger than the choice.
+    public static func marginLabel(_ choice: MarginChoice, edge: Double) -> String {
+        if choice != .custom && edge > Double(MarginChoices.millimetres(choice, custom: 0)) { return printerLimit(edge) }
+        switch choice {
+        case .none: return "None"
+        case .small: return "Small, 6 mm"
+        case .normal: return "Normal, 12 mm"
+        case .custom: return "Custom"
+        }
+    }
+
+    /// Under the Scale box when the page prints at another size than it says: "Prints at 96 %".
+    public static func printsAt(_ percent: Int) -> String {
+        "Prints at \(percent) %"
+    }
+
     /// The layout style's name in the Layout section: "Pages", "Photo prints", "Photo sheet".
     public static func layoutStyleTitle(_ style: LayoutStyle) -> String {
         switch style {

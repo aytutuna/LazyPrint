@@ -147,6 +147,28 @@ public class PrinterCapabilitiesTests
     }
 
     [Fact]
+    public void Match_BorderlessOnlyForAMatchingPaperType()
+    {
+        var caps = IppFixtures.Capabilities("epson-ecotank");
+        // The A4 borderless entry is glossy photo paper, the bordered one plain.
+        Assert.True(caps.Match(A4, borderless: true)!.Margins!.Value.IsZero);
+        Assert.True(caps.Match(A4, borderless: true, type: "photographic-glossy")!.Margins!.Value.IsZero);
+        Assert.False(caps.Match(A4, borderless: true, type: "stationery")!.Margins!.Value.IsZero);
+        Assert.False(caps.Match(A4, borderless: true, type: MediaChoices.Auto)!.Margins!.Value.IsZero);
+
+        MediaEntry Entry(int margin, string? type) =>
+            new([], 21000, 29700, false, new MediaMargins(margin, margin, margin, margin), type, null);
+        var untyped = new PrinterCapabilities { MediaColDatabase = [Entry(300, "stationery"), Entry(0, null)] };
+        Assert.True(untyped.Match(A4, borderless: true, type: "stationery")!.Margins!.Value.IsZero);
+        var plain = new PrinterCapabilities { MediaColDatabase = [Entry(300, "stationery"), Entry(0, "stationery")] };
+        Assert.True(plain.Match(A4, borderless: true, type: MediaChoices.Auto)!.Margins!.Value.IsZero);
+        var inkjet = new PrinterCapabilities { MediaColDatabase = [Entry(300, "stationery"), Entry(0, "stationery-inkjet")] };
+        Assert.True(inkjet.Match(A4, borderless: true, type: MediaChoices.Auto)!.Margins!.Value.IsZero);
+        var onlyBorderless = new PrinterCapabilities { MediaColDatabase = [Entry(0, "photographic-glossy")] };
+        Assert.Null(onlyBorderless.Match(A4, type: MediaChoices.Auto));
+    }
+
+    [Fact]
     public void BrotherLaser_Speaks11Only_AndTakesPwgAndPdf()
     {
         var caps = IppFixtures.Capabilities("brother-laser");

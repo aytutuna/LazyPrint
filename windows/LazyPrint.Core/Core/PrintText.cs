@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Core/PrintText.swift: the sentences both apps show.
@@ -118,6 +120,32 @@ public static class PrintText
 
     /// <summary>A note about a job, added after the status sentence: "Shrunk to 82 %".</summary>
     public static string Shrunk(int percent) => $"Shrunk to {percent} %";
+
+    /// <summary>A distance to one decimal, the ".0" dropped: "4.3 mm", "3 mm".</summary>
+    public static string Millimetres(double millimetres) => $"{millimetres.ToString("0.#", CultureInfo.InvariantCulture)} mm";
+
+    /// <summary>The margin the printer itself keeps, shown where a smaller one was asked for: "4.3 mm (printer limit)".</summary>
+    public static string PrinterLimit(double edge) => $"{Millimetres(edge)} (printer limit)";
+
+    /// <summary>Under a custom margin that is smaller than the printer's own: "Printer limit 4.3 mm".</summary>
+    public static string PrinterLimitHint(double edge) => $"Printer limit {Millimetres(edge)}";
+
+    /// <summary>Under the Scale box when the page prints at another size than it says: "Prints at 96 %".</summary>
+    public static string PrintsAt(int percent) => $"Prints at {percent} %";
+
+    /// <summary>What a Margins choice reads: its own name, or the printer's limit when that is larger than the choice.</summary>
+    public static string MarginLabel(MarginChoice choice, double edge)
+    {
+        int mm = MarginChoices.Millimetres(choice, 0);
+        if (choice != MarginChoice.Custom && edge > mm) return PrinterLimit(edge);
+        return choice switch
+        {
+            MarginChoice.Small => "Small, 6 mm",
+            MarginChoice.Normal => "Normal, 12 mm",
+            MarginChoice.Custom => "Custom",
+            _ => "None",
+        };
+    }
 
     /// <summary>The layout style's name in the Layout section: "Pages", "Photo prints", "Photo sheet".</summary>
     public static string LayoutStyleTitle(LayoutStyle style) => style switch

@@ -115,7 +115,11 @@ struct OptionsSheet: View {
     }
 
     private func layoutSection(_ rules: Rules) -> some View {
-        Section(InspectorSections.title(InspectorSections.layout)) {
+        let printed: Int? = state.jobPlan?.plan.printedScale
+        let edge: Double = PrintJobs.edge(state.settings, margin: state.settings.margin, printer: state.capabilities)
+        let noneEdge: Double = PrintJobs.edge(state.settings, margin: .none, printer: state.capabilities)
+        let smallEdge: Double = PrintJobs.edge(state.settings, margin: .small, printer: state.capabilities)
+        return Section(InspectorSections.title(InspectorSections.layout)) {
             Choice(title: "Style", selection: Binding(
                 get: { state.settings.layoutStyle },
                 set: { (style: LayoutStyle) in state.settings.layoutStyle = style }),
@@ -161,11 +165,16 @@ struct OptionsSheet: View {
             }
             .disabled(rules.scalingLimited || rules.photoPrints || state.settings.scaling == .fit || state.settings.scaling == .fill)
             .accessibilityIdentifier("print.scale")
+            if let printed, printed != state.settings.scale, !rules.scalingLimited, !rules.photoPrints, !rules.poster,
+               state.settings.scaling == .shrinkToFit || state.settings.scaling == .actualSize {
+                note(PrintText.printsAt(printed))
+            }
             Choice(title: "Margins", selection: Binding(
                 get: { state.settings.margin },
                 set: { (margin: MarginChoice) in state.settings.margin = margin }),
-                   options: [("None", MarginChoice.none), ("Small, 6 mm", MarginChoice.small), ("Normal, 12 mm", MarginChoice.normal),
-                             ("Custom", MarginChoice.custom)],
+                   options: MarginChoice.allCases.map { (choice: MarginChoice) -> (String, MarginChoice) in
+                       (PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge), choice)
+                   },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {
                 Stepper(value: $state.settings.marginMm, in: 0...MarginChoices.maxMillimetres) {
@@ -173,6 +182,7 @@ struct OptionsSheet: View {
                 }
                 .disabled(!rules.marginEnabled)
                 .accessibilityIdentifier("print.marginMm")
+                if Double(state.settings.marginMm) < edge { note(PrintText.printerLimitHint(edge)) }
             }
         }
     }
@@ -304,7 +314,6 @@ struct OptionsSheet: View {
             let noQuality: Bool = OptionsSheet.noQuality(capabilities)
 
             let poster: Bool = (2...4).contains(s.poster)
-            let margins: Bool = Imposition.keepsMargin(PrintJobs.layoutOptions(s))
 
             showCollate = s.copies > 1
             sidesEnabled = !s.booklet && !poster && !photos
@@ -321,8 +330,8 @@ struct OptionsSheet: View {
             bookletReason = photos ? "Not for photos" : poster ? "Set by Poster" : nil
             posterEnabled = !photos && (poster || (!s.booklet && s.pagesPerSheet == 1))
             posterReason = photos ? "Not for photos" : (posterEnabled ? nil : "Needs one page per side")
-            marginEnabled = margins && !photos
-            marginReason = photos ? "Photos print without margins" : (margins ? nil : "Not used at actual size or fill")
+            marginEnabled = !photos
+            marginReason = photos ? "Photos print without margins" : nil
             scalingLimited = s.booklet || s.pagesPerSheet > 1 || poster
             scalingReason = photoPrints ? "Set by Photo prints" : (scalingLimited ? "Pages are fitted to their spaces" : nil)
             photoSizeEnabled = photoPrints

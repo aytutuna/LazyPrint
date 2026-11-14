@@ -244,6 +244,130 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertEqual(job.plan.sheets.count, 1)
     }
 
+    // MARK: - Margin None
+
+    /// A4 with a bordered entry and a borderless one of `type`, each marked by its top margin member.
+    private func twoKinds(borderlessType: String? = nil) -> PrinterCapabilities {
+        func entry(_ margin: Int, _ type: String?) -> MediaEntry {
+            MediaEntry(attributes: [IppAttribute("media-top-margin", .integer(Int32(margin)))], width: 21000, height: 29700,
+                       isVariable: false, margins: MediaMargins(top: margin, left: margin, bottom: margin, right: margin),
+                       type: type, source: nil)
+        }
+        var caps = PrinterCapabilities()
+        caps.mediaColDatabase = [entry(300, "stationery"), entry(0, borderlessType)]
+        caps.mediaTypeSupported = ["stationery", "photographic-glossy"]
+        return caps
+    }
+
+    private func letterDoc() -> LoadedDocument {
+        LoadedDocument(name: "Letter", kind: .pdf(encrypted: false), pages: [letter])
+    }
+
+    func test_plan_marginNone_usesBorderlessWhenThePrinterHasIt() {
+        let printer = twoKinds()
+        let changes: [(inout PrintSettings) -> Void] = [
+            { _ in }, { $0.scaling = .fit }, { $0.scaling = .actualSize }, { $0.scaling = .fill },
+            { $0.pagesPerSheet = 4 }, { $0.booklet = true }, { $0.poster = 2 }, { $0.sides = .longEdge },
+        ]
+        for change in changes {
+            let job = makePlan([doc(2)], makeSettings(change), printer)
+            XCTAssertEqual(job.plan.area.margins, noMargins)
+            XCTAssertEqual(Imposition.edge(job.plan.area), 0)
+        }
+    }
+
+    func test_plan_marginNone_fallsBackToThePrinterEdge() throws {
+        let demo = DemoPrinter.capabilities(duplex: true)
+        let job = makePlan([letterDoc()], makeSettings { $0.paperId = "letter" }, demo)
+        let expected = 432 * 72.0 / 2540
+        XCTAssertEqual(job.plan.area.margins, LayoutInsets(top: expected, left: expected, bottom: expected, right: expected))
+        XCTAssertEqual(Imposition.edge(job.plan.area), 4.3)
+    }
+
+    func test_plan_marginSmall_isNeverBorderless() {
+        let printer = twoKinds()
+        for margin in [MarginChoice.small, .normal, .custom] {
+            XCTAssertNotEqual(makePlan([doc(1)], makeSettings { $0.margin = margin }, printer).plan.area.margins, noMargins)
+        }
+    }
+
+    func test_plan_marginNone_keepsThePhotoRules() {
+        let printer = twoKinds()
+        let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
+        let sheet = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "4x6"; $0.margin = .small }
+        XCTAssertNotEqual(makePlan([photo], sheet, printer).plan.area.margins, noMargins)
+        let whole = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "page"; $0.margin = .small }
+        XCTAssertEqual(makePlan([photo], whole, printer).plan.area.margins, noMargins)
+        let photoSheet = makeSettings { $0.layoutStyle = .photoSheet }
+        XCTAssertNotEqual(makePlan([photo], photoSheet, printer).plan.area.margins, noMargins)
+    }
+
+    func test_plan_marginNone_asksForBorderlessOnlyOnAMatchingPaperType() {
+        let glossy = twoKinds(borderlessType: "photographic-glossy")
+        XCTAssertNotEqual(makePlan([doc(1)], makeSettings(), glossy).plan.area.margins, noMargins)
+        XCTAssertEqual(makePlan([doc(1)], makeSettings { $0.mediaType = "photographic-glossy" }, glossy).plan.area.margins, noMargins)
+        XCTAssertNotEqual(makePlan([doc(1)], makeSettings { $0.mediaType = "stationery" }, glossy).plan.area.margins, noMargins)
+        XCTAssertEqual(makePlan([doc(1)], makeSettings(), twoKinds(borderlessType: "stationery")).plan.area.margins, noMargins)
+    }
+
+    func test_ticket_mediaCol_isBorderlessExactlyWhenTheAreaWas() throws {
+        let printer = twoKinds()
+        for margin in [MarginChoice.none, .small] {
+            let settings = makeSettings { $0.margin = margin }
+            let job = makePlan([doc(1)], settings, printer)
+            let ticket = PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: printer, name: "x")
+            let borderless = job.plan.area.margins == noMargins
+            XCTAssertEqual(borderless, margin == .none)
+            XCTAssertEqual(ticket.media.entry, printer.mediaColDatabase[borderless ? 1 : 0].attributes)
+        }
+        let glossy = twoKinds(borderlessType: "photographic-glossy")
+        let settings = makeSettings()
+        let job = makePlan([doc(1)], settings, glossy)
+        XCTAssertEqual(PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: glossy, name: "x").media.entry,
+                       glossy.mediaColDatabase[0].attributes)
+    }
+
+    func test_ticket_mediaCol_followsTheAreaWhenOnlyAnUnsuitedBorderlessEntryExists() {
+        var printer = twoKinds(borderlessType: "photographic-glossy")
+        printer.mediaColDatabase = [printer.mediaColDatabase[1]]
+        let settings = makeSettings()
+        let job = makePlan([doc(1)], settings, printer)
+        let ticket = PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: printer, name: "x")
+        XCTAssertEqual(job.plan.area.margins, noMargins)
+        XCTAssertEqual(ticket.media.entry, printer.mediaColDatabase[0].attributes)
+    }
+
+    func test_ofItems_ticketMatchesThePaperTypeOfTheArea() {
+        let glossy = twoKinds(borderlessType: "photographic-glossy")
+        let settings = makeSettings { $0.mediaType = "photographic-glossy" }
+        let area = PrintJobs.area(settings, printer: glossy)
+        XCTAssertEqual(area.margins, noMargins)
+        let job = SheetJob.ofItems(name: "Test page", printer: PrintFixtures.printer(), capabilities: glossy, area: area,
+                                   sides: [DrawnItems(items: [])], settings: settings)
+        let ticket = PrintJobs.ticket(job.plan, settings: job.settings, format: "application/pdf", printer: glossy, name: "x")
+        XCTAssertEqual(ticket.media.entry?.contains(IppAttribute("media-top-margin", .integer(0))), true)
+    }
+
+    func test_edge_isTheLargestSide_andSymmetricWhenDuplex() {
+        var printer = PrinterCapabilities()
+        printer.mediaColDatabase = [MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
+                                               margins: MediaMargins(top: 300, left: 100, bottom: 640, right: 200), type: nil, source: nil)]
+        let oneSided = makePlan([doc(1)], makeSettings { $0.margin = .small }, printer).plan
+        XCTAssertEqual(Imposition.edge(oneSided.area), 6.4)
+        let duplex = makePlan([doc(2)], makeSettings { $0.sides = .longEdge }, printer).plan
+        XCTAssertEqual(duplex.area.margins.top, duplex.area.margins.bottom)
+        XCTAssertEqual(Imposition.edge(duplex.area), 6.4)
+        XCTAssertEqual(Imposition.edge(PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 3 * 72 / 25.4, left: 0, bottom: 0, right: 0))), 3)
+    }
+
+    func test_printedScale_demoLetter_is96() {
+        let demo = DemoPrinter.capabilities(duplex: false)
+        let job = makePlan([letterDoc()], makeSettings { $0.paperId = "letter" }, demo)
+        XCTAssertEqual(job.plan.printedScale, 96)
+        XCTAssertEqual(makePlan([letterDoc()], makeSettings { $0.paperId = "letter"; $0.pagesPerSheet = 2 }, demo).plan.printedScale, 100)
+        XCTAssertEqual(makePlan([doc(1)], makeSettings(), twoKinds()).plan.printedScale, 100)
+    }
+
     // MARK: - Ticket
 
     func test_ticket_forTheDatabaseEntryOfTheSheet() throws {

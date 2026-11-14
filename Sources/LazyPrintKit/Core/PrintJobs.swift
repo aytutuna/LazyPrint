@@ -55,16 +55,45 @@ public enum PrintJobs {
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless
     /// or not, the other kind when only that exists), else 0.25 in on every side. Automatic is the paper the
     /// printer has loaded, else the usual one where the user lives.
-    public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea {
-        area(paperId: paper.rawValue, printer: printer, borderless: borderless)
+    public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool, type: String? = nil) -> PrintableArea {
+        area(paperId: paper.rawValue, printer: printer, borderless: borderless, type: type)
     }
 
-    /// `paperId` is a `PrintSettings.paperId`: a named size or any PWG name.
-    public static func area(paperId: String, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea {
+    /// `paperId` is a `PrintSettings.paperId`: a named size or any PWG name. `type` is `PrinterCapabilities.match`'s.
+    public static func area(paperId: String, printer: PrinterCapabilities?, borderless: Bool, type: String? = nil) -> PrintableArea {
         let size = sheet(paperId, printer)
-        if let area = printer?.match(size, borderless: borderless)?.printableArea { return area }
+        if let area = printer?.match(size, borderless: borderless, type: type)?.printableArea { return area }
         let margin = 0.25 * 72
         return PrintableArea(paper: size, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
+    }
+
+    /// The area the settings lay out on: borderless when `wantsBorderless`, for a document on the paper type it was asked for.
+    public static func area(_ settings: PrintSettings, printer: PrinterCapabilities?) -> PrintableArea {
+        area(paperId: settings.paperId, printer: printer, borderless: wantsBorderless(settings, printer: printer),
+             type: matchType(settings, printer))
+    }
+
+    /// The printer's edge (`Imposition.edge`) the settings would have with `margin` chosen instead, 0 for photo layouts: None
+    /// can be borderless where Small is not, so each choice in the Margins list is told its own.
+    public static func edge(_ settings: PrintSettings, margin: MarginChoice, printer: PrinterCapabilities?) -> Double {
+        if settings.layoutStyle.isPhoto { return 0 }
+        var s = settings
+        s.margin = margin
+        return Imposition.edge(area(s, printer: printer))
+    }
+
+    /// Margin None asks for the whole sheet, whatever the layout and scaling. A photo layout is borderless when its photo is
+    /// the whole page or as large as the paper, and a photo sheet never.
+    public static func wantsBorderless(_ settings: PrintSettings, printer: PrinterCapabilities?) -> Bool {
+        if settings.layoutStyle.isPhoto {
+            return settings.layoutStyle == .photoPrints && borderless(settings.photoSizeId, sheet: sheet(settings.paperId, printer))
+        }
+        return settings.margin == .none
+    }
+
+    /// The paper type a borderless entry has to suit; nil for a photo layout, which takes any.
+    private static func matchType(_ settings: PrintSettings, _ printer: PrinterCapabilities?) -> String? {
+        settings.layoutStyle.isPhoto ? nil : MediaChoices.type(settings, printer) ?? MediaChoices.auto
     }
 
     /// The sheets of a job. The pages of all documents run on as one, and `pageRange` (0-based, as
@@ -83,12 +112,9 @@ public enum PrintJobs {
         let chosen = (pageRange ?? Array(0..<all.count)).filter { $0 >= 0 && $0 < all.count }
         let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
-        let photos = settings.layoutStyle == .photoPrints
-        let paper = settings.paperId
-        let printable = area(paperId: paper, printer: printer,
-                             borderless: photos && borderless(settings.photoSizeId, sheet: sheet(paper, printer)))
+        let printable = area(settings, printer: printer)
         let layout: SheetPlan
-        if photos {
+        if settings.layoutStyle == .photoPrints {
             let options = PhotoOptions(size: photoSize(settings.photoSizeId), copiesEach: 1, fill: settings.photoFill,
                                        cutMarks: settings.cutMarks)
             layout = PhotoLayout.plan(pages, options: options, area: printable)
@@ -154,7 +180,7 @@ public enum PrintJobs {
                             sides: sides,
                             colorMode: mode,
                             media: media(sheet, printer, type: MediaChoices.type(settings, printer), source: MediaChoices.source(settings, printer),
-                                         autoType: settings.mediaType == MediaChoices.auto),
+                                         autoType: settings.mediaType == MediaChoices.auto, matchType: matchType(settings, printer)),
                             quality: printer?.printQualitySupported.contains(quality) == true ? quality : nil,
                             scaling: printScaling(settings.scaling, printer: printer, asIs: asIs),
                             collatedCopies: collated)
@@ -179,7 +205,7 @@ public enum PrintJobs {
     /// and tray, when asked for, go in the media-col in place of the entry's own, except that an entry's own photo type stays
     /// when the type was left on automatic.
     private static func media(_ area: PrintableArea, _ printer: PrinterCapabilities?, type: String?, source: String?,
-                              autoType: Bool) -> IppMediaChoice {
+                              autoType: Bool, matchType: String?) -> IppMediaChoice {
         let name = PaperSizes.listedName(printer, area.paper) ?? mediaName(area.paper)
         let supported = printer?.mediaColSupported ?? []
         func chosen(_ members: [IppAttribute]) -> [IppAttribute] {
@@ -198,7 +224,7 @@ public enum PrintJobs {
         }
 
         let borderless = area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
-        if let entry = printer?.match(area.paper, borderless: borderless) {
+        if let entry = printer?.match(area.paper, borderless: borderless, type: matchType) {
             return IppMediaChoice(entry: entry.attributes.isEmpty ? entry.attributes : chosen(entry.attributes), name: name)
         }
 

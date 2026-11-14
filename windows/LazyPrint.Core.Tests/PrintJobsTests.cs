@@ -274,6 +274,101 @@ public class PrintJobsTests
         Assert.All(sheet.Front.Placements, p => Assert.Equal(PhotoSize.All[0].Size!.Value.Width, Math.Min(p.Frame.Width, p.Frame.Height), 0.5));
     }
 
+    private static MediaEntry A4Entry(int margin, string? type = null) =>
+        new([new IppAttribute("media-bottom-margin", new IppValue.Integer(margin))], 21000, 29700, false,
+            new MediaMargins(margin, margin, margin, margin), type, null);
+
+    private static PrinterCapabilities WithEntries(params MediaEntry[] entries) =>
+        new() { SidesSupported = ["one-sided", "two-sided-long-edge"], MediaColDatabase = entries };
+
+    private static readonly LayoutInsets NoMargins = new(0, 0, 0, 0);
+
+    [Fact]
+    public void Plan_MarginNone_UsesBorderlessWhenThePrinterHasIt()
+    {
+        var printer = WithEntries(A4Entry(432), A4Entry(0));
+        foreach (var scaling in Enum.GetValues<Scaling>())
+        {
+            var area = Plan([Doc(1)], Settings(s => s.Scaling = scaling), printer).Plan.Area;
+            Assert.Equal(NoMargins, area.Margins);
+        }
+        Assert.Equal(NoMargins, Plan([Doc(3)], Settings(s => s.PagesPerSheet = 4), printer).Plan.Area.Margins);
+        Assert.Equal(NoMargins, Plan([Doc(3)], Settings(s => s.Booklet = true), printer).Plan.Area.Margins);
+        Assert.Equal(NoMargins, Plan([Doc(1)], Settings(s => s.Poster = 2), printer).Plan.Area.Margins);
+    }
+
+    [Fact]
+    public void Plan_MarginNone_FallsBackToThePrinterEdge()
+    {
+        var printer = WithEntries(A4Entry(432));
+        var area = Plan([Doc(1)], Settings(), printer).Plan.Area;
+        Assert.Equal(432 * 72.0 / 2540, area.Margins.Left, 1e-9);
+        Assert.Equal(4.3, Imposition.Edge(area));
+    }
+
+    [Fact]
+    public void Plan_MarginSmall_IsNeverBorderless()
+    {
+        var printer = WithEntries(A4Entry(432), A4Entry(0));
+        foreach (var margin in new[] { MarginChoice.Small, MarginChoice.Normal, MarginChoice.Custom })
+        {
+            var settings = Settings(s => s.Margin = margin);
+            Assert.False(PrintJobs.WantsBorderless(settings, printer));
+            Assert.NotEqual(NoMargins, Plan([Doc(1)], settings, printer).Plan.Area.Margins);
+        }
+    }
+
+    [Fact]
+    public void Plan_MarginNone_AsksForBorderlessOnlyOnAMatchingPaperType()
+    {
+        var printer = new PrinterCapabilities
+        {
+            MediaColDatabase = [A4Entry(432, "stationery"), A4Entry(0, "photographic-glossy")],
+            MediaTypeSupported = ["stationery", "photographic-glossy"],
+        };
+        Assert.NotEqual(NoMargins, Plan([Doc(1)], Settings(), printer).Plan.Area.Margins);
+        Assert.NotEqual(NoMargins, Plan([Doc(1)], Settings(s => s.MediaType = "stationery"), printer).Plan.Area.Margins);
+        Assert.Equal(NoMargins, Plan([Doc(1)], Settings(s => s.MediaType = "photographic-glossy"), printer).Plan.Area.Margins);
+    }
+
+    [Fact]
+    public void Ticket_MediaCol_IsBorderlessExactlyWhenTheAreaWas()
+    {
+        var printer = WithEntries(A4Entry(432), A4Entry(0));
+        foreach (var margin in Enum.GetValues<MarginChoice>())
+        {
+            var settings = Settings(s => s.Margin = margin);
+            var job = Plan([Doc(1)], settings, printer);
+            var entry = PrintJobs.Ticket(job, settings, "application/pdf", printer, "x").Media.Entry!;
+            int sent = ((IppValue.Integer)entry.Single(a => a.Name == "media-bottom-margin").Values[0]).Value;
+            Assert.Equal(job.Plan.Area.Margins == NoMargins, sent == 0);
+        }
+    }
+
+    [Fact]
+    public void PrintedScale_DemoLetter_Is96()
+    {
+        var printer = WithEntries(new MediaEntry([], 21590, 27940, false, new MediaMargins(432, 432, 432, 432), null, null));
+        var letter = new LoadedDocument("Letter", new DocumentKind.Pdf(false), [new LayoutSize(612, 792)]);
+        var plan = Plan([letter], Settings(s => s.PaperId = "letter"), printer).Plan;
+        Assert.Equal(96, plan.PrintedScale);
+        Assert.Contains(plan.Warnings, w => w is PlanWarning.Shrunk { Percent: 96 });
+        var actual = Settings(s => { s.PaperId = "letter"; s.Scaling = Scaling.ActualSize; s.Scale = 150; });
+        Assert.Equal(150, Plan([letter], actual, printer).Plan.PrintedScale);
+    }
+
+    [Fact]
+    public void Edge_IsTheLargestSide_AndSymmetricWhenDuplex()
+    {
+        var printer = WithEntries(new MediaEntry([], 21000, 29700, false, new MediaMargins(300, 100, 640, 200), null, null));
+        var oneSided = Plan([Doc(1)], Settings(), printer).Plan;
+        Assert.Equal(6.4, Imposition.Edge(oneSided.Area));
+        var duplex = Plan([Doc(2)], Settings(s => s.Sides = Sides.LongEdge), printer).Plan;
+        Assert.Equal(duplex.Area.Margins.Top, duplex.Area.Margins.Bottom);
+        Assert.Equal(6.4, Imposition.Edge(duplex.Area));
+        Assert.Equal(3, Imposition.Edge(new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(3 * 72 / 25.4, 0, 0, 0))));
+    }
+
     [Fact]
     public void Plan_WholePagePhotos_AreBorderlessWhenThePrinterHasIt()
     {

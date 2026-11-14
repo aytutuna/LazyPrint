@@ -22,7 +22,7 @@ public enum Imposition {
         let poster = (2...4).contains(options.poster)
         let duplex = !poster && (options.booklet || options.sides != .oneSided)
         let used = duplex ? area.symmetric : area
-        let laid = keepsMargin(options) ? withMargin(used, options.margin) : used
+        let laid = withMargin(used, options.margin)
         let notes = Notes()
         let sheets: [Sheet]
         if poster {
@@ -38,15 +38,15 @@ public enum Imposition {
         if notes.padding > 0 { warnings.append(.paddedWithBlanks(count: notes.padding)) }
         let percent = Int((notes.smallestScale * 100).rounded(.toNearestOrEven))
         if percent < 100 { warnings.append(.shrunk(percent: percent)) }
-        return SheetPlan(area: used, sheets: sheets, duplex: duplex, warnings: warnings)
+        let printed = notes.lone.map { Int(($0 * 100).rounded(.toNearestOrEven)) } ?? 100
+        return SheetPlan(area: used, sheets: sheets, duplex: duplex, warnings: warnings, printedScale: printed)
     }
 
-    /// Whether the sizing in use lets the margin apply: not a lone page at actual size, nor fill.
-    public static func keepsMargin(_ options: LayoutOptions) -> Bool {
-        if (2...4).contains(options.poster) { return true }
-        let cells = grid(options.pagesPerSheet, landscape: false)
-        let alone = !options.booklet && cells.rows == 1 && cells.columns == 1
-        return options.scaling != .fill && !(alone && options.scaling == .actualSize)
+    /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins
+    /// (the same after `PrintableArea.symmetric`).
+    public static func edge(_ area: PrintableArea) -> Double {
+        let m = area.margins
+        return (max(m.top, m.left, m.bottom, m.right) * 25.4 / 72 * 10).rounded(.toNearestOrEven) / 10
     }
 
     private static func withMargin(_ area: PrintableArea, _ margin: Double) -> PrintableArea {
@@ -197,6 +197,7 @@ public enum Imposition {
         } else if scaling == .shrinkToFit || scaling == .fit {
             notes.smallestScale = min(notes.smallestScale, factor * fitted.scale)
         }
+        notes.lone = min(notes.lone ?? .infinity, factor * fitted.scale)
         return place(page, shown: fitted, landscape: landscape, turned: false, paper: area.paper)
     }
 
@@ -320,5 +321,7 @@ public enum Imposition {
         var clipped: Double = 0
         var padding: Int = 0
         var smallestScale: Double = 1
+        /// The smallest scale of a page alone on its side; nil when there is none.
+        var lone: Double?
     }
 }

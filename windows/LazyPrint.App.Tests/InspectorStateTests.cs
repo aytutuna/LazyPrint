@@ -243,16 +243,15 @@ public sealed class InspectorStateTests
     }
 
     [Fact]
-    public void MarginsAreGreyedOutAtActualSizeAndFillWithTheirReason()
+    public void MarginsAreEnabledAtActualSizeAndFill()
     {
         Assert.True(For().MarginEnabled);
         Assert.True(For(new PrintSettings { Scaling = Scaling.Fit }).MarginEnabled);
-        Assert.True(For(new PrintSettings { Scaling = Scaling.ActualSize, PagesPerSheet = 2 }).MarginEnabled);
         foreach (var scaling in new[] { Scaling.ActualSize, Scaling.Fill })
         {
             var state = For(new PrintSettings { Scaling = scaling });
-            Assert.False(state.MarginEnabled);
-            Assert.Equal("Not used at actual size or fill", state.MarginReason);
+            Assert.True(state.MarginEnabled);
+            Assert.Null(state.MarginReason);
         }
     }
 }

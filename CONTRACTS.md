@@ -105,11 +105,14 @@ public struct SheetPlan: Equatable, Sendable {
     public var sheets: [Sheet]
     public var duplex: Bool              // every sheet has a back (blank if need be), so sideCount is even
     public var warnings: [PlanWarning]
+    public var printedScale: Int         // percent a page alone on its side really prints at (smallest of them; fit and fill may exceed 100); 100 when none is alone
     public var sideCount: Int { get }
 }
 
 public enum Imposition {
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan
+    /// The printer's own edge in mm to one decimal: the largest of the area's four margins (the same after `symmetric`). C#: `Edge`.
+    public static func edge(_ area: PrintableArea) -> Double
 }
 ```
 
@@ -121,7 +124,8 @@ Rules `Imposition.plan` keeps (each has a test):
 - Several per side with `orientation` forced: the reading view is the one asked for instead of the one chosen from the first page. A booklet is always a landscape spread and ignores `orientation`; the inspector hides it then. A PDF printed as it is by the printer (`IppSheetPrinter` as-is) is only sent so when `orientation` is automatic; a photo only when its one placement is upright and fills the printable area, as the Photos task lays it out, so a margin or a forced orientation in the Document task draws it instead.
 - Several per side: the grid (2, 4, 6, 9, 16 pages: 1×2, 2×2, 2×3, 3×3, 4×4, its longer count along the reading view's longer side, so 2 per side are two rows in the portrait view and two columns in the landscape one) is chosen once per job, from the first page: portrait or landscape reading view, whichever makes that page larger; on a tie the view where pages need no turn wins. Pages are read left to right, top to bottom in the reading view (right to left with `rightToLeft`). Each page is fitted to its cell (`fit`; `fill` crops it to the cell; `actualSize` and `shrinkToFit` mean `fit` here) and turned a quarter counterclockwise only when that makes it strictly larger.
 - Booklet: always two-sided (`sides` is ignored). The pages are padded with blanks after the last page to a multiple of 4 (`paddedWithBlanks`); sheet k of n/4 has front (left, right) = (n−1−2k, 2k) and back = (2k+1, n−2−2k), swapped for `rightToLeft`; folded sheets nest in order. The spread's two halves are split at the paper's centre line (the fold), each half met with the printable area. `pagesPerSheet` is ignored.
-- Margins: `margin` (points) raises each edge of the area the layout uses to at least that distance, so it never goes below what the printer cannot reach. It is applied in `Imposition.plan` to the area the pages are laid out in; `SheetPlan.area` stays the printer's. It applies wherever pages are sized to fit: `shrinkToFit` and `fit` on a page alone, every grid and booklet (they fit their cells whatever `scaling` says), and a poster; it does not apply to a lone page at `actualSize` or to `fill`. `Imposition.keepsMargin(options)` (C#: `KeepsMargin`) says so, and the inspector greys the choice out with "Not used at actual size or fill" when it is false. Photo tasks print through `PhotoLayout` or `fill` and get `margin` 0 from `PrintJobs.layoutOptions`, so borderless photo printing ignores it. A PDF is not printed as it is by the printer when a margin or a poster is set.
+- Margins: `margin` (points) raises each edge of the area the layout uses to at least that distance, so it never goes below what the printer cannot reach. It is applied in `Imposition.plan` to the area the pages are laid out in; `SheetPlan.area` stays the printer's. It applies under every scaling: `shrinkToFit` and `fit` on a page alone, every grid and booklet, a poster, a lone page at `actualSize` (cut at the margin) and `fill` (fills inside it). Photo tasks print through `PhotoLayout` or `fill` and get `margin` 0 from `PrintJobs.layoutOptions`, so borderless photo printing ignores it. A PDF is not printed as it is by the printer when a margin or a poster is set.
+- Margin None asks for borderless paper for every layout and scaling (`PrintJobs.wantsBorderless`, C#: `WantsBorderless`); photo prints keep their own rule (the photo is the whole page or as large as the paper), a photo sheet never asks, and Small, Normal and Custom never do. `PrinterCapabilities.match(paper, borderless:, type:)` takes a zero-margin entry only when it has no type, has the chosen paper type, or the type is automatic and the entry's is `stationery` or `stationery-inkjet`; otherwise it falls back to the bordered entry, and to the other kind when only that exists. Photo layouts pass no type. The plan, the preview, the test page and the ticket all use the one decision (`PrintJobs.area(_:printer:)`), so the ticket's media-col is borderless exactly when the area laid out was. The settings are never changed by what the printer cannot do; only what is shown is. With a printer edge above 0.05 mm the Margins picker reads "4.3 mm (printer limit)" for a choice below it (`PrintText.marginLabel`, C#: `MarginLabel`; edge in mm to one decimal, ".0" dropped), a Custom value below it keeps what was typed and says "Printer limit 4.3 mm", and the Layout summary's "{x} mm margins" uses the larger of the chosen margin and the edge wherever the margin applies (so Margin None on a printer with a 4.3 mm edge reads "4.3 mm margins"). A page alone on its side that prints at another size than the Scale control says shows "Prints at 96 %" under it, and the summary's percent is `printedScale` when the plan is known.
 - Poster: `poster` 2, 3 or 4 enlarges each page, one after the other, across n x n sheets, one-sided (`sides`, booklet and `pagesPerSheet` are ignored; `scaling` too, the page is always fitted). Each sheet's printable area, less a 6 pt strip all round that holds the cut marks, is a tile; tiles overlap their neighbours by 10 mm. The page is scaled to fit the n tiles together, kept at its shape, anchored at the top left, and a tile is cut from it in reading order (row by row); a tile with less than 1 pt of the page on it is left out. A tile is a sheet with one placement whose `crop` is the part of the page it shows (so `Placement.frame` is the tile's visible part, at the strip's inner corner), and `SheetSide.cutMarks` is true: the renderer draws a short 0.5 pt gray mark outside each corner of the frame. A landscape page (automatic orientation) uses the landscape reading view like a page alone does. `shrunk` is reported when the page had to be made smaller than itself.
 - Several documents run on as one; a document does not start a new sheet.
 - A blank page has no placement; with `duplex` every sheet has a back, so copies of a two-sided job never start on a back.
@@ -465,7 +469,9 @@ public struct JobPlan: Equatable, Sendable {
 }
 public enum PrintJobs {
     public static func layoutOptions(_ settings: PrintSettings) -> LayoutOptions
-    public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool) -> PrintableArea
+    public static func area(paper: PaperSize, printer: PrinterCapabilities?, borderless: Bool, type: String? = nil) -> PrintableArea
+    public static func area(_ settings: PrintSettings, printer: PrinterCapabilities?) -> PrintableArea   // wantsBorderless and the paper type applied
+    public static func wantsBorderless(_ settings: PrintSettings, printer: PrinterCapabilities?) -> Bool
     public static func plan(_ documents: [LoadedDocument], pageRange: [Int]?, settings: PrintSettings,
                             printer: PrinterCapabilities?, prefs: PrinterPrefs) -> JobPlan
     /// A document `asIs` is the printer's to scale ("auto" or "fit") and may go short edge; imposed sheets are "none" and long edge.
@@ -479,7 +485,7 @@ public struct JobRecord: Equatable, Identifiable, Sendable {   // the Jobs tab: 
 }
 ```
 
-A printer's capabilities (from IPP, or filled in by the system for a queue with no IPP twin) say whether it prints both sides and color, which papers it has and their margins; `PrintJobs.area` uses the matching `media-col-database` entry, else the system's imageable area, else 0.25 in on every side.
+A printer's capabilities (from IPP, or filled in by the system for a queue with no IPP twin) say whether it prints both sides and color, which papers it has and their margins; `PrintJobs.area` uses the matching `media-col-database` entry (borderless when `wantsBorderless` and the paper type suits), else the system's imageable area, else 0.25 in on every side.
 
 ### Core/Troubleshooter ("Why isn't my printer listed?")
 
@@ -687,9 +693,10 @@ public struct SheetJob: Sendable {
     public var items: [DrawnItems]?                                 // a job made of drawing items alone: one sheet each
     public var marks: PhotoOptions?                                 // cut marks of photo prints (`cutMarks`)
     public var frameMarks = false                                   // cut marks of a photo sheet (`frameMarks`)
-    /// A one-sided job of sides drawn from items alone (the test page, the two-sided check).
+    /// A one-sided job of sides drawn from items alone (the test page, the two-sided check). The ticket matches its paper with
+    /// `settings`, the ones the `area` was chosen from; copies are 1 and sides one-sided whatever they say.
     public static func ofItems(name: String, printer: PrinterInfo, capabilities: PrinterCapabilities?, area: PrintableArea,
-                               sides: [DrawnItems], id: String = "") -> SheetJob
+                               sides: [DrawnItems], settings: PrintSettings = PrintSettings(), id: String = "") -> SheetJob
 }
 public enum JobSides {                                              // twin of windows/LazyPrint.App/Printing/JobSides.cs
     public static func repeats(_ job: SheetJob) -> Int

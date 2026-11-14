@@ -68,7 +68,9 @@ public enum InspectorSections {
     }
 
     /// "2 per side · Borders", "Booklet · Right to left"; "" for one page per side.
-    public static func layoutSummary(_ s: PrintSettings) -> String {
+    /// `edge` is the printer's own margin (`Imposition.edge`), which a margin cannot go below; `printedScale` is what a lone
+    /// page really prints at (`SheetPlan.printedScale`) when the plan is known.
+    public static func layoutSummary(_ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
         var parts = [String]()
         let poster = (2...4).contains(s.poster)
         if s.layoutStyle.isPhoto { parts.append(PrintText.layoutStyleTitle(s.layoutStyle)) }
@@ -82,8 +84,9 @@ public enum InspectorSections {
         if !s.booklet && s.orientation != .automatic { parts.append(s.orientation == .portrait ? "Portrait" : "Landscape") }
         if !poster && !s.booklet && s.pagesPerSheet > 1 && s.pageBorders { parts.append("Borders") }
         if !poster && (s.booklet || s.pagesPerSheet > 1) && s.rightToLeft { parts.append("Right to left") }
-        if !poster && !s.booklet && s.pagesPerSheet == 1 && s.scale != 100 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
-            parts.append("\(s.scale) %")
+        if !poster && !s.booklet && s.pagesPerSheet == 1 && (s.scaling == .shrinkToFit || s.scaling == .actualSize) {
+            let percent = printedScale ?? s.scale
+            if percent != 100 { parts.append("\(percent) %") }
         }
         if !poster && s.scaling != .shrinkToFit {
             switch s.scaling {
@@ -92,8 +95,8 @@ public enum InspectorSections {
             default: parts.append("Fill")
             }
         }
-        let margin = MarginChoices.millimetres(s.margin, custom: s.marginMm)
-        if margin > 0 && Imposition.keepsMargin(PrintJobs.layoutOptions(s)) { parts.append("\(margin) mm margins") }
+        let margin: Double = max(Double(MarginChoices.millimetres(s.margin, custom: s.marginMm)), s.layoutStyle.isPhoto ? 0 : edge)
+        if margin > 0 { parts.append("\(PrintText.millimetres(margin)) margins") }
         return join(parts)
     }
 
@@ -115,10 +118,10 @@ public enum InspectorSections {
     }
 
     /// The summary a collapsed header shows for `s`; "" for none (the printer's section has none).
-    public static func summary(_ section: String, _ s: PrintSettings) -> String {
+    public static func summary(_ section: String, _ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
         switch section {
         case pages: return pagesSummary(s)
-        case layout: return layoutSummary(s)
+        case layout: return layoutSummary(s, edge: edge, printedScale: printedScale)
         case paper: return paperSummary(s)
         case photos: return photosSummary(s)
         default: return ""
@@ -127,8 +130,8 @@ public enum InspectorSections {
 
     /// The header's accessibility label: the title, then the summary when there is one ("Layout, 2 per
     /// side · Borders").
-    public static func headerName(_ section: String, _ s: PrintSettings) -> String {
-        let text = summary(section, s)
+    public static func headerName(_ section: String, _ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
+        let text = summary(section, s, edge: edge, printedScale: printedScale)
         return text.isEmpty ? title(section) : "\(title(section)), \(text)"
     }
 }

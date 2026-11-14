@@ -222,14 +222,14 @@ extension AppState {
 
     /// Prints sides drawn from items alone (the test page, the two-sided check) as a job of their own.
     private func printItems(name: String, printer: PrinterInfo, capabilities: PrinterCapabilities?, area: PrintableArea,
-                            sides: [DrawnItems], announce: Bool) async -> Bool {
+                            sides: [DrawnItems], settings: PrintSettings, announce: Bool) async -> Bool {
         clearMessages()
         let job = SheetJob.ofItems(name: name, printer: printer, capabilities: capabilities, area: area, sides: sides,
-                                   id: UUID().uuidString)
+                                   settings: settings, id: UUID().uuidString)
         let record = addRecord(job)
         keepAgain(job.id) { [weak self] in
             _ = await self?.printItems(name: name, printer: printer, capabilities: capabilities, area: area, sides: sides,
-                                       announce: announce)
+                                       settings: settings, announce: announce)
         }
         guard await runPass(job, pass: 0, recordId: job.id) else { return false }
         if announce {
@@ -251,12 +251,12 @@ extension AppState {
     public func printTestPage() async {
         guard let printer = selectedPrinter, !isBusy, manual == nil else { return }
         let caps = capabilities
-        let area = PrintJobs.area(paperId: settings.paperId, printer: caps, borderless: false)
+        let area = PrintJobs.area(settings, printer: caps)
         let date = Date().formatted(date: .numeric, time: .shortened)
         let info = TestPageInfo(printerName: printer.name, model: printer.model ?? caps?.makeAndModel ?? "",
                                 address: printer.address ?? "", date: date)
         _ = await printItems(name: "Test page", printer: printer, capabilities: caps, area: area,
-                             sides: [DrawnItems(items: TestPage.make(area: area, info: info))], announce: true)
+                             sides: [DrawnItems(items: TestPage.make(area: area, info: info))], settings: settings, announce: true)
     }
 
     // MARK: The Jobs tab
@@ -345,7 +345,7 @@ extension AppState {
 
     private func printCheckSide(_ run: ManualRun, _ side: DrawnItems) async -> Bool {
         await printItems(name: "Two-sided check", printer: run.job.printer, capabilities: run.job.capabilities,
-                         area: run.job.plan.plan.area, sides: [side], announce: false)
+                         area: run.job.plan.plan.area, sides: [side], settings: run.job.settings, announce: false)
     }
 
     /// The user's answer to the check: the paper path it teaches is kept for the printer and the backs are planned again

@@ -120,6 +120,22 @@ final class InspectorSectionsTests: XCTestCase {
         XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.sides = .longEdge; $0.poster = 2 }), "")
     }
 
+    func test_summary_marginNoneWithAnEdge_showsTheEdge() {
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }, edge: 4.3), "4.3 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }, edge: 0), "")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .small }, edge: 6.4), "6.4 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }, edge: 4.3), "12 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 3 }, edge: 3), "3 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }, edge: 4.3), "Fill")
+    }
+
+    func test_summary_aLonePageShowsWhatItPrintsAt() {
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }, edge: 4.3, printedScale: 96), "96 % \u{00B7} 4.3 mm margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }, printedScale: 50), "50 %")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }), "50 %")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 80 }, printedScale: 100), "")
+    }
+
     func test_layoutSummary_namesAPosterAndTheMarginsThatApply() {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 3; $0.pagesPerSheet = 4; $0.rightToLeft = true }), "Poster 3 \u{00D7} 3")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")

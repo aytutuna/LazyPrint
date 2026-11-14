@@ -593,13 +593,13 @@ public sealed partial class AppViewModel
     }
 
     /// <summary>Prints sides drawn from items alone (the test page, the two-sided check) as a job of their own.</summary>
-    private async Task<bool> PrintItemsAsync(string name, PrinterInfo printer, PrinterCapabilities? capabilities, PrintableArea area,
+    private async Task<bool> PrintItemsAsync(string name, PrinterInfo printer, PrinterCapabilities? capabilities, PrintSettings settings, PrintableArea area,
                                              IReadOnlyList<DrawnItems> sides, bool announce)
     {
         ClearMessages();
-        var job = SheetJob.OfItems(Guid.NewGuid().ToString("N"), name, printer, capabilities, area, sides);
+        var job = SheetJob.OfItems(Guid.NewGuid().ToString("N"), name, printer, capabilities, settings, area, sides);
         var record = Record(job);
-        KeepAgain(job.Id, () => PrintItemsAsync(name, printer, capabilities, area, sides, announce));
+        KeepAgain(job.Id, () => PrintItemsAsync(name, printer, capabilities, settings, area, sides, announce));
         try
         {
             if (!await RunPassAsync(job, 0, job.Id)) return false;
@@ -618,9 +618,9 @@ public sealed partial class AppViewModel
     {
         if (SelectedPrinter is not { } printer || IsBusy || IsAddingFiles || _manual is not null) return;
         var caps = SelectedCapabilities;
-        var area = PrintJobs.Area(Settings.PaperId, caps, false);
+        var area = PrintJobs.Area(Settings, caps);
         var info = new TestPageInfo(printer.Name, printer.Model ?? caps?.MakeAndModel ?? "", printer.Address ?? "", DateTime.Now.ToString("g"));
-        await PrintItemsAsync("Test page", printer, caps, area, [new DrawnItems(TestPage.Make(area, info))], announce: true);
+        await PrintItemsAsync("Test page", printer, caps, Settings, area, [new DrawnItems(TestPage.Make(area, info))], announce: true);
     }
 
     /// <summary>Stops the job being printed; the printer keeps what it already took.</summary>
@@ -746,7 +746,7 @@ public sealed partial class AppViewModel
     }
 
     private Task<bool> PrintCheckSideAsync(ManualRun run, DrawnItems side) =>
-        PrintItemsAsync("Two-sided check", run.Job.Printer, run.Job.Capabilities, run.Job.Plan.Plan.Area, [side], announce: false);
+        PrintItemsAsync("Two-sided check", run.Job.Printer, run.Job.Capabilities, run.Job.Settings, run.Job.Plan.Plan.Area, [side], announce: false);
 
     /// <summary>
     /// The user's answer to the check: the paper path it teaches is kept for the printer and the backs are planned again

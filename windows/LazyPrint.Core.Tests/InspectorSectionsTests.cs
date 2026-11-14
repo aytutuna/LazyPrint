@@ -128,4 +128,23 @@ public class InspectorSectionsTests
         Assert.Equal("Fill", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
         Assert.Equal("Poster 2 × 2 · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Poster = 2, Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
     }
+
+    [Fact]
+    public void Summary_MarginNoneWithAnEdge_ShowsTheEdge()
+    {
+        Assert.Equal("4.3 mm margins", InspectorSections.LayoutSummary(new PrintSettings(), edge: 4.3));
+        Assert.Equal("3 mm margins", InspectorSections.LayoutSummary(new PrintSettings(), edge: 3));
+        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings()));
+        Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }, edge: 4.3));
+        Assert.Equal("6.4 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Small }, edge: 6.4));
+        Assert.Equal("Actual size", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }, edge: 4.3));
+    }
+
+    [Fact]
+    public void Summary_ALonePageShowsWhatItPrintsAt()
+    {
+        Assert.Equal("96 % · 4.3 mm margins", InspectorSections.LayoutSummary(new PrintSettings(), edge: 4.3, printedScale: 96));
+        Assert.Equal("120 %", InspectorSections.LayoutSummary(new PrintSettings { Scale = 120 }));
+        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { Scale = 120 }, printedScale: 100));
+    }
 }

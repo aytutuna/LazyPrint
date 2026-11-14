@@ -55,19 +55,40 @@ public static class PrintJobs
     /// <summary>
     /// Where the printer can print on a paper: the printer's matching media-col-database entry (borderless
     /// or not, the other kind when only that exists), else 0.25 in on every side. Automatic is the paper the
-    /// printer has loaded, else the usual one where the user lives.
+    /// printer has loaded, else the usual one where the user lives. A <paramref name="type"/> is given to
+    /// <see cref="PrinterCapabilities.Match"/>.
     /// </summary>
-    public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless) =>
-        Area(paper.RawValue, printer, borderless);
+    public static PrintableArea Area(PaperSize paper, PrinterCapabilities? printer, bool borderless, string? type = null) =>
+        Area(paper.RawValue, printer, borderless, type);
 
     /// <summary><paramref name="paperId"/> is a <see cref="PrintSettings.PaperId"/>: a named size or any PWG name.</summary>
-    public static PrintableArea Area(string paperId, PrinterCapabilities? printer, bool borderless)
+    public static PrintableArea Area(string paperId, PrinterCapabilities? printer, bool borderless, string? type = null)
     {
         var size = Sheet(paperId, printer);
-        if (printer?.Match(size, borderless)?.PrintableArea is { } area) return area;
+        if (printer?.Match(size, borderless, type)?.PrintableArea is { } area) return area;
         const double Margin = 0.25 * 72;
         return new PrintableArea(size, new LayoutInsets(Margin, Margin, Margin, Margin));
     }
+
+    /// <summary>The area a job with these settings is laid out on, and what the ticket's paper is matched from.</summary>
+    public static PrintableArea Area(PrintSettings settings, PrinterCapabilities? printer) =>
+        Area(settings.PaperId, printer, WantsBorderless(settings, printer), MatchType(settings, printer));
+
+    /// <summary>
+    /// Whether the layout asks for the paper without margins: margin None for every layout, and for photo prints a photo
+    /// that is the whole page or as large as the paper. The printer may have no such entry, then its edge stays.
+    /// </summary>
+    public static bool WantsBorderless(PrintSettings settings, PrinterCapabilities? printer) =>
+        settings.LayoutStyle switch
+        {
+            LayoutStyle.PhotoPrints => Borderless(settings.PhotoSizeId, Sheet(settings.PaperId, printer)),
+            LayoutStyle.PhotoSheet => false,
+            _ => settings.Margin == MarginChoice.None,
+        };
+
+    /// <summary>The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks; none for photos.</summary>
+    private static string? MatchType(PrintSettings settings, PrinterCapabilities? printer) =>
+        settings.LayoutStyle.IsPhoto() ? null : MediaChoices.Type(settings, printer) ?? MediaChoices.Auto;
 
     /// <summary>
     /// The sheets of a job. The pages of all documents run on as one, and <paramref name="pageRange"/> (0-based, as
@@ -87,8 +108,7 @@ public static class PrintJobs
         var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();
 
         bool photos = settings.LayoutStyle == LayoutStyle.PhotoPrints;
-        var paper = settings.PaperId;
-        var area = Area(paper, printer, photos && Borderless(settings.PhotoSizeId, Sheet(paper, printer)));
+        var area = Area(settings, printer);
         var plan = photos
             ? PhotoLayout.Plan(pages, new PhotoOptions(PhotoSizeOf(settings.PhotoSizeId), 1, settings.PhotoFill, settings.CutMarks), area)
             : Imposition.Plan(pages, LayoutOptions(settings), area);
@@ -145,7 +165,7 @@ public static class PrintJobs
             job.CopiesInJob,
             sides,
             mode,
-            Media(area, printer, MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer), settings.MediaType == MediaChoices.Auto),
+            Media(area, printer, MatchType(settings, printer), MediaChoices.Type(settings, printer), MediaChoices.Source(settings, printer), settings.MediaType == MediaChoices.Auto),
             printer?.PrintQualitySupported.Contains(quality) == true ? quality : null,
             PrintScaling(settings.Scaling, printer, asIs),
             hasCopies && settings.Collate && printer?.MultipleDocumentHandlingSupported.Contains(CollatedCopies) == true);
@@ -166,7 +186,7 @@ public static class PrintJobs
     /// and tray, when asked for, go in the media-col in place of the entry's own, except that an entry's own photo type stays
     /// when the type was left on automatic.
     /// </summary>
-    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? type, string? source,
+    private static IppMediaChoice Media(PrintableArea area, PrinterCapabilities? printer, string? matchType, string? type, string? source,
                                          bool autoType)
     {
         string name = MediaName(area.Paper, printer);
@@ -188,7 +208,7 @@ public static class PrintJobs
             return members;
         }
 
-        if (printer?.Match(area.Paper, area.Margins == default) is { } entry)
+        if (printer?.Match(area.Paper, area.Margins == default, matchType) is { } entry)
             return new IppMediaChoice(entry.Attributes.Count > 0 ? Chosen([.. entry.Attributes]) : entry.Attributes, name);
 
         int Hundredths(double points) => (int)Math.Round(points * 2540 / 72);

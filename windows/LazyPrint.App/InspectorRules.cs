@@ -50,7 +50,6 @@ public sealed record InspectorState(
         string? byHand = twoSided && !photos && capabilities is not null && !canTurn ? ShortText.ByHand : null;
 
         bool alone = !poster && !s.Booklet && s.PagesPerSheet == 1;
-        bool margins = Imposition.KeepsMargin(PrintJobs.LayoutOptions(s));
 
         bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
         bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
@@ -78,8 +77,8 @@ public sealed record InspectorState(
             BookletReason: photos ? ShortText.PhotosNoBooklet : poster ? ShortText.PosterPages : null,
             PosterEnabled: !photos && (poster || !s.Booklet && s.PagesPerSheet == 1),
             PosterReason: photos ? ShortText.PhotosNoPoster : poster || !s.Booklet && s.PagesPerSheet == 1 ? null : ShortText.PosterAlone,
-            MarginEnabled: margins && !photos,
-            MarginReason: photos ? ShortText.PhotosNoMargin : margins ? null : ShortText.MarginsUnused,
+            MarginEnabled: !photos,
+            MarginReason: photos ? ShortText.PhotosNoMargin : null,
             PhotoSizeEnabled: photoPrints,
             PhotoSizeReason: photoPrints ? null : ShortText.NeedsPhotoPrints,
             PhotoFillEnabled: photoPrints,

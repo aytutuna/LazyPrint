@@ -29,7 +29,7 @@ public static class Imposition
         bool poster = options.Poster is >= 2 and <= 4;
         bool duplex = !poster && (options.Booklet || options.Sides != Sides.OneSided);
         var used = duplex ? area.Symmetric : area;
-        var laid = KeepsMargin(options) ? WithMargin(used, options.Margin) : used;
+        var laid = WithMargin(used, options.Margin);
         var notes = new Notes();
         var sheets = poster ? PosterSheets(pages, options, laid, notes)
             : options.Booklet ? BookletSheets(pages, options, laid, notes)
@@ -40,15 +40,19 @@ public static class Imposition
         if (notes.Padding > 0) warnings.Add(new PlanWarning.PaddedWithBlanks(notes.Padding));
         int percent = (int)Math.Round(notes.SmallestScale * 100);
         if (percent < 100) warnings.Add(new PlanWarning.Shrunk(percent));
-        return new SheetPlan(used, sheets, duplex, warnings);
+        int printed = notes.Printed is { } scale ? (int)Math.Round(scale * 100) : 100;
+        return new SheetPlan(used, sheets, duplex, warnings, printed);
     }
 
-    /// <summary>Whether the sizing in use lets the margin apply: not a lone page at actual size, nor fill.</summary>
-    public static bool KeepsMargin(LayoutOptions options)
+    /// <summary>
+    /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins
+    /// (the same after <see cref="PrintableArea.Symmetric"/>).
+    /// </summary>
+    public static double Edge(PrintableArea area)
     {
-        if (options.Poster is >= 2 and <= 4) return true;
-        bool alone = !options.Booklet && Grid(options.PagesPerSheet, false) == (1, 1);
-        return options.Scaling != Scaling.Fill && !(alone && options.Scaling == Scaling.ActualSize);
+        var m = area.Margins;
+        double points = Math.Max(Math.Max(m.Top, m.Bottom), Math.Max(m.Left, m.Right));
+        return Math.Round(points * 25.4 / 72, 1);
     }
 
     private static PrintableArea WithMargin(PrintableArea area, double margin)
@@ -197,6 +201,7 @@ public static class Imposition
         double factor = scaling is Scaling.ShrinkToFit or Scaling.ActualSize ? Math.Clamp(scale, 10, 400) / 100.0 : 1;
         var sized = new LayoutSize(page.Size.Width * factor, page.Size.Height * factor);
         var shown = Shown(sized, cell, scaling, false);
+        notes.Printed = Math.Min(notes.Printed ?? double.MaxValue, factor * shown.Scale);
         if (scaling == Scaling.ActualSize)
         {
             notes.Clipped = Math.Max(notes.Clipped, Math.Max(shown.Frame.Width - cell.Width, shown.Frame.Height - cell.Height) / 2);
@@ -321,5 +326,6 @@ public static class Imposition
         public double Clipped;
         public int Padding;
         public double SmallestScale = 1;
+        public double? Printed;
     }
 }

@@ -126,6 +126,33 @@ final class PrinterCapabilitiesTests: XCTestCase {
         XCTAssertEqual(photo.source, "photo")
     }
 
+    func test_match_borderlessOnlyForAMatchingPaperType() throws {
+        let caps = try IppFixtures.capabilities("epson-ecotank")
+        XCTAssertEqual(caps.match(a4, borderless: true, type: "photographic-glossy")?.margins?.isZero, true)
+        XCTAssertEqual(caps.match(a4, borderless: true, type: MediaChoices.auto)?.margins?.isZero, false)
+        XCTAssertEqual(caps.match(a4, borderless: true, type: "stationery")?.margins?.isZero, false)
+
+        func entry(_ margin: Int, _ type: String?) -> MediaEntry {
+            MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
+                       margins: MediaMargins(top: margin, left: margin, bottom: margin, right: margin), type: type, source: nil)
+        }
+        for (entryType, type, borderless) in [(nil, "stationery", true), (nil, MediaChoices.auto, true), ("stationery", MediaChoices.auto, true),
+                                              ("stationery-inkjet", MediaChoices.auto, true), ("stationery", "stationery", true),
+                                              ("stationery", "bond", false), ("photographic", MediaChoices.auto, false)] as [(String?, String, Bool)] {
+            var one = PrinterCapabilities()
+            one.mediaColDatabase = [entry(0, entryType), entry(300, nil)]
+            XCTAssertEqual(one.match(a4, borderless: true, type: type)?.margins?.isZero == true, borderless, "\(entryType ?? "none") for \(type)")
+        }
+    }
+
+    func test_match_aBorderlessEntryThatDoesNotSuit_isTheLastResort() {
+        var only = PrinterCapabilities()
+        only.mediaColDatabase = [MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
+                                            margins: MediaMargins(top: 0, left: 0, bottom: 0, right: 0), type: "photographic-glossy", source: nil)]
+        XCTAssertEqual(only.match(a4, borderless: true, type: MediaChoices.auto)?.type, "photographic-glossy")
+        XCTAssertEqual(only.match(a4, borderless: false, type: MediaChoices.auto)?.type, "photographic-glossy")
+    }
+
     func test_match_onlyTheOtherKindExists_fallsBackToIt() throws {
         let caps = try IppFixtures.capabilities("hp-laserjet")
         XCTAssertEqual(caps.match(letter, borderless: true)?.margins?.isZero, false)

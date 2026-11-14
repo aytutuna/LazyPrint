@@ -159,11 +159,31 @@ public sealed class SpoolerPrinterTests : IDisposable
     {
         var area = new PrintableArea(new LayoutSize(612, 792), new LayoutInsets(18, 18, 18, 18));
         var items = new DrawnItems([new TestPageItem.Text("1", new LayoutPoint(100, 100), 40, true)]);
-        var job = SheetJob.OfItems("c", "check", PrintFixtures.Printer(), null, area, [items]);
+        var job = SheetJob.OfItems("c", "check", PrintFixtures.Printer(), null, new PrintSettings(), area, [items]);
         var (pages, ticket, _) = await Write(job, 0);
 
         Assert.Single(pages);
         Assert.Equal(Duplexing.OneSided, ticket.Duplexing);
+    }
+
+    [Fact]
+    public void AnItemsJobOnATypedBorderlessAreaSendsThatEntry()
+    {
+        MediaEntry Entry(int margin, string type) =>
+            new([new IppAttribute("media-bottom-margin", new IppValue.Integer(margin))], 21000, 29700, false,
+                new MediaMargins(margin, margin, margin, margin), type, null);
+        var printer = new PrinterCapabilities
+        {
+            MediaColDatabase = [Entry(432, "stationery"), Entry(0, "photographic-glossy")],
+            MediaTypeSupported = ["stationery", "photographic-glossy"],
+        };
+        var settings = new PrintSettings { PaperId = "a4", Margin = MarginChoice.None, MediaType = "photographic-glossy" };
+        var area = PrintJobs.Area(settings, printer);
+        var job = SheetJob.OfItems("c", "check", PrintFixtures.Printer(), printer, settings, area, [new DrawnItems([])]);
+        var entry = PrintJobs.Ticket(job.Plan, job.Settings, "application/pdf", printer, "x").Media.Entry!;
+
+        Assert.True(area.Margins == new LayoutInsets(0, 0, 0, 0));
+        Assert.Equal(0, ((IppValue.Integer)entry.Single(a => a.Name == "media-bottom-margin").Values[0]).Value);
     }
 
     [Theory]

@@ -183,17 +183,30 @@ public struct PrinterCapabilities: Equatable, Sendable {
 
     /// The database entry for a paper (portrait, in points), each side within `PaperSizes.fitTolerance`: the first
     /// with zero margins when `borderless`, else the first with margins; the other kind when only that exists. Its
-    /// `printableArea` is the area to lay out on and the entry is what the job sends.
-    public func match(_ paper: LayoutSize, borderless: Bool = false) -> MediaEntry? {
+    /// `printableArea` is the area to lay out on and the entry is what the job sends. A borderless entry also has to suit
+    /// the paper `type`: one without a type, one of that type, or, for `MediaChoices.auto`, one of plain paper. A nil
+    /// `type` takes any entry. A borderless entry that does not suit is the last resort, so a size listed only that way
+    /// gives the same entry whether or not borderless was asked for.
+    public func match(_ paper: LayoutSize, borderless: Bool = false, type: String? = nil) -> MediaEntry? {
         var other: MediaEntry?
+        var unsuited: MediaEntry?
         for entry in mediaColDatabase {
             guard !entry.isVariable, let margins = entry.margins else { continue }
             if abs(MediaEntry.points(entry.width) - paper.width) > PaperSizes.fitTolerance { continue }
             if abs(MediaEntry.points(entry.height) - paper.height) > PaperSizes.fitTolerance { continue }
-            if margins.isZero == borderless { return entry }
+            if margins.isZero == borderless {
+                if !borderless || suits(entry.type, type) { return entry }
+                if unsuited == nil { unsuited = entry }
+                continue
+            }
             if other == nil { other = entry }
         }
-        return other
+        return other ?? unsuited
+    }
+
+    private func suits(_ entryType: String?, _ type: String?) -> Bool {
+        guard let type, let entryType else { return true }
+        return type == MediaChoices.auto ? entryType == "stationery" || entryType == "stationery-inkjet" : entryType == type
     }
 
     /// Reads a Get-Printer-Attributes response; an attribute that is missing or of an unexpected type gives its default.

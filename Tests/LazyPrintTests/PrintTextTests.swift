@@ -14,6 +14,19 @@ final class PrintTextTests: XCTestCase {
                        "Lazy Print ran out of time in the background. Print the check sheet again from the card.")
     }
 
+    func test_marginLabel_none_showsThePrinterLimit() {
+        XCTAssertEqual(PrintText.marginLabel(.none, edge: 4.3), "4.3 mm (printer limit)")
+        XCTAssertEqual(PrintText.marginLabel(.none, edge: 0), "None")
+        XCTAssertEqual(PrintText.marginLabel(.small, edge: 6.4), "6.4 mm (printer limit)")
+        XCTAssertEqual(PrintText.marginLabel(.small, edge: 4.3), "Small, 6 mm")
+        XCTAssertEqual(PrintText.marginLabel(.normal, edge: 4.3), "Normal, 12 mm")
+        XCTAssertEqual(PrintText.marginLabel(.custom, edge: 4.3), "Custom")
+        XCTAssertEqual(PrintText.printerLimitHint(4.3), "Printer limit 4.3 mm")
+        XCTAssertEqual(PrintText.printsAt(96), "Prints at 96 %")
+        XCTAssertEqual(PrintText.millimetres(3), "3 mm")
+        XCTAssertEqual(PrintText.millimetres(6.44), "6.4 mm")
+    }
+
     func test_waiting_namesThePrinter() {
         XCTAssertEqual(PrintText.waiting(for: "HP LaserJet"), "Waiting for HP LaserJet")
         XCTAssertEqual([PrintText.queuePaused, PrintText.needsSignIn, PrintText.jobHeld], ["Queue paused", "Needs sign-in", "Job held"])

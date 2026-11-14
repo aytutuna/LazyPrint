@@ -25,6 +25,8 @@ public partial class MainWindow
     private bool _settingSections;
     /// <summary>What the inspector showed last; edits to a control that is greyed out are not written back.</summary>
     private InspectorState? _inspector;
+    private double _edge;
+    private int? _printedScale;
 
     private static readonly int[] PagesPerSide = [1, 2, 4, 6, 9, 16];
 
@@ -130,10 +132,9 @@ public partial class MainWindow
         foreach (int n in PagesPerSide) PerSideBox.Items.Add(Item(n == 1 ? "1 (one per side)" : $"{n} per side", n));
         PosterBox.Items.Add(Item("Off", 0));
         for (int n = 2; n <= 4; n++) PosterBox.Items.Add(Item($"{n} × {n} sheets", n, "One page enlarged across the sheets, with an overlap and cut marks"));
-        MarginBox.Items.Add(Item("None", MarginChoice.None, "Only what the printer cannot reach"));
-        MarginBox.Items.Add(Item("Small, 6 mm", MarginChoice.Small));
-        MarginBox.Items.Add(Item("Normal, 12 mm", MarginChoice.Normal));
-        MarginBox.Items.Add(Item("Custom", MarginChoice.Custom));
+        MarginBox.Items.Add(Item(PrintText.MarginLabel(MarginChoice.None, 0), MarginChoice.None, "Only what the printer cannot reach"));
+        foreach (var choice in new[] { MarginChoice.Small, MarginChoice.Normal, MarginChoice.Custom })
+            MarginBox.Items.Add(Item(PrintText.MarginLabel(choice, 0), choice));
         PageSelectionBox.Items.Add(Item("All pages", PageSelection.All));
         PageSelectionBox.Items.Add(Item("Odd pages only", PageSelection.Odd, "Pages 1, 3, 5 and so on"));
         PageSelectionBox.Items.Add(Item("Even pages only", PageSelection.Even, "Pages 2, 4, 6 and so on"));
@@ -301,6 +302,23 @@ public partial class MainWindow
             ScaleRow.Visibility = state.ShowScale ? Visibility.Visible : Visibility.Collapsed;
             ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
             ScaleText.Text = $"{s.Scale} %";
+            var plan = ViewModel.Plan();
+            if (state.ShowScale && plan is not null && plan.Plan.PrintedScale != s.Scale)
+            {
+                ScalePrintsAtText.Text = PrintText.PrintsAt(plan.Plan.PrintedScale);
+                ScalePrintsAtText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ScalePrintsAtText.Visibility = Visibility.Collapsed;
+            }
+            _edge = Imposition.Edge(PrintJobs.Area(s, ViewModel.SelectedCapabilities));
+            _printedScale = plan?.Plan.PrintedScale;
+            var caps = ViewModel.SelectedCapabilities;
+            double noneEdge = Imposition.Edge(PrintJobs.Area(s with { Margin = MarginChoice.None }, caps));
+            double keptEdge = Imposition.Edge(PrintJobs.Area(s with { Margin = MarginChoice.Small }, caps));
+            foreach (var item in MarginBox.Items.OfType<ComboBoxItem>())
+                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, (MarginChoice)item.Tag == MarginChoice.None ? noneEdge : keptEdge);
             Select(MarginBox, s.Margin);
             MarginBox.IsEnabled = state.MarginEnabled;
             MarginBox.ToolTip = state.MarginReason;
@@ -309,6 +327,9 @@ public partial class MainWindow
             MarginMmSlider.IsEnabled = state.MarginEnabled;
             MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
             MarginMmText.Text = $"{s.MarginMm} mm";
+            bool belowLimit = s.Margin == MarginChoice.Custom && s.MarginMm < _edge;
+            MarginLimitText.Text = belowLimit ? PrintText.PrinterLimitHint(_edge) : "";
+            MarginLimitText.Visibility = belowLimit ? Visibility.Visible : Visibility.Collapsed;
 
             // Paper
             ShowPaper(s);
@@ -420,13 +441,13 @@ public partial class MainWindow
         var s = ViewModel.Settings;
         foreach (var section in _sections)
         {
-            string summary = InspectorSections.Summary(section.Id, s);
+            string summary = InspectorSections.Summary(section.Id, s, _edge, _printedScale);
             bool changed = summary.Length > 0 && section.Id != InspectorSections.Photos;
             bool collapsed = !section.Expander.IsExpanded;
             section.Summary.Text = summary;
             section.Summary.Visibility = collapsed && summary.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             section.Dot.Visibility = collapsed && changed ? Visibility.Visible : Visibility.Collapsed;
-            AutomationProperties.SetName(section.Expander, InspectorSections.HeaderName(section.Id, s));
+            AutomationProperties.SetName(section.Expander, InspectorSections.HeaderName(section.Id, s, _edge, _printedScale));
         }
     }
 

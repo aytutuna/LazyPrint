@@ -580,6 +580,7 @@
                                                         ToolTip="Size of each page, in percent of its own"
                                                         ValueChanged="ScaleSlider_ValueChanged" />
                                             </DockPanel>
+                                            <TextBlock x:Name="ScalePrintsAtText" Margin="0,4,0,0" Visibility="Collapsed" Style="{StaticResource ReasonText}" />
                                             <Label Content="_Margins" Target="{Binding ElementName=MarginBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="MarginBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Margins"
@@ -597,6 +598,7 @@
                                                         AutomationProperties.Name="Margin in millimetres"
                                                         ValueChanged="MarginMmSlider_ValueChanged" />
                                             </DockPanel>
+                                            <TextBlock x:Name="MarginLimitText" Margin="0,4,0,0" Visibility="Collapsed" Style="{StaticResource ReasonText}" />
                                         </StackPanel>
                                     </Expander>
 

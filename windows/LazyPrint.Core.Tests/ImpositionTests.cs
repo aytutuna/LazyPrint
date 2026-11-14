@@ -597,12 +597,13 @@ public class ImpositionTests
     }
 
     [Fact]
-    public void Plan_Margin_IsIgnoredAtActualSizeAndFill()
+    public void Plan_Margin_AppliesAtActualSizeAndFill()
     {
         var actual = Plan([Page(0, 300, 400)], new LayoutOptions { Scaling = Scaling.ActualSize, Margin = 200 });
         AssertRect(156, 196, 300, 400, Front(actual).Placements[0].Frame);
+        Assert.Equal([new PlanWarning.Clipped(44)], actual.Warnings);
         var fill = Plan(Portrait(1), new LayoutOptions { Scaling = Scaling.Fill, Margin = 100 });
-        AssertRect(0, 0, 612, 792, Front(fill).Placements[0].Frame);
+        AssertRect(100, 100, 412, 592, Front(fill).Placements[0].Frame);
     }
 
     [Fact]

@@ -168,6 +168,16 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(frontSide(plan).placements[0].frame, backSide(plan).placements[0].frame)
     }
 
+    func test_printedScale_isThatOfALonePage() {
+        XCTAssertEqual(makePlan([makePage(0, 300, 400)]).printedScale, 100)
+        XCTAssertEqual(makePlan([makePage(0, 300, 400)], LayoutOptions(scale: 50)).printedScale, 50)
+        XCTAssertEqual(makePlan([makePage(0, 300, 400)], LayoutOptions(scaling: .fit)).printedScale, 198)
+        XCTAssertEqual(makePlan([makePage(0, layoutA4.width, layoutA4.height)]).printedScale, 94)
+        XCTAssertEqual(makePlan(portraitPages(2), LayoutOptions(pagesPerSheet: 2)).printedScale, 100)
+        XCTAssertEqual(makePlan(portraitPages(2), LayoutOptions(booklet: true)).printedScale, 100)
+        XCTAssertEqual(makePlan([]).printedScale, 100)
+    }
+
     func test_plan_backTurn_followsTheFlipEdge() {
         let cases: [(landscape: Bool, sides: Sides, frontTop: String, backTop: String, backTurned: Bool)] = [
             (false, .longEdge, "T", "T", false),
@@ -521,11 +531,12 @@ final class ImpositionTests: XCTestCase {
         assertLayoutRect(36, (792 - height) / 2, 540, height, frontSide(plan).placements[0].frame)
     }
 
-    func test_plan_margin_isIgnoredAtActualSizeAndFill() {
+    func test_plan_margin_appliesAtActualSizeAndFill() {
         let actual = makePlan([makePage(0, 300, 400)], LayoutOptions(scaling: .actualSize, margin: 200))
         assertLayoutRect(156, 196, 300, 400, frontSide(actual).placements[0].frame)
+        XCTAssertEqual(actual.warnings, [.clipped(points: 44)])
         let fill = makePlan(portraitPages(1), LayoutOptions(scaling: .fill, margin: 100))
-        assertLayoutRect(0, 0, 612, 792, frontSide(fill).placements[0].frame)
+        assertLayoutRect(100, 100, 412, 592, frontSide(fill).placements[0].frame)
     }
 
     func test_plan_margin_appliesToGridsAndBooklets() {

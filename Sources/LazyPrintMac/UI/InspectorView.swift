@@ -104,8 +104,12 @@ struct InspectorView: View {
     }
 
     private func layoutSection(_ rules: Rules) -> some View {
-        InspectorSection(id: InspectorSections.layout, icon: "square.grid.2x2",
-                         summary: InspectorSections.layoutSummary(state.settings)) {
+        let printed = state.jobPlan?.plan.printedScale
+        let edge = PrintJobs.edge(state.settings, margin: state.settings.margin, printer: state.capabilities)
+        let noneEdge = PrintJobs.edge(state.settings, margin: .none, printer: state.capabilities)
+        let smallEdge = PrintJobs.edge(state.settings, margin: .small, printer: state.capabilities)
+        return InspectorSection(id: InspectorSections.layout, icon: "square.grid.2x2",
+                                summary: InspectorSections.layoutSummary(state.settings, edge: edge, printedScale: printed)) {
             field("Style") {
                 Picker("Style", selection: $state.settings.layoutStyle) {
                     ForEach(LayoutStyle.allCases, id: \.self) { style in
@@ -171,14 +175,17 @@ struct InspectorView: View {
                     .disabled(state.settings.booklet || state.settings.pagesPerSheet > 1 || rules.poster || rules.photoPrints)
                     .accessibilityLabel("Scale")
                     .accessibilityValue("\(state.settings.scale) %")
+                    if let printed, printed != state.settings.scale, !rules.photoPrints, !rules.poster, !state.settings.booklet,
+                       state.settings.pagesPerSheet == 1 {
+                        note(PrintText.printsAt(printed))
+                    }
                 }
             }
             field("Margins") {
                 Picker("Margins", selection: $state.settings.margin) {
-                    Text("None").tag(MarginChoice.none)
-                    Text("Small, 6 mm").tag(MarginChoice.small)
-                    Text("Normal, 12 mm").tag(MarginChoice.normal)
-                    Text("Custom").tag(MarginChoice.custom)
+                    ForEach(MarginChoice.allCases, id: \.self) { choice in
+                        Text(PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge)).tag(choice)
+                    }
                 }
                 .labelsHidden()
                 .disabled(!rules.marginEnabled)
@@ -190,6 +197,7 @@ struct InspectorView: View {
                     .disabled(!rules.marginEnabled)
                     .accessibilityLabel("Margin in millimetres")
                     .accessibilityValue("\(state.settings.marginMm) mm")
+                    if Double(state.settings.marginMm) < edge { note(PrintText.printerLimitHint(edge)) }
                 }
             }
         }
@@ -382,7 +390,6 @@ struct InspectorView: View {
             let noQuality = capabilities.map { $0.printQualitySupported.isEmpty } ?? false
 
             let poster = (2...4).contains(s.poster)
-            let margins = Imposition.keepsMargin(PrintJobs.layoutOptions(s))
 
             showCollate = s.copies > 1
             sidesEnabled = !s.booklet && !poster && !photos
@@ -400,8 +407,8 @@ struct InspectorView: View {
             bookletReason = photos ? "Not for photos" : nil
             posterEnabled = !photos && (poster || (!s.booklet && s.pagesPerSheet == 1))
             posterReason = photos ? "Not for photos" : (posterEnabled ? nil : "Needs one page per side")
-            marginEnabled = margins && !photos
-            marginReason = photos ? "Photos print without margins" : (margins ? nil : "Not used at actual size or fill")
+            marginEnabled = !photos
+            marginReason = photos ? "Photos print without margins" : nil
             photoSizeEnabled = photoPrints
             photoSizeReason = photoPrints ? nil : "Needs the Photo prints layout"
             photoFillEnabled = photoPrints
