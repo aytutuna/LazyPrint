@@ -128,7 +128,7 @@ public enum TaskCatalog {
         s.printerName = settings.printerName
         s.paperId = settings.paperId
         s.mediaSource = settings.mediaSource
-        s.mediaType = settings.mediaType
+        s.mediaType = keptMediaType(settings, printer)
         s.color = settings.color
         s.copies = settings.copies
         s.collate = settings.collate
@@ -165,6 +165,12 @@ public enum TaskCatalog {
             s.taskId = task.rawValue
         }
         return s
+    }
+
+    /// The paper type carries over, except the photo type a photo preset picked for itself.
+    private static func keptMediaType(_ s: PrintSettings, _ printer: PrinterCapabilities?) -> String {
+        let fromPhotoPreset = s.taskId == "photos" || s.taskId == "photoSheet"
+        return fromPhotoPreset && s.mediaType == MediaChoices.photoType(MediaChoices.types(printer)) ? MediaChoices.auto : s.mediaType
     }
 
     /// The printer's photo paper unless a type was chosen; the printer picks when it has none.

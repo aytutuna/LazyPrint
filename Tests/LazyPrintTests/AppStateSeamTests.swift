@@ -1031,7 +1031,7 @@ final class AppStateSeamTests: XCTestCase {
         await rig.state.startTask(.document)
 
         rig.state.settings.marginMm = 15
-        rig.state.settings.cutMarks = true
+        rig.state.settings.rightToLeft = true
         XCTAssertEqual(rig.state.currentTask, .document)
 
         rig.state.settings.orientation = .landscape

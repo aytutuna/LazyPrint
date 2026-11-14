@@ -187,7 +187,7 @@ public sealed class PresetTests
         using var rig = new Rig();
         await rig.Model.StartTaskAsync(PrintTask.Document);
 
-        Edit(rig, s => { s.MarginMm = 15; s.CutMarks = true; });
+        Edit(rig, s => { s.MarginMm = 15; s.RightToLeft = true; });
         Assert.Equal(PrintTask.Document, rig.Model.CurrentTask);
 
         Edit(rig, s => s.Orientation = SheetOrientation.Landscape);

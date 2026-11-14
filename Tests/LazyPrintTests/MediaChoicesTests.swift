@@ -50,6 +50,16 @@ final class MediaChoicesTests: XCTestCase {
         }
     }
 
+    func test_theDocumentPresetAfterAPhotoPreset_dropsThePhotoType() {
+        let caps = printer(sources: [], types: ["stationery", "photographic-glossy"])
+        let photos = TaskCatalog.apply(.photos, to: PrintSettings(), printer: caps)
+        XCTAssertEqual(photos.mediaType, "photographic-glossy")
+        XCTAssertEqual(TaskCatalog.apply(.document, to: photos, printer: caps).mediaType, "auto")
+        var chosen = photos
+        chosen.mediaType = "stationery"
+        XCTAssertEqual(TaskCatalog.apply(.document, to: chosen, printer: caps).mediaType, "stationery")
+    }
+
     func test_aPhotoPresetOnAPrinterWithoutPhotoPaper_leavesTheTypeOnAutomatic() {
         let caps = printer(sources: [], types: ["stationery", "labels"])
         let settings = TaskCatalog.apply(.photos, to: PrintSettings(), printer: caps)

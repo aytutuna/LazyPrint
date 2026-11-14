@@ -100,7 +100,7 @@ public static class TaskCatalog
             PrinterId = settings.PrinterId,
             PaperId = settings.PaperId,
             MediaSource = settings.MediaSource,
-            MediaType = settings.MediaType,
+            MediaType = KeptMediaType(settings, printer),
             Color = settings.Color,
             Copies = settings.Copies,
             Collate = settings.Collate,
@@ -129,6 +129,10 @@ public static class TaskCatalog
                 return settings with { TaskId = task.RawValue() };
         }
     }
+
+    /// <summary>The paper type carries over, except the photo type a photo preset picked for itself.</summary>
+    private static string KeptMediaType(PrintSettings s, PrinterCapabilities? printer) =>
+        s.TaskId is "photos" or "photoSheet" && s.MediaType == MediaChoices.PhotoType(MediaChoices.Types(printer)) ? MediaChoices.Auto : s.MediaType;
 
     /// <summary>The printer's photo paper unless a type was chosen; the printer picks when it has none.</summary>
     private static string PhotoMediaType(PrintSettings s, PrinterCapabilities? printer) =>

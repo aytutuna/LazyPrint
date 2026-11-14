@@ -23,7 +23,7 @@ internal static class JobSides
     {
         var sent = job.Plan.Passes[pass];
         var once = sent.Sides
-            .Select((side, i) => new DrawnSide(side, job.Items?[i].Items,sent.Marked.Contains(i), job.Items?[i].Turned ?? false))
+            .Select((side, i) => new DrawnSide(side, job.Items?[i].Items, sent.Marked.Contains(i), job.Items?[i].Turned ?? false))
             .ToList();
         int repeats = Repeats(job);
         if (repeats == 1) return once;

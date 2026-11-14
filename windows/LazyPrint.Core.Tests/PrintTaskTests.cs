@@ -223,7 +223,7 @@ public class PrintTaskTests
     {
         var document = TaskCatalog.Apply(PrintTask.Document, new PrintSettings(), Duplex);
         Assert.True(PrintSettings.SameInUse(document, document with { MarginMm = 15 }));
-        Assert.True(PrintSettings.SameInUse(document, document with { CutMarks = true }));
+        Assert.False(PrintSettings.SameInUse(document, document with { CutMarks = true }));
         Assert.False(PrintSettings.SameInUse(document, document with { PhotoSizeId = "5x7" }));
         Assert.False(PrintSettings.SameInUse(document, document with { Orientation = SheetOrientation.Landscape }));
 

@@ -94,6 +94,8 @@ public final class IppSheetPrinter: SheetPrinter {
                 placed += side.placements.map { $0.page }
             }
         }
+        // Cut marks are drawn by Lazy Print, so a job that has any is never sent as it is.
+        guard !job.plan.plan.sheets.contains(where: { !$0.front.cutCells.isEmpty || !($0.back?.cutCells.isEmpty ?? true) }) else { return nil }
         switch document.kind {
         case .pdf(let encrypted):
             guard !encrypted else { return nil }

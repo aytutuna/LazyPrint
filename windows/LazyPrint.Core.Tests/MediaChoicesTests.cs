@@ -49,6 +49,16 @@ public class MediaChoicesTests
     }
 
     [Fact]
+    public void TheDocumentPresetAfterAPhotoPresetDropsThePhotoType()
+    {
+        var printer = Printer([], ["stationery", "photographic-glossy"]);
+        var photos = TaskCatalog.Apply(PrintTask.Photos, new PrintSettings(), printer);
+        Assert.Equal("photographic-glossy", photos.MediaType);
+        Assert.Equal("auto", TaskCatalog.Apply(PrintTask.Document, photos, printer).MediaType);
+        Assert.Equal("stationery", TaskCatalog.Apply(PrintTask.Document, photos with { MediaType = "stationery" }, printer).MediaType);
+    }
+
+    [Fact]
     public void APhotoPresetOnAPrinterWithoutPhotoPaperLeavesTheTypeOnAutomatic()
     {
         var printer = Printer([], ["stationery", "labels"]);

@@ -74,7 +74,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
             p.sides = s.sides
             p.photoSizeId = s.photoSizeId
         }
-        if !(p.pagesPerSheet > 1 || sized || poster) { p.cutMarks = s.cutMarks }
+        if p.booklet || poster { p.cutMarks = s.cutMarks }
         return p == s
     }
 

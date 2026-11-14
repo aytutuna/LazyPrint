@@ -75,11 +75,11 @@ final class IOSAirPrintPrinterTests: XCTestCase {
     private func pdf() -> OpenedDocument {
         let data = NSMutableData()
         var box = CGRect(x: 0, y: 0, width: 10, height: 10)
-        let context: CGContext = CGContext(consumer: CGDataConsumer(data: data)!, mediaBox: &box, nil)!
+        let context: CGContext = CGContext(consumer: CGDataConsumer(data: data as CFMutableData)!, mediaBox: &box, nil)!
         context.beginPDFPage(nil)
         context.endPDFPage()
         context.closePDF()
-        let document: CGPDFDocument = CGPDFDocument(CGDataProvider(data: data)!)!
+        let document: CGPDFDocument = CGPDFDocument(CGDataProvider(data: data as CFData)!)!
         return OpenedDocument(loaded: LoadedDocument(name: "Report", kind: .pdf(encrypted: false), pages: []),
                               url: URL(fileURLWithPath: "/tmp/report.pdf"), source: .pdf(document))
     }

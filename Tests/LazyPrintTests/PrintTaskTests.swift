@@ -204,7 +204,7 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertTrue(PrintSettings.sameInUse(document, other))
         other = document
         other.cutMarks = true
-        XCTAssertTrue(PrintSettings.sameInUse(document, other))
+        XCTAssertFalse(PrintSettings.sameInUse(document, other))
         other = document
         other.photoSizeId = "5x7"
         XCTAssertFalse(PrintSettings.sameInUse(document, other))

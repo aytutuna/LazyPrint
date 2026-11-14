@@ -80,6 +80,8 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
             .SelectMany(side => side.Placements)
             .Select(placement => placement.Page)
             .ToList();
+        // Cut marks are drawn by Lazy Print, so a job that has any is never sent as it is.
+        if (job.Plan.Plan.Sheets.Any(sheet => sheet.Front.CutCells.Count > 0 || sheet.Back?.CutCells.Count > 0)) return null;
         switch (document.Kind)
         {
             case DocumentKind.Pdf { Encrypted: false }:

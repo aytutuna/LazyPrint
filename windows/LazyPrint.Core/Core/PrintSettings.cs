@@ -113,7 +113,7 @@ public sealed record PrintSettings : IJsonOnDeserialized
         if (p.PagesPerSheet == 1 && !p.Booklet) p.PageBorders = settings.PageBorders;
         if (p.Booklet) p.Orientation = settings.Orientation;
         if (p.Booklet || poster) { p.Sides = settings.Sides; p.PhotoSizeId = settings.PhotoSizeId; }
-        if (!(p.PagesPerSheet > 1 || sized || poster)) p.CutMarks = settings.CutMarks;
+        if (p.Booklet || poster) p.CutMarks = settings.CutMarks;
         return p == settings with { TaskId = null };
     }
 }
