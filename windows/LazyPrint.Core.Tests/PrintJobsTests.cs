@@ -674,8 +674,10 @@ public class PrintJobsTests
     [InlineData(MarginChoice.Printer, 0, 6.4)]
     [InlineData(MarginChoice.Normal, 0, 12)]
     [InlineData(MarginChoice.Custom, 20, 20)]
+    [InlineData(MarginChoice.Custom, 3.2, 3.2)]
+    [InlineData(MarginChoice.Custom, 3.25, 3.3)]
     [InlineData(MarginChoice.Custom, 900, 50)]
-    public void LayoutOptions_CarryTheMarginInPoints(MarginChoice choice, int custom, double millimetres)
+    public void LayoutOptions_CarryTheMarginInPoints(MarginChoice choice, double custom, double millimetres)
     {
         var options = PrintJobs.LayoutOptions(Settings(s => { s.Margin = choice; s.MarginMm = custom; }), null);
         Assert.Equal(millimetres * 72 / 25.4, options.Margin, 6);

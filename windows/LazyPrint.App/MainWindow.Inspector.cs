@@ -323,7 +323,8 @@ public partial class MainWindow
             MarginMmRow.Visibility = s.Margin == MarginChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
             MarginMmSlider.IsEnabled = state.MarginEnabled;
             MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
-            MarginMmText.Text = $"{s.MarginMm} mm";
+            MarginMmBox.IsEnabled = state.MarginEnabled;
+            MarginMmBox.Text = s.MarginMm.ToString("0.#", CultureInfo.CurrentCulture);
             double? edge = PrintJobs.PrinterEdge(s, caps);
             bool cutByEdge = state.MarginEnabled && edge is { } e
                 && e > Math.Round(MarginChoices.Millimetres(s.Margin, s.MarginMm, printerMargin), 1);
@@ -420,9 +421,27 @@ public partial class MainWindow
     private void MarginMmSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_updatingUi || !IsLoaded) return;
-        ViewModel.Settings.MarginMm = (int)e.NewValue;
-        MarginMmText.Text = $"{(int)e.NewValue} mm";
+        ViewModel.Settings.MarginMm = e.NewValue;
+        MarginMmBox.Text = ViewModel.Settings.MarginMm.ToString("0.#", CultureInfo.CurrentCulture);
         ViewModel.SettingsEdited();
+    }
+
+    private void MarginMm_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) MarginMm_Committed(sender, e);
+    }
+
+    /// <summary>A distance typed in, with a comma or a point, is taken to 0.1 mm; anything else puts the old one back.</summary>
+    private void MarginMm_Committed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingUi || !IsLoaded) return;
+        string text = MarginMmBox.Text.Trim().Replace(',', '.');
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double mm))
+        {
+            ViewModel.Settings.MarginMm = mm;
+            ViewModel.SettingsEdited();
+        }
+        PushSettingsToUi();
     }
 
     private void PageRangeBox_TextChanged(object sender, TextChangedEventArgs e)

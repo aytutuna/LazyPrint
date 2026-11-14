@@ -80,6 +80,14 @@ public sealed class UserPresetsTests : IDisposable
     }
 
     [Fact]
+    public void APresetWithAWholeNumberMarginLoadsAsDecimal()
+    {
+        File.WriteAllText(PresetsFile, """[{"name": "Wide", "settings": {"margin": "custom", "marginMm": 15}}]""");
+
+        Assert.Equal(15.0, Assert.Single(SettingsStore.LoadPresets(_directory)).Settings.MarginMm);
+    }
+
+    [Fact]
     public void AnUnreadableFileIsKeptAside()
     {
         File.WriteAllText(PresetsFile, "not json {");

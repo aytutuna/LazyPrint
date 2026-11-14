@@ -66,8 +66,13 @@ public sealed record PrintSettings
     public int Scale { get; set; } = 100;
     public SheetOrientation Orientation { get; set; } = SheetOrientation.Automatic;
     public MarginChoice Margin { get; set; } = MarginChoice.Printer;
-    /// <summary>Millimetres, 0 to <see cref="MarginChoices.MaxMillimetres"/>; what <see cref="MarginChoice.Custom"/> means.</summary>
-    public int MarginMm { get; set; } = 10;
+    /// <summary>Millimetres to 0.1, 0 to <see cref="MarginChoices.MaxMillimetres"/>; what <see cref="MarginChoice.Custom"/> means. A whole number in an older file loads as it is.</summary>
+    public double MarginMm
+    {
+        get => _marginMm;
+        set => _marginMm = MarginChoices.Round(value);
+    }
+    private double _marginMm = 10;
     /// <summary>0 for no poster, else 2, 3 or 4 sheets across and down (<see cref="LayoutOptions.Poster"/>).</summary>
     public int Poster { get; set; }
     /// <summary>Odd or even pages only, and the reverse order: asked for one job at a time, so not saved (<see cref="PagePicker"/>).</summary>

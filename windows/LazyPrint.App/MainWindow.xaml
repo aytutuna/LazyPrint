@@ -591,10 +591,13 @@
                                                 <TextBlock x:Name="MarginReasonText" Style="{StaticResource ReasonText}" />
                                             </DockPanel>
                                             <DockPanel x:Name="MarginMmRow" Margin="0,8,0,0" Visibility="Collapsed">
-                                                <TextBlock x:Name="MarginMmText" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
+                                                <TextBlock Text="mm" DockPanel.Dock="Right" Margin="4,0,0,0"
                                                            VerticalAlignment="Center" Style="{StaticResource BodyText}" />
-                                                <Slider x:Name="MarginMmSlider" Minimum="0" Maximum="50" SmallChange="1" LargeChange="5"
-                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                <TextBox x:Name="MarginMmBox" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
+                                                         AutomationProperties.Name="Margin in millimetres, typed"
+                                                         LostFocus="MarginMm_Committed" KeyDown="MarginMm_KeyDown" />
+                                                <Slider x:Name="MarginMmSlider" Minimum="0" Maximum="50" SmallChange="0.1" LargeChange="1"
+                                                        TickFrequency="0.1" IsSnapToTickEnabled="True"
                                                         AutomationProperties.Name="Margin in millimetres"
                                                         ValueChanged="MarginMmSlider_ValueChanged" />
                                             </DockPanel>

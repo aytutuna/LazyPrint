@@ -107,16 +107,20 @@ public static class MarginChoices
 {
     public const int MaxMillimetres = 50;
 
-    /// <summary>0, the printer's edge, 12, or the custom distance held between 0 and <see cref="MaxMillimetres"/>.</summary>
-    public static double Millimetres(MarginChoice choice, int custom, double printerEdge) => choice switch
+    /// <summary>0, the printer's edge, 12, or the custom distance held between 0 and <see cref="MaxMillimetres"/> in steps of 0.1.</summary>
+    public static double Millimetres(MarginChoice choice, double custom, double printerEdge) => choice switch
     {
         MarginChoice.Printer => printerEdge,
         MarginChoice.Normal => 12,
-        MarginChoice.Custom => Math.Clamp(custom, 0, MaxMillimetres),
+        MarginChoice.Custom => Round(custom),
         _ => 0,
     };
 
-    public static double Points(MarginChoice choice, int custom, double printerEdge) => Millimetres(choice, custom, printerEdge) * 72 / 25.4;
+    public static double Points(MarginChoice choice, double custom, double printerEdge) => Millimetres(choice, custom, printerEdge) * 72 / 25.4;
+
+    /// <summary>Clamped to 0 to <see cref="MaxMillimetres"/> and rounded to 0.1, so 3.2 + 0.1 is 3.3 and compares equal to it.</summary>
+    public static double Round(double millimetres) =>
+        double.IsNaN(millimetres) ? 0 : Math.Round(Math.Clamp(millimetres, 0, MaxMillimetres) * 10, MidpointRounding.AwayFromZero) / 10;
 }
 
 /// <summary>Where one page goes on a sheet side.</summary>

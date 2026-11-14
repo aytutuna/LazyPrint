@@ -92,6 +92,26 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Equal(Sides.LongEdge, s.Sides);
         Assert.Equal(new PrintSettings { Sides = Sides.LongEdge }, s);
     }
+
+    [Theory]
+    [InlineData("10", 10)]
+    [InlineData("3.2", 3.2)]
+    [InlineData("3.25", 3.3)]
+    [InlineData("80", 50)]
+    [InlineData("-4", 0)]
+    public void Settings_LoadTheMarginAsDecimalRoundedAndClamped(string json, double expected)
+    {
+        File.WriteAllText(Settings, "{\"margin\": \"custom\", \"marginMm\": " + json + "}");
+        Assert.Equal(expected, SettingsStore.Load(_directory)!.MarginMm);
+    }
+
+    [Fact]
+    public void Settings_SaveAWholeMarginWithoutADecimalPoint()
+    {
+        SettingsStore.Save(new PrintSettings { MarginMm = 10 }, _directory);
+        Assert.Contains("\"marginMm\": 10,", File.ReadAllText(Settings));
+    }
+
     [Fact]
     public void Settings_WithTheOldSmallMargin_LoadThePrintersMargin()
     {
