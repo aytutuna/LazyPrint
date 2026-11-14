@@ -501,7 +501,8 @@ public sealed class PrintFlowTests
 
         var side = JobSides.Of(rig.Sheets.Jobs.Single(), 0)[0];
 
-        Assert.NotEmpty(side.Items!);
+        Assert.Null(side.Items);
+        Assert.NotEmpty(side.Side.CutCells);
     }
 
     [Fact]
@@ -516,7 +517,7 @@ public sealed class PrintFlowTests
 
         var side = JobSides.Of(rig.Sheets.Jobs.Single(), 0)[0];
 
-        Assert.Equal(32, side.Items!.Count);
+        Assert.Equal(4, side.Side.CutCells.Count);
     }
 
     [Fact]

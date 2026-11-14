@@ -36,11 +36,11 @@ public partial class MainWindow
     /// <summary>Counts the drawings started; one that finishes after a newer began is dropped.</summary>
     private int _previewVersion;
 
-    private sealed record PreviewKey(JobPlan Plan, IReadOnlyList<LoadedDocument> Documents, int Sheet, bool Back, int Dpi, bool Marks, bool Gray)
+    private sealed record PreviewKey(JobPlan Plan, IReadOnlyList<LoadedDocument> Documents, int Sheet, bool Back, int Dpi, bool Gray)
     {
         public bool SameAs(PreviewKey? other) =>
             other is not null && Plan.Equals(other.Plan) && Sheet == other.Sheet && Back == other.Back && Dpi == other.Dpi
-            && Marks == other.Marks && Gray == other.Gray && Documents.Count == other.Documents.Count
+            && Gray == other.Gray && Documents.Count == other.Documents.Count
             && Documents.Zip(other.Documents).All(pair => ReferenceEquals(pair.First, pair.Second));
     }
 
@@ -94,24 +94,22 @@ public partial class MainWindow
         ApplyZoom();
         int dpi = PreviewDpi(area.Paper);
         var documents = ViewModel.Documents.ToList();
-        bool marks = ViewModel.DrawsCutMarks;
         bool gray = ViewModel.Settings.Color == ColorChoice.Gray
             || ViewModel.SelectedCapabilities is { } caps && caps.PrintColorModesSupported.Contains("monochrome") && !caps.PrintColorModesSupported.Contains("color");
         SyncPreviewBar(plan);
         ShowNotes(plan);
 
-        var key = new PreviewKey(plan, documents, _previewSheet, _previewBack, dpi, marks, gray);
+        var key = new PreviewKey(plan, documents, _previewSheet, _previewBack, dpi, gray);
         if (key.SameAs(_previewKey)) return;
         // Set before drawing: a drawing that fails is not tried again until something changes.
         _previewKey = key;
 
         var side = _previewBack ? sheet.Back! : sheet.Front;
         var renderer = new SheetRenderer(documents, _loader);
-        var items = ViewModel.CutMarks(side, area);
         int version = ++_previewVersion;
         try
         {
-            var picture = await StaWork.Run(() => renderer.Render(side, area, dpi, items));
+            var picture = await StaWork.Run(() => renderer.Render(side, area, dpi));
             if (version != _previewVersion) return;
             PreviewImage.Source = gray ? Grayed(picture) : picture;
             PreviewImage.Visibility = Visibility.Visible;

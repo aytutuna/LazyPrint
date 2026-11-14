@@ -18,6 +18,8 @@ public static class Imposition
     private const double PosterOverlap = 10 * 72 / 25.4;
     /// <summary>The cut marks of a poster tile are this long, in the strip kept clear around it.</summary>
     internal const double PosterMarkLength = 6;
+    /// <summary>The cut marks at a cell's corners are this long.</summary>
+    internal const double CutMarkLength = 4;
 
     /// <summary>
     /// The sheets for <paramref name="pages"/> (several documents run on as one) on paper with the
@@ -80,7 +82,8 @@ public static class Imposition
                     if (width < 1 || height < 1) continue;
                     var crop = new LayoutRect(left / scale, top / scale, width / scale, height / scale);
                     var shown = new Fitted(new LayoutRect(view.X, view.Y, width, height), crop, scale);
-                    var side = new SheetSide([Place(page, shown, landscape, false, area.Paper)], false, true);
+                    var placement = Place(page, shown, landscape, false, area.Paper);
+                    var side = new SheetSide([placement], false, [placement.Frame]);
                     sheets.Add(new Sheet(side, null));
                 }
             }
@@ -115,7 +118,7 @@ public static class Imposition
                 var cell = CellAt(ViewPrintable(area, landscape), rows, columns, row, column);
                 placements.Add(InCell(page, cell, scaling, landscape, area.Paper));
             }
-            return new SheetSide(placements, borders);
+            return new SheetSide(placements, borders, options.CutMarks ? MarkCells(placements, perSide > 1, area.Printable) : null);
         }
 
         var sheets = new List<Sheet>();
@@ -162,6 +165,14 @@ public static class Imposition
             sheets.Add(new Sheet(front, back));
         }
         return sheets;
+    }
+
+    /// <summary>The frames to mark: those of a side with several pages, or of a page smaller than the laid area.</summary>
+    internal static IReadOnlyList<LayoutRect> MarkCells(IReadOnlyList<Placement> placements, bool several, LayoutRect laid)
+    {
+        var frames = placements.Select(p => p.Frame).ToList();
+        bool smaller = frames.Any(f => f.Width < laid.Width - Epsilon || f.Height < laid.Height - Epsilon);
+        return several || smaller ? frames : [];
     }
 
     /// <summary>The grid in a reading view: its longer count runs along the view's longer side.</summary>
@@ -305,6 +316,7 @@ public static class Imposition
     internal static SheetSide Turned(SheetSide side, LayoutSize paper) =>
         side with
         {
+            CutCells = [.. side.CutCells.Select(c => new LayoutRect(paper.Width - c.X - c.Width, paper.Height - c.Y - c.Height, c.Width, c.Height))],
             Placements = [.. side.Placements.Select(p => p with
             {
                 Frame = new LayoutRect(paper.Width - p.Frame.X - p.Frame.Width, paper.Height - p.Frame.Y - p.Frame.Height, p.Frame.Width, p.Frame.Height),

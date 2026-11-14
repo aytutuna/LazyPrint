@@ -350,27 +350,6 @@ public sealed partial class AppViewModel
         return PrintJobs.Plan([.. Documents], PageRangeIndexes(), Settings, SelectedCapabilities, SelectedPrefs);
     }
 
-    /// <summary>The cut marks a photo print or a photo sheet shows on the sheet, as the renderer draws them; none for other layouts.</summary>
-    public IReadOnlyList<TestPageItem> CutMarks(SheetSide side, PrintableArea area)
-    {
-        if (MarksOf(Settings) is { } options) return PhotoLayout.CutMarks(side, options, area);
-        return FrameMarksOf(Settings) ? PhotoLayout.FrameMarks(side) : [];
-    }
-
-    /// <summary>Whether the cut marks are asked for, of either kind.</summary>
-    public bool DrawsCutMarks => Settings.LayoutStyle.IsPhoto() && Settings.CutMarks;
-
-    /// <summary>A photo sheet's marks are at the frames its photos were planned into.</summary>
-    private static bool FrameMarksOf(PrintSettings settings) => settings.LayoutStyle == LayoutStyle.PhotoSheet && settings.CutMarks;
-
-    /// <summary>What the cut marks of a photo print are laid out from; null when the settings draw none.</summary>
-    private static PhotoOptions? MarksOf(PrintSettings settings)
-    {
-        if (settings.LayoutStyle != LayoutStyle.PhotoPrints || !settings.CutMarks) return null;
-        var size = PhotoSize.All.FirstOrDefault(s => s.Id == settings.PhotoSizeId) ?? PhotoSize.All[0];
-        return new PhotoOptions(size, 1, settings.PhotoFill, true);
-    }
-
     /// <summary>What the Print button says it does: "Print", "Print 5 sheets", "Print 5 sheets × 3", "Print the fronts".</summary>
     public string PrintLabel
     {
@@ -421,8 +400,7 @@ public sealed partial class AppViewModel
             var sides = plan.Plan.Sheets.SelectMany(sheet => sheet.Back is { } back ? new[] { sheet.Front, back } : [sheet.Front]).ToList();
             plan = plan with { ManualDuplex = false, Passes = [new DuplexPass(sides, [])] };
         }
-        return new SheetJob(PrintText.JobName([.. documents.Select(d => d.Name)]), printer, SelectedCapabilities, settings, plan, documents, "",
-                            null, MarksOf(settings), FrameMarksOf(settings));
+        return new SheetJob(PrintText.JobName([.. documents.Select(d => d.Name)]), printer, SelectedCapabilities, settings, plan, documents, "");
     }
 
     public void ReportSaved(string path)
@@ -457,8 +435,7 @@ public sealed partial class AppViewModel
         var printer = inputs.Printer;
         var plan = PrintJobs.Plan(inputs.Documents, inputs.Range, inputs.Settings, inputs.Capabilities, PrefsOf(printer));
         string id = Guid.NewGuid().ToString("N");
-        var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id, null, MarksOf(inputs.Settings),
-                                FrameMarksOf(inputs.Settings));
+        var job = new SheetJob(inputs.Name, printer, inputs.Capabilities, inputs.Settings, plan, inputs.Documents, id);
         var record = Record(job);
         KeepAgain(id, () => PrintDocumentsAsync(inputs), inputs.Documents);
 

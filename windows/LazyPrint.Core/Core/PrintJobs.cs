@@ -49,6 +49,7 @@ public static class PrintJobs
             Orientation = settings.Orientation,
             Margin = photos ? 0 : MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
             Poster = photos ? 0 : settings.Poster,
+            CutMarks = settings.LayoutStyle == LayoutStyle.PhotoSheet && settings.CutMarks,
         };
     }
 

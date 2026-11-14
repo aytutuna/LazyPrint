@@ -92,6 +92,8 @@ public sealed record LayoutOptions
     /// Any other number is no poster; a poster comes before <see cref="Booklet"/> and <see cref="PagesPerSheet"/>.
     /// </summary>
     public int Poster { get; init; }
+    /// <summary>Short marks at the corners of each printed page when there are several on a side or one smaller than the margin's area.</summary>
+    public bool CutMarks { get; init; }
 }
 
 /// <summary>The margin choices. Stored as the camelCase name; "small" in an older file is <see cref="Printer"/>.</summary>
@@ -131,13 +133,15 @@ public static class MarginChoices
 public sealed record Placement(SourcePage Page, LayoutRect Frame, int Turns, LayoutRect? Crop);
 
 /// <summary>One side of a sheet.</summary>
-/// <param name="CutMarks">Short marks outside each placement's corners, for the tiles of a poster.</param>
-public sealed record SheetSide(IReadOnlyList<Placement> Placements, bool Borders, bool CutMarks = false)
+/// <param name="CutCells">On the sheet, the boxes that get short cut marks outside their corners; empty is no marks.</param>
+public sealed record SheetSide(IReadOnlyList<Placement> Placements, bool Borders, IReadOnlyList<LayoutRect>? CutCells = null)
 {
-    public bool Equals(SheetSide? other) =>
-        other is not null && Borders == other.Borders && CutMarks == other.CutMarks && Placements.SequenceEqual(other.Placements);
+    public IReadOnlyList<LayoutRect> CutCells { get; init; } = CutCells ?? [];
 
-    public override int GetHashCode() => HashCode.Combine(Placements.Count, Borders, CutMarks);
+    public bool Equals(SheetSide? other) =>
+        other is not null && Borders == other.Borders && Placements.SequenceEqual(other.Placements) && CutCells.SequenceEqual(other.CutCells);
+
+    public override int GetHashCode() => HashCode.Combine(Placements.Count, Borders, CutCells.Count);
 }
 
 /// <summary>A sheet of paper; <paramref name="Back"/> is null for a one-sided plan.</summary>

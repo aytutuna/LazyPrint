@@ -18,16 +18,12 @@ internal static class JobSides
     /// <summary>The times each side comes out, whoever makes the copies.</summary>
     public static int Copies(SheetJob job) => Math.Max(Repeats(job), job.Plan.CopiesInJob);
 
-    private static IReadOnlyList<TestPageItem>? CutMarks(SheetJob job, SheetSide side) =>
-        job.Marks is { } options ? PhotoLayout.CutMarks(side, options, job.Plan.Plan.Area)
-        : job.FrameMarks ? PhotoLayout.FrameMarks(side) : null;
-
     /// <summary>The sides of a pass in the order they are sent, the pages repeated for the copies the job carries itself.</summary>
     public static List<DrawnSide> Of(SheetJob job, int pass)
     {
         var sent = job.Plan.Passes[pass];
         var once = sent.Sides
-            .Select((side, i) => new DrawnSide(side, job.Items?[i].Items ?? CutMarks(job, side), sent.Marked.Contains(i), job.Items?[i].Turned ?? false))
+            .Select((side, i) => new DrawnSide(side, job.Items?[i].Items,sent.Marked.Contains(i), job.Items?[i].Turned ?? false))
             .ToList();
         int repeats = Repeats(job);
         if (repeats == 1) return once;

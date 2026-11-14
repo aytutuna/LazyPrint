@@ -672,7 +672,8 @@ public class ImpositionTests
         Assert.Equal(4, plan.Sheets.Count);
         Assert.False(plan.Duplex);
         Assert.All(plan.Sheets, s => Assert.Null(s.Back));
-        Assert.All(plan.Sheets, s => Assert.True(Assert.Single(s.Front.Placements).Crop is not null && s.Front.CutMarks));
+        Assert.All(plan.Sheets, s => Assert.True(Assert.Single(s.Front.Placements).Crop is not null && s.Front.CutCells.Count == 1));
+        Assert.All(plan.Sheets, s => Assert.Equal(s.Front.Placements[0].Frame, s.Front.CutCells[0]));
 
         double scale = (2 * 600 - Overlap) / 612;
         var first = Front(plan, 0).Placements[0];
@@ -682,6 +683,43 @@ public class ImpositionTests
         var third = Front(plan, 2).Placements[0].Crop!.Value;
         Assert.True(second.X > 0 && second.Y == 0);
         Assert.True(third.X == 0 && third.Y > 0);
+    }
+
+    [Fact]
+    public void Plan_CutMarks_MarkTheFramesOfEverySideWithSeveralPages()
+    {
+        var plan = Plan(Portrait(4), new LayoutOptions { PagesPerSheet = 4, CutMarks = true });
+        var side = Front(plan);
+        Assert.Equal(side.Placements.Select(p => p.Frame), side.CutCells);
+    }
+
+    [Fact]
+    public void Plan_CutMarks_AreOffByDefault()
+    {
+        Assert.Empty(Front(Plan(Portrait(4), new LayoutOptions { PagesPerSheet = 4 })).CutCells);
+    }
+
+    [Fact]
+    public void Plan_CutMarks_ALonePageNeedsToBeSmallerThanTheLaidArea()
+    {
+        var options = new LayoutOptions { CutMarks = true };
+        Assert.Empty(Front(Plan(Portrait(1), options)).CutCells);
+        Assert.Single(Front(Plan([Page(0, 100, 100)], options with { Scaling = Scaling.ActualSize })).CutCells);
+    }
+
+    [Fact]
+    public void Plan_CutMarks_AreNotMadeForABooklet()
+    {
+        var plan = Plan(Portrait(4), new LayoutOptions { Booklet = true, CutMarks = true });
+        Assert.All(plan.Sheets, s => Assert.Empty(s.Front.CutCells));
+    }
+
+    [Fact]
+    public void Plan_CutMarks_FollowTheBackWhenItIsTurned()
+    {
+        var plan = Plan(Portrait(4), new LayoutOptions { PagesPerSheet = 2, Sides = Sides.ShortEdge, CutMarks = true });
+        var back = Back(plan);
+        Assert.Equal(back.Placements.Select(p => p.Frame), back.CutCells);
     }
 
     [Fact]

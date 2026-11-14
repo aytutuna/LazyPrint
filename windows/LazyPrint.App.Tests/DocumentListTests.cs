@@ -242,13 +242,11 @@ public sealed class DocumentListTests
         model.Settings.PhotoSizeId = "4x6";
         model.Settings.PaperId = "letter";
         await model.AddFilesAsync([DocumentFixtures.PathOf("halves-300dpi.png")]);
-        var plan = model.Plan()!;
-
-        var marks = model.CutMarks(plan.Plan.Sheets[0].Front, plan.Plan.Area);
+        var marked = model.Plan()!.Plan.Sheets[0].Front.CutCells;
         model.Settings.CutMarks = false;
 
-        Assert.NotEmpty(marks);
-        Assert.Empty(model.CutMarks(plan.Plan.Sheets[0].Front, plan.Plan.Area));
+        Assert.NotEmpty(marked);
+        Assert.Empty(model.Plan()!.Plan.Sheets[0].Front.CutCells);
     }
 
     private sealed class SlowSheetPrinter(Task release) : ISheetPrinter

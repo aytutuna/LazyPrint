@@ -171,66 +171,47 @@ public class PhotoLayoutTests
     }
 
     [Fact]
-    public void CutMarks_SeveralPrints_MarksEachCornerWithTwoGrayLines()
+    public void CutCells_SeveralPrints_AreTheFramesOfThePrints()
     {
-        var options = new PhotoOptions(Size("4x6"));
-        var plan = Plan(Photos(2), options, Whole(Letter));
-        var marks = PhotoLayout.CutMarks(plan.Sheets[0].Front, options, plan.Area);
-        Assert.Equal(16, marks.Count);
-        Assert.All(marks, mark =>
-        {
-            var line = Assert.IsType<TestPageItem.Line>(mark);
-            Assert.Equal(TestColor.Gray(128), line.Color);
-            Assert.True(Math.Abs(line.To.X - line.From.X) + Math.Abs(line.To.Y - line.From.Y) <= 4.0001);
-        });
-    }
-
-    [Fact]
-    public void CutMarks_OnePrint_HasNone()
-    {
-        var options = new PhotoOptions(Size("8x10"));
-        var plan = Plan(Photos(1), options, Margins(Letter, 18));
-        Assert.Empty(PhotoLayout.CutMarks(plan.Sheets[0].Front, options, plan.Area));
-    }
-
-    [Fact]
-    public void CutMarks_FollowThePrintCellsNotThePhoto()
-    {
-        var options = new PhotoOptions(Size("4x6"), Fill: false);
-        var plan = Plan(Photos(2, 800, 600), options, Whole(Letter));
-        var marks = PhotoLayout.CutMarks(plan.Sheets[0].Front, options, plan.Area);
-        double left = (612 - (576 + Gap)) / 2;
-        var corner = marks.OfType<TestPageItem.Line>().Where(m => m.From.X == left && m.From.Y == (792 - 432) / 2.0);
-        Assert.Equal(2, corner.Count());
-    }
-
-    [Fact]
-    public void CutMarks_PartlyFilledLastSheet_StillHasThem()
-    {
-        var options = new PhotoOptions(Size("4x6"));
-        var plan = Plan(Photos(3), options, Whole(Letter));
-        var marks = PhotoLayout.CutMarks(plan.Sheets[1].Front, options, plan.Area);
-        Assert.Equal(8, marks.Count);
-    }
-
-    [Fact]
-    public void FrameMarks_APhotoSheet_MarksTheCornersOfEachFrame()
-    {
-        var plan = Imposition.Plan(Photos(4), new LayoutOptions { PagesPerSheet = 4, Scaling = Scaling.Fill }, Whole(Letter));
+        var plan = Plan(Photos(2), new PhotoOptions(Size("4x6")), Whole(Letter));
         var side = plan.Sheets[0].Front;
-        var lines = PhotoLayout.FrameMarks(side).OfType<TestPageItem.Line>().ToList();
-        Assert.Equal(32, lines.Count);
-        foreach (var placement in side.Placements)
-        {
-            var frame = placement.Frame;
-            Assert.True(lines.Count(l => l.From.X == frame.X && l.From.Y == frame.Y) >= 2);
-        }
+        Assert.Equal(side.Placements.Select(p => p.Frame), side.CutCells);
     }
 
     [Fact]
-    public void FrameMarks_OnePhoto_HasNone()
+    public void CutCells_APrintSmallerThanTheSheet_IsMarked()
     {
-        var plan = Imposition.Plan(Photos(1), new LayoutOptions { PagesPerSheet = 4, Scaling = Scaling.Fill }, Whole(Letter));
-        Assert.Empty(PhotoLayout.FrameMarks(plan.Sheets[0].Front));
+        var plan = Plan(Photos(1), new PhotoOptions(Size("8x10")), Margins(Letter, 18));
+        Assert.Single(plan.Sheets[0].Front.CutCells);
+    }
+
+    [Fact]
+    public void CutCells_AWholePagePrint_HasNone()
+    {
+        var plan = Plan(Photos(1), new PhotoOptions(Size("page")), Whole(Letter));
+        Assert.Empty(plan.Sheets[0].Front.CutCells);
+    }
+
+    [Fact]
+    public void CutCells_FollowThePrintedPhoto_WhenItIsFitted()
+    {
+        var plan = Plan(Photos(2, 800, 600), new PhotoOptions(Size("4x6"), Fill: false), Whole(Letter));
+        var side = plan.Sheets[0].Front;
+        Assert.Equal(side.Placements.Select(p => p.Frame), side.CutCells);
+        Assert.True(side.CutCells[0].Height < 432);
+    }
+
+    [Fact]
+    public void CutCells_PartlyFilledLastSheet_StillHasThem()
+    {
+        var plan = Plan(Photos(3), new PhotoOptions(Size("4x6")), Whole(Letter));
+        Assert.Single(plan.Sheets[1].Front.CutCells);
+    }
+
+    [Fact]
+    public void CutCells_WithoutCutMarks_AreEmpty()
+    {
+        var plan = Plan(Photos(2), new PhotoOptions(Size("4x6"), CutMarks: false), Whole(Letter));
+        Assert.Empty(plan.Sheets[0].Front.CutCells);
     }
 }

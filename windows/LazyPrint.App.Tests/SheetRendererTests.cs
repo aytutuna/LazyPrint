@@ -68,7 +68,7 @@ public class SheetRendererTests
     {
         var (document, renderer) = await Open("mixed.pdf");
         var frame = new LayoutRect(100, 100, 300, 400);
-        var marked = new SheetSide([Place(0, document.Pages[0], frame)], false, true);
+        var marked = new SheetSide([Place(0, document.Pages[0], frame)], false, [frame]);
         var plain = new SheetSide([Place(0, document.Pages[0], frame)], false);
 
         var withMarks = await Sta(() => renderer.Render(marked, Letter, 72));

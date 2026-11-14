@@ -268,12 +268,11 @@ public sealed class PdfSheetWriter : IDisposable
                      close: true, fill: null, stroke: TestColor.Gray(128), BorderWidth);
             }
         }
-        if (side.CutMarks)
+        if (side.CutCells.Count > 0)
         {
-            double length = Imposition.PosterMarkLength;
-            foreach (var placement in side.Placements)
+            double length = Imposition.CutMarkLength;
+            foreach (var f in side.CutCells)
             {
-                var f = placement.Frame;
                 foreach (var (x, dx) in new[] { (f.X, -1), (f.X + f.Width, 1) })
                 {
                     foreach (var (y, dy) in new[] { (f.Y, -1), (f.Y + f.Height, 1) })

@@ -119,13 +119,12 @@ public sealed class SheetRenderer(IReadOnlyList<LoadedDocument> documents, IPage
                 dc.DrawRectangle(null, pen, new Rect(frame.X, frame.Y, frame.Width, frame.Height));
             }
         }
-        if (side.CutMarks)
+        if (side.CutCells.Count > 0)
         {
             var pen = new Pen(new SolidColorBrush(Color.FromRgb(128, 128, 128)), 0.5);
-            double length = Imposition.PosterMarkLength;
-            foreach (var placement in side.Placements)
+            double length = Imposition.CutMarkLength;
+            foreach (var f in side.CutCells)
             {
-                var f = placement.Frame;
                 foreach (var (x, dx) in new[] { (f.X, -1), (f.X + f.Width, 1) })
                 {
                     foreach (var (y, dy) in new[] { (f.Y, -1), (f.Y + f.Height, 1) })

@@ -34,7 +34,6 @@ public sealed record PhotoOptions(PhotoSize Size, int CopiesEach = 1, bool Fill 
 public static class PhotoLayout
 {
     private const double Gap = 3 * 72 / 25.4;
-    private const double MarkLength = 4;
     private const double Epsilon = 1e-6;
 
     /// <summary>
@@ -62,44 +61,10 @@ public static class PhotoLayout
         var sheets = new List<Sheet>();
         for (int start = 0; start < placements.Count; start += cells.Count)
         {
-            sheets.Add(new Sheet(new SheetSide(placements.Skip(start).Take(cells.Count).ToList(), false), null));
+            var side = placements.Skip(start).Take(cells.Count).ToList();
+            sheets.Add(new Sheet(new SheetSide(side, false, options.CutMarks ? Imposition.MarkCells(side, cells.Count > 1, Laid(area)) : null), null));
         }
         return new SheetPlan(area, sheets, false, []);
-    }
-
-    /// <summary>
-    /// The cut marks of a planned side, as lines for the renderer: at the corners of the print cells the
-    /// side uses, none when only one print fits on a sheet.
-    /// </summary>
-    public static IReadOnlyList<TestPageItem> CutMarks(SheetSide side, PhotoOptions options, PrintableArea area)
-    {
-        var cells = Cells(options.Size.Size, Laid(area));
-        return cells.Count < 2 ? [] : Corners(cells.Take(side.Placements.Count));
-    }
-
-    /// <summary>
-    /// The cut marks of a photo sheet's side, which <c>Imposition</c> planned: at the corners of the frames its
-    /// photos are in, none for a side with one photo.
-    /// </summary>
-    public static IReadOnlyList<TestPageItem> FrameMarks(SheetSide side) =>
-        side.Placements.Count < 2 ? [] : Corners(side.Placements.Select(p => p.Frame));
-
-    private static List<TestPageItem> Corners(IEnumerable<LayoutRect> frames)
-    {
-        var marks = new List<TestPageItem>();
-        var gray = TestColor.Gray(128);
-        foreach (var f in frames)
-        {
-            foreach (var (x, dx) in new[] { (f.X, -1), (f.X + f.Width, 1) })
-            {
-                foreach (var (y, dy) in new[] { (f.Y, -1), (f.Y + f.Height, 1) })
-                {
-                    marks.Add(new TestPageItem.Line(new(x, y), new(x + dx * MarkLength, y), 0.5, gray));
-                    marks.Add(new TestPageItem.Line(new(x, y), new(x, y + dy * MarkLength), 0.5, gray));
-                }
-            }
-        }
-        return marks;
     }
 
     /// <summary>Photo layouts have no margin of their own, so they use the whole paper; the printer cuts what reaches its edge.</summary>
