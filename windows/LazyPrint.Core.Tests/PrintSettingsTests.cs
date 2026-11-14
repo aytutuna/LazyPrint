@@ -92,13 +92,23 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Equal(new PrintSettings { Sides = Sides.LongEdge }, s);
     }
 
+    [Fact]
+    public void MarginMm_ArrowStepFromAHundredthLandsOnTheNextTenth()
+    {
+        var s = new PrintSettings { MarginMm = 0.05 };
+        s.MarginMm += 0.1;
+        Assert.Equal(0.15, s.MarginMm);
+    }
+
     [Theory]
     [InlineData("10", 10)]
     [InlineData("3.2", 3.2)]
-    [InlineData("3.25", 3.3)]
+    [InlineData("3.25", 3.25)]
+    [InlineData("3.256", 3.26)]
+    [InlineData("0.05", 0.05)]
     [InlineData("80", 50)]
     [InlineData("-4", 0)]
-    public void Settings_LoadTheMarginAsDecimalRoundedAndClamped(string json, double expected)
+    public void Settings_LoadTheMarginToHundredthsAndClamped(string json, double expected)
     {
         File.WriteAllText(Settings, "{\"margin\": \"custom\", \"marginMm\": " + json + "}");
         Assert.Equal(expected, SettingsStore.Load(_directory)!.MarginMm);

@@ -695,7 +695,9 @@ public class PrintJobsTests
     [InlineData(MarginChoice.Normal, 0, 12)]
     [InlineData(MarginChoice.Custom, 20, 20)]
     [InlineData(MarginChoice.Custom, 3.2, 3.2)]
-    [InlineData(MarginChoice.Custom, 3.25, 3.3)]
+    [InlineData(MarginChoice.Custom, 3.25, 3.25)]
+    [InlineData(MarginChoice.Custom, 3.256, 3.26)]
+    [InlineData(MarginChoice.Custom, 0.05, 0.05)]
     [InlineData(MarginChoice.Custom, 900, 50)]
     public void LayoutOptions_CarryTheMarginInPoints(MarginChoice choice, double custom, double millimetres)
     {

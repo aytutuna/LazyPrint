@@ -41,7 +41,7 @@ public sealed record PrintSettings : IJsonOnDeserialized
     public int Scale { get; set; } = 100;
     public SheetOrientation Orientation { get; set; } = SheetOrientation.Automatic;
     public MarginChoice Margin { get; set; } = MarginChoice.Printer;
-    /// <summary>Millimetres to 0.1, 0 to <see cref="MarginChoices.MaxMillimetres"/>; what <see cref="MarginChoice.Custom"/> means. A whole number in an older file loads as it is.</summary>
+    /// <summary>Millimetres to 0.01, 0 to <see cref="MarginChoices.MaxMillimetres"/>; what <see cref="MarginChoice.Custom"/> means. A whole number in an older file loads as it is.</summary>
     public double MarginMm
     {
         get => _marginMm;

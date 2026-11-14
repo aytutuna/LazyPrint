@@ -93,7 +93,7 @@ public static class InspectorSections
         if (s.Margin != MarginChoice.Printer)
         {
             double margin = MarginChoices.Millimetres(s.Margin, s.MarginMm, 0);
-            parts.Add(margin > 0 ? $"{PrintText.Millimetres(margin)} margins" : "No margins");
+            parts.Add(margin > 0 ? $"{PrintText.MarginMillimetres(margin)} margins" : "No margins");
         }
         return Join(parts);
     }

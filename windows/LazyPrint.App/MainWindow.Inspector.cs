@@ -443,7 +443,7 @@ public partial class MainWindow
 
     private void ShowMarginMm(double mm)
     {
-        _shownMarginMm = mm.ToString("0.#", CultureInfo.CurrentCulture);
+        _shownMarginMm = mm.ToString("0.##", CultureInfo.CurrentCulture);
         MarginMmBox.Text = _shownMarginMm;
     }
 
@@ -452,7 +452,7 @@ public partial class MainWindow
         if (e.Key == Key.Enter) MarginMm_Committed(sender, e);
     }
 
-    /// <summary>A distance typed in, with a comma or a point, is taken to 0.1 mm; anything else puts the old one back.</summary>
+    /// <summary>A distance typed in, with a comma or a point, is taken to 0.01 mm; anything else puts the old one back.</summary>
     private void MarginMm_Committed(object sender, RoutedEventArgs e)
     {
         if (_updatingUi || !IsLoaded) return;

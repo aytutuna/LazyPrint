@@ -121,6 +121,9 @@ public static class PrintText
     /// <summary>A distance to one decimal, the ".0" dropped: "4.3 mm", "3 mm".</summary>
     public static string Millimetres(double millimetres) => $"{millimetres.ToString("0.#", CultureInfo.InvariantCulture)} mm";
 
+    /// <summary>The custom margin to two decimals, trailing zeros dropped: "0.05 mm", "3.2 mm", "10 mm".</summary>
+    public static string MarginMillimetres(double millimetres) => $"{millimetres.ToString("0.##", CultureInfo.InvariantCulture)} mm";
+
     /// <summary>Under Margins when the margin is smaller than the printer's own edge.</summary>
     public static string PrinterEdgeNote(double edge) => $"This printer can't print the outer {Millimetres(edge)}";
 

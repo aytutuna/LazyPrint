@@ -589,7 +589,6 @@
                                                          AutomationProperties.Name="Margin in millimetres, typed"
                                                          LostFocus="MarginMm_Committed" KeyDown="MarginMm_KeyDown" />
                                                 <Slider x:Name="MarginMmSlider" Minimum="0" Maximum="50" SmallChange="0.1" LargeChange="1"
-                                                        TickFrequency="0.1" IsSnapToTickEnabled="True"
                                                         AutomationProperties.Name="Margin in millimetres"
                                                         ValueChanged="MarginMmSlider_ValueChanged" />
                                             </DockPanel>

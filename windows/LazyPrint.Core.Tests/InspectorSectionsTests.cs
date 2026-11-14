@@ -84,6 +84,8 @@ public class InspectorSectionsTests
         Assert.Equal("Booklet · Right to left", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, RightToLeft = true }));
         // Direction only matters with several pages.
         Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { RightToLeft = true, PageBorders = true }));
+        Assert.Equal("0.05 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 0.05 }));
+        Assert.Equal("3.2 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 3.2 }));
         Assert.Equal("Actual size", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }));
         Assert.Equal("Fit to page", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit }));
         Assert.Equal("4 per side · Borders · Right to left +1",
