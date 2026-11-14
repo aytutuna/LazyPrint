@@ -106,8 +106,6 @@ struct InspectorView: View {
     private func layoutSection(_ rules: Rules) -> some View {
         let printed = state.jobPlan?.plan.printedScale
         let edge = PrintJobs.edge(state.settings, margin: state.settings.margin, printer: state.capabilities)
-        let noneEdge = PrintJobs.edge(state.settings, margin: .none, printer: state.capabilities)
-        let smallEdge = PrintJobs.edge(state.settings, margin: .small, printer: state.capabilities)
         return InspectorSection(id: InspectorSections.layout, icon: "square.grid.2x2",
                                 summary: InspectorSections.layoutSummary(state.settings, edge: edge, printedScale: printed)) {
             field("Style") {
@@ -184,7 +182,8 @@ struct InspectorView: View {
             field("Margins") {
                 Picker("Margins", selection: $state.settings.margin) {
                     ForEach(MarginChoice.allCases, id: \.self) { choice in
-                        Text(PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge, custom: state.settings.marginMm)).tag(choice)
+                        let choiceEdge = PrintJobs.edge(state.settings, margin: choice, printer: state.capabilities)
+                        Text(PrintText.marginLabel(choice, edge: choiceEdge)).tag(choice)
                     }
                 }
                 .labelsHidden()

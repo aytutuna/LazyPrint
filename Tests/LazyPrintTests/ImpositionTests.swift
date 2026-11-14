@@ -71,13 +71,13 @@ final class ImpositionTests: XCTestCase {
         XCTAssertTrue(plan.warnings.isEmpty)
     }
 
-    func test_plan_largePageShrinkToFit_isMadeSmallerAndWarns() throws {
+    func test_plan_largePageShrinkToFit_isMadeSmaller() throws {
         let plan = makePlan([makePage(0, layoutA4.width, layoutA4.height)])
         // A4 is about 50 pt taller than Letter and 17 pt narrower: the height decides.
         let scale = 792 / layoutA4.height
         let width = layoutA4.width * scale
         assertLayoutRect((612 - width) / 2, 0, width, 792, try onlyElement(frontSide(plan).placements).frame)
-        XCTAssertEqual(plan.warnings, [.shrunk(percent: 94)])
+        XCTAssertTrue(plan.warnings.isEmpty)
     }
 
     func test_plan_scale_sizesAPageAlone_andStillShrinksToFit() throws {
@@ -102,7 +102,9 @@ final class ImpositionTests: XCTestCase {
 
     func test_plan_pageLargerThanAreaActualSize_isCutAndWarns() throws {
         let plan = makePlan([makePage(0, 700, 900)], LayoutOptions(scaling: .actualSize))
-        assertLayoutRect(-44, -54, 700, 900, try onlyElement(frontSide(plan).placements).frame)
+        let placement = try onlyElement(frontSide(plan).placements)
+        assertLayoutRect(0, 0, 612, 792, placement.frame)
+        assertLayoutRect(44, 54, 612, 792, try XCTUnwrap(placement.crop))
         // 108 pt too tall, half of it off each side.
         XCTAssertEqual(plan.warnings, [.clipped(points: 54)])
     }
@@ -127,11 +129,10 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(placement.turns, 3)
     }
 
-    func test_plan_landscapePageWithMargins_isCentredInTheTurnedPrintableArea() throws {
-        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 20, left: 10, bottom: 40, right: 30))
-        let plan = makePlan([makePage(0, 366, 286)], area: area)
-        // The reading view is 732 wide (792 - 20 - 40) and 572 high (612 - 10 - 30), its top the paper's left edge.
-        assertLayoutRect(153, 203, 286, 366, try onlyElement(frontSide(plan).placements).frame)
+    func test_plan_landscapePageWithMargin_isCentredInTheTurnedPaper() throws {
+        let plan = makePlan([makePage(0, 366, 286)], LayoutOptions(margin: 20))
+        // The reading view is 752 wide (792 - 40) and 572 high (612 - 40), its top the paper's left edge.
+        assertLayoutRect(163, 213, 286, 366, try onlyElement(frontSide(plan).placements).frame)
     }
 
     func test_plan_squarePage_staysUpright() throws {
@@ -157,14 +158,13 @@ final class ImpositionTests: XCTestCase {
 
     // MARK: Two-sided
 
-    func test_plan_twoSided_usesTheSymmetricAreaOnBothSides() throws {
+    func test_plan_twoSided_laysBothSidesInTheMarginAndKeepsThePrintersArea() throws {
         let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 20, left: 10, bottom: 40, right: 30))
-        let plan = makePlan(portraitPages(2), LayoutOptions(sides: .longEdge), area: area)
-        XCTAssertEqual(plan.area, area.symmetric)
-        XCTAssertEqual(plan.area.margins, LayoutInsets(top: 40, left: 30, bottom: 40, right: 30))
+        let plan = makePlan(portraitPages(2), LayoutOptions(sides: .longEdge, margin: 36), area: area)
+        XCTAssertEqual(plan.area, area)
         // Both pages shrink to the same box, so the back lines up with the front.
-        let scale = min((612 - 60) / 612.0, (792 - 80) / 792.0)
-        assertLayoutRect((612 - 612 * scale) / 2, 40, 612 * scale, 792 * scale, try onlyElement(frontSide(plan).placements).frame)
+        let scale = min((612 - 72) / 612.0, (792 - 72) / 792.0)
+        assertLayoutRect((612 - 612 * scale) / 2, (792 - 792 * scale) / 2, 612 * scale, 792 * scale, try onlyElement(frontSide(plan).placements).frame)
         XCTAssertEqual(frontSide(plan).placements[0].frame, backSide(plan).placements[0].frame)
     }
 
@@ -210,7 +210,7 @@ final class ImpositionTests: XCTestCase {
     func test_plan_shortEdgeBack_landsInTheSameBoxAsTheFront() {
         let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 20, left: 10, bottom: 40, right: 30))
         let plan = makePlan([makePage(0, 300, 400), makePage(1, 300, 400)], LayoutOptions(sides: .shortEdge), area: area)
-        // The symmetric area is centred on the paper, so a half turn about the paper's centre keeps the box.
+        // The margin is equal on every side, so a half turn about the paper's centre keeps the box.
         assertLayoutRect(156, 196, 300, 400, frontSide(plan).placements[0].frame)
         assertLayoutRect(156, 196, 300, 400, backSide(plan).placements[0].frame)
         XCTAssertEqual(backSide(plan).placements[0].turns, 2)
@@ -426,7 +426,7 @@ final class ImpositionTests: XCTestCase {
         XCTAssertTrue(plan.duplex)
         XCTAssertEqual(plan.sideCount, 2)
         XCTAssertEqual(frontSide(plan).placements.count, 2)
-        XCTAssertEqual(plan.area, wholePaper(layoutLetter).symmetric)
+        XCTAssertEqual(plan.area, wholePaper(layoutLetter))
     }
 
     func test_plan_booklet_fitsEachPageToHalfTheLandscapeSpread() throws {
@@ -438,9 +438,8 @@ final class ImpositionTests: XCTestCase {
         XCTAssertTrue(front.placements.allSatisfy { $0.turns == 3 })
     }
 
-    func test_plan_bookletWithMargins_splitsAtTheCentreLineAndMeetsThePrintableArea() throws {
-        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 10, left: 20, bottom: 10, right: 20))
-        let front = frontSide(makePlan(portraitPages(4), LayoutOptions(booklet: true), area: area))
+    func test_plan_bookletWithMargin_splitsAtTheCentreLineAndMeetsTheMargin() throws {
+        let front = frontSide(makePlan(portraitPages(4), LayoutOptions(booklet: true, margin: 10)))
         // In the 792 x 612 view the printable box starts 10 in from the left; each half is 386 wide, the fold at 396.
         let left = try XCTUnwrap(front.placements.first(where: { $0.page.index == 3 })).frame
         let right = try XCTUnwrap(front.placements.first(where: { $0.page.index == 0 })).frame
@@ -518,22 +517,43 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(plan.area, wholePaper(layoutLetter))
     }
 
-    func test_plan_marginWithShrinkToFit_shrinksALargePageAndWarns() {
+    func test_plan_marginWithShrinkToFit_shrinksALargePage() {
         let plan = makePlan([makePage(0, 612, 792)], LayoutOptions(margin: 36))
         let height = 540 * 792 / 612.0
         assertLayoutRect(36, (792 - height) / 2, 540, height, frontSide(plan).placements[0].frame)
-        XCTAssertTrue(plan.warnings.contains { if case .shrunk = $0 { return true } else { return false } })
+        XCTAssertTrue(plan.warnings.isEmpty)
     }
 
-    func test_plan_margin_neverGoesBelowThePrintersOwn() {
+    func test_plan_printersEdge_doesNotMoveTheContent() {
         let plan = makePlan(portraitPages(1), LayoutOptions(scaling: .fit, margin: 10), area: paperWithMargins(layoutLetter, 36))
-        let height = 540 * 792 / 612.0
-        assertLayoutRect(36, (792 - height) / 2, 540, height, frontSide(plan).placements[0].frame)
+        let height = 592 * 792 / 612.0
+        assertLayoutRect(10, (792 - height) / 2, 592, height, frontSide(plan).placements[0].frame)
     }
 
-    func test_plan_margin_appliesAtActualSizeAndFill() {
+    func test_plan_marginZeroOnABorderedArea_coversTheWholeSheet() {
+        let plan = makePlan(portraitPages(1), LayoutOptions(scaling: .fit), area: paperWithMargins(layoutLetter, 36))
+        assertLayoutRect(0, 0, 612, 792, frontSide(plan).placements[0].frame)
+    }
+
+    func test_plan_actualSizeBeyondTheMargin_isCroppedToIt() throws {
+        let plan = makePlan([makePage(0, 612, 792)], LayoutOptions(scaling: .actualSize, scale: 200, margin: 36))
+        let placement = try onlyElement(frontSide(plan).placements)
+        assertLayoutRect(36, 36, 540, 720, placement.frame)
+        // The 2x page is centred, so the margin keeps its middle: a 540 x 720 window, in the page's own points.
+        assertLayoutRect((1224 - 540) / 4.0, (1584 - 720) / 4.0, 270, 360, try XCTUnwrap(placement.crop))
+        XCTAssertTrue(plan.warnings.contains { if case .clipped = $0 { return true } else { return false } })
+    }
+
+    func test_plan_actualSizeInsideTheMargin_hasNoCrop() throws {
+        let plan = makePlan([makePage(0, 300, 400)], LayoutOptions(scaling: .actualSize, margin: 36))
+        XCTAssertNil(try onlyElement(frontSide(plan).placements).crop)
+    }
+
+    func test_plan_margin_appliesAtActualSizeAndFill() throws {
         let actual = makePlan([makePage(0, 300, 400)], LayoutOptions(scaling: .actualSize, margin: 200))
-        assertLayoutRect(156, 196, 300, 400, frontSide(actual).placements[0].frame)
+        let cut = frontSide(actual).placements[0]
+        assertLayoutRect(200, 200, 212, 392, cut.frame)
+        assertLayoutRect(44, 4, 212, 392, try XCTUnwrap(cut.crop))
         XCTAssertEqual(actual.warnings, [.clipped(points: 44)])
         let fill = makePlan(portraitPages(1), LayoutOptions(scaling: .fill, margin: 100))
         assertLayoutRect(100, 100, 412, 592, frontSide(fill).placements[0].frame)

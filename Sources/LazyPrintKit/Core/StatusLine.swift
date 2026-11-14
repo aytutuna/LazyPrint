@@ -30,7 +30,7 @@ public enum StatusLine {
     }
 
     /// `head` with the short warnings found in `message`, the same way `short` adds them: "Printed ·
-    /// shrunk to 82 %", or the warnings alone when the line can't hold both; just `head` when there
+    /// edges cut off (3 mm)", or the warnings alone when the line can't hold both; just `head` when there
     /// are none.
     public static func withWarnings(_ head: String, message: String) -> String {
         compose(head, warnings(message))
@@ -93,7 +93,7 @@ public enum StatusLine {
         return i < shorts.count ? "\(shown) +\(shorts.count - i)" : shown
     }
 
-    /// "Shrunk to 82 %" after a message reads "… · shrunk to 82 %"; "2 blank added" stays as it is.
+    /// "Edges cut off (3 mm)" after a message reads "… · edges cut off (3 mm)"; "2 blank added" stays as it is.
     private static func lowerFirst(_ text: String) -> String {
         guard let first = text.first, first.isUppercase else { return text }
         return first.lowercased() + String(text.dropFirst())

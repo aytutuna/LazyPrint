@@ -234,6 +234,13 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertNotEqual(try request.document(), bytes)
     }
 
+    func test_aPdfWithAMargin_isDrawnHere() async throws {
+        let (url, bytes) = try original()
+        try await printer(original: url).print(try job({ $0.margin = .printer }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
+
+        XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
+    }
+
     func test_aPdfUnderPhotoPrints_isDrawnHereNotSentAsItIs() async throws {
         let (url, bytes) = try original()
         try await printer(original: url).print(try job({ $0.layoutStyle = .photoPrints }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }

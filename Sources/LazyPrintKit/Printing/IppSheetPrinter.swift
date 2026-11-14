@@ -101,7 +101,8 @@ public final class IppSheetPrinter: SheetPrinter {
                   placed.enumerated().allSatisfy({ $0.element.document == 0 && $0.element.index == first + $0.offset }) else { return nil }
             let whole = placed.count == document.pages.count
             let settings = job.settings
-            let plain = settings.layoutStyle == .pages && settings.poster == 0 && MarginChoices.millimetres(settings.margin, custom: settings.marginMm) == 0
+            let plain = settings.layoutStyle == .pages && settings.poster == 0
+                && (settings.margin == .none || settings.margin == .custom && settings.marginMm == 0)
                 && settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
                 && (settings.scale == 100 || settings.scaling == .fit)
                 && (settings.scaling == .fit || settings.scaling == .shrinkToFit
@@ -111,12 +112,11 @@ public final class IppSheetPrinter: SheetPrinter {
         case .photo:
             let paper = job.plan.plan.area.paper
             let photo = document.pages[0]
-            let frame = job.plan.plan.area.printable
-            // Only a photo the plan laid out filling the printable area upright goes as it is: a margin or a forced orientation shrinks or turns it.
+            // Only a photo the plan laid out filling the paper upright goes as it is: a margin or a forced orientation shrinks or turns it.
             guard placed.count == 1, let placement = job.plan.plan.sheets.first?.front.placements.first else { return nil }
             let ownSize = placement.turns == 0
-                && (abs(placement.frame.width - frame.width) <= PaperSizes.fitTolerance
-                    || abs(placement.frame.height - frame.height) <= PaperSizes.fitTolerance)
+                && (abs(placement.frame.width - paper.width) <= PaperSizes.fitTolerance
+                    || abs(placement.frame.height - paper.height) <= PaperSizes.fitTolerance)
                 && abs(min(photo.width, photo.height) - paper.width) <= PaperSizes.fitTolerance
                 && abs(max(photo.width, photo.height) - paper.height) <= PaperSizes.fitTolerance
                 && (job.settings.scale == 100 || (job.settings.scaling != .shrinkToFit && job.settings.scaling != .actualSize))

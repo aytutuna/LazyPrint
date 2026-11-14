@@ -148,10 +148,12 @@ public enum TaskCatalog {
             s.pageBorders = true
         case .photos:
             s.layoutStyle = .photoPrints
+            s.margin = MarginChoice.none
             s.quality = .best
             s.color = .color
         case .photoSheet:
             s.layoutStyle = .photoSheet
+            s.margin = MarginChoice.none
             s.pagesPerSheet = 4
             s.scaling = .fill
         case .testPage, .scanAndPrint, .fromPhone:

@@ -188,13 +188,13 @@ final class ScreenshotTests: XCTestCase {
         try await capture(ContentView(tab: .print), of: state, name: "photo-sheet", in: folder)
     }
 
-    /// Margin None on a printer that cannot print to the edge: its limit is the margin, and the page prints a little smaller.
+    /// The Printer's margin on a printer that cannot print to the edge: the page sits inside the printer's own edge.
     func test_print_marginNone() async throws {
         let folder = try shots()
         let work = try workFolder()
         let state = await makeState(in: work)
         await state.startTask(.document)
-        state.settings.margin = .none
+        state.settings.margin = .printer
         state.settings.scaling = .shrinkToFit
         await state.addFiles([try writePDF(pages: 2, in: work)])
         let key = "inspector." + InspectorSections.layout

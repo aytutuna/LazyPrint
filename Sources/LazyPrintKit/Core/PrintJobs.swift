@@ -38,7 +38,7 @@ public enum PrintJobs {
     private static let collatedCopies = "separate-documents-collated-copies"
 
     /// The layout the settings ask for. A photo layout prints one side, never a booklet, and has no extra margin or poster.
-    public static func layoutOptions(_ settings: PrintSettings) -> LayoutOptions {
+    public static func layoutOptions(_ settings: PrintSettings, printer: PrinterCapabilities?) -> LayoutOptions {
         let photos = settings.layoutStyle.isPhoto
         return LayoutOptions(pagesPerSheet: settings.pagesPerSheet,
                              booklet: settings.booklet && !photos,
@@ -48,7 +48,8 @@ public enum PrintJobs {
                              pageBorders: settings.pageBorders,
                              scale: settings.scale,
                              orientation: settings.orientation,
-                             margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm),
+                             margin: photos ? 0 : MarginChoices.points(settings.margin, custom: settings.marginMm,
+                                                                       printerEdge: edge(settings, margin: .printer, printer: printer)),
                              poster: photos ? 0 : settings.poster)
     }
 
@@ -74,7 +75,7 @@ public enum PrintJobs {
     }
 
     /// The printer's edge (`Imposition.edge`) the settings would have with `margin` chosen instead, 0 for photo layouts: None
-    /// can be borderless where Small is not, so each choice in the Margins list is told its own.
+    /// can be borderless where the printer's margin is not, so each choice in the Margins list is told its own.
     public static func edge(_ settings: PrintSettings, margin: MarginChoice, printer: PrinterCapabilities?) -> Double {
         if settings.layoutStyle.isPhoto { return 0 }
         var s = settings
@@ -119,7 +120,7 @@ public enum PrintJobs {
                                        cutMarks: settings.cutMarks)
             layout = PhotoLayout.plan(pages, options: options, area: printable)
         } else {
-            layout = Imposition.plan(pages, options: layoutOptions(settings), area: printable)
+            layout = Imposition.plan(pages, options: layoutOptions(settings, printer: printer), area: printable)
         }
 
         let manual = layout.duplex && !(printer?.sidesSupported.contains("two-sided-long-edge") ?? false)
@@ -285,8 +286,6 @@ public enum PrintJobs {
             switch warning {
             case .paddedWithBlanks(let count):
                 return PrintText.blanksAdded(count)
-            case .shrunk(let percent):
-                return PrintText.shrunk(percent)
             case .clipped(let points):
                 return PrintText.edgesCut(max(1, Int((points * 25.4 / 72).rounded(.toNearestOrEven))))
             }

@@ -18,17 +18,6 @@ final class LayoutTypesTests: XCTestCase {
         XCTAssertEqual(printable.height, 0)
     }
 
-    func test_symmetric_raisesEachMarginToTheLargerOfItAndItsOpposite() {
-        XCTAssertEqual(uneven.symmetric.margins, LayoutInsets(top: 30, left: 40, bottom: 30, right: 40))
-        XCTAssertEqual(uneven.symmetric.paper, layoutLetter)
-        assertLayoutRect(40, 30, 532, 732, uneven.symmetric.printable)
-    }
-
-    func test_symmetric_alreadySymmetric_isUnchanged() {
-        let area = paperWithMargins(layoutLetter, 12)
-        XCTAssertEqual(area.symmetric, area)
-    }
-
     func test_layoutOptions_defaults_areOnePageShrunkToFitOneSided() {
         let options = LayoutOptions()
         XCTAssertEqual(options.pagesPerSheet, 1)

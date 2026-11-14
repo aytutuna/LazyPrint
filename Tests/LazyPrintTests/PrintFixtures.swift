@@ -15,6 +15,7 @@ enum PrintFixtures {
     static func letter(_ edit: (inout PrintSettings) -> Void = { _ in }) -> PrintSettings {
         var settings = PrintSettings()
         settings.paperId = "letter"
+        settings.margin = MarginChoice.none
         edit(&settings)
         return settings
     }

@@ -72,7 +72,7 @@ public struct SheetRenderer {
         context.translateBy(x: 0, y: area.paper.height)
         context.scaleBy(x: 1, y: -1)
         for placement in side.side.placements {
-            drawPlacement(placement, area: area, imageDpi: imageDpi, in: context)
+            drawPlacement(placement, imageDpi: imageDpi, in: context)
         }
         drawMarks(side, area: area, in: context)
         context.restoreGState()
@@ -113,7 +113,7 @@ public struct SheetRenderer {
 
     // MARK: Placements
 
-    private func drawPlacement(_ placement: Placement, area: PrintableArea, imageDpi: Double, in context: CGContext) {
+    private func drawPlacement(_ placement: Placement, imageDpi: Double, in context: CGContext) {
         guard documents.indices.contains(placement.page.document) else { return }
         let document = documents[placement.page.document]
         let frame = placement.frame
@@ -125,7 +125,6 @@ public struct SheetRenderer {
 
         document.drawing.locked {
             context.saveGState()
-            context.clip(to: CGRect(area.printable))
             context.clip(to: CGRect(frame))
             context.translateBy(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
             context.rotate(by: Double(placement.turns) * .pi / 2)
@@ -220,7 +219,6 @@ public struct SheetRenderer {
     private func drawMarks(_ side: RenderedSide, area: PrintableArea, in context: CGContext) {
         let printable = area.printable
         context.saveGState()
-        context.clip(to: CGRect(printable))
         if side.side.borders {
             context.setStrokeColor(Self.color(.gray(128)))
             context.setLineWidth(Self.borderWidth)

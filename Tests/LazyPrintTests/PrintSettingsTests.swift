@@ -41,7 +41,7 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertFalse(s.rightToLeft)
         XCTAssertFalse(s.pageBorders)
         XCTAssertEqual(s.scaling, .shrinkToFit)
-        XCTAssertEqual(s.margin, MarginChoice.none)
+        XCTAssertEqual(s.margin, MarginChoice.printer)
         XCTAssertEqual(s.poster, 0)
         XCTAssertEqual(s.paperId, "auto")
         XCTAssertEqual(s.photoSizeId, "4x6")
@@ -117,6 +117,13 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(s.copies, 1)
         XCTAssertEqual(s.scaling, .shrinkToFit)
         XCTAssertEqual(s.pagesPerSheet, 2)
+    }
+
+    func test_settings_withTheOldSmallMargin_loadThePrintersMargin() throws {
+        try write(#"{"margin": "small"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.margin, .printer)
+        try write(#"{"margin": "printer"}"#, to: settingsURL)
+        XCTAssertEqual(SettingsStore.load(in: directory)?.margin, .printer)
     }
 
     func test_settings_savedInAPhotoTask_keepTheirPhotoLayout() throws {

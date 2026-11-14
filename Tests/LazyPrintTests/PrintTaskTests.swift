@@ -160,6 +160,9 @@ final class PrintTaskTests: XCTestCase {
         XCTAssertEqual(photos.color, .color)
         XCTAssertFalse(photos.booklet)
         XCTAssertTrue(photos.cutMarks)
+        XCTAssertEqual(photos.margin, MarginChoice.none)
+        XCTAssertEqual(TaskCatalog.apply(.photoSheet, to: start, printer: nil).margin, MarginChoice.none)
+        XCTAssertEqual(TaskCatalog.apply(.booklet, to: settings { $0.margin = MarginChoice.none }, printer: nil).margin, MarginChoice.printer)
 
         let sheet = TaskCatalog.apply(.photoSheet, to: start, printer: nil)
         XCTAssertEqual(sheet.taskId, "photoSheet")

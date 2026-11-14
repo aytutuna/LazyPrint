@@ -73,13 +73,6 @@ public struct PrintableArea: Equatable, Sendable {
                    width: max(0, paper.width - margins.left - margins.right),
                    height: max(0, paper.height - margins.top - margins.bottom))
     }
-
-    /// Each margin raised to the larger of it and its opposite, so a side turned 180° lands in the same box.
-    public var symmetric: PrintableArea {
-        let vertical = max(margins.top, margins.bottom)
-        let horizontal = max(margins.left, margins.right)
-        return PrintableArea(paper: paper, margins: LayoutInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal))
-    }
 }
 
 /// One page of one document, at the size it is shown (after a page's rotation or a photo's orientation).
@@ -101,7 +94,7 @@ public enum Scaling: String, Codable, CaseIterable, Sendable {
     case shrinkToFit
     /// Made as large as fits.
     case fit
-    /// 100 %, cut by the margins if it must be (`PlanWarning.clipped`).
+    /// 100 %, cut at the margin if it must be (`PlanWarning.clipped`).
     case actualSize
     /// Fills its frame, cropped in the middle (photos).
     case fill
@@ -139,9 +132,8 @@ public struct LayoutOptions: Equatable, Sendable {
     public var scale: Int
     /// The orientation of the sheets. A booklet is always a landscape spread and ignores it.
     public var orientation: SheetOrientation
-    /// A distance kept clear on every sheet edge, in points, on top of what the printer cannot reach. Used when pages are
-    /// sized to fit (`.shrinkToFit`, `.fit`, several per side, a booklet, a poster); not at `.actualSize` on a lone page,
-    /// nor with `.fill`.
+    /// The distance kept clear on every sheet edge, in points. It is the whole margin: the printer's own edge is not added to
+    /// it, and pages are laid out inside it whatever the scaling.
     public var margin: Double
     /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
     /// Any other number is no poster; a poster comes before `booklet` and `pagesPerSheet`.
@@ -163,29 +155,42 @@ public struct LayoutOptions: Equatable, Sendable {
     }
 }
 
-/// The margin choices. Stored as the case name.
+/// The margin choices. Stored as the case name; "small" in an older file is `.printer`.
 public enum MarginChoice: String, Codable, CaseIterable, Sendable {
     case none
-    case small
+    case printer
     case normal
     case custom
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        if raw == "small" {
+            self = .printer
+            return
+        }
+        guard let choice = MarginChoice(rawValue: raw) else {
+            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: decoder.codingPath,
+                                                                    debugDescription: "Unknown margin choice \(raw)"))
+        }
+        self = choice
+    }
 }
 
 public enum MarginChoices {
     public static let maxMillimetres = 50
 
-    /// 0, 6, 12, or the custom distance held between 0 and `maxMillimetres`.
-    public static func millimetres(_ choice: MarginChoice, custom: Int) -> Int {
+    /// 0, the printer's edge, 12, or the custom distance held between 0 and `maxMillimetres`.
+    public static func millimetres(_ choice: MarginChoice, custom: Int, printerEdge: Double) -> Double {
         switch choice {
         case .none: return 0
-        case .small: return 6
+        case .printer: return printerEdge
         case .normal: return 12
-        case .custom: return min(max(custom, 0), maxMillimetres)
+        case .custom: return Double(min(max(custom, 0), maxMillimetres))
         }
     }
 
-    public static func points(_ choice: MarginChoice, custom: Int) -> Double {
-        Double(millimetres(choice, custom: custom)) * 72 / 25.4
+    public static func points(_ choice: MarginChoice, custom: Int, printerEdge: Double) -> Double {
+        millimetres(choice, custom: custom, printerEdge: printerEdge) * 72 / 25.4
     }
 }
 
@@ -235,23 +240,21 @@ public struct Sheet: Equatable, Sendable {
 
 /// Something about the plan worth telling the user.
 public enum PlanWarning: Equatable, Sendable {
-    /// Pages printed at real size run past the printable area by this much on their worst side.
+    /// Pages printed at real size run past the margin by this much on their worst side.
     case clipped(points: Double)
     /// A booklet was filled up with blank pages.
     case paddedWithBlanks(count: Int)
-    /// The smallest scale a page was made, as a whole percent.
-    case shrunk(percent: Int)
 }
 
 /// The sheets of a job.
 public struct SheetPlan: Equatable, Sendable {
-    /// The area actually used: symmetric when backs may turn.
+    /// The printer's area for the paper, for the ticket and the borderless decision; the layout is in the margin.
     public var area: PrintableArea
     /// In printing order.
     public var sheets: [Sheet]
     /// Every sheet has a back (blank if need be), so `sideCount` is even.
     public var duplex: Bool
-    /// In the order clipped, padded, shrunk.
+    /// In the order clipped, padded.
     public var warnings: [PlanWarning]
     /// The size, in whole percent, the smallest page alone on its side really prints at (it can be above 100 for fit or
     /// fill); 100 when no page is alone on its side.

@@ -117,8 +117,6 @@ struct OptionsSheet: View {
     private func layoutSection(_ rules: Rules) -> some View {
         let printed: Int? = state.jobPlan?.plan.printedScale
         let edge: Double = PrintJobs.edge(state.settings, margin: state.settings.margin, printer: state.capabilities)
-        let noneEdge: Double = PrintJobs.edge(state.settings, margin: .none, printer: state.capabilities)
-        let smallEdge: Double = PrintJobs.edge(state.settings, margin: .small, printer: state.capabilities)
         return Section(InspectorSections.title(InspectorSections.layout)) {
             Choice(title: "Style", selection: Binding(
                 get: { state.settings.layoutStyle },
@@ -173,7 +171,8 @@ struct OptionsSheet: View {
                 get: { state.settings.margin },
                 set: { (margin: MarginChoice) in state.settings.margin = margin }),
                    options: MarginChoice.allCases.map { (choice: MarginChoice) -> (String, MarginChoice) in
-                       (PrintText.marginLabel(choice, edge: choice == .none ? noneEdge : smallEdge, custom: state.settings.marginMm), choice)
+                       let choiceEdge: Double = PrintJobs.edge(state.settings, margin: choice, printer: state.capabilities)
+                       return (PrintText.marginLabel(choice, edge: choiceEdge), choice)
                    },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {

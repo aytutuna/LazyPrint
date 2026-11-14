@@ -63,9 +63,9 @@ public enum PhotoLayout {
 
     /// As many prints of the size as fit on each sheet (the cells turned when more fit), 3 mm apart, in
     /// photo order; a photo whose orientation differs from its cell is turned a quarter counterclockwise.
-    /// A size larger than the printable area is one print per sheet, made smaller to fit.
+    /// A size larger than the paper is one print per sheet, made smaller to fit.
     public static func plan(_ photos: [SourcePage], options: PhotoOptions, area: PrintableArea) -> SheetPlan {
-        let cells = layoutCells(for: options.size.size, printable: area.printable)
+        let cells = layoutCells(for: options.size.size, printable: laid(area))
         let copies = max(1, options.copiesEach)
         var placements: [Placement] = []
         for photo in photos {
@@ -91,7 +91,7 @@ public enum PhotoLayout {
     /// The cut marks of a planned side, as lines for the renderer: at the corners of the print cells the
     /// side uses, none when only one print fits on a sheet.
     public static func cutMarks(_ side: SheetSide, options: PhotoOptions, area: PrintableArea) -> [TestPageItem] {
-        let cells = layoutCells(for: options.size.size, printable: area.printable)
+        let cells = layoutCells(for: options.size.size, printable: laid(area))
         if cells.count < 2 { return [] }
         return corners(of: Array(cells.prefix(side.placements.count)))
     }
@@ -114,6 +114,11 @@ public enum PhotoLayout {
             }
         }
         return marks
+    }
+
+    /// Photo layouts have no margin of their own, so they use the whole paper; the printer cuts what reaches its edge.
+    private static func laid(_ area: PrintableArea) -> LayoutRect {
+        LayoutRect(x: 0, y: 0, width: area.paper.width, height: area.paper.height)
     }
 
     private static func layoutCells(for size: LayoutSize?, printable: LayoutRect) -> [LayoutRect] {

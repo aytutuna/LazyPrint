@@ -16,13 +16,13 @@ public enum Imposition {
     /// The cut marks of a poster tile are this long, in the strip kept clear around it.
     static let posterMarkLength: Double = 6
 
-    /// The sheets for `pages` (several documents run on as one) on paper with the printable `area`.
-    /// When any back may turn (two-sided, booklet) both sides use `PrintableArea.symmetric`.
+    /// The sheets for `pages` (several documents run on as one) on paper with the printer's `area`. Pages are laid out inside
+    /// the chosen margin alone, equal on every side; the printer's own edge never moves them, it only cuts what reaches into it.
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan {
         let poster = (2...4).contains(options.poster)
         let duplex = !poster && (options.booklet || options.sides != .oneSided)
-        let used = duplex ? area.symmetric : area
-        let laid = withMargin(used, options.margin)
+        let margin = options.margin
+        let laid = PrintableArea(paper: area.paper, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
         let notes = Notes()
         let sheets: [Sheet]
         if poster {
@@ -36,23 +36,14 @@ public enum Imposition {
         var warnings: [PlanWarning] = []
         if notes.clipped > clipTolerance { warnings.append(.clipped(points: notes.clipped)) }
         if notes.padding > 0 { warnings.append(.paddedWithBlanks(count: notes.padding)) }
-        let percent = Int((notes.smallestScale * 100).rounded(.toNearestOrEven))
-        if percent < 100 { warnings.append(.shrunk(percent: percent)) }
         let printed = notes.lone.map { Int(($0 * 100).rounded(.toNearestOrEven)) } ?? 100
-        return SheetPlan(area: used, sheets: sheets, duplex: duplex, warnings: warnings, printedScale: printed)
+        return SheetPlan(area: area, sheets: sheets, duplex: duplex, warnings: warnings, printedScale: printed)
     }
 
-    /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins
-    /// (the same after `PrintableArea.symmetric`).
+    /// How far the printer's own edge reaches in, in millimetres to one decimal: the largest of the area's four margins.
     public static func edge(_ area: PrintableArea) -> Double {
         let m = area.margins
         return (max(m.top, m.left, m.bottom, m.right) * 25.4 / 72 * 10).rounded(.toNearestOrEven) / 10
-    }
-
-    private static func withMargin(_ area: PrintableArea, _ margin: Double) -> PrintableArea {
-        let m = area.margins
-        return PrintableArea(paper: area.paper, margins: LayoutInsets(top: max(m.top, margin), left: max(m.left, margin),
-                                                                      bottom: max(m.bottom, margin), right: max(m.right, margin)))
     }
 
     /// Each page enlarged to fit n × n printable areas that overlap by 1 cm, anchored top left, one tile per sheet in reading
@@ -72,7 +63,6 @@ public enum Imposition {
             let scale = fitScale(page.size.width, page.size.height, LayoutRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
             let posterWidth = page.size.width * scale
             let posterHeight = page.size.height * scale
-            notes.smallestScale = min(notes.smallestScale, scale)
             for row in 0..<n {
                 for column in 0..<n {
                     let left = Double(column) * (view.width - posterOverlap)
@@ -191,11 +181,14 @@ public enum Imposition {
         let cell = viewPrintable(area, landscape: landscape)
         let factor = scaling == .shrinkToFit || scaling == .actualSize ? Double(max(10, min(400, scale))) / 100 : 1
         let sized = LayoutSize(width: page.size.width * factor, height: page.size.height * factor)
-        let fitted = shown(sized, cell: cell, scaling: scaling, turn: false)
+        var fitted = shown(sized, cell: cell, scaling: scaling, turn: false)
+        // `shown` measures a crop in the sized page; a placement's is in the page's own points.
+        if let sizedCrop = fitted.crop, factor != 1 {
+            fitted.crop = LayoutRect(x: sizedCrop.x / factor, y: sizedCrop.y / factor,
+                                     width: sizedCrop.width / factor, height: sizedCrop.height / factor)
+        }
         if scaling == .actualSize {
-            notes.clipped = max(notes.clipped, max(fitted.frame.width - cell.width, fitted.frame.height - cell.height) / 2)
-        } else if scaling == .shrinkToFit || scaling == .fit {
-            notes.smallestScale = min(notes.smallestScale, factor * fitted.scale)
+            notes.clipped = max(notes.clipped, max(sized.width - cell.width, sized.height - cell.height) / 2)
         }
         notes.lone = min(notes.lone ?? .infinity, factor * fitted.scale)
         return place(page, shown: fitted, landscape: landscape, turned: false, paper: area.paper)
@@ -267,8 +260,14 @@ public enum Imposition {
         }
         let w = width * scale
         let h = height * scale
-        return Fitted(frame: LayoutRect(x: cell.x + (cell.width - w) / 2, y: cell.y + (cell.height - h) / 2, width: w, height: h),
-                      crop: nil, scale: scale)
+        let frame = LayoutRect(x: cell.x + (cell.width - w) / 2, y: cell.y + (cell.height - h) / 2, width: w, height: h)
+        if !turn && (w > cell.width + epsilon || h > cell.height + epsilon) {
+            let visible = intersect(frame, cell)
+            let crop = LayoutRect(x: (visible.x - frame.x) / scale, y: (visible.y - frame.y) / scale,
+                                  width: visible.width / scale, height: visible.height / scale)
+            return Fitted(frame: visible, crop: crop, scale: scale)
+        }
+        return Fitted(frame: frame, crop: nil, scale: scale)
     }
 
     /// The printable area in a reading view: the portrait paper itself, or the landscape view whose top is
@@ -320,7 +319,6 @@ public enum Imposition {
     private final class Notes {
         var clipped: Double = 0
         var padding: Int = 0
-        var smallestScale: Double = 1
         /// The smallest scale of a page alone on its side; nil when there is none.
         var lone: Double?
     }

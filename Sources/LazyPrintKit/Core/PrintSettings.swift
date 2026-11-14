@@ -56,7 +56,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     /// Percent, 10 to 400 (`LayoutOptions.scale`).
     public var scale = 100
     public var orientation = SheetOrientation.automatic
-    public var margin = MarginChoice.none
+    public var margin = MarginChoice.printer
     /// Millimetres, 0 to `MarginChoices.maxMillimetres`; what `MarginChoice.custom` means.
     public var marginMm = 10
     /// 0 for no poster, else 2, 3 or 4 sheets across and down (`LayoutOptions.poster`).

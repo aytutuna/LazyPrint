@@ -36,7 +36,7 @@ final class PhotoLayoutTests: XCTestCase {
             ("8x10", false, 18, 1),
             ("3.5x5", false, 0, 4),
             ("wallet", false, 0, 9),
-            ("wallet", false, 18, 8),
+            ("wallet", false, 18, 9),
             ("10x15cm", true, 0, 2),
             ("13x18cm", true, 0, 2),
             ("page", false, 0, 1),
@@ -60,11 +60,11 @@ final class PhotoLayoutTests: XCTestCase {
         XCTAssertEqual((placements[1].frame.x - placements[0].frame.x - 288) / 72 * 25.4, 3, accuracy: 0.0001)
     }
 
-    func test_plan_fourBySixWithMargins_turnsTheCellsWhenMoreFit() throws {
-        let plan = PhotoLayout.plan(photos(2), options: PhotoOptions(size: try size("4x6")), area: paperWithMargins(layoutLetter, 18))
+    func test_plan_fourBySixOnNarrowPaper_turnsTheCellsWhenMoreFit() throws {
+        let plan = PhotoLayout.plan(photos(2), options: PhotoOptions(size: try size("4x6")), area: wholePaper(LayoutSize(width: 450, height: 700)))
         let placements = plan.sheets[0].front.placements
-        assertLayoutRect((612 - 432) / 2.0, (792 - (576 + gap)) / 2, 432, 288, placements[0].frame)
-        assertLayoutRect((612 - 432) / 2.0, (792 - (576 + gap)) / 2 + 288 + gap, 432, 288, placements[1].frame)
+        assertLayoutRect((450 - 432) / 2.0, (700 - (576 + gap)) / 2, 432, 288, placements[0].frame)
+        assertLayoutRect((450 - 432) / 2.0, (700 - (576 + gap)) / 2 + 288 + gap, 432, 288, placements[1].frame)
         // A portrait photo in a landscape cell is turned a quarter counterclockwise.
         XCTAssertEqual(placements.map(\.turns), [3, 3])
     }
@@ -75,7 +75,7 @@ final class PhotoLayoutTests: XCTestCase {
     }
 
     func test_plan_landscapePhotoInATurnedCell_isNotTurned() throws {
-        let plan = PhotoLayout.plan(photos(2, 432, 288), options: PhotoOptions(size: try size("4x6")), area: paperWithMargins(layoutLetter, 18))
+        let plan = PhotoLayout.plan(photos(2, 432, 288), options: PhotoOptions(size: try size("4x6")), area: wholePaper(LayoutSize(width: 450, height: 700)))
         XCTAssertEqual(plan.sheets[0].front.placements.map(\.turns), [0, 0])
     }
 
@@ -110,11 +110,12 @@ final class PhotoLayoutTests: XCTestCase {
         XCTAssertEqual(plan.sheets[1].front.placements.map { $0.page.index }, [1, 1])
     }
 
-    func test_plan_wholePage_fillsThePrintableArea() throws {
+    func test_plan_wholePage_fillsThePaperWhateverThePrintersEdge() throws {
         let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 10, left: 20, bottom: 30, right: 40))
-        let plan = PhotoLayout.plan(photos(2, 552, 752), options: PhotoOptions(size: try size("page")), area: area)
+        let plan = PhotoLayout.plan(photos(2, 612, 792), options: PhotoOptions(size: try size("page")), area: area)
         XCTAssertEqual(plan.sheets.count, 2)
-        assertLayoutRect(20, 10, 552, 752, plan.sheets[0].front.placements[0].frame)
+        XCTAssertEqual(plan.area, area)
+        assertLayoutRect(0, 0, 612, 792, plan.sheets[0].front.placements[0].frame)
     }
 
     func test_plan_photos_areOneSidedWithoutWarnings() throws {

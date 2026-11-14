@@ -37,6 +37,7 @@ final class PrintJobsTests: XCTestCase {
     private func makeSettings(_ change: (inout PrintSettings) -> Void = { _ in }) -> PrintSettings {
         var settings = PrintSettings()
         settings.paperId = "a4"
+        settings.margin = MarginChoice.none
         change(&settings)
         return settings
     }
@@ -54,10 +55,11 @@ final class PrintJobsTests: XCTestCase {
 
     func test_layoutOptions_areTheSettings() {
         let options = PrintJobs.layoutOptions(
-            makeSettings { $0.pagesPerSheet = 4; $0.rightToLeft = true; $0.pageBorders = true; $0.scaling = .fit; $0.sides = .shortEdge })
+            makeSettings { $0.pagesPerSheet = 4; $0.rightToLeft = true; $0.pageBorders = true; $0.scaling = .fit; $0.sides = .shortEdge },
+            printer: nil)
         XCTAssertEqual(options, LayoutOptions(pagesPerSheet: 4, booklet: false, rightToLeft: true, scaling: .fit,
                                               sides: .shortEdge, pageBorders: true))
-        XCTAssertTrue(PrintJobs.layoutOptions(makeSettings { $0.booklet = true }).booklet)
+        XCTAssertTrue(PrintJobs.layoutOptions(makeSettings { $0.booklet = true }, printer: nil).booklet)
     }
 
     func test_layoutOptions_photoLayoutsPrintOneSideNoBooklet() {
@@ -65,11 +67,11 @@ final class PrintJobsTests: XCTestCase {
         for style in [LayoutStyle.photoPrints, .photoSheet] {
             var photo = settings
             photo.layoutStyle = style
-            let options = PrintJobs.layoutOptions(photo)
+            let options = PrintJobs.layoutOptions(photo, printer: nil)
             XCTAssertFalse(options.booklet)
             XCTAssertEqual(options.sides, .oneSided)
         }
-        XCTAssertEqual(PrintJobs.layoutOptions(settings).sides, .longEdge)
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).sides, .longEdge)
     }
 
     func test_thePresetPickedLast_doesNotChangeThePlan() {
@@ -219,8 +221,7 @@ final class PrintJobsTests: XCTestCase {
     func test_plan_notes_sayWhatHappenedToThePages() {
         let big = LoadedDocument(name: "Poster", kind: .pdf(encrypted: false), pages: [LayoutSize(width: 1000, height: 1400)])
         let shrunk = makePlan([big], makeSettings { $0.color = .gray }, hp)
-        XCTAssertEqual(shrunk.notes.count, 1)
-        XCTAssertTrue(shrunk.notes[0].hasPrefix("Shrunk to "))
+        XCTAssertTrue(shrunk.notes.isEmpty)
 
         let clipped = makePlan([big], makeSettings { $0.scaling = .actualSize; $0.color = .gray }, hp)
         XCTAssertEqual(clipped.notes.count, 1)
@@ -276,17 +277,17 @@ final class PrintJobsTests: XCTestCase {
         }
     }
 
-    func test_plan_marginNone_fallsBackToThePrinterEdge() throws {
+    func test_plan_printerMargin_isThePrintersEdge() throws {
         let demo = DemoPrinter.capabilities(duplex: true)
-        let job = makePlan([letterDoc()], makeSettings { $0.paperId = "letter" }, demo)
+        let job = makePlan([letterDoc()], makeSettings { $0.paperId = "letter"; $0.margin = .printer }, demo)
         let expected = 432 * 72.0 / 2540
         XCTAssertEqual(job.plan.area.margins, LayoutInsets(top: expected, left: expected, bottom: expected, right: expected))
         XCTAssertEqual(Imposition.edge(job.plan.area), 4.3)
     }
 
-    func test_plan_marginSmall_isNeverBorderless() {
+    func test_plan_marginPrinter_isNeverBorderless() {
         let printer = twoKinds()
-        for margin in [MarginChoice.small, .normal, .custom] {
+        for margin in [MarginChoice.printer, .normal, .custom] {
             XCTAssertNotEqual(makePlan([doc(1)], makeSettings { $0.margin = margin }, printer).plan.area.margins, noMargins)
         }
     }
@@ -294,9 +295,9 @@ final class PrintJobsTests: XCTestCase {
     func test_plan_marginNone_keepsThePhotoRules() {
         let printer = twoKinds()
         let photo = LoadedDocument(name: "Beach", kind: .photo, pages: [LayoutSize(width: 432, height: 288)])
-        let sheet = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "4x6"; $0.margin = .small }
+        let sheet = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "4x6"; $0.margin = .printer }
         XCTAssertNotEqual(makePlan([photo], sheet, printer).plan.area.margins, noMargins)
-        let whole = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "page"; $0.margin = .small }
+        let whole = makeSettings { $0.layoutStyle = .photoPrints; $0.photoSizeId = "page"; $0.margin = .printer }
         XCTAssertEqual(makePlan([photo], whole, printer).plan.area.margins, noMargins)
         let photoSheet = makeSettings { $0.layoutStyle = .photoSheet }
         XCTAssertNotEqual(makePlan([photo], photoSheet, printer).plan.area.margins, noMargins)
@@ -312,7 +313,7 @@ final class PrintJobsTests: XCTestCase {
 
     func test_ticket_mediaCol_isBorderlessExactlyWhenTheAreaWas() throws {
         let printer = twoKinds()
-        for margin in [MarginChoice.none, .small] {
+        for margin in [MarginChoice.none, .printer] {
             let settings = makeSettings { $0.margin = margin }
             let job = makePlan([doc(1)], settings, printer)
             let ticket = PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: printer, name: "x")
@@ -350,12 +351,12 @@ final class PrintJobsTests: XCTestCase {
 
     func test_ofItems_keepsOnlyThePaperTypeTrayAndMarginOfTheUser() {
         let printer = twoKinds()
-        let user = makeSettings { $0.color = .gray; $0.quality = .draft; $0.copies = 3; $0.sides = .longEdge; $0.margin = .small }
+        let user = makeSettings { $0.color = .gray; $0.quality = .draft; $0.copies = 3; $0.sides = .longEdge; $0.margin = .printer }
         let area = PrintJobs.area(SheetJob.itemSettings(user), printer: printer)
         let job = SheetJob.ofItems(name: "Test page", printer: PrintFixtures.printer(), capabilities: printer, area: area,
                                    sides: [DrawnItems(items: [])], settings: user)
         XCTAssertEqual(job.settings.paperId, "a4")
-        XCTAssertEqual(job.settings.margin, .small)
+        XCTAssertEqual(job.settings.margin, .printer)
         XCTAssertEqual(job.settings.color, .color)
         XCTAssertEqual(job.settings.quality, .normal)
         XCTAssertEqual(job.settings.copies, 1)
@@ -374,7 +375,7 @@ final class PrintJobsTests: XCTestCase {
                                     printer: printer, name: "x", asIs: true).scaling
         }
         XCTAssertEqual(scaling(printer, .none), "auto-fit")
-        XCTAssertEqual(scaling(printer, .small), "auto")
+        XCTAssertEqual(scaling(printer, .printer), "auto")
         XCTAssertEqual(scaling(printer, .none, .fit), "fit")
         printer.printScalingSupported = ["auto", "fit", "none"]
         XCTAssertEqual(scaling(printer, .none), "fit")
@@ -408,25 +409,29 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertEqual(PrintJobs.edge(makeSettings { $0.layoutStyle = .photoPrints }, margin: .none, printer: printer), 0)
         printer.mediaColDatabase = [entry(432), entry(0)]
         XCTAssertEqual(PrintJobs.edge(makeSettings(), margin: .none, printer: printer), 0)
-        XCTAssertEqual(PrintJobs.edge(makeSettings(), margin: .small, printer: printer), 4.3)
+        XCTAssertEqual(PrintJobs.edge(makeSettings(), margin: .printer, printer: printer), 4.3)
     }
 
-    func test_edge_isTheLargestSide_andSymmetricWhenDuplex() {
+    func test_edge_isTheLargestSide_andTheAreaIsNotSymmetrisedWhenDuplex() {
         var printer = PrinterCapabilities()
         printer.mediaColDatabase = [MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
                                                margins: MediaMargins(top: 300, left: 100, bottom: 640, right: 200), type: nil, source: nil)]
-        let oneSided = makePlan([doc(1)], makeSettings { $0.margin = .small }, printer).plan
+        let oneSided = makePlan([doc(1)], makeSettings { $0.margin = .printer }, printer).plan
         XCTAssertEqual(Imposition.edge(oneSided.area), 6.4)
         let duplex = makePlan([doc(2)], makeSettings { $0.sides = .longEdge }, printer).plan
-        XCTAssertEqual(duplex.area.margins.top, duplex.area.margins.bottom)
+        XCTAssertEqual(duplex.area, oneSided.area)
         XCTAssertEqual(Imposition.edge(duplex.area), 6.4)
         XCTAssertEqual(Imposition.edge(PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 3 * 72 / 25.4, left: 0, bottom: 0, right: 0))), 3)
     }
 
-    func test_printedScale_demoLetter_is96() {
+    func test_printedScale_demoLetter_isSetByTheMarginNotThePrintersEdge() {
         let demo = DemoPrinter.capabilities(duplex: false)
-        let job = makePlan([letterDoc()], makeSettings { $0.paperId = "letter" }, demo)
+        let onTheEdge = makePlan([letterDoc()], makeSettings { $0.paperId = "letter"; $0.margin = .none }, demo)
+        XCTAssertEqual(onTheEdge.plan.printedScale, 100)
+        XCTAssertTrue(onTheEdge.plan.warnings.isEmpty)
+        let job = makePlan([letterDoc()], makeSettings { $0.paperId = "letter"; $0.margin = .printer }, demo)
         XCTAssertEqual(job.plan.printedScale, 96)
+        XCTAssertTrue(job.plan.warnings.isEmpty)
         XCTAssertEqual(makePlan([letterDoc()], makeSettings { $0.paperId = "letter"; $0.pagesPerSheet = 2 }, demo).plan.printedScale, 100)
         XCTAssertEqual(makePlan([doc(1)], makeSettings(), twoKinds()).plan.printedScale, 100)
     }
@@ -639,15 +644,24 @@ final class PrintJobsTests: XCTestCase {
     }
 
     func test_layoutOptions_carryTheOrientation() {
-        XCTAssertEqual(PrintJobs.layoutOptions(makeSettings { $0.orientation = .landscape }).orientation, .landscape)
+        XCTAssertEqual(PrintJobs.layoutOptions(makeSettings { $0.orientation = .landscape }, printer: nil).orientation, .landscape)
     }
 
     func test_layoutOptions_carryTheMarginInPoints() {
-        let cases: [(MarginChoice, Int, Int)] = [(MarginChoice.none, 0, 0), (.small, 0, 6), (.normal, 0, 12), (.custom, 20, 20), (.custom, 900, 50)]
+        let cases: [(MarginChoice, Int, Double)] = [(MarginChoice.none, 0, 0), (.printer, 0, 6.4), (.normal, 0, 12), (.custom, 20, 20), (.custom, 900, 50)]
         for (choice, custom, millimetres) in cases {
-            let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom })
-            XCTAssertEqual(options.margin, Double(millimetres) * 72 / 25.4, accuracy: 1e-6)
+            let options = PrintJobs.layoutOptions(makeSettings { $0.margin = choice; $0.marginMm = custom }, printer: nil)
+            XCTAssertEqual(options.margin, millimetres * 72 / 25.4, accuracy: 1e-6)
         }
+    }
+
+    func test_layoutOptions_printerMargin_isThePrintersEdgeOrQuarterInchWithoutOne() {
+        let settings = makeSettings { $0.margin = .printer }
+        var printer = PrinterCapabilities()
+        printer.mediaColDatabase = [MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
+                                               margins: MediaMargins(top: 432, left: 432, bottom: 432, right: 432), type: nil, source: nil)]
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: printer).margin, 4.3 * 72 / 25.4, accuracy: 1e-6)
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).margin, 6.4 * 72 / 25.4, accuracy: 1e-6)
     }
 
     func test_layoutOptions_photosHaveNoMarginAndNoPoster() {
@@ -656,9 +670,9 @@ final class PrintJobsTests: XCTestCase {
         prints.layoutStyle = .photoPrints
         var sheet = settings
         sheet.layoutStyle = .photoSheet
-        XCTAssertEqual(PrintJobs.layoutOptions(prints).margin, 0)
-        XCTAssertEqual(PrintJobs.layoutOptions(sheet).poster, 0)
-        XCTAssertEqual(PrintJobs.layoutOptions(settings).poster, 2)
+        XCTAssertEqual(PrintJobs.layoutOptions(prints, printer: nil).margin, 0)
+        XCTAssertEqual(PrintJobs.layoutOptions(sheet, printer: nil).poster, 0)
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).poster, 2)
     }
 
     func test_anySizeAPrinterLists_canBeChosen() {

@@ -259,9 +259,9 @@ final class SheetRendererTests: XCTestCase {
         Pixels.assertColor(Pixels.white, bitmap, 303, 310)
     }
 
-    // MARK: Clip
+    // MARK: The printer's edge
 
-    func test_placement_outsideThePrintableArea_isCut() throws {
+    func test_placement_inTheStripThePrinterCannotPrint_isDrawn() throws {
         let document = try DocumentFixtures.open("red-letter.pdf")
         let area = paperWithMargins(layoutLetter, 72)
 
@@ -269,45 +269,45 @@ final class SheetRendererTests: XCTestCase {
 
         Pixels.assertColor(Pixels.red, bitmap, 306, 396)
         Pixels.assertColor(Pixels.red, bitmap, 80, 80)
-        Pixels.assertColor(Pixels.white, bitmap, 60, 396)
-        Pixels.assertColor(Pixels.white, bitmap, 306, 780)
+        Pixels.assertColor(Pixels.red, bitmap, 60, 396)
+        Pixels.assertColor(Pixels.red, bitmap, 306, 780)
     }
 
-    func test_borders_areCutByThePrintableArea() throws {
+    func test_borders_inTheStripThePrinterCannotPrint_areDrawn() throws {
         let area = paperWithMargins(layoutLetter, 72)
 
         let bitmap = try render([], side([place(0, LayoutSize(width: 100, height: 100), rect(30, 100, 300, 300))], borders: true),
                                 area: area, dpi: 144)
 
-        // The left edge is at 30 pt, in the margin: pixel 60 at 144 dpi. The top edge, at 100 pt, shows.
-        for x in 58..<63 { Pixels.assertColor(Pixels.white, bitmap, x, 400, tolerance: 2) }
-        XCTAssertTrue((198..<202).contains { Pixels.at(bitmap, 300, $0).r < 200 })
+        // The left edge is at 30 pt, in the strip: pixel 60 at 144 dpi.
+        XCTAssertTrue((58..<63).contains { Pixels.at(bitmap, $0, 400).r < 200 })
     }
 
-    func test_testPageItems_areCutByThePrintableArea() throws {
+    func test_testPageItems_areNotCutByThePrintableArea() throws {
         let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 0, left: 72, bottom: 0, right: 0))
         let items: [TestPageItem] = [.rect(rect(0, 0, 100, 100), fill: .red), .rect(rect(500, 0, 112, 100), fill: .blue)]
 
         let upright = try render([], RenderedSide(side: side(), items: items), area: area)
         let turned = try render([], RenderedSide(side: side(), items: items, turned: true), area: area)
 
-        Pixels.assertColor(Pixels.white, upright, 30, 50)
-        Pixels.assertColor(Pixels.red, upright, 85, 50)
+        Pixels.assertColor(Pixels.red, upright, 30, 50)
         Pixels.assertColor(Pixels.blue, upright, 560, 50)
-        // Half a turn puts the red square at the bottom right and the blue one at the bottom left, where the margin is.
+        // Half a turn puts the red square at the bottom right and the blue one at the bottom left.
         Pixels.assertColor(Pixels.red, turned, 560, 750)
-        Pixels.assertColor(Pixels.white, turned, 30, 750)
+        Pixels.assertColor(Pixels.blue, turned, 30, 750)
         Pixels.assertColor(Pixels.blue, turned, 100, 750)
     }
 
-    func test_mark_isCutByThePrintableArea() throws {
-        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 100, left: 100, bottom: 688, right: 508))
+    func test_mark_sitsInTheCornerOfThePrintableArea() throws {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 100, left: 100, bottom: 0, right: 0))
 
         let bitmap = try render([], RenderedSide(side: side(), marked: true), area: area, dpi: 300)
 
-        // The dot would be 8 pt in, outside a printable area 4 pt wide.
+        // The dot is 8 pt in from the printable corner, not from the paper's.
         let x = Int(Double(100 + 8) * 300 / 72)
-        Pixels.assertColor(Pixels.white, bitmap, x, x, tolerance: 0)
+        Pixels.assertColor((250, 250, 250), bitmap, x, x, tolerance: 1)
+        let y = Int(8.0 * 300 / 72)
+        Pixels.assertColor(Pixels.white, bitmap, y, y, tolerance: 0)
     }
 
     func test_placement_ofAnUnknownDocument_isSkipped() throws {

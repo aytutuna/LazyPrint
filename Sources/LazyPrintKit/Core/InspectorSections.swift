@@ -68,7 +68,7 @@ public enum InspectorSections {
     }
 
     /// "2 per side · Borders", "Booklet · Right to left"; "" for one page per side.
-    /// `edge` is the printer's own margin (`Imposition.edge`), which a margin cannot go below; `printedScale` is what a lone
+    /// `edge` is the printer's own margin (`Imposition.edge`), what the Printer's margin choice means; `printedScale` is what a lone
     /// page really prints at (`SheetPlan.printedScale`) when the plan is known.
     public static func layoutSummary(_ s: PrintSettings, edge: Double = 0, printedScale: Int? = nil) -> String {
         var parts = [String]()
@@ -95,7 +95,7 @@ public enum InspectorSections {
             default: parts.append("Fill")
             }
         }
-        let margin: Double = s.layoutStyle.isPhoto ? 0 : max(Double(MarginChoices.millimetres(s.margin, custom: s.marginMm)), edge)
+        let margin: Double = s.layoutStyle.isPhoto ? 0 : MarginChoices.millimetres(s.margin, custom: s.marginMm, printerEdge: edge)
         if margin > 0 { parts.append("\(PrintText.millimetres(margin)) margins") }
         return join(parts)
     }
