@@ -152,7 +152,12 @@ public final class CompanionInbox: @unchecked Sendable {
 
     /// The free bytes on the volume that holds the given folder; nil when unknown. Set once, before the inbox is used.
     public var freeSpace: @Sendable (URL) -> Int64? = { url in
-        (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
+        // The important-usage figure reads 0 outside a login session (over ssh, for one), which would refuse every file.
+        if let important = values?.volumeAvailableCapacityForImportantUsage, important > 0 {
+            return important
+        }
+        return values?.volumeAvailableCapacity.map(Int64.init)
     }
 
     public init(directory: URL) {
