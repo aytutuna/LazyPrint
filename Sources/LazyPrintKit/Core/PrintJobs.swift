@@ -148,8 +148,9 @@ public enum PrintJobs {
     /// planned (no scaling, two-sided on the long edge whatever the flip, since the planner turns the backs), and a manual
     /// pass is one-sided. Quality, scaling and the copies' collation are asked for only when the printer lists them.
     /// A paper the printer has no entry for is sent as a media-col with the margins laid out when it lists media-col-supported.
-    /// A document `asIs` is the printer's to scale ("auto" for shrink to fit, or "auto-fit" and "fit" on borderless media; "fit" for fit), and goes two-sided on the short edge
-    /// when asked and listed.
+    /// A document `asIs` on borderless media is the printer's to scale ("auto-fit" or "fit" for shrink to fit, "fit" for fit;
+    /// "auto" would fill zero-margin media); on bordered media it is only sent when nothing needs scaling, so it asks for none.
+    /// It goes two-sided on the short edge when asked and listed.
     public static func ticket(_ job: JobPlan, settings: PrintSettings, format: String, printer: PrinterCapabilities?,
                               name: String, asIs: Bool = false) -> IppJobTicket {
         let sheet = job.plan.area
@@ -188,16 +189,17 @@ public enum PrintJobs {
                             collatedCopies: collated)
     }
 
-    /// On borderless media "auto" is fill (PWG 5100.13), so shrink to fit asks for "auto-fit" or "fit" there.
+    /// On borderless media "auto" is fill (PWG 5100.13), so shrink to fit asks for "auto-fit" or "fit" there. A document
+    /// sent as it is on bordered media would be scaled into the edge, so it asks for none.
     private static func printScaling(_ scaling: Scaling, printer: PrinterCapabilities?, asIs: Bool, borderless: Bool) -> String? {
         let listed = printer?.printScalingSupported ?? []
         let wanted: [String]
-        if !asIs {
+        if !asIs || !borderless {
             wanted = ["none"]
         } else if scaling == .fit {
             wanted = ["fit", "auto"]
         } else if scaling == .shrinkToFit {
-            wanted = borderless ? ["auto-fit", "fit"] : ["auto", "fit"]
+            wanted = ["auto-fit", "fit"]
         } else {
             wanted = ["none"]
         }

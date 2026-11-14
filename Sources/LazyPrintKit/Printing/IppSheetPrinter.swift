@@ -104,6 +104,7 @@ public final class IppSheetPrinter: SheetPrinter {
             let plain = settings.layoutStyle == .pages && settings.poster == 0
                 && (settings.margin == .none || settings.margin == .custom && settings.marginMm == 0)
                 && settings.pagesPerSheet == 1 && !settings.booklet && settings.orientation == .automatic
+                && (job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0) || job.plan.plan.printedScale == 100)
                 && (settings.scale == 100 || settings.scaling == .fit)
                 && (settings.scaling == .fit || settings.scaling == .shrinkToFit
                     || settings.scaling == .actualSize && caps.printScalingSupported.contains("none"))
@@ -112,9 +113,11 @@ public final class IppSheetPrinter: SheetPrinter {
         case .photo:
             let paper = job.plan.plan.area.paper
             let photo = document.pages[0]
-            // Only a photo the plan laid out filling the paper upright goes as it is: a margin or a forced orientation shrinks or turns it.
+            // Only a photo the plan laid out filling the paper upright goes as it is, and only on borderless media: a margin or a
+            // forced orientation shrinks or turns it, and a bordered printer would scale it into its edge.
             guard placed.count == 1, let placement = job.plan.plan.sheets.first?.front.placements.first else { return nil }
-            let ownSize = placement.turns == 0
+            let ownSize = job.plan.plan.area.margins == LayoutInsets(top: 0, left: 0, bottom: 0, right: 0)
+                && placement.turns == 0
                 && (abs(placement.frame.width - paper.width) <= PaperSizes.fitTolerance
                     || abs(placement.frame.height - paper.height) <= PaperSizes.fitTolerance)
                 && abs(min(photo.width, photo.height) - paper.width) <= PaperSizes.fitTolerance

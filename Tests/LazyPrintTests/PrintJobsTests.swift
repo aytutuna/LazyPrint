@@ -375,7 +375,7 @@ final class PrintJobsTests: XCTestCase {
                                     printer: printer, name: "x", asIs: true).scaling
         }
         XCTAssertEqual(scaling(printer, .none), "auto-fit")
-        XCTAssertEqual(scaling(printer, .printer), "auto")
+        XCTAssertEqual(scaling(printer, .printer), "none")
         XCTAssertEqual(scaling(printer, .none, .fit), "fit")
         printer.printScalingSupported = ["auto", "fit", "none"]
         XCTAssertEqual(scaling(printer, .none), "fit")
@@ -479,20 +479,28 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertNotEqual(onA4.plan.area.margins, noMargins)
     }
 
-    func test_ticket_aDocumentSentAsIs_isScaledByThePrinter_andFlippedOnTheEdgeAskedFor() {
+    func test_ticket_aDocumentSentAsIs_isScaledByThePrinterOnlyOnBorderlessMedia_andFlippedOnTheEdgeAskedFor() {
         let settings = makeSettings { $0.sides = .shortEdge; $0.scaling = .shrinkToFit }
         let job = makePlan([doc(2)], settings, hp)
         let ticket = PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: hp, name: "x", asIs: true)
         XCTAssertEqual(ticket.sides, "two-sided-short-edge")
-        XCTAssertEqual(ticket.scaling, "auto")
+        XCTAssertEqual(ticket.scaling, "none")
 
         let fit = makeSettings { $0.scaling = .fit }
         XCTAssertEqual(PrintJobs.ticket(makePlan([doc(1)], fit, hp), settings: fit, format: "application/pdf", printer: hp,
-                                        name: "x", asIs: true).scaling, "fit")
+                                        name: "x", asIs: true).scaling, "none")
+
+        var borderless = twoKinds()
+        borderless.sidesSupported = ["one-sided", "two-sided-long-edge"]
+        borderless.printScalingSupported = ["auto", "auto-fit", "fit", "none"]
+        XCTAssertEqual(PrintJobs.ticket(makePlan([doc(1)], fit, borderless), settings: fit, format: "application/pdf",
+                                        printer: borderless, name: "x", asIs: true).scaling, "fit")
+        XCTAssertEqual(PrintJobs.ticket(makePlan([doc(1)], settings, borderless), settings: settings, format: "application/pdf",
+                                        printer: borderless, name: "x", asIs: true).scaling, "auto-fit")
         var onlyFit = PrinterCapabilities()
         onlyFit.printScalingSupported = ["fit", "none"]
         XCTAssertEqual(PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: onlyFit, name: "x",
-                                        asIs: true).scaling, "fit")
+                                        asIs: true).scaling, "none")
         XCTAssertNil(PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: plain, name: "x", asIs: true).scaling)
         XCTAssertEqual(PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: hp, name: "x").scaling, "none")
         XCTAssertEqual(PrintJobs.ticket(job, settings: settings, format: "application/pdf", printer: hp, name: "x").sides,

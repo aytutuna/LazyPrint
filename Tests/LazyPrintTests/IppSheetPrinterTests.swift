@@ -234,6 +234,16 @@ final class IppSheetPrinterTests: XCTestCase {
         XCTAssertNotEqual(try request.document(), bytes)
     }
 
+    func test_aPdfThatNeedsShrinkingOnPaperWithAnEdge_isDrawnHere() async throws {
+        let (url, bytes) = try original()
+        let a4 = try DocumentLoader().load(try writePDF(named: "A4.pdf", pages: 1, width: 595, height: 842, in: try tempFolder()))
+        let settings = PrintFixtures.letter { $0.scaling = .shrinkToFit }
+        let job = PrintFixtures.job(settings, document: a4, printer: PrintFixtures.printer(.ipp), capabilities: plain(pdfAndRaster))
+        try await printer(original: url).print(job, pass: 0) { _ in }
+
+        XCTAssertNotEqual(try XCTUnwrap(sent(.printJob).first).document(), bytes)
+    }
+
     func test_aPdfWithAMargin_isDrawnHere() async throws {
         let (url, bytes) = try original()
         try await printer(original: url).print(try job({ $0.margin = .printer }, pages: 1, caps: plain(pdfAndRaster)), pass: 0) { _ in }
@@ -281,15 +291,16 @@ final class IppSheetPrinterTests: XCTestCase {
     }
 
     /// One 4 x 6 photo on 4 x 6 paper, its file as the loader hands it out.
-    private func photoJob(_ formats: [String]) throws -> (job: SheetJob, file: URL) {
+    private func photoJob(_ formats: [String], edge: Double = 0) throws -> (job: SheetJob, file: URL) {
         let file = tempURL("jpg")
         let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(file as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
         CGImageDestinationAddImage(destination, try solidImage(Pixels.red, width: 1200, height: 1800), nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         let document = try DocumentLoader().load(file)
         let area = wholePaper(LayoutSize(width: 288, height: 432))
-        let plan = PhotoLayout.plan([SourcePage(document: 0, index: 0, size: document.loaded.pages[0])],
+        var plan = PhotoLayout.plan([SourcePage(document: 0, index: 0, size: document.loaded.pages[0])],
                                     options: PhotoOptions(size: PhotoSize.all[0]), area: area)
+        if edge > 0 { plan.area = paperWithMargins(area.paper, edge) }
         let jobPlan = JobPlan(plan: plan, manualDuplex: false, passes: [DuplexPass(sides: [plan.sheets[0].front], marked: [])],
                               copiesInJob: 1, notes: [])
         let job = SheetJob(name: "Photo", printer: PrintFixtures.printer(.ipp), capabilities: plain(formats), settings: PrintSettings(),
@@ -304,6 +315,13 @@ final class IppSheetPrinterTests: XCTestCase {
         let request = try XCTUnwrap(sent(.printJob).first)
         XCTAssertEqual(try attribute(request, "document-format"), "image/jpeg")
         XCTAssertEqual(try request.document(), try Data(contentsOf: file))
+    }
+
+    func test_aPhotoOnPaperWithAnEdge_isDrawnHereNotScaledIntoIt() async throws {
+        let (job, file) = try photoJob(["image/jpeg"] + pdfAndRaster, edge: 12)
+        try await printer(original: file).print(job, pass: 0) { _ in }
+
+        XCTAssertNotEqual(try attribute(try XCTUnwrap(sent(.printJob).first), "document-format"), "image/jpeg")
     }
 
     func test_aPhotoOnAPrinterThatTakesPdfButNotJpeg_isDrawnAsPdfNotSentAsIs() async throws {
