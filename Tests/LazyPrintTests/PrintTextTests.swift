@@ -14,12 +14,20 @@ final class PrintTextTests: XCTestCase {
                        "Lazy Print ran out of time in the background. Print the check sheet again from the card.")
     }
 
+    func test_printerMarginSides_shortensWhenSidesAreEqual() {
+        func pt(_ mm: Double) -> Double { mm * 72 / 25.4 }
+        XCTAssertEqual(PrintText.printerMarginSides(LayoutInsets(top: pt(4.3), left: pt(4.3), bottom: pt(4.3), right: pt(4.3))), "4.3 mm on every side")
+        XCTAssertEqual(PrintText.printerMarginSides(LayoutInsets(top: pt(3), left: pt(3), bottom: pt(12), right: pt(3))),
+                       "Top 3 mm, bottom 12 mm, sides 3 mm")
+        XCTAssertEqual(PrintText.printerMarginSides(LayoutInsets(top: pt(3), left: pt(3), bottom: pt(12), right: pt(5.5))),
+                       "Top 3, bottom 12, left 3, right 5.5 mm")
+    }
+
     func test_marginLabel_namesTheChoiceAndItsSize() {
-        XCTAssertEqual(PrintText.marginLabel(.none, edge: 4.3), "None")
-        XCTAssertEqual(PrintText.marginLabel(.printer, edge: 4.3), "Printer's margin, 4.3 mm")
-        XCTAssertEqual(PrintText.marginLabel(.printer, edge: 6), "Printer's margin, 6 mm")
-        XCTAssertEqual(PrintText.marginLabel(.normal, edge: 13), "Normal, 12 mm")
-        XCTAssertEqual(PrintText.marginLabel(.custom, edge: 4.3), "Custom")
+        XCTAssertEqual(PrintText.marginLabel(.none), "None")
+        XCTAssertEqual(PrintText.marginLabel(.printer), "Printer's margin")
+        XCTAssertEqual(PrintText.marginLabel(.normal), "Normal, 12 mm")
+        XCTAssertEqual(PrintText.marginLabel(.custom), "Custom")
         XCTAssertEqual(PrintText.printerEdgeNote(4.3), "This printer can't print the outer 4.3 mm")
         XCTAssertEqual(PrintText.printerEdgeNote(6), "This printer can't print the outer 6 mm")
         XCTAssertEqual(PrintText.printsAt(96), "Prints at 96 %")

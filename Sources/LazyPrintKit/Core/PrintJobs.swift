@@ -70,6 +70,7 @@ public enum PrintJobs {
                       orientation: settings.orientation,
                       margin: MarginChoices.points(settings.margin, custom: settings.marginMm,
                                                    printerEdge: printerMargin(settings, printer: printer)),
+                      margins: settings.margin == .printer ? area(settings, printer: printer).margins : nil,
                       poster: settings.poster,
                       cutMarks: settings.cutMarks)
     }

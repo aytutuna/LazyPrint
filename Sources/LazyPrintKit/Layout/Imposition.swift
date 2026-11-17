@@ -20,7 +20,8 @@ public enum Imposition {
     static let cutMarkLength: Double = 4
 
     /// The sheets for `pages` (several documents run on as one) on paper with the printer's `area`. Pages are laid out inside
-    /// the chosen margin alone, equal on every side; the printer's own edge never moves them, it only cuts what reaches into it.
+    /// the chosen margin alone, equal on every side, or the printer's own edge on each side when `options.margins` is set; otherwise
+    /// the printer's own edge never moves them, it only cuts what reaches into it.
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan {
         let poster = (2...4).contains(options.poster)
         let duplex = !poster && (options.booklet || options.sides != .oneSided)
@@ -44,7 +45,13 @@ public enum Imposition {
 
     private static func laidArea(_ area: PrintableArea, _ options: LayoutOptions) -> PrintableArea {
         let margin = options.margin
-        return PrintableArea(paper: area.paper, margins: LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
+        return PrintableArea(paper: area.paper, margins: options.margins ?? LayoutInsets(top: margin, left: margin, bottom: margin, right: margin))
+    }
+
+    /// The margins of a side that is turned 180° afterwards, so they land back where they were meant to be.
+    private static func rotated(_ area: PrintableArea) -> PrintableArea {
+        let m = area.margins
+        return PrintableArea(paper: area.paper, margins: LayoutInsets(top: m.bottom, left: m.right, bottom: m.top, right: m.left))
     }
 
     /// Whether a print of `size` (portrait) fits one cell of the layout, either way round, in any reading view the orientation
@@ -120,7 +127,7 @@ public enum Imposition {
         let scaling: Scaling = cells && options.scaling != .fill ? .fit : options.scaling
         let borders = options.pageBorders && perSide > 1
 
-        func side(_ sidePages: [SourcePage]) -> SheetSide {
+        func side(_ sidePages: [SourcePage], _ area: PrintableArea) -> SheetSide {
             var placements: [Placement] = []
             for page in sidePages {
                 if perSide == 1 && options.cellSize == nil {
@@ -148,10 +155,10 @@ public enum Imposition {
         var sheets: [Sheet] = []
         var start = 0
         while start < pages.count {
-            let front = side(slice(pages, from: start, count: perSide))
+            let front = side(slice(pages, from: start, count: perSide), area)
             var back: SheetSide?
             if duplex {
-                let plain = side(slice(pages, from: start + perSide, count: perSide))
+                let plain = side(slice(pages, from: start + perSide, count: perSide), turnBacks ? rotated(area) : area)
                 back = turnBacks ? turned(plain, paper: area.paper) : plain
             }
             sheets.append(Sheet(front: front, back: back))
@@ -166,13 +173,13 @@ public enum Imposition {
         let scaling: Scaling = options.scaling == .fill ? .fill : .fit
 
         // The view is the landscape spread; its fold is the paper's centre line.
-        let view = viewPrintable(area, landscape: true)
         let viewWidth = area.paper.height
         let viewHeight = area.paper.width
-        let leftHalf = intersect(LayoutRect(x: 0, y: 0, width: viewWidth / 2, height: viewHeight), view)
-        let rightHalf = intersect(LayoutRect(x: viewWidth / 2, y: 0, width: viewWidth / 2, height: viewHeight), view)
 
-        func spread(_ first: Int, _ second: Int) -> SheetSide {
+        func spread(_ first: Int, _ second: Int, _ area: PrintableArea) -> SheetSide {
+            let view = viewPrintable(area, landscape: true)
+            let leftHalf = intersect(LayoutRect(x: 0, y: 0, width: viewWidth / 2, height: viewHeight), view)
+            let rightHalf = intersect(LayoutRect(x: viewWidth / 2, y: 0, width: viewWidth / 2, height: viewHeight), view)
             let (left, right) = options.rightToLeft ? (second, first) : (first, second)
             var placements: [Placement] = []
             if left < pages.count { placements.append(inCell(pages[left], cell: leftHalf, scaling: scaling, landscape: true, paper: area.paper)) }
@@ -182,8 +189,8 @@ public enum Imposition {
 
         var sheets: [Sheet] = []
         for k in 0..<(count / 4) {
-            let front = spread(count - 1 - 2 * k, 2 * k)
-            let back = turned(spread(2 * k + 1, count - 2 - 2 * k), paper: area.paper)
+            let front = spread(count - 1 - 2 * k, 2 * k, area)
+            let back = turned(spread(2 * k + 1, count - 2 - 2 * k, rotated(area)), paper: area.paper)
             sheets.append(Sheet(front: front, back: back))
         }
         return sheets

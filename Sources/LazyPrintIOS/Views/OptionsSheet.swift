@@ -169,14 +169,18 @@ struct OptionsSheet: View {
                 get: { state.settings.margin },
                 set: { (margin: MarginChoice) in state.settings.margin = margin }),
                    options: MarginChoice.allCases.map { (choice: MarginChoice) -> (String, MarginChoice) in
-                       return (PrintText.marginLabel(choice, edge: printerMargin), choice)
+                       return (PrintText.marginLabel(choice), choice)
                    },
                    enabled: rules.marginEnabled, reason: rules.marginReason, id: "print.margins")
             if state.settings.margin == .custom {
                 MarginMmFields()
                     .disabled(!rules.marginEnabled)
             }
-            if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
+            if cutByEdge, let edge {
+                note(PrintText.printerEdgeNote(edge))
+            } else if rules.marginEnabled, state.settings.margin == .printer, edge != nil {
+                note(PrintText.printerMarginSides(PrintJobs.area(state.settings, printer: state.capabilities, photosOnly: photosOnly).margins))
+            }
         }
     }
 

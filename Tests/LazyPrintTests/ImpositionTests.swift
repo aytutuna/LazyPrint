@@ -168,6 +168,39 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(frontSide(plan).placements[0].frame, backSide(plan).placements[0].frame)
     }
 
+    func test_plan_printerMargins_layAPageInExactlyThatArea() throws {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 8.5, left: 8.5, bottom: 34, right: 8.5))
+        let plan = makePlan([makePage(0, 612, 792)], LayoutOptions(margin: 34, margins: area.margins), area: area)
+        let frame = try onlyElement(frontSide(plan).placements).frame
+        let printable = area.printable
+        let scale = min(printable.width / 612, printable.height / 792)
+        assertLayoutRect(printable.x + (printable.width - 612 * scale) / 2, printable.y, 612 * scale, printable.height, frame)
+    }
+
+    func test_plan_printerMargins_shortEdgeBackUsesRotatedMargins() throws {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 8.5, left: 8.5, bottom: 34, right: 8.5))
+        let plan = makePlan(portraitPages(2), LayoutOptions(scaling: .fit, sides: .shortEdge, margins: area.margins), area: area)
+        let front = try onlyElement(frontSide(plan).placements).frame
+        let back = try onlyElement(backSide(plan).placements).frame
+        // After the 180 degree turn the back keeps off the same edges as the front.
+        XCTAssertEqual(front.y, back.y, accuracy: 1e-6)
+        XCTAssertEqual(front.height, back.height, accuracy: 1e-6)
+        XCTAssertEqual(back.y, area.printable.y, accuracy: 1e-6)
+        XCTAssertEqual(back.y + back.height, area.printable.y + area.printable.height, accuracy: 1e-6)
+    }
+
+    func test_plan_printerMargins_landscapeViewKeepsEachEdge() throws {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 8.5, left: 20, bottom: 34, right: 8.5))
+        let plan = makePlan([makePage(0, 792, 612)], LayoutOptions(scaling: .fit, margins: area.margins), area: area)
+        let frame = try onlyElement(frontSide(plan).placements).frame
+        let printable = area.printable
+        XCTAssertGreaterThanOrEqual(frame.x, printable.x - 1e-6)
+        XCTAssertGreaterThanOrEqual(frame.y, printable.y - 1e-6)
+        XCTAssertLessThanOrEqual(frame.x + frame.width, printable.x + printable.width + 1e-6)
+        XCTAssertLessThanOrEqual(frame.y + frame.height, printable.y + printable.height + 1e-6)
+        XCTAssertEqual(frame.y + frame.height, printable.y + printable.height, accuracy: 1e-6)
+    }
+
     func test_printedScale_isThatOfALonePage() {
         XCTAssertEqual(makePlan([makePage(0, 300, 400)]).printedScale, 100)
         XCTAssertEqual(makePlan([makePage(0, 300, 400)], LayoutOptions(scale: 50)).printedScale, 50)

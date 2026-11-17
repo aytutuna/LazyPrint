@@ -41,7 +41,7 @@ final class InspectorSectionsTests: XCTestCase {
         let s = PrintSettings()
         XCTAssertEqual(InspectorSections.summary(InspectorSections.printer, s), "")
         XCTAssertEqual(InspectorSections.pagesSummary(s), "")
-        XCTAssertEqual(InspectorSections.layoutSummary(s), "")
+        XCTAssertEqual(InspectorSections.layoutSummary(s), "Printer's margins")
         XCTAssertEqual(InspectorSections.paperSummary(s), "")
         XCTAssertEqual(InspectorSections.photosSummary(s), "")
         XCTAssertEqual(InspectorSections.headerName(InspectorSections.pages, s), "Pages")
@@ -61,11 +61,11 @@ final class InspectorSectionsTests: XCTestCase {
             $0.cutMarks = true
         }
         XCTAssertEqual(InspectorSections.pagesSummary(s), "3 copies \u{00B7} Two-sided")
-        XCTAssertEqual(InspectorSections.layoutSummary(s), "2 per side \u{00B7} Borders")
+        XCTAssertEqual(InspectorSections.layoutSummary(s), "2 per side \u{00B7} Borders \u{00B7} Printer's margins")
         XCTAssertEqual(InspectorSections.paperSummary(s), "Letter \u{00B7} Best \u{00B7} Gray")
         XCTAssertEqual(InspectorSections.photosSummary(s), "10 \u{00D7} 15 cm \u{00B7} Cut marks")
         XCTAssertEqual(InspectorSections.headerName(InspectorSections.layout, s), "Layout, 2 per side \u{00B7} Borders")
-        XCTAssertEqual(InspectorSections.summary(InspectorSections.layout, s), "2 per side \u{00B7} Borders")
+        XCTAssertEqual(InspectorSections.summary(InspectorSections.layout, s), "2 per side \u{00B7} Borders \u{00B7} Printer's margins")
     }
 
     func test_pagesSummary_copies_andTheEdge() {
@@ -79,19 +79,19 @@ final class InspectorSectionsTests: XCTestCase {
 
     func test_layoutSummary_booklet_scalingAndDirection() {
         // A booklet ignores the pages per side and the borders.
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.pagesPerSheet = 4; $0.pageBorders = true }), "Booklet")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.pagesPerSheet = 4; $0.pageBorders = true }), "Booklet \u{00B7} Printer's margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.rightToLeft = true }),
-                       "Booklet \u{00B7} Right to left")
+                       "Booklet \u{00B7} Right to left \u{00B7} Printer's margins")
         // Direction only matters with several pages.
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.rightToLeft = true; $0.pageBorders = true }), "")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }), "Actual size")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fit }), "Fit to page")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.rightToLeft = true; $0.pageBorders = true }), "Printer's margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }), "Actual size \u{00B7} Printer's margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fit }), "Fit to page \u{00B7} Printer's margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings {
             $0.pagesPerSheet = 4
             $0.pageBorders = true
             $0.rightToLeft = true
             $0.scaling = .fill
-        }), "4 per side \u{00B7} Borders \u{00B7} Right to left +1")
+        }), "4 per side \u{00B7} Borders \u{00B7} Right to left +2")
     }
 
     func test_paperSummary_skipsAutomaticNormalColor() {
@@ -110,25 +110,25 @@ final class InspectorSectionsTests: XCTestCase {
     func test_summaries_namePageOrderAndOrientation() {
         let s = settings { $0.pageSelection = .odd; $0.reverseOrder = true; $0.orientation = .landscape }
         XCTAssertEqual(InspectorSections.pagesSummary(s), "Odd pages \u{00B7} Reverse order")
-        XCTAssertEqual(InspectorSections.layoutSummary(s), "Landscape")
+        XCTAssertEqual(InspectorSections.layoutSummary(s), "Landscape \u{00B7} Printer's margins")
         XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.pageSelection = .even }), "Even pages")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.orientation = .landscape }), "Booklet")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.booklet = true; $0.orientation = .landscape }), "Booklet \u{00B7} Printer's margins")
     }
 
     func test_pagesSummary_leavesOutTwoSidedForAPoster() {
         XCTAssertEqual(InspectorSections.pagesSummary(settings { $0.sides = .longEdge; $0.poster = 2 }), "")
     }
 
-    func test_summary_printersMarginShowsNothingAndNoneSaysSo() {
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }), "")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .printer }), "")
+    func test_summary_printersMarginsAndNoneSaySo() {
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { _ in }), "Printer's margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .printer }), "Printer's margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = MarginChoice.none }), "No margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 20 }), "20 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 0.05 }), "0.05 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .custom; $0.marginMm = 3.2 }), "3.2 mm margins")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }), "Actual size")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }), "Fill")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize }), "Actual size \u{00B7} Printer's margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill }), "Fill \u{00B7} Printer's margins")
     }
 
     func test_summary_photoPresets_showTheirMarginAndWhatTheyPrintAt() {
@@ -137,7 +137,7 @@ final class InspectorSectionsTests: XCTestCase {
         var normal = sheet
         normal.margin = .normal
         XCTAssertEqual(InspectorSections.layoutSummary(normal), "4 per side \u{00B7} Fill \u{00B7} 12 mm margins")
-        XCTAssertEqual(InspectorSections.layoutSummary(PrintSettings(), printedScale: 96), "96 %")
+        XCTAssertEqual(InspectorSections.layoutSummary(PrintSettings(), printedScale: 96), "96 % \u{00B7} Printer's margins")
     }
 
     func test_openedBy_followsTheValuesNotAStyle() {
@@ -152,15 +152,15 @@ final class InspectorSectionsTests: XCTestCase {
 
     func test_summary_aLonePageShowsWhatItPrintsAt() {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }, printedScale: 96), "96 % \u{00B7} 12 mm margins")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }, printedScale: 50), "50 %")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }), "50 %")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 80 }, printedScale: 100), "")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }, printedScale: 50), "50 % \u{00B7} Printer's margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 50 }), "50 % \u{00B7} Printer's margins")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scale = 80 }, printedScale: 100), "Printer's margins")
     }
 
     func test_layoutSummary_namesAPosterAndTheMarginsThatApply() {
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 3; $0.pagesPerSheet = 4; $0.rightToLeft = true }), "Poster 3 \u{00D7} 3")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.margin = .normal }), "12 mm margins")
-        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fit; $0.margin = .printer }), "Fit to page")
+        XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fit; $0.margin = .printer }), "Fit to page \u{00B7} Printer's margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .actualSize; $0.margin = .normal }), "Actual size · 12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.scaling = .fill; $0.margin = .normal }), "Fill · 12 mm margins")
         XCTAssertEqual(InspectorSections.layoutSummary(settings { $0.poster = 2; $0.scaling = .fill; $0.margin = .normal }),

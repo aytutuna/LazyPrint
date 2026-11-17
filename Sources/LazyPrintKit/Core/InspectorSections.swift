@@ -93,8 +93,9 @@ public enum InspectorSections {
             default: parts.append("Fill")
             }
         }
-        // The printer's own margin is the default, so it adds nothing here.
-        if s.margin != .printer {
+        if s.margin == .printer {
+            parts.append("Printer's margins")
+        } else {
             let margin = MarginChoices.millimetres(s.margin, custom: s.marginMm, printerEdge: 0)
             parts.append(margin > 0 ? "\(PrintText.marginMillimetres(margin)) margins" : "No margins")
         }

@@ -176,7 +176,7 @@ struct InspectorView: View {
             field("Margins") {
                 Picker("Margins", selection: $state.settings.margin) {
                     ForEach(MarginChoice.allCases, id: \.self) { choice in
-                        Text(PrintText.marginLabel(choice, edge: printerMargin)).tag(choice)
+                        Text(PrintText.marginLabel(choice)).tag(choice)
                     }
                 }
                 .labelsHidden()
@@ -186,7 +186,11 @@ struct InspectorView: View {
                     MarginMmFields()
                         .disabled(!rules.marginEnabled)
                 }
-                if cutByEdge, let edge { note(PrintText.printerEdgeNote(edge)) }
+                if cutByEdge, let edge {
+                    note(PrintText.printerEdgeNote(edge))
+                } else if rules.marginEnabled, state.settings.margin == .printer, edge != nil {
+                    note(PrintText.printerMarginSides(PrintJobs.area(state.settings, printer: state.capabilities).margins))
+                }
             }
         }
     }

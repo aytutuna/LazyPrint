@@ -735,13 +735,18 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertNotNil(PrintJobs.layoutOptions(alone, printer: nil).cellSize)
     }
 
-    func test_layoutOptions_printerMargin_isThePrintersEdgeOrQuarterInchWithoutOne() {
-        let settings = makeSettings { $0.margin = .printer }
+    func test_layoutOptions_printerMargin_isThePrintersOwnEdgesPerSide() {
         var printer = PrinterCapabilities()
         printer.mediaColDatabase = [MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
-                                               margins: MediaMargins(top: 432, left: 432, bottom: 432, right: 432), type: nil, source: nil)]
-        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: printer).margin, 4.3 * 72 / 25.4, accuracy: 1e-6)
-        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).margin, 6.4 * 72 / 25.4, accuracy: 1e-6)
+                                               margins: MediaMargins(top: 1200, left: 300, bottom: 300, right: 300), type: nil, source: nil)]
+        let settings = makeSettings { $0.margin = .printer }
+        let options = PrintJobs.layoutOptions(settings, printer: printer)
+        XCTAssertEqual(options.margins, PrintJobs.area(settings, printer: printer).margins)
+        XCTAssertNotEqual(options.margins?.top, options.margins?.left)
+        let guess = PrintJobs.layoutOptions(settings, printer: nil)
+        XCTAssertEqual(guess.margins, LayoutInsets(top: 18, left: 18, bottom: 18, right: 18))
+        XCTAssertNil(PrintJobs.layoutOptions(makeSettings { $0.margin = MarginChoice.none }, printer: printer).margins)
+        XCTAssertNil(PrintJobs.layoutOptions(makeSettings { $0.margin = .custom }, printer: printer).margins)
     }
 
     func test_anySizeAPrinterLists_canBeChosen() {

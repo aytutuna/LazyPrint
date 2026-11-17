@@ -162,11 +162,21 @@ public enum PrintText {
         "This printer can't print the outer \(millimetres(edge))"
     }
 
-    /// What a Margins choice reads: "None", "Printer's margin, 4.3 mm", "Normal, 12 mm", "Custom".
-    public static func marginLabel(_ choice: MarginChoice, edge: Double) -> String {
+    /// Under Margins for the printer's margin: "4.3 mm on every side", "Top 3 mm, bottom 12 mm, sides 3 mm", "Top 3, bottom 12, left 3, right 5 mm".
+    public static func printerMarginSides(_ margins: LayoutInsets) -> String {
+        func mm(_ points: Double) -> Double { (points * 25.4 / 72 * 10).rounded(.toNearestOrEven) / 10 }
+        let top = mm(margins.top), bottom = mm(margins.bottom), left = mm(margins.left), right = mm(margins.right)
+        if top == bottom && top == left && top == right { return "\(millimetres(top)) on every side" }
+        if left == right { return "Top \(millimetres(top)), bottom \(millimetres(bottom)), sides \(millimetres(left))" }
+        func plain(_ value: Double) -> String { value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value) }
+        return "Top \(plain(top)), bottom \(plain(bottom)), left \(plain(left)), right \(plain(right)) mm"
+    }
+
+    /// What a Margins choice reads: "None", "Printer's margin", "Normal, 12 mm", "Custom".
+    public static func marginLabel(_ choice: MarginChoice) -> String {
         switch choice {
         case .none: return "None"
-        case .printer: return "Printer's margin, \(millimetres(edge))"
+        case .printer: return "Printer's margin"
         case .normal: return "Normal, 12 mm"
         case .custom: return "Custom"
         }
