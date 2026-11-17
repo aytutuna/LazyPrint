@@ -89,11 +89,8 @@ public static class InspectorSections
         {
             parts.Add(s.Scaling switch { Scaling.Fit => "Fit to page", Scaling.ActualSize => "Actual size", _ => "Fill" });
         }
-        if (s.Margin == MarginChoice.Printer)
-        {
-            parts.Add("Printer's margins");
-        }
-        else
+        // Printer's margin is the default, so it is left out like the other defaults.
+        if (s.Margin != MarginChoice.Printer)
         {
             double margin = MarginChoices.Millimetres(s.Margin, s.MarginMm, 0);
             parts.Add(margin > 0 ? $"{PrintText.MarginMillimetres(margin)} margins" : "No margins");
