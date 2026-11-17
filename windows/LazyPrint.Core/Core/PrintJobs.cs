@@ -126,9 +126,9 @@ public static class PrintJobs
         var chosen = pageRange?.Where(i => i >= 0 && i < all.Count) ?? Enumerable.Range(0, all.Count);
         var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();
 
-        var plan = Imposition.Plan(pages, LayoutOptions(settings, printer), Area(settings, printer));
-
-        bool manual = plan.Duplex && printer?.SidesSupported.Contains("two-sided-long-edge") != true;
+        var options = LayoutOptions(settings, printer);
+        bool manual = Imposition.IsDuplex(options) && printer?.SidesSupported.Contains("two-sided-long-edge") != true;
+        var plan = Imposition.Plan(pages, options with { BacksTurnedAfter = manual && prefs.PaperPath.TurnBacks }, Area(settings, printer));
         IReadOnlyList<DuplexPass> passes;
         if (manual)
         {

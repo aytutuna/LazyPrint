@@ -137,6 +137,8 @@ public struct LayoutOptions: Equatable, Sendable {
     public var margin: Double
     /// The printer's own edge on each side, kept clear instead of `margin` when set.
     public var margins: LayoutInsets?
+    /// The backs are turned 180° once more after planning (manual two-sided on a paper path that turns them), so their margins are laid the other way round.
+    public var backsTurnedAfter: Bool
     /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
     /// Any other number is no poster; a poster comes before `booklet` and `pagesPerSheet`.
     public var poster: Int
@@ -150,7 +152,7 @@ public struct LayoutOptions: Equatable, Sendable {
     public init(pagesPerSheet: Int = 1, booklet: Bool = false, rightToLeft: Bool = false,
                 scaling: Scaling = .shrinkToFit, sides: Sides = .oneSided, pageBorders: Bool = false, scale: Int = 100,
                 orientation: SheetOrientation = .automatic, margin: Double = 0, margins: LayoutInsets? = nil, poster: Int = 0,
-                cellSize: LayoutSize? = nil, cutMarks: Bool = false) {
+                cellSize: LayoutSize? = nil, cutMarks: Bool = false, backsTurnedAfter: Bool = false) {
         self.pagesPerSheet = pagesPerSheet
         self.booklet = booklet
         self.rightToLeft = rightToLeft
@@ -164,6 +166,7 @@ public struct LayoutOptions: Equatable, Sendable {
         self.poster = poster
         self.cellSize = cellSize
         self.cutMarks = cutMarks
+        self.backsTurnedAfter = backsTurnedAfter
     }
 }
 

@@ -742,11 +742,33 @@ final class PrintJobsTests: XCTestCase {
         let settings = makeSettings { $0.margin = .printer }
         let options = PrintJobs.layoutOptions(settings, printer: printer)
         XCTAssertEqual(options.margins, PrintJobs.area(settings, printer: printer).margins)
+        XCTAssertEqual(options.margin, 12 * 72 / 25.4, accuracy: 1e-6)
+        XCTAssertEqual(PrintJobs.layoutOptions(settings, printer: nil).margin, 6.4 * 72 / 25.4, accuracy: 1e-6)
         XCTAssertNotEqual(options.margins?.top, options.margins?.left)
         let guess = PrintJobs.layoutOptions(settings, printer: nil)
         XCTAssertEqual(guess.margins, LayoutInsets(top: 18, left: 18, bottom: 18, right: 18))
         XCTAssertNil(PrintJobs.layoutOptions(makeSettings { $0.margin = MarginChoice.none }, printer: printer).margins)
         XCTAssertNil(PrintJobs.layoutOptions(makeSettings { $0.margin = .custom }, printer: printer).margins)
+    }
+
+    func test_plan_manualBacksTurnedByThePaperPath_keepOffThePrintersEdge() {
+        var printer = PrinterCapabilities()
+        printer.sidesSupported = ["one-sided"]
+        printer.mediaColDatabase = [MediaEntry(attributes: [], width: 21000, height: 29700, isVariable: false,
+                                               margins: MediaMargins(top: 300, left: 300, bottom: 1200, right: 300), type: nil, source: nil)]
+        let path = PaperPath(turnStackOver: true, turnBacks: true, checked: true)
+        for sides in [Sides.longEdge, Sides.shortEdge] {
+            let settings = makeSettings { $0.margin = .printer; $0.sides = sides }
+            let job = makePlan([doc(2)], settings, printer, prefs: PrinterPrefs(paperPath: path))
+            let printable = job.plan.area.printable
+            XCTAssertTrue(job.manualDuplex)
+            for pass in job.passes {
+                for placement in pass.sides.flatMap({ $0.placements }) {
+                    XCTAssertGreaterThanOrEqual(placement.frame.y, printable.y - 1e-6)
+                    XCTAssertLessThanOrEqual(placement.frame.y + placement.frame.height, printable.y + printable.height + 1e-6)
+                }
+            }
+        }
     }
 
     func test_anySizeAPrinterLists_canBeChosen() {

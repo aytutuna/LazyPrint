@@ -24,7 +24,7 @@ public enum Imposition {
     /// the printer's own edge never moves them, it only cuts what reaches into it.
     public static func plan(_ pages: [SourcePage], options: LayoutOptions, area: PrintableArea) -> SheetPlan {
         let poster = (2...4).contains(options.poster)
-        let duplex = !poster && (options.booklet || options.sides != .oneSided)
+        let duplex = isDuplex(options)
         let laid = laidArea(area, options)
         let notes = Notes()
         let sheets: [Sheet]
@@ -41,6 +41,10 @@ public enum Imposition {
         if notes.padding > 0 { warnings.append(.paddedWithBlanks(count: notes.padding)) }
         let printed = notes.lone.map { Int(($0 * 100).rounded(.toNearestOrEven)) } ?? 100
         return SheetPlan(area: area, sheets: sheets, duplex: duplex, warnings: warnings, printedScale: printed)
+    }
+
+    static func isDuplex(_ options: LayoutOptions) -> Bool {
+        !(2...4).contains(options.poster) && (options.booklet || options.sides != .oneSided)
     }
 
     private static func laidArea(_ area: PrintableArea, _ options: LayoutOptions) -> PrintableArea {
@@ -121,6 +125,7 @@ public enum Imposition {
         let perSide = portraitGrid.rows * portraitGrid.columns
         let perSheet = duplex ? 2 * perSide : perSide
         let turnBacks = options.sides == .shortEdge
+        let rotateBacks = turnBacks != options.backsTurnedAfter
         let landscape = perSide > 1 && !pages.isEmpty && chooseLandscape(pages[0].size, options: options, area: area)
         let (rows, columns) = grid(options.pagesPerSheet, landscape: landscape)
         let cells = perSide > 1 || options.cellSize != nil
@@ -158,7 +163,7 @@ public enum Imposition {
             let front = side(slice(pages, from: start, count: perSide), area)
             var back: SheetSide?
             if duplex {
-                let plain = side(slice(pages, from: start + perSide, count: perSide), turnBacks ? rotated(area) : area)
+                let plain = side(slice(pages, from: start + perSide, count: perSide), rotateBacks ? rotated(area) : area)
                 back = turnBacks ? turned(plain, paper: area.paper) : plain
             }
             sheets.append(Sheet(front: front, back: back))
@@ -190,7 +195,7 @@ public enum Imposition {
         var sheets: [Sheet] = []
         for k in 0..<(count / 4) {
             let front = spread(count - 1 - 2 * k, 2 * k, area)
-            let back = turned(spread(2 * k + 1, count - 2 - 2 * k, rotated(area)), paper: area.paper)
+            let back = turned(spread(2 * k + 1, count - 2 - 2 * k, options.backsTurnedAfter ? area : rotated(area)), paper: area.paper)
             sheets.append(Sheet(front: front, back: back))
         }
         return sheets

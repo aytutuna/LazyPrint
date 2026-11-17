@@ -21,7 +21,9 @@ extension AppState {
     /// What a task sets, for its menu item's tooltip: the summaries of the sections it changes.
     public func summary(of task: PrintTask) -> String {
         let s = TaskCatalog.apply(task, to: settings, printer: capabilities)
-        let parts = [InspectorSections.pagesSummary(s), InspectorSections.layoutSummary(s), InspectorSections.paperSummary(s),
+        // The default margin alone says nothing about what the task sets.
+        let layout = InspectorSections.layoutSummary(s)
+        let parts = [InspectorSections.pagesSummary(s), layout == "Printer's margins" ? "" : layout, InspectorSections.paperSummary(s),
                      InspectorSections.photosSummary(s)]
         let summary = parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
         return summary.isEmpty ? "One page per side" : summary

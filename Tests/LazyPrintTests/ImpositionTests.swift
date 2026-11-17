@@ -189,6 +189,31 @@ final class ImpositionTests: XCTestCase {
         XCTAssertEqual(back.y + back.height, area.printable.y + area.printable.height, accuracy: 1e-6)
     }
 
+    func test_plan_printerMargins_bookletKeepsOffTheEdgesOnBothSides() throws {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 8.5, left: 8.5, bottom: 34, right: 8.5))
+        let plan = makePlan(portraitPages(4), LayoutOptions(booklet: true, margins: area.margins), area: area)
+        let printable = area.printable
+        for placement in frontSide(plan).placements + backSide(plan).placements {
+            let frame = placement.frame
+            XCTAssertGreaterThanOrEqual(frame.x, printable.x - 1e-6)
+            XCTAssertGreaterThanOrEqual(frame.y, printable.y - 1e-6)
+            XCTAssertLessThanOrEqual(frame.x + frame.width, printable.x + printable.width + 1e-6)
+            XCTAssertLessThanOrEqual(frame.y + frame.height, printable.y + printable.height + 1e-6)
+        }
+    }
+
+    func test_plan_printerMargins_backsTurnedAfterwardsAreLaidTheOtherWayRound() throws {
+        let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 8.5, left: 8.5, bottom: 34, right: 8.5))
+        let options = LayoutOptions(scaling: .fit, sides: .longEdge, margins: area.margins, backsTurnedAfter: true)
+        let plan = makePlan(portraitPages(2), options, area: area)
+        let back = try onlyElement(backSide(plan).placements).frame
+        let turned = Imposition.turned(backSide(plan), paper: layoutLetter)
+        let frame = try onlyElement(turned.placements).frame
+        XCTAssertEqual(frame.y, area.printable.y, accuracy: 1e-6)
+        XCTAssertEqual(frame.y + frame.height, area.printable.y + area.printable.height, accuracy: 1e-6)
+        XCTAssertNotEqual(back.y, area.printable.y, accuracy: 1e-6)
+    }
+
     func test_plan_printerMargins_landscapeViewKeepsEachEdge() throws {
         let area = PrintableArea(paper: layoutLetter, margins: LayoutInsets(top: 8.5, left: 20, bottom: 34, right: 8.5))
         let plan = makePlan([makePage(0, 792, 612)], LayoutOptions(scaling: .fit, margins: area.margins), area: area)

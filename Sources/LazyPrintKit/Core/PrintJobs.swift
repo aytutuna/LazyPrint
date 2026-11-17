@@ -150,9 +150,10 @@ public enum PrintJobs {
         let pages = PagePicker.apply(chosen, selection: settings.pageSelection, reverse: settings.reverseOrder).map { all[$0] }
 
         let sheetArea = area(settings, printer: printer, photosOnly: photosOnly(documents))
-        let layout = Imposition.plan(pages, options: layoutOptions(settings, printer: printer), area: sheetArea)
-
-        let manual = layout.duplex && !(printer?.sidesSupported.contains("two-sided-long-edge") ?? false)
+        var options = layoutOptions(settings, printer: printer)
+        let manual = Imposition.isDuplex(options) && !(printer?.sidesSupported.contains("two-sided-long-edge") ?? false)
+        options.backsTurnedAfter = manual && prefs.paperPath.turnBacks
+        let layout = Imposition.plan(pages, options: options, area: sheetArea)
         let passes: [DuplexPass]
         if manual {
             let (fronts, backs) = ManualDuplex.passes(layout, path: prefs.paperPath)

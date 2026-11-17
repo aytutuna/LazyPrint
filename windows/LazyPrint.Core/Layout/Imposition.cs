@@ -30,7 +30,7 @@ public static class Imposition
     public static SheetPlan Plan(IReadOnlyList<SourcePage> pages, LayoutOptions options, PrintableArea area)
     {
         bool poster = options.Poster is >= 2 and <= 4;
-        bool duplex = !poster && (options.Booklet || options.Sides != Sides.OneSided);
+        bool duplex = IsDuplex(options);
         var laid = Laid(area, options);
         var notes = new Notes();
         var sheets = poster ? PosterSheets(pages, options, laid, notes)
@@ -43,6 +43,9 @@ public static class Imposition
         int printed = notes.Printed is { } scale ? (int)Math.Round(scale * 100) : 100;
         return new SheetPlan(area, sheets, duplex, warnings, printed);
     }
+
+    internal static bool IsDuplex(LayoutOptions options) =>
+        options.Poster is not (>= 2 and <= 4) && (options.Booklet || options.Sides != Sides.OneSided);
 
     private static PrintableArea Laid(PrintableArea area, LayoutOptions options) =>
         new(area.Paper, options.Margins ?? new LayoutInsets(options.Margin, options.Margin, options.Margin, options.Margin));
@@ -129,6 +132,7 @@ public static class Imposition
         int perSide = portraitRows * portraitColumns;
         int perSheet = duplex ? 2 * perSide : perSide;
         bool turnBacks = options.Sides == Sides.ShortEdge;
+        bool rotateBacks = turnBacks != options.BacksTurnedAfter;
         bool landscape = perSide > 1 && pages.Count > 0 && ChooseLandscape(pages[0].Size, options, area);
         var (rows, columns) = Grid(options.PagesPerSheet, landscape);
         bool cells = perSide > 1 || options.CellSize is not null;
@@ -166,7 +170,7 @@ public static class Imposition
             SheetSide? back = null;
             if (duplex)
             {
-                back = Side(pages.Skip(start + perSide).Take(perSide), turnBacks ? Rotated(area) : area);
+                back = Side(pages.Skip(start + perSide).Take(perSide), rotateBacks ? Rotated(area) : area);
                 if (turnBacks) back = Turned(back, area.Paper);
             }
             sheets.Add(new Sheet(front, back));
@@ -199,7 +203,7 @@ public static class Imposition
         for (int k = 0; k < count / 4; k++)
         {
             var front = Spread(count - 1 - 2 * k, 2 * k, area);
-            var back = Turned(Spread(2 * k + 1, count - 2 - 2 * k, Rotated(area)), area.Paper);
+            var back = Turned(Spread(2 * k + 1, count - 2 - 2 * k, options.BacksTurnedAfter ? area : Rotated(area)), area.Paper);
             sheets.Add(new Sheet(front, back));
         }
         return sheets;

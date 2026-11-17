@@ -203,6 +203,34 @@ public class ImpositionTests
     }
 
     [Fact]
+    public void Plan_PrinterMargins_BookletKeepsOffTheEdgesOnBothSides()
+    {
+        var area = new PrintableArea(Letter, new LayoutInsets(8.5, 8.5, 34, 8.5));
+        var plan = Plan(Portrait(4), new LayoutOptions { Booklet = true, Margins = area.Margins }, area);
+        var printable = area.Printable;
+        foreach (var frame in Front(plan).Placements.Concat(Back(plan).Placements).Select(p => p.Frame))
+        {
+            Assert.True(frame.X >= printable.X - 1e-6 && frame.Y >= printable.Y - 1e-6);
+            Assert.True(frame.X + frame.Width <= printable.X + printable.Width + 1e-6);
+            Assert.True(frame.Y + frame.Height <= printable.Y + printable.Height + 1e-6);
+        }
+    }
+
+    [Fact]
+    public void Plan_PrinterMargins_BacksTurnedAfterwardsAreLaidTheOtherWayRound()
+    {
+        var area = new PrintableArea(Letter, new LayoutInsets(8.5, 8.5, 34, 8.5));
+        var options = new LayoutOptions { Margins = area.Margins, Sides = Sides.LongEdge, Scaling = Scaling.Fit, BacksTurnedAfter = true };
+        var plan = Plan(Portrait(2), options, area);
+        var back = Assert.Single(Back(plan).Placements).Frame;
+        var turned = Imposition.Turned(Back(plan), Letter);
+        var frame = Assert.Single(turned.Placements).Frame;
+        Assert.Equal(area.Printable.Y, frame.Y, 1e-6);
+        Assert.Equal(area.Printable.Y + area.Printable.Height, frame.Y + frame.Height, 1e-6);
+        Assert.NotEqual(area.Printable.Y, back.Y, 1e-6);
+    }
+
+    [Fact]
     public void Plan_PrinterMargins_LandscapeViewKeepsEachEdge()
     {
         var area = new PrintableArea(Letter, new LayoutInsets(8.5, 20, 34, 8.5));

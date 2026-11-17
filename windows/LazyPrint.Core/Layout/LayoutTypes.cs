@@ -89,6 +89,8 @@ public sealed record LayoutOptions
     public double Margin { get; init; }
     /// <summary>The printer's own edge on each side, kept clear instead of <see cref="Margin"/> when set.</summary>
     public LayoutInsets? Margins { get; init; }
+    /// <summary>The backs are turned 180° once more after planning (manual two-sided on a paper path that turns them), so their margins are laid the other way round.</summary>
+    public bool BacksTurnedAfter { get; init; }
     /// <summary>
     /// 2, 3 or 4: each page is enlarged across that many sheets in both directions, one-sided, with an overlap and cut marks.
     /// Any other number is no poster; a poster comes before <see cref="Booklet"/> and <see cref="PagesPerSheet"/>.

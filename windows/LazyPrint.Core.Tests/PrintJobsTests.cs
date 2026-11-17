@@ -339,6 +339,26 @@ public class PrintJobsTests
     }
 
     [Fact]
+    public void Plan_ManualBacksTurnedByThePaperPath_KeepOffThePrintersEdge()
+    {
+        var entry = new MediaEntry([], 21000, 29700, false, new MediaMargins(300, 300, 1200, 300), null, null);
+        var printer = new PrinterCapabilities { SidesSupported = ["one-sided"], MediaColDatabase = [entry] };
+        var path = new PaperPath { TurnStackOver = true, TurnBacks = true, Checked = true };
+        foreach (var sides in new[] { Sides.LongEdge, Sides.ShortEdge })
+        {
+            var settings = Settings(s => { s.Margin = MarginChoice.Printer; s.Sides = sides; });
+            var job = Plan([Doc(2)], settings, printer, prefs: new PrinterPrefs { PaperPath = path });
+            var printable = job.Plan.Area.Printable;
+            Assert.True(job.ManualDuplex);
+            foreach (var frame in job.Passes.SelectMany(p => p.Sides).SelectMany(side => side.Placements).Select(p => p.Frame))
+            {
+                Assert.True(frame.Y >= printable.Y - 1e-6);
+                Assert.True(frame.Y + frame.Height <= printable.Y + printable.Height + 1e-6);
+            }
+        }
+    }
+
+    [Fact]
     public void Plan_MarginPrinter_IsNeverBorderless()
     {
         var printer = WithEntries(A4Entry(432), A4Entry(0));

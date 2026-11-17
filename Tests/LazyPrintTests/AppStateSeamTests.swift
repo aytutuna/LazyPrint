@@ -1239,7 +1239,8 @@ final class AppStateSeamTests: XCTestCase {
     func test_aTasksSummary_isWhatTheTaskSets() throws {
         let rig = try makeRig()
 
-        XCTAssertEqual(rig.state.summary(of: .handouts), "2 per side \u{00B7} Borders")
+        XCTAssertEqual(rig.state.summary(of: .handouts), "2 per side \u{00B7} Borders \u{00B7} Printer's margins")
+        XCTAssertEqual(rig.state.summary(of: .document), "One page per side")
     }
 
     @MainActor

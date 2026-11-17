@@ -41,7 +41,7 @@ public class InspectorSectionsTests
         var s = new PrintSettings();
         Assert.Equal("", InspectorSections.Summary(InspectorSections.Printer, s));
         Assert.Equal("", InspectorSections.PagesSummary(s));
-        Assert.Equal("", InspectorSections.LayoutSummary(s));
+        Assert.Equal("Printer's margins", InspectorSections.LayoutSummary(s));
         Assert.Equal("", InspectorSections.PaperSummary(s));
         Assert.Equal("", InspectorSections.PhotosSummary(s));
         Assert.Equal("Pages", InspectorSections.HeaderName(InspectorSections.Pages, s));
@@ -58,11 +58,11 @@ public class InspectorSectionsTests
             PhotoSizeId = "10x15cm", CutMarks = true,
         };
         Assert.Equal("3 copies · Two-sided", InspectorSections.PagesSummary(s));
-        Assert.Equal("2 per side · Borders", InspectorSections.LayoutSummary(s));
+        Assert.Equal("2 per side · Borders · Printer's margins", InspectorSections.LayoutSummary(s));
         Assert.Equal("Letter · Best · Gray", InspectorSections.PaperSummary(s));
         Assert.Equal("10 × 15 cm · Cut marks", InspectorSections.PhotosSummary(s));
-        Assert.Equal("Layout, 2 per side · Borders", InspectorSections.HeaderName(InspectorSections.Layout, s));
-        Assert.Equal("2 per side · Borders", InspectorSections.Summary(InspectorSections.Layout, s));
+        Assert.Equal("Layout, 2 per side · Borders · Printer's margins", InspectorSections.HeaderName(InspectorSections.Layout, s));
+        Assert.Equal("2 per side · Borders · Printer's margins", InspectorSections.Summary(InspectorSections.Layout, s));
     }
 
     [Fact]
@@ -80,15 +80,15 @@ public class InspectorSectionsTests
     public void LayoutSummary_Booklet_ScalingAndDirection()
     {
         // A booklet ignores the pages per side and the borders.
-        Assert.Equal("Booklet", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, PagesPerSheet = 4, PageBorders = true }));
-        Assert.Equal("Booklet · Right to left", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, RightToLeft = true }));
+        Assert.Equal("Booklet · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, PagesPerSheet = 4, PageBorders = true }));
+        Assert.Equal("Booklet · Right to left · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, RightToLeft = true }));
         // Direction only matters with several pages.
-        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { RightToLeft = true, PageBorders = true }));
+        Assert.Equal("Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { RightToLeft = true, PageBorders = true }));
         Assert.Equal("0.05 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 0.05 }));
         Assert.Equal("3.2 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 3.2 }));
-        Assert.Equal("Actual size", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }));
-        Assert.Equal("Fit to page", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit }));
-        Assert.Equal("4 per side · Borders · Right to left +1",
+        Assert.Equal("Actual size · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }));
+        Assert.Equal("Fit to page · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit }));
+        Assert.Equal("4 per side · Borders · Right to left +2",
                      InspectorSections.LayoutSummary(new PrintSettings { PagesPerSheet = 4, PageBorders = true, RightToLeft = true, Scaling = Scaling.Fill }));
     }
 
@@ -114,10 +114,10 @@ public class InspectorSectionsTests
     {
         var s = new PrintSettings { PageSelection = PageSelection.Odd, ReverseOrder = true, Orientation = SheetOrientation.Landscape };
         Assert.Equal("Odd pages · Reverse order", InspectorSections.PagesSummary(s));
-        Assert.Equal("Landscape", InspectorSections.LayoutSummary(s));
+        Assert.Equal("Landscape · Printer's margins", InspectorSections.LayoutSummary(s));
         Assert.Equal("Even pages", InspectorSections.PagesSummary(new PrintSettings { PageSelection = PageSelection.Even }));
         Assert.Equal("", InspectorSections.PagesSummary(new PrintSettings { Sides = Sides.LongEdge, Poster = 2 }));
-        Assert.Equal("Booklet", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, Orientation = SheetOrientation.Landscape }));
+        Assert.Equal("Booklet · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Booklet = true, Orientation = SheetOrientation.Landscape }));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class InspectorSectionsTests
         var sheet = TaskCatalog.Apply(PrintTask.PhotoSheet, new PrintSettings(), null);
         Assert.Equal("4 per side · Fill · No margins", InspectorSections.LayoutSummary(sheet));
         Assert.Equal("4 per side · Fill · 12 mm margins", InspectorSections.LayoutSummary(sheet with { Margin = MarginChoice.Normal }));
-        Assert.Equal("96 %", InspectorSections.LayoutSummary(new PrintSettings(), 96));
+        Assert.Equal("96 % · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings(), 96));
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class InspectorSectionsTests
     [Fact]
     public void LayoutSummary_NamesAPosterAndTheMarginsThatApply()
     {
-        Assert.Equal("Poster 3 × 3", InspectorSections.LayoutSummary(new PrintSettings { Poster = 3, PagesPerSheet = 4, RightToLeft = true }));
+        Assert.Equal("Poster 3 × 3 · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Poster = 3, PagesPerSheet = 4, RightToLeft = true }));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
         Assert.Equal("Fit to page · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit, Margin = MarginChoice.Printer }));
         Assert.Equal("Actual size · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize, Margin = MarginChoice.Normal }));
@@ -160,15 +160,15 @@ public class InspectorSectionsTests
         Assert.Equal("No margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.None }));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
         Assert.Equal("20 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 20 }));
-        Assert.Equal("Actual size", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }));
-        Assert.Equal("Fill", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill }));
+        Assert.Equal("Actual size · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize }));
+        Assert.Equal("Fill · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill }));
     }
 
     [Fact]
     public void Summary_ALonePageShowsWhatItPrintsAt()
     {
         Assert.Equal("96 % · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }, printedScale: 96));
-        Assert.Equal("120 %", InspectorSections.LayoutSummary(new PrintSettings { Scale = 120 }));
-        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { Scale = 120 }, printedScale: 100));
+        Assert.Equal("120 % · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scale = 120 }));
+        Assert.Equal("Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scale = 120 }, printedScale: 100));
     }
 }
