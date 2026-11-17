@@ -174,6 +174,47 @@ public class ImpositionTests
         Assert.Equal(Front(plan).Placements[0].Frame, Back(plan).Placements[0].Frame);
     }
 
+    [Fact]
+    public void Plan_PrinterMargins_LayAPageInExactlyThatArea()
+    {
+        var area = new PrintableArea(Letter, new LayoutInsets(8.5, 8.5, 34, 8.5));
+        var plan = Plan([Page(0, 612, 792)], new LayoutOptions { Margins = area.Margins, Margin = 34 }, area);
+        var frame = Assert.Single(Front(plan).Placements).Frame;
+        var printable = area.Printable;
+        double scale = Math.Min(printable.Width / 612, printable.Height / 792);
+        Assert.Equal(printable.Y, frame.Y, 1e-6);
+        Assert.Equal(printable.X + (printable.Width - 612 * scale) / 2, frame.X, 1e-6);
+        AssertRect(frame.X, printable.Y, 612 * scale, printable.Height, frame);
+    }
+
+    [Fact]
+    public void Plan_PrinterMargins_ShortEdgeBackUsesRotatedMargins()
+    {
+        var area = new PrintableArea(Letter, new LayoutInsets(8.5, 8.5, 34, 8.5));
+        var options = new LayoutOptions { Margins = area.Margins, Sides = Sides.ShortEdge, Scaling = Scaling.Fit };
+        var plan = Plan(Portrait(2), options, area);
+        var front = Assert.Single(Front(plan).Placements).Frame;
+        var back = Assert.Single(Back(plan).Placements).Frame;
+        // After the 180 degree turn the back keeps off the same edges as the front.
+        Assert.Equal(front.Y, back.Y, 1e-6);
+        Assert.Equal(front.Height, back.Height, 1e-6);
+        Assert.Equal(area.Printable.Y, back.Y, 1e-6);
+        Assert.Equal(area.Printable.Y + area.Printable.Height, back.Y + back.Height, 1e-6);
+    }
+
+    [Fact]
+    public void Plan_PrinterMargins_LandscapeViewKeepsEachEdge()
+    {
+        var area = new PrintableArea(Letter, new LayoutInsets(8.5, 20, 34, 8.5));
+        var plan = Plan([Page(0, 792, 612)], new LayoutOptions { Margins = area.Margins, Scaling = Scaling.Fit }, area);
+        var frame = Assert.Single(Front(plan).Placements).Frame;
+        var printable = area.Printable;
+        Assert.True(frame.X >= printable.X - 1e-6 && frame.Y >= printable.Y - 1e-6);
+        Assert.True(frame.X + frame.Width <= printable.X + printable.Width + 1e-6);
+        Assert.True(frame.Y + frame.Height <= printable.Y + printable.Height + 1e-6);
+        Assert.Equal(printable.Y + printable.Height, frame.Y + frame.Height, 1e-6);
+    }
+
     [Theory]
     [InlineData(false, Sides.LongEdge, "T", "T", false)]
     [InlineData(false, Sides.ShortEdge, "T", "B", true)]

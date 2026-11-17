@@ -131,9 +131,9 @@ public partial class MainWindow
         foreach (int n in PagesPerSide) PerSideBox.Items.Add(Item(n == 1 ? "1 (one per side)" : $"{n} per side", n));
         PosterBox.Items.Add(Item("Off", 0));
         for (int n = 2; n <= 4; n++) PosterBox.Items.Add(Item($"{n} × {n} sheets", n, "One page enlarged across the sheets, with an overlap and cut marks"));
-        MarginBox.Items.Add(Item(PrintText.MarginLabel(MarginChoice.None, 0), MarginChoice.None, "No margin; the printer cuts what it cannot reach"));
+        MarginBox.Items.Add(Item(PrintText.MarginLabel(MarginChoice.None), MarginChoice.None, "No margin; the printer cuts what it cannot reach"));
         foreach (var choice in new[] { MarginChoice.Printer, MarginChoice.Normal, MarginChoice.Custom })
-            MarginBox.Items.Add(Item(PrintText.MarginLabel(choice, 0), choice));
+            MarginBox.Items.Add(Item(PrintText.MarginLabel(choice), choice));
         PageSelectionBox.Items.Add(Item("All pages", PageSelection.All));
         PageSelectionBox.Items.Add(Item("Odd pages only", PageSelection.Odd, "Pages 1, 3, 5 and so on"));
         PageSelectionBox.Items.Add(Item("Even pages only", PageSelection.Even, "Pages 2, 4, 6 and so on"));
@@ -339,8 +339,6 @@ public partial class MainWindow
             var caps = ViewModel.SelectedCapabilities;
             _printedScale = plan?.Plan.PrintedScale;
             double printerMargin = PrintJobs.PrinterMargin(s, caps);
-            foreach (var item in MarginBox.Items.OfType<ComboBoxItem>())
-                item.Content = PrintText.MarginLabel((MarginChoice)item.Tag, printerMargin);
             Select(MarginBox, s.Margin);
             MarginBox.IsEnabled = state.MarginEnabled;
             MarginBox.ToolTip = state.MarginReason;
@@ -353,8 +351,11 @@ public partial class MainWindow
             double? edge = PrintJobs.PrinterEdge(s, caps);
             bool cutByEdge = state.MarginEnabled && edge is { } e
                 && e > Math.Round(MarginChoices.Millimetres(s.Margin, s.MarginMm, printerMargin), 1);
-            MarginEdgeText.Text = cutByEdge ? PrintText.PrinterEdgeNote(edge!.Value) : "";
-            MarginEdgeText.Visibility = cutByEdge ? Visibility.Visible : Visibility.Collapsed;
+            string? edgeText = cutByEdge ? PrintText.PrinterEdgeNote(edge!.Value)
+                : state.MarginEnabled && s.Margin == MarginChoice.Printer && edge is not null ? PrintText.PrinterMarginSides(PrintJobs.Area(s, caps).Margins)
+                : null;
+            MarginEdgeText.Text = edgeText ?? "";
+            MarginEdgeText.Visibility = edgeText is null ? Visibility.Collapsed : Visibility.Visible;
 
             // Paper
             ShowPaper(s);

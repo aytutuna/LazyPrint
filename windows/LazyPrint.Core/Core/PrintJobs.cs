@@ -61,6 +61,7 @@ public static class PrintJobs
         Scale = settings.Scale,
         Orientation = settings.Orientation,
         Margin = MarginChoices.Points(settings.Margin, settings.MarginMm, PrinterMargin(settings, printer)),
+        Margins = settings.Margin == MarginChoice.Printer ? Area(settings, printer).Margins : null,
         Poster = settings.Poster,
         CutMarks = settings.CutMarks,
     };

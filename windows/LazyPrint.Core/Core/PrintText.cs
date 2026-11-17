@@ -127,13 +127,24 @@ public static class PrintText
     /// <summary>Under Margins when the margin is smaller than the printer's own edge.</summary>
     public static string PrinterEdgeNote(double edge) => $"This printer can't print the outer {Millimetres(edge)}";
 
+    /// <summary>Under Margins for the printer's margin: "4.3 mm on every side", "Top 3 mm, bottom 12 mm, sides 3 mm", "Top 3, bottom 12, left 3, right 5 mm".</summary>
+    public static string PrinterMarginSides(LayoutInsets margins)
+    {
+        double Mm(double points) => Math.Round(points * 25.4 / 72, 1);
+        double top = Mm(margins.Top), bottom = Mm(margins.Bottom), left = Mm(margins.Left), right = Mm(margins.Right);
+        if (top == bottom && top == left && top == right) return $"{Millimetres(top)} on every side";
+        string Plain(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
+        if (left == right) return $"Top {Millimetres(top)}, bottom {Millimetres(bottom)}, sides {Millimetres(left)}";
+        return $"Top {Plain(top)}, bottom {Plain(bottom)}, left {Plain(left)}, right {Plain(right)} mm";
+    }
+
     /// <summary>Under the Scale box when the page prints at another size than it says: "Prints at 96 %".</summary>
     public static string PrintsAt(int percent) => $"Prints at {percent} %";
 
-    /// <summary>What a Margins choice reads: "None", "Printer's margin, 4.3 mm", "Normal, 12 mm", "Custom".</summary>
-    public static string MarginLabel(MarginChoice choice, double edge) => choice switch
+    /// <summary>What a Margins choice reads: "None", "Printer's margin", "Normal, 12 mm", "Custom".</summary>
+    public static string MarginLabel(MarginChoice choice) => choice switch
     {
-        MarginChoice.Printer => $"Printer's margin, {Millimetres(edge)}",
+        MarginChoice.Printer => "Printer's margin",
         MarginChoice.Normal => "Normal, 12 mm",
         MarginChoice.Custom => "Custom",
         _ => "None",

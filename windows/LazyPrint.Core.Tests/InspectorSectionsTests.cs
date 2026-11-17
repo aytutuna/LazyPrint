@@ -146,17 +146,17 @@ public class InspectorSectionsTests
     {
         Assert.Equal("Poster 3 × 3", InspectorSections.LayoutSummary(new PrintSettings { Poster = 3, PagesPerSheet = 4, RightToLeft = true }));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
-        Assert.Equal("Fit to page", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit, Margin = MarginChoice.Printer }));
+        Assert.Equal("Fit to page · Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fit, Margin = MarginChoice.Printer }));
         Assert.Equal("Actual size · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.ActualSize, Margin = MarginChoice.Normal }));
         Assert.Equal("Fill · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
         Assert.Equal("Poster 2 × 2 · 12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Poster = 2, Scaling = Scaling.Fill, Margin = MarginChoice.Normal }));
     }
 
     [Fact]
-    public void Summary_PrintersMarginShowsNothing_AndNoneSaysSo()
+    public void Summary_PrintersMarginsAndNoneSaySo()
     {
-        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings()));
-        Assert.Equal("", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Printer }));
+        Assert.Equal("Printer's margins", InspectorSections.LayoutSummary(new PrintSettings()));
+        Assert.Equal("Printer's margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Printer }));
         Assert.Equal("No margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.None }));
         Assert.Equal("12 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Normal }));
         Assert.Equal("20 mm margins", InspectorSections.LayoutSummary(new PrintSettings { Margin = MarginChoice.Custom, MarginMm = 20 }));

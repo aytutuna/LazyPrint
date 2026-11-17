@@ -325,6 +325,20 @@ public class PrintJobsTests
     }
 
     [Fact]
+    public void LayoutOptions_PrinterMargin_IsThePrintersOwnEdgesPerSide()
+    {
+        var entry = new MediaEntry([], 21000, 29700, false, new MediaMargins(1200, 300, 300, 300), null, null);
+        var printer = WithEntries(entry);
+        var options = PrintJobs.LayoutOptions(Settings(s => s.Margin = MarginChoice.Printer), printer);
+        Assert.Equal(PrintJobs.Area(PaperSize.A4, printer, false).Margins, options.Margins);
+        Assert.NotEqual(options.Margins!.Value.Top, options.Margins.Value.Left);
+        var guess = PrintJobs.LayoutOptions(Settings(s => s.Margin = MarginChoice.Printer), null);
+        Assert.Equal(new LayoutInsets(18, 18, 18, 18), guess.Margins);
+        Assert.Null(PrintJobs.LayoutOptions(Settings(s => s.Margin = MarginChoice.None), printer).Margins);
+        Assert.Null(PrintJobs.LayoutOptions(Settings(s => s.Margin = MarginChoice.Custom), printer).Margins);
+    }
+
+    [Fact]
     public void Plan_MarginPrinter_IsNeverBorderless()
     {
         var printer = WithEntries(A4Entry(432), A4Entry(0));

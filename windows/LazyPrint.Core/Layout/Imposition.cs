@@ -45,7 +45,11 @@ public static class Imposition
     }
 
     private static PrintableArea Laid(PrintableArea area, LayoutOptions options) =>
-        new(area.Paper, new LayoutInsets(options.Margin, options.Margin, options.Margin, options.Margin));
+        new(area.Paper, options.Margins ?? new LayoutInsets(options.Margin, options.Margin, options.Margin, options.Margin));
+
+    /// <summary>The margins of a side that is turned 180° afterwards, so they land back where they were meant to be.</summary>
+    private static PrintableArea Rotated(PrintableArea area) =>
+        new(area.Paper, new LayoutInsets(area.Margins.Bottom, area.Margins.Right, area.Margins.Top, area.Margins.Left));
 
     /// <summary>
     /// Whether a print of <paramref name="size"/> (portrait) fits one cell of the layout, either way round, in any reading view
@@ -131,7 +135,7 @@ public static class Imposition
         var scaling = cells && options.Scaling != Scaling.Fill ? Scaling.Fit : options.Scaling;
         bool borders = options.PageBorders && perSide > 1;
 
-        SheetSide Side(IEnumerable<SourcePage> sidePages)
+        SheetSide Side(IEnumerable<SourcePage> sidePages, PrintableArea area)
         {
             var placements = new List<Placement>();
             foreach (var page in sidePages)
@@ -158,11 +162,11 @@ public static class Imposition
         var sheets = new List<Sheet>();
         for (int start = 0; start < pages.Count; start += perSheet)
         {
-            var front = Side(pages.Skip(start).Take(perSide));
+            var front = Side(pages.Skip(start).Take(perSide), area);
             SheetSide? back = null;
             if (duplex)
             {
-                back = Side(pages.Skip(start + perSide).Take(perSide));
+                back = Side(pages.Skip(start + perSide).Take(perSide), turnBacks ? Rotated(area) : area);
                 if (turnBacks) back = Turned(back, area.Paper);
             }
             sheets.Add(new Sheet(front, back));
@@ -177,13 +181,13 @@ public static class Imposition
         var scaling = options.Scaling == Scaling.Fill ? Scaling.Fill : Scaling.Fit;
 
         // The view is the landscape spread; its fold is the paper's centre line.
-        var view = ViewPrintable(area, true);
         double viewWidth = area.Paper.Height, viewHeight = area.Paper.Width;
-        var leftHalf = Intersect(new LayoutRect(0, 0, viewWidth / 2, viewHeight), view);
-        var rightHalf = Intersect(new LayoutRect(viewWidth / 2, 0, viewWidth / 2, viewHeight), view);
 
-        SheetSide Spread(int left, int right)
+        SheetSide Spread(int left, int right, PrintableArea area)
         {
+            var view = ViewPrintable(area, true);
+            var leftHalf = Intersect(new LayoutRect(0, 0, viewWidth / 2, viewHeight), view);
+            var rightHalf = Intersect(new LayoutRect(viewWidth / 2, 0, viewWidth / 2, viewHeight), view);
             if (options.RightToLeft) (left, right) = (right, left);
             var placements = new List<Placement>();
             if (left < pages.Count) placements.Add(InCell(pages[left], leftHalf, scaling, true, area.Paper));
@@ -194,8 +198,8 @@ public static class Imposition
         var sheets = new List<Sheet>();
         for (int k = 0; k < count / 4; k++)
         {
-            var front = Spread(count - 1 - 2 * k, 2 * k);
-            var back = Turned(Spread(2 * k + 1, count - 2 - 2 * k), area.Paper);
+            var front = Spread(count - 1 - 2 * k, 2 * k, area);
+            var back = Turned(Spread(2 * k + 1, count - 2 - 2 * k, Rotated(area)), area.Paper);
             sheets.Add(new Sheet(front, back));
         }
         return sheets;

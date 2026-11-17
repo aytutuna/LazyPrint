@@ -17,13 +17,21 @@ public class PrintTextTests
     }
 
     [Fact]
+    public void PrinterMarginSides_ShortensWhenSidesAreEqual()
+    {
+        double Pt(double mm) => mm * 72 / 25.4;
+        Assert.Equal("4.3 mm on every side", PrintText.PrinterMarginSides(new LayoutInsets(Pt(4.3), Pt(4.3), Pt(4.3), Pt(4.3))));
+        Assert.Equal("Top 3 mm, bottom 12 mm, sides 3 mm", PrintText.PrinterMarginSides(new LayoutInsets(Pt(3), Pt(3), Pt(12), Pt(3))));
+        Assert.Equal("Top 3, bottom 12, left 3, right 5.5 mm", PrintText.PrinterMarginSides(new LayoutInsets(Pt(3), Pt(3), Pt(12), Pt(5.5))));
+    }
+
+    [Fact]
     public void MarginLabel_NamesTheChoiceAndItsSize()
     {
-        Assert.Equal("None", PrintText.MarginLabel(MarginChoice.None, 4.3));
-        Assert.Equal("Printer's margin, 4.3 mm", PrintText.MarginLabel(MarginChoice.Printer, 4.3));
-        Assert.Equal("Printer's margin, 6 mm", PrintText.MarginLabel(MarginChoice.Printer, 6));
-        Assert.Equal("Normal, 12 mm", PrintText.MarginLabel(MarginChoice.Normal, 13));
-        Assert.Equal("Custom", PrintText.MarginLabel(MarginChoice.Custom, 4.3));
+        Assert.Equal("None", PrintText.MarginLabel(MarginChoice.None));
+        Assert.Equal("Printer's margin", PrintText.MarginLabel(MarginChoice.Printer));
+        Assert.Equal("Normal, 12 mm", PrintText.MarginLabel(MarginChoice.Normal));
+        Assert.Equal("Custom", PrintText.MarginLabel(MarginChoice.Custom));
         Assert.Equal("This printer can't print the outer 4.3 mm", PrintText.PrinterEdgeNote(4.3));
         Assert.Equal("This printer can't print the outer 6 mm", PrintText.PrinterEdgeNote(6));
         Assert.Equal("Prints at 96 %", PrintText.PrintsAt(96));
