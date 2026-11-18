@@ -69,6 +69,15 @@ public partial class MainWindow
 
     // MARK: - The sheet
 
+    private void ShowNoPages(bool show)
+    {
+        NoPagesStage.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show) return;
+        NoPagesTitle.Text = PrintText.NoPagesReason;
+        NoPagesProblem.Text = ViewModel.PageRangeError ?? "";
+        NoPagesProblem.Visibility = ViewModel.PageRangeError is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private async Task UpdatePreviewAsync()
     {
         var plan = ViewModel.Plan();
@@ -81,8 +90,10 @@ public partial class MainWindow
             PreviewImage.Visibility = Visibility.Collapsed;
             PreviewBar.Visibility = Visibility.Collapsed;
             ShowNotes(plan);
+            ShowNoPages(ViewModel.Documents.Count > 0);
             return;
         }
+        ShowNoPages(false);
 
         var sheets = plan.Plan.Sheets;
         _previewSheet = Math.Clamp(_previewSheet, 0, sheets.Count - 1);

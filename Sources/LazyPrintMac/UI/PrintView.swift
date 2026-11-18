@@ -158,21 +158,31 @@ struct PrintView: View {
             Image(systemName: "doc.on.doc")
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text("Nothing to print yet")
-                .font(.title3.weight(.semibold))
-            Text("Pages you add appear here.")
-                .foregroundStyle(.secondary)
-            Button {
-                addFiles()
-            } label: {
-                Label("Add files\u{2026}", systemImage: "plus")
+            if state.documents.isEmpty {
+                Text("Nothing to print yet")
+                    .font(.title3.weight(.semibold))
+                Text("Pages you add appear here.")
+                    .foregroundStyle(.secondary)
+                Button {
+                    addFiles()
+                } label: {
+                    Label("Add files\u{2026}", systemImage: "plus")
+                }
+                .padding(.top, 4)
+                RecentMenu(open: openRecent)
+                Text("Or drop PDFs, pictures and text files anywhere in the window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("No pages to print")
+                    .font(.title3.weight(.semibold))
+                if let problem = state.pageRangeError {
+                    Text(problem)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .padding(.top, 4)
-            RecentMenu(open: openRecent)
-            Text("Or drop PDFs, pictures and text files anywhere in the window.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+        .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
     }

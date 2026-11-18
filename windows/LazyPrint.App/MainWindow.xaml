@@ -308,6 +308,13 @@
                                         <TextBlock Text="{x:Static local:ShortText.DropHint}" Style="{StaticResource CaptionText}"
                                                    TextAlignment="Center" TextWrapping="Wrap" Margin="0,2,0,0" />
                                     </StackPanel>
+                                    <StackPanel x:Name="NoPagesStage" Style="{StaticResource EmptyStatePanelStyle}" Visibility="Collapsed">
+                                        <Border Style="{StaticResource EmptyStateCircleStyle}">
+                                            <TextBlock Text="&#xE8A5;" Style="{StaticResource EmptyStateGlyphStyle}" />
+                                        </Border>
+                                        <TextBlock x:Name="NoPagesTitle" Style="{StaticResource EmptyStateTitleStyle}" />
+                                        <TextBlock x:Name="NoPagesProblem" Style="{StaticResource EmptyStateBodyStyle}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 
