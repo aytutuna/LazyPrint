@@ -314,6 +314,7 @@ public partial class MainWindow
             BookletBox.IsChecked = s.Booklet;
             BookletBox.IsEnabled = state.BookletEnabled;
             BookletBox.ToolTip = state.BookletReason ?? "Two pages on each side, in the order that folds into a booklet";
+            Show(BookletReasonRow, BookletReasonText, state.BookletReason);
             Select(PosterBox, s.Poster is >= 2 and <= 4 ? s.Poster : 0);
             PosterBox.IsEnabled = state.PosterEnabled;
             PosterBox.ToolTip = state.PosterReason;

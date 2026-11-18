@@ -542,6 +542,10 @@
                                                       ToolTip="Two pages on each side, in the order that folds into a booklet"
                                                       ToolTipService.ShowOnDisabled="True"
                                                       Checked="Setting_Changed" Unchecked="Setting_Changed" />
+                                            <DockPanel x:Name="BookletReasonRow" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
+                                                <TextBlock x:Name="BookletReasonText" Style="{StaticResource ReasonText}" />
+                                            </DockPanel>
                                             <Label Content="Poster" Target="{Binding ElementName=PosterBox}" Style="{StaticResource FieldLabel}" Margin="0,12,0,4" />
                                             <ComboBox x:Name="PosterBox" HorizontalAlignment="Stretch"
                                                       AutomationProperties.Name="Poster"
