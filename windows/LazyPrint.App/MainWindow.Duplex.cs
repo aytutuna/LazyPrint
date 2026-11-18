@@ -45,10 +45,10 @@ public partial class MainWindow
                 AddDuplexButton("Print the back", GlyphPrint, true, () => _ = ViewModel.PrintCheckBackAsync(), busy);
                 break;
             default:
-                foreach (var answer in new[] { DuplexCheckAnswer.SameEdge, DuplexCheckAnswer.OppositeEdges, DuplexCheckAnswer.BothOnOneSide })
+                foreach (var answer in new[] { DuplexCheckAnswer.BothOnOneSide, DuplexCheckAnswer.OppositeEdges, DuplexCheckAnswer.SameEdge })
                 {
                     var chosen = answer;
-                    AddDuplexButton(ManualDuplexText.Answer(answer), GlyphCheck, answer == DuplexCheckAnswer.SameEdge,
+                    AddDuplexButton(ManualDuplexText.Answer(answer), GlyphCheck, false,
                                     () => ViewModel.AnswerDuplexCheck(chosen), busy);
                 }
                 break;
