@@ -22,13 +22,11 @@ struct PrinterDetailsView: View {
                 Button("Print a test page") {
                     Task {
                         await state.selectPrinter(printerId)
-                        let before: Int = state.errorsShown
                         await state.printTestPage()
-                        // A failure is shown in the bar of the window, which must stay visible to be read.
-                        if state.errorsShown == before { dismiss() }
+                        dismiss()
                     }
                 }
-                .disabled(state.printers.first(where: { $0.id == printerId }) == nil || state.isBusy || state.duplexCard != nil)
+                .disabled(state.printers.first(where: { $0.id == printerId }) == nil || state.isBusy || state.isAddingFiles || state.duplexCard != nil)
                 Button("Close") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
