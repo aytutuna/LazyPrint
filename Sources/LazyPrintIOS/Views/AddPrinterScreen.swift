@@ -66,7 +66,7 @@ struct AddPrinterScreen: View {
             } header: {
                 Text("Address")
             } footer: {
-                Text("Most network printers appear on their own. The address is on the printer's screen, its network settings page or a configuration page it prints.")
+                Text("Most network printers appear on their own. The address is on the printer's screen, its network settings page or a configuration page it prints. Forms: 192.168.1.50, printer.local, 192.168.1.50:8631, ipps://192.168.1.50.")
             }
             if let message {
                 Section {
@@ -97,7 +97,7 @@ struct AddPrinterScreen: View {
                     .accessibilityIdentifier("add.button")
             }
         }
-        .navigationTitle("Add a printer")
+        .navigationTitle("Add a network printer")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focused = true }
         .onDisappear {

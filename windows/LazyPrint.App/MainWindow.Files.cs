@@ -105,7 +105,7 @@ public partial class MainWindow
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException || SheetPdf.Unavailable(e))
         {
-            ViewModel.ReportNotSaved(Path.GetFileName(dialog.FileName), e.Message);
+            ViewModel.ReportNotSaved(e.Message);
         }
     }
 

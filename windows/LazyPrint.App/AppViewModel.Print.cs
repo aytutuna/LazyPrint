@@ -267,7 +267,8 @@ public sealed partial class AppViewModel
             {
                 if (await LoadWithPasswordAsync(path, token) is not { } document)
                 {
-                    failed.Add((Path.GetFileName(path), ShortText.LockedLeftOut));
+                    string name = Path.GetFileName(path);
+                    failed.Add((name, DocumentText.LockedLeftOut(name)));
                     continue;
                 }
                 opened.Add(document);
@@ -296,9 +297,11 @@ public sealed partial class AppViewModel
     private void ReportNotAdded(IReadOnlyList<(string Name, string Reason)> failed)
     {
         const int shown = 3;
-        var lines = failed.Take(shown).Select(file => $"{file.Name}: {file.Reason}").ToList();
+        bool leftOut = failed.All(file => file.Reason == DocumentText.LockedLeftOut(file.Name));
+        var lines = failed.Take(shown).Select(file => leftOut ? file.Reason : $"{file.Name}: {file.Reason}").ToList();
         if (failed.Count > shown) lines.Add($"and {failed.Count - shown} more");
-        ShowFailure("Not added", string.Join("\n", lines), null);
+        if (leftOut) ShowNotice("Left out", string.Join("\n", lines));
+        else ShowFailure("Not added", string.Join("\n", lines), null);
     }
 
     /// <summary>Why the documents cannot be removed or moved; null when they can. The preview is of the job that waits for its backs.</summary>
@@ -413,12 +416,10 @@ public sealed partial class AppViewModel
 
     public void ReportSaved(string path)
     {
-        ClearMessages();
-        SentMessage = $"Saved {Path.GetFileName(path)}";
-        NotifyAll();
+        ShowNotice("Saved as PDF", Path.GetFileName(path));
     }
 
-    public void ReportNotSaved(string name, string reason) => ShowFailure("Not saved", $"{name}: {reason}", null);
+    public void ReportNotSaved(string reason) => ShowFailure("Not saved", reason, null);
 
     /// <summary>The job being followed is in the system's print queue, which keeps it when the app closes.</summary>
     public bool JobIsInSpooler => _job is not null && _spooled;

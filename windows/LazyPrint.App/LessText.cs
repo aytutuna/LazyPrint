@@ -29,8 +29,6 @@ internal static class ShortText
     /// <summary>The bar's title while files wait for a job to end.</summary>
     public const string FilesQueuedTitle = "Files waiting";
     public const string FilesQueued = "They are added when the job ends.";
-    /// <summary>Why a locked PDF is not added when its password is not given.</summary>
-    public const string LockedLeftOut = "It needs a password, so it was left out.";
     /// <summary>Color while the printer prints gray only.</summary>
     public const string GrayOnly = "This printer prints gray only";
     /// <summary>Quality while the printer does not list any.</summary>

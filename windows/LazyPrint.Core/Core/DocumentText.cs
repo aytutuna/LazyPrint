@@ -17,4 +17,13 @@ public static class DocumentText
     public const string NoText = "This file has no text.";
 
     public const string NoPages = "This PDF has no pages.";
+
+    public const string PasswordTitle = "This PDF is locked";
+
+    /// <summary>"Enter the password for Report.pdf to open it." Asked again after a wrong one.</summary>
+    public static string PasswordMessage(string name, bool wrong) =>
+        wrong ? $"That password did not work. Enter the password for {name}." : $"Enter the password for {name} to open it.";
+
+    /// <summary>"Report.pdf is locked, so it was left out."</summary>
+    public static string LockedLeftOut(string name) => $"{name} is locked, so it was left out.";
 }

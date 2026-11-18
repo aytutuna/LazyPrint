@@ -1,4 +1,5 @@
 using System.Windows;
+using LazyPrint.Core;
 
 namespace LazyPrint.App;
 
@@ -10,7 +11,7 @@ public partial class PasswordWindow : Window
     public PasswordWindow(string name, bool wrong)
     {
         InitializeComponent();
-        MessageText.Text = wrong ? $"That password did not open {name}. Try again." : $"{name} is locked. Enter its password.";
+        MessageText.Text = DocumentText.PasswordMessage(name, wrong);
         Loaded += (_, _) => PasswordBox.Focus();
     }
 

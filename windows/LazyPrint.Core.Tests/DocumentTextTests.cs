@@ -14,6 +14,10 @@ public class DocumentTextTests
         Assert.Equal("Lazy Print can't read this file.", DocumentText.Unreadable);
         Assert.Equal("This PDF has no pages.", DocumentText.NoPages);
         Assert.Equal("This file has no text.", DocumentText.NoText);
+        Assert.Equal("This PDF is locked", DocumentText.PasswordTitle);
+        Assert.Equal("Enter the password for A.pdf to open it.", DocumentText.PasswordMessage("A.pdf", false));
+        Assert.Equal("That password did not work. Enter the password for A.pdf.", DocumentText.PasswordMessage("A.pdf", true));
+        Assert.Equal("A.pdf is locked, so it was left out.", DocumentText.LockedLeftOut("A.pdf"));
         Assert.Equal("To open WebP pictures, install the WebP Image Extensions from the Microsoft Store.", DocumentText.NeedsWebP);
     }
 }

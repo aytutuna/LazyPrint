@@ -26,7 +26,7 @@ struct AddPrinterView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Add a network printer")
                 .font(.title3.weight(.semibold))
-            Text("Most network printers appear on their own. The address is on the printer's screen, its network settings page or a configuration page it prints.")
+            Text("Most network printers appear on their own. The address is on the printer's screen, its network settings page or a configuration page it prints. Forms: 192.168.1.50, printer.local, 192.168.1.50:8631, ipps://192.168.1.50.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 4) {

@@ -74,6 +74,7 @@ public sealed class LockedPdfTests
         await model.AddFilesAsync([DocumentFixtures.PathOf("locked.pdf")]);
 
         Assert.Single(model.Documents);
-        Assert.Equal("locked.pdf: " + ShortText.LockedLeftOut, model.ErrorMessage);
+        Assert.Equal("Left out", model.ErrorTitle);
+        Assert.Equal(DocumentText.LockedLeftOut("locked.pdf"), model.ErrorMessage);
     }
 }
