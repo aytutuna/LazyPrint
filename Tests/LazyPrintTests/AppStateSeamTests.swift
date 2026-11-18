@@ -1413,6 +1413,32 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_addFiles_whileAJobRuns_waitsAndIsAddedWhenItEnds() async throws {
+        let rig = try makeRig()
+        rig.state.isBusy = true
+
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 1, in: rig.folder)])
+
+        XCTAssertTrue(rig.state.documents.isEmpty)
+        XCTAssertEqual(rig.state.error?.title, PrintText.filesQueuedTitle)
+        rig.state.isBusy = false
+        try await waitUntil { rig.state.documents.count == 1 }
+        XCTAssertNil(rig.state.error)
+    }
+
+    @MainActor
+    func test_addFiles_queuedFilesAreAddedInTheOrderTheyCame() async throws {
+        let rig = try makeRig()
+        rig.state.isBusy = true
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 1, in: rig.folder)])
+        await rig.state.addFiles([try writePDF(named: "b.pdf", pages: 1, in: rig.folder)])
+        rig.state.isBusy = false
+
+        try await waitUntil { rig.state.documents.count == 2 }
+        XCTAssertEqual(rig.state.documents.map { $0.loaded.name }, ["a.pdf", "b.pdf"])
+    }
+
+    @MainActor
     func test_addFiles_filesTheCallerCouldNotTryAreReportedWithTheOnesThatFail() async throws {
         let rig = try makeRig()
         let bad = rig.folder.appendingPathComponent("report.docx")

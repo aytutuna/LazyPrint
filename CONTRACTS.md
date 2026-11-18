@@ -160,6 +160,8 @@ The catalogue only; photos are laid out by `Imposition` like any page (see "Prin
 
 ### Layout/ManualDuplex (two-sided on a printer that prints one side)
 
+Files that arrive while a job runs or waits for its backs are not added at once: the bar says "Files waiting / They are added when the job ends.", and they are added, in the order they came, once the job is over or the backs are done or given up on.
+
 Both sides of every sheet in two passes: the fronts, then, once the user has put the stack back, the backs. Each pass is a one-sided job. How the stack must go back depends on the printer's paper path, which Lazy Print learns once per printer with one sheet (the two-sided check); until then it assumes the usual one (turn the stack over, backs upright).
 
 ```swift

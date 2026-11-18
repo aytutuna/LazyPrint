@@ -142,6 +142,9 @@ struct ContentView: View {
         .onChange(of: state.isBusy) { _, busy in
             if !busy { takeQueued() }
         }
+        .onChange(of: state.hasBacksWaiting) { _, waiting in
+            if !waiting && !state.isBusy { takeQueued() }
+        }
         .onChange(of: tab) { _, tab in
             UserDefaults.standard.set(tab.rawValue, forKey: ContentView.tabKey)
         }
@@ -263,7 +266,7 @@ struct ContentView: View {
 
     /// Takes the files of the oldest batch from a phone into the job, or into a new one, and shows the print tab.
     private func usePhoneBatch(_ id: String, startNew: Bool) {
-        if state.isBusy {
+        if state.isBusy || state.hasBacksWaiting {
             PendingOpens.items.append(.batch(id, startNew: startNew))
             queuedBatch = id
             return
@@ -304,7 +307,7 @@ struct ContentView: View {
             if !notAdded.isEmpty { state.reportNotAdded(notAdded) }
             return false
         }
-        if state.isBusy {
+        if state.isBusy || state.hasBacksWaiting {
             PendingOpens.items.append(.files(urls, refused: refused))
             return true
         }

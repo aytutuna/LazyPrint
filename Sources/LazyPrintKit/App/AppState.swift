@@ -160,7 +160,11 @@ public final class AppState: ObservableObject {
     @Published public internal(set) var snapshot: PrinterSnapshot
     @Published public internal(set) var troubleshootChecks: [TroubleshootCheck] = []
     /// A job is being prepared or printed; the settings and the tasks wait.
-    @Published public internal(set) var isBusy = false
+    @Published public internal(set) var isBusy = false {
+        didSet {
+            if !isBusy { addQueuedFiles() }
+        }
+    }
     /// The running job can still be stopped; false while the system holds one it took and cannot take back.
     @Published public internal(set) var canCancelJob = true
     /// A two-sided job done by hand is between its fronts and its backs.
@@ -257,8 +261,11 @@ public final class AppState: ObservableObject {
         didSet {
             updateCard()
             if manual?.recordId != oldValue?.recordId { keepBacks() }
+            if manual == nil { addQueuedFiles() }
         }
     }
+    /// Files that came while a job held the documents, in the order they came.
+    private var queuedFiles: [(urls: [URL], notAdded: [(name: String, reason: String)])] = []
     var againActions: [String: @MainActor () async -> Void] = [:]
     var againOrder: [String] = []
     /// A print waits for the user's answer about a certificate; nil when the question came from choosing the printer.
@@ -483,7 +490,13 @@ public final class AppState: ObservableObject {
 
     /// Opens the files and adds them to the documents. A file that cannot be read is reported and the others still go in.
     /// `alsoNotAdded` are files the caller could not even try; they are reported with the ones that fail here.
+    /// While a job runs or waits for its backs the files wait, and are added when it ends.
     public func addFiles(_ urls: [URL], alsoNotAdded: [(name: String, reason: String)] = []) async {
+        if isBusy || manual != nil {
+            queuedFiles.append((urls: urls, notAdded: alsoNotAdded))
+            showNotice(PrintText.filesQueuedTitle, PrintText.filesQueued)
+            return
+        }
         var locked: [URL] = []
         let (opened, failed) = await openFiles(urls, locked: { locked.append($0) })
         documents.append(contentsOf: opened)
@@ -493,6 +506,21 @@ public final class AppState: ObservableObject {
         replan()
         lockedFiles += locked.filter { !lockedFiles.contains($0) }
         askNextPassword()
+    }
+
+    /// Adds the queued files once nothing holds the documents. It runs in a task so a pass ending and the backs starting,
+    /// which follow each other without a break, do not count as the job being over.
+    private func addQueuedFiles() {
+        guard !queuedFiles.isEmpty else { return }
+        Task {
+            guard !self.queuedFiles.isEmpty, !self.isBusy, self.manual == nil else { return }
+            let waiting = self.queuedFiles
+            self.queuedFiles = []
+            if self.error?.title == PrintText.filesQueuedTitle { self.dismissError() }
+            await self.whileAddingFiles {
+                for batch in waiting { await self.addFiles(batch.urls, alsoNotAdded: batch.notAdded) }
+            }
+        }
     }
 
     /// Ties the access taken for files to the documents opened from them; one that opened no document is stopped here.

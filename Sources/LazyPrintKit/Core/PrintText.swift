@@ -48,6 +48,8 @@ public enum PrintText {
     public static let needsSignIn = "Needs sign-in"
 
     public static let loadBacks = "Load the backs"
+    public static let filesQueuedTitle = "Files waiting"
+    public static let filesQueued = "They are added when the job ends."
 
     public static let finishTwoSided = "Finish the two-sided job first"
 
