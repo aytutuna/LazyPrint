@@ -186,8 +186,9 @@ public static class SettingsStore
     {
         string path = Path.Combine(directory, SettingsFile);
         var settings = StoreFiles.Load<PrintSettings>(path);
-        if (settings is not null && IsBeforeVersion(path))
+        if (settings is not null && IsBeforeVersion(path, out bool? photoFill))
         {
+            settings.PhotoFill = photoFill;
             // Builds before the layout style went away saved 4x6 and cut marks as defaults that only photo layouts used.
             settings.LayoutStyle = settings.TaskId switch
             {
@@ -200,16 +201,22 @@ public static class SettingsStore
         return settings;
     }
 
-    /// <summary>True for a file with neither a version nor a layout style.</summary>
-    private static bool IsBeforeVersion(string path)
+    /// <summary>True for a file with a photoFill but no version or layout style: only the builds before the layout style went away wrote that.</summary>
+    private static bool IsBeforeVersion(string path, out bool? photoFill)
     {
+        photoFill = null;
         try
         {
             using var document = System.Text.Json.JsonDocument.Parse(StoreFiles.ToUtf8(File.ReadAllBytes(path)));
             var root = document.RootElement;
-            return root.ValueKind == System.Text.Json.JsonValueKind.Object
-                && !root.TryGetProperty("version", out _)
-                && !(root.TryGetProperty("layoutStyle", out var style) && style.ValueKind == System.Text.Json.JsonValueKind.String);
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object
+                || !root.TryGetProperty("photoFill", out var fill)
+                || root.TryGetProperty("version", out _)
+                || (root.TryGetProperty("layoutStyle", out var style) && style.ValueKind == System.Text.Json.JsonValueKind.String))
+                return false;
+            if (fill.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
+                photoFill = fill.GetBoolean();
+            return true;
         }
         catch (Exception)
         {

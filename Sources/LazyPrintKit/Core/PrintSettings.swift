@@ -242,22 +242,23 @@ public enum SettingsStore {
     static func load(in directory: URL) -> PrintSettings? {
         let url = directory.appendingPathComponent(settingsFile)
         guard var settings = StoreFiles.load(PrintSettings.self, from: url) else { return nil }
-        if isBeforeVersion(url) {
+        if let fill = legacyPhotoFill(url) {
             // Builds before the layout style went away saved 4x6 and cut marks as defaults that only photo layouts used.
             switch settings.taskId {
-            case PrintTask.photos.rawValue: settings.applyLegacyStyle("photoPrints", photoFill: nil)
-            case PrintTask.photoSheet.rawValue: settings.applyLegacyStyle("photoSheet", photoFill: nil)
-            default: settings.applyLegacyStyle("pages", photoFill: nil)
+            case PrintTask.photos.rawValue: settings.applyLegacyStyle("photoPrints", photoFill: fill)
+            case PrintTask.photoSheet.rawValue: settings.applyLegacyStyle("photoSheet", photoFill: fill)
+            default: settings.applyLegacyStyle("pages", photoFill: fill)
             }
         }
         return settings
     }
 
-    /// True for a file with neither a version nor a layout style.
-    private static func isBeforeVersion(_ url: URL) -> Bool {
+    /// The photoFill of a file with one but no version or layout style: only the builds before the layout style went away wrote that.
+    private static func legacyPhotoFill(_ url: URL) -> Bool? {
         guard let data = try? Data(contentsOf: url), let json = try? StoreFiles.utf8JSON(data),
-              let root = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return false }
-        return root["version"] == nil && !(root["layoutStyle"] is String)
+              let root = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any],
+              root["photoFill"] != nil, root["version"] == nil, !(root["layoutStyle"] is String) else { return nil }
+        return root["photoFill"] as? Bool ?? true
     }
 
     static func save(_ settings: PrintSettings, in directory: URL) {
