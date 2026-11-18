@@ -220,8 +220,8 @@ public partial class MainWindow
         if (_updatingUi || !IsLoaded) return;
         // Tabbing through the boxes must not turn the rounded text on show into the size.
         if (CustomWidthBox.Text == _shownWidth && CustomHeightBox.Text == _shownHeight) return;
-        if (!double.TryParse(CustomWidthBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double width)
-            || !double.TryParse(CustomHeightBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double height)
+        if (!double.TryParse(CustomWidthBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double width)
+            || !double.TryParse(CustomHeightBox.Text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double height)
             || width <= 0 || height <= 0)
         {
             PushSettingsToUi();
