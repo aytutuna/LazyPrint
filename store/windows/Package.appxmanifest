@@ -30,7 +30,7 @@
     <Application Id="LazyPrint" Executable="LazyPrint.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="Lazy Print"
                           Description="Print documents and photos to your printer from your PC, and see the sheets first."
-                          BackgroundColor="#1769AA"
+                          BackgroundColor="#0E9F7E"
                           Square150x150Logo="Assets\Square150x150Logo.png"
                           Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"
