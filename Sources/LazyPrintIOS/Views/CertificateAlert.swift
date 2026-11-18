@@ -47,6 +47,11 @@ struct CertificateAlert: ViewModifier {
         if !certificate.subject.isEmpty { text += "\nIssued to: \(certificate.subject)" }
         text += "\n\(certificate.verdict == .changed ? "New fingerprint" : "Fingerprint"):\n"
             + IppCertificates.format(certificate.fingerprint, bytesPerLine: 16)
+        if certificate.verdict == .changed, let previous = certificate.previous {
+            text += "
+Trusted before:
+" + IppCertificates.format(previous.fingerprint, bytesPerLine: 16)
+        }
         return text
     }
 }
