@@ -298,7 +298,7 @@ public sealed partial class AppViewModel
     {
         const int shown = 3;
         bool leftOut = failed.All(file => file.Reason == DocumentText.LockedLeftOut(file.Name));
-        var lines = failed.Take(shown).Select(file => leftOut ? file.Reason : $"{file.Name}: {file.Reason}").ToList();
+        var lines = failed.Take(shown).Select(file => file.Reason == DocumentText.LockedLeftOut(file.Name) ? file.Reason : $"{file.Name}: {file.Reason}").ToList();
         if (failed.Count > shown) lines.Add($"and {failed.Count - shown} more");
         if (leftOut) ShowNotice("Left out", string.Join("\n", lines));
         else ShowFailure("Not added", string.Join("\n", lines), null);
