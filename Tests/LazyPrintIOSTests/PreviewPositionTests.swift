@@ -83,20 +83,5 @@ final class PreviewPositionTests: XCTestCase {
         XCTAssertNil(PreviewPosition.otherSide(of: -1, sheets: [Sheet(front: side, back: side)]))
         XCTAssertNil(PreviewPosition.otherSide(of: 2, sheets: [Sheet(front: side, back: side)]))
     }
-
-    func test_pages_nameOnePageARunAndAGap() {
-        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 2)]), pageCounts: [5]), "Page 3")
-        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 3), (0, 2)]), pageCounts: [5]), "Pages 3\u{2013}4")
-        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 7), (0, 0)]), pageCounts: [8]), "Pages 1, 8")
-    }
-
-    func test_pages_runOnOverTheDocuments() {
-        XCTAssertEqual(PreviewPosition.pages(on: onSide([(1, 0)]), pageCounts: [4, 2]), "Page 5")
-    }
-
-    func test_pages_aSideWithoutPagesIsBlank_andCopiesCountOnce() {
-        XCTAssertEqual(PreviewPosition.pages(on: onSide([]), pageCounts: [4]), "Blank")
-        XCTAssertEqual(PreviewPosition.pages(on: onSide([(0, 1), (0, 1)]), pageCounts: [4]), "Page 2")
-    }
 }
 #endif

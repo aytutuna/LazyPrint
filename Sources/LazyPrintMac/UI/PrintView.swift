@@ -68,6 +68,14 @@ struct PrintView: View {
         return (max(0, sheets.count - 1), false)
     }
 
+    /// The pages on the side in view, "Pages 2\u{2013}3" or "Blank".
+    private var pagesInView: String {
+        guard sheets.indices.contains(current.sheet) else { return "" }
+        let sheet = sheets[current.sheet]
+        let side = current.back ? sheet.back ?? sheet.front : sheet.front
+        return PageLabel.text(of: side.placements, pageCounts: state.documents.map { $0.loaded.pages.count })
+    }
+
     private func side(sheet: Int, back: Bool) -> Int {
         sheets.prefix(sheet).reduce(0) { $0 + ($1.back == nil ? 1 : 2) } + (back ? 1 : 0)
     }
@@ -204,7 +212,7 @@ struct PrintView: View {
                     SheetScroller(image: image,
                                   size: CGSize(width: (CGFloat(paper.width) * scale).rounded(.down), height: (CGFloat(paper.height) * scale).rounded(.down)),
                                   padding: Self.stagePadding, zoomBy: zoomBy)
-                        .accessibilityLabel("Sheet \(current.sheet + 1), \(current.back ? "back" : "front")")
+                        .accessibilityLabel("\(pagesInView), sheet \(current.sheet + 1), \(current.back ? "back" : "front")")
                 }
             }
             .onChange(of: wanted, initial: true) { _, scale in
@@ -276,7 +284,7 @@ struct PrintView: View {
             }
             .disabled(now.sheet == 0)
             .help("Previous sheet")
-            Text("Sheet \(now.sheet + 1) of \(sheets.count)")
+            Text("\(pagesInView) \u{00B7} Sheet \(now.sheet + 1) of \(sheets.count)")
                 .monospacedDigit()
             Button {
                 state.previewSide = side(sheet: now.sheet + 1, back: false)

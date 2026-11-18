@@ -37,27 +37,6 @@ struct PreviewPosition: Equatable {
         guard sheets.first?.back != nil, (0..<sheets.count * 2).contains(side) else { return nil }
         return side ^ 1
     }
-
-    /// The pages on a side, numbered over the documents in turn: "Page 3", "Pages 3-4", "Pages 1, 8". `pageCounts` is the
-    /// pages of each document. A side with no pages on it is "Blank".
-    static func pages(on side: SheetSide, pageCounts: [Int]) -> String {
-        let numbers: [Int] = Set(side.placements.map { (placement: Placement) -> Int in
-            pageCounts.prefix(placement.page.document).reduce(0, +) + placement.page.index + 1
-        }).sorted()
-        guard !numbers.isEmpty else { return "Blank" }
-        var runs: [ClosedRange<Int>] = []
-        for number in numbers {
-            if let last = runs.last, last.upperBound + 1 == number {
-                runs[runs.count - 1] = last.lowerBound...number
-            } else {
-                runs.append(number...number)
-            }
-        }
-        let text: [String] = runs.map { (run: ClosedRange<Int>) -> String in
-            run.count == 1 ? "\(run.lowerBound)" : "\(run.lowerBound)\u{2013}\(run.upperBound)"
-        }
-        return (numbers.count == 1 ? "Page " : "Pages ") + text.joined(separator: ", ")
-    }
 }
 
 /// The print screen: the task in use, the sides the settings make of the documents as paper to fold over, "Page 3 \u{00B7}
@@ -307,8 +286,7 @@ struct PrintScreen: View {
             let sheet: Sheet = sheets[position.sheet]
             return (position.back ? sheet.back ?? sheet.front : sheet.front).placements
         }
-        return PreviewPosition.pages(on: SheetSide(placements: placements, borders: false),
-                                     pageCounts: state.documents.map { $0.loaded.pages.count })
+        return PageLabel.text(of: placements, pageCounts: state.documents.map { $0.loaded.pages.count })
     }
 
     private func stageArea(_ size: CGSize) -> some View {

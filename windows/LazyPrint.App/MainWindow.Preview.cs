@@ -155,7 +155,10 @@ public partial class MainWindow
     {
         var sheets = plan.Plan.Sheets;
         PreviewBar.Visibility = Visibility.Visible;
-        SheetLabel.Text = $"Sheet {_previewSheet + 1} of {sheets.Count}";
+        var shown = sheets[_previewSheet];
+        var side = _previewBack ? shown.Back ?? shown.Front : shown.Front;
+        var pages = PageLabel.Text(side.Placements, ViewModel.Documents.Select(d => d.Pages.Count).ToList());
+        SheetLabel.Text = $"{pages} · Sheet {_previewSheet + 1} of {sheets.Count}";
         PreviousSheetButton.IsEnabled = _previewSheet > 0;
         NextSheetButton.IsEnabled = _previewSheet < sheets.Count - 1;
         FaceTrack.Visibility = sheets[_previewSheet].Back is null ? Visibility.Collapsed : Visibility.Visible;
