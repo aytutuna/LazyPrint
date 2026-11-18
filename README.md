@@ -78,7 +78,7 @@ Two workflows run by hand only, from the Actions tab.
 
 The Windows version is `Version` in `windows/Directory.Build.props`. The package version is that with a `.0` added, and the Store wants it higher for every submission.
 
-`store/windows/Package.appxmanifest` holds the package identity as three names taken from Partner Center, which the `store` job replaces from repository variables: `STORE_IDENTITY_NAME` (`Aytu.LazyPrint`), `STORE_PUBLISHER` (`CN=54BA56B9-1B6C-4B6E-886D-07694CF02BF5`) and `STORE_PUBLISHER_DISPLAY_NAME` (`Aytu`). The job stops at its first step when one is missing; the other two jobs need no variables. The tiles and logos in `store/windows/Assets` are drawn by `scripts/make_store_assets.py` from the same drawing as the app icon.
+`store/windows/Package.appxmanifest` holds the package identity as three names taken from Partner Center, which the `store` job replaces from repository variables: `STORE_IDENTITY_NAME` (`Aytu.LazyPrint`), `STORE_PUBLISHER` (`CN=54BA56B9-1B6C-4B6E-886D-07694CF02BF5`) and `STORE_PUBLISHER_DISPLAY_NAME` (`Aytu`). The job stops at its first step when one is missing; the other two jobs need no variables. The tiles and logos in `store/windows/Assets` are drawn by `python brand/make_icons.py print <this repo>` in the alazy repo (aytutuna/alazy).
 
 To check a package on a PC without the Store: publish with `dotnet publish windows/LazyPrint.App -c Release -r win-x64 --self-contained -o <folder>`, run `scripts/make_msix.ps1 -X64 <folder> -Out <folder>` and sign the `.msix` with a test certificate whose subject matches the identity. The script with no identity values keeps the placeholder names, which is enough to see that the package builds. It needs `makeappx` and `makepri` from the Windows SDK.
 

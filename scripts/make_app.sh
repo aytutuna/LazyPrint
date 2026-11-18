@@ -74,22 +74,14 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-# App icon (optional — skipped if generation fails)
-if [ ! -f dist/icon_1024.png ] || [ scripts/make_ios_icon.py -nt dist/icon_1024.png ]; then
-  mkdir -p dist
-  python3 scripts/make_ios_icon.py dist/icon_1024.png || true
-fi
-if [ -f dist/icon_1024.png ]; then
-  echo "==> Building icon…"
-  ICONSET=dist/AppIcon.iconset
-  rm -rf "$ICONSET"; mkdir -p "$ICONSET"
-  for s in 16 32 128 256 512; do
-    sips -z $s $s dist/icon_1024.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
-    d=$((s*2))
-    sips -z $d $d dist/icon_1024.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
-  done
-  iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns" && rm -rf "$ICONSET"
-fi
+# The Mac icon set uses the iconset file names, so it converts as it is.
+echo "==> Building icon…"
+ICONSET=dist/AppIcon.iconset
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET"
+cp mac/LazyPrintMacApp/Assets.xcassets/AppIcon.appiconset/*.png "$ICONSET/"
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+rm -rf "$ICONSET"
 
 echo "==> Signing (ad-hoc)…"
 codesign --force --deep -s - "$APP"
