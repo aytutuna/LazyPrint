@@ -183,6 +183,12 @@ public struct PrinterCapabilities: Equatable, Sendable {
     /// The printer lists IPP 2.x; one that does not is asked as 1.1.
     public var speaks20: Bool { ippVersionsSupported.contains { $0.major == 2 } }
 
+    /// The printer lists its color modes and color is not one of them.
+    public var grayOnly: Bool { !printColorModesSupported.isEmpty && !printColorModesSupported.contains("color") }
+
+    /// The printer lists no print quality to choose from.
+    public var noQuality: Bool { printQualitySupported.isEmpty }
+
     /// The database entry for a paper (portrait, in points), each side within `PaperSizes.fitTolerance`: the first
     /// with zero margins when `borderless`, else the first with margins; the other kind when only that exists. Its
     /// `printableArea` is the area to lay out on and the entry is what the job sends. A borderless entry also has to suit

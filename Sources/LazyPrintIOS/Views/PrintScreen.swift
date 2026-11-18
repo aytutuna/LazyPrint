@@ -506,7 +506,7 @@ struct PrintScreen: View {
 
     /// What differs from the defaults, so a setting is never out of sight.
     private var optionsSummary: String {
-        let s: PrintSettings = OptionsSheet.used(state.settings, capabilities: state.capabilities)
+        let s: PrintSettings = state.settings.used(state.capabilities)
         let layout: String = InspectorSections.layoutSummary(s, printedScale: state.jobPlan?.plan.printedScale)
         let parts: [String] = [InspectorSections.pagesSummary(s), layout, InspectorSections.paperSummary(s),
                                InspectorSections.photosSummary(s)]

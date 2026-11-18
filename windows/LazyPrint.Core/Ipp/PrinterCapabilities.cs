@@ -104,6 +104,10 @@ public sealed class PrinterCapabilities
     public IReadOnlyList<string> MediaTypeSupported { get; init; } = [];
     public IReadOnlyList<string> MediaSourceSupported { get; init; } = [];
     public IReadOnlyList<int> PrintQualitySupported { get; init; } = [];
+    /// <summary>The printer lists its color modes and color is not one of them.</summary>
+    public bool GrayOnly => PrintColorModesSupported.Count > 0 && !PrintColorModesSupported.Contains("color");
+    /// <summary>The printer lists no print quality to choose from.</summary>
+    public bool NoQuality => PrintQualitySupported.Count == 0;
     public IReadOnlyList<string> PrintScalingSupported { get; init; } = [];
     public string? OutputBinDefault { get; init; }
     /// <summary>printer-output-tray, one string per tray as the printer wrote it ("type=unRemovableBin;maxcapacity=100;...").</summary>

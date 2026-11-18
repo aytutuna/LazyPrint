@@ -507,7 +507,7 @@ public partial class MainWindow
     private void SyncInspectorSections()
     {
         if (_sections.Count == 0) return;
-        var s = ViewModel.Settings;
+        var s = ViewModel.Settings.Used(ViewModel.SelectedCapabilities);
         foreach (var section in _sections)
         {
             string summary = InspectorSections.Summary(section.Id, s, _printedScale);

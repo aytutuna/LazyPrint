@@ -249,22 +249,6 @@ struct OptionsSheet: View {
 
     // MARK: Rules
 
-    static func grayOnly(_ capabilities: PrinterCapabilities?) -> Bool {
-        capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
-    }
-
-    static func noQuality(_ capabilities: PrinterCapabilities?) -> Bool {
-        capabilities.map { $0.printQualitySupported.isEmpty } ?? false
-    }
-
-    /// The settings as the printer will get them: a quality or color it cannot take is the one it uses instead.
-    static func used(_ settings: PrintSettings, capabilities: PrinterCapabilities?) -> PrintSettings {
-        var s: PrintSettings = settings
-        if noQuality(capabilities) { s.quality = .normal }
-        if grayOnly(capabilities) { s.color = .gray }
-        return s
-    }
-
     /// What the form shows for the task and the printer (the Windows `InspectorState`).
     private struct Rules {
         var showCollate = false
@@ -295,8 +279,8 @@ struct OptionsSheet: View {
             let canTurn: Bool = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided: Bool = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
-            let grayOnly: Bool = OptionsSheet.grayOnly(capabilities)
-            let noQuality: Bool = OptionsSheet.noQuality(capabilities)
+            let grayOnly: Bool = capabilities?.grayOnly == true
+            let noQuality: Bool = capabilities?.noQuality == true
 
             let poster: Bool = (2...4).contains(s.poster)
 

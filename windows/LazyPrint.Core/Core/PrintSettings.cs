@@ -103,6 +103,13 @@ public sealed record PrintSettings : IJsonOnDeserialized
         PhotoFill = null;
     }
 
+    /// <summary>The settings as the printer will get them: a quality or color it cannot take is the one it uses instead.</summary>
+    public PrintSettings Used(PrinterCapabilities? printer) => this with
+    {
+        Quality = printer?.NoQuality == true ? QualityChoice.Normal : Quality,
+        Color = printer?.GrayOnly == true ? ColorChoice.Gray : Color,
+    };
+
     // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
     public static bool SameInUse(PrintSettings preset, PrintSettings settings)
     {

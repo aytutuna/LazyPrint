@@ -46,8 +46,8 @@ public sealed record InspectorState(
         bool sized = alone && PrintJobs.LayoutOptions(s, capabilities).CellSize is not null;
         bool lone = alone && !sized;
 
-        bool grayOnly = capabilities is { PrintColorModesSupported.Count: > 0 } && !capabilities.PrintColorModesSupported.Contains("color");
-        bool noQuality = capabilities is { PrintQualitySupported.Count: 0 };
+        bool grayOnly = capabilities?.GrayOnly == true;
+        bool noQuality = capabilities?.NoQuality == true;
 
         string? paperNote = null;
         if (PaperSizes.PointsOf(s.PaperId) is { } size && !PaperSizes.Supports(capabilities, size))

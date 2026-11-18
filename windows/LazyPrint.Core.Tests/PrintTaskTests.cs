@@ -255,4 +255,18 @@ public class PrintTaskTests
         };
         Assert.False(PrintSettings.SameInUse(sheet, sheet with { Scale = 100 }));
     }
+
+    [Fact]
+    public void Used_TakesTheQualityAndColorThePrinterCanDo()
+    {
+        var chosen = new PrintSettings { Quality = QualityChoice.Best, Color = ColorChoice.Color };
+        var grayNoQuality = new PrinterCapabilities { PrintColorModesSupported = ["monochrome"] };
+        var used = chosen.Used(grayNoQuality);
+        Assert.Equal(QualityChoice.Normal, used.Quality);
+        Assert.Equal(ColorChoice.Gray, used.Color);
+
+        var full = new PrinterCapabilities { PrintColorModesSupported = ["color", "monochrome"], PrintQualitySupported = [3, 4, 5] };
+        Assert.Equal(chosen, chosen.Used(full));
+        Assert.Equal(chosen, chosen.Used(null));
+    }
 }

@@ -58,6 +58,14 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 
     public init() {}
 
+    /// The settings as the printer will get them: a quality or color it cannot take is the one it uses instead.
+    public func used(_ printer: PrinterCapabilities?) -> PrintSettings {
+        var s = self
+        if printer?.noQuality == true { s.quality = .normal }
+        if printer?.grayOnly == true { s.color = .gray }
+        return s
+    }
+
     // Options the preset's layout doesn't use don't count, so a hidden value can't clear a match.
     public static func sameInUse(_ preset: PrintSettings, _ settings: PrintSettings) -> Bool {
         let poster = (2...4).contains(preset.poster)

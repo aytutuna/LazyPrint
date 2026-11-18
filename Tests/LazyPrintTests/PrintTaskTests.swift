@@ -247,4 +247,21 @@ final class PrintTaskTests: XCTestCase {
         other.scale = 100
         XCTAssertFalse(PrintSettings.sameInUse(sheet, other))
     }
+
+    func test_used_takesTheQualityAndColorThePrinterCanDo() {
+        var chosen = PrintSettings()
+        chosen.quality = .best
+        chosen.color = .color
+        var grayNoQuality = PrinterCapabilities()
+        grayNoQuality.printColorModesSupported = ["monochrome"]
+        let used = chosen.used(grayNoQuality)
+        XCTAssertEqual(used.quality, .normal)
+        XCTAssertEqual(used.color, .gray)
+
+        var full = PrinterCapabilities()
+        full.printColorModesSupported = ["color", "monochrome"]
+        full.printQualitySupported = [3, 4, 5]
+        XCTAssertEqual(chosen.used(full), chosen)
+        XCTAssertEqual(chosen.used(nil), chosen)
+    }
 }

@@ -201,7 +201,7 @@ struct InspectorView: View {
     }
 
     private func paperSection(_ rules: Rules) -> some View {
-        InspectorSection(id: InspectorSections.paper, icon: "doc.plaintext", summary: InspectorSections.paperSummary(state.settings)) {
+        InspectorSection(id: InspectorSections.paper, icon: "doc.plaintext", summary: InspectorSections.paperSummary(state.settings.used(state.capabilities))) {
             field("Paper") {
                 let papers = PaperSizes.choices(printer: state.capabilities, chosen: state.settings.paperId,
                                                 region: Locale.current.region?.identifier)
@@ -371,8 +371,8 @@ struct InspectorView: View {
             let canTurn = capabilities?.sidesSupported.contains("two-sided-long-edge") == true
             // A booklet is two-sided whatever the choice says; by hand when the printer cannot turn the sheet.
             let twoSided = !(2...4).contains(s.poster) && (s.booklet || s.sides != .oneSided)
-            let grayOnly = capabilities.map { !$0.printColorModesSupported.isEmpty && !$0.printColorModesSupported.contains("color") } ?? false
-            let noQuality = capabilities.map { $0.printQualitySupported.isEmpty } ?? false
+            let grayOnly = capabilities?.grayOnly == true
+            let noQuality = capabilities?.noQuality == true
 
             let poster = (2...4).contains(s.poster)
 
