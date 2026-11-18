@@ -468,7 +468,8 @@
                                     <Expander x:Name="PagesSection" Style="{StaticResource SectionExpanderStyle}">
                                         <StackPanel>
                                             <Label Content="Copie_s" Target="{Binding ElementName=CopiesBox}" Style="{StaticResource FieldLabel}" />
-                                            <ComboBox x:Name="CopiesBox" HorizontalAlignment="Stretch"
+                                            <ComboBox x:Name="CopiesBox" HorizontalAlignment="Stretch" IsEditable="True"
+                                                      LostFocus="Copies_Committed" KeyDown="Copies_KeyDown"
                                                       AutomationProperties.Name="Number of copies"
                                                       SelectionChanged="Setting_Changed" />
                                             <CheckBox x:Name="CollateBox" Style="{StaticResource ToggleSwitchStyle}" Margin="0,8,0,0"

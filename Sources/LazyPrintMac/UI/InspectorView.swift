@@ -65,8 +65,14 @@ struct InspectorView: View {
     private func pagesSection(_ rules: Rules) -> some View {
         InspectorSection(id: InspectorSections.pages, icon: "doc", summary: InspectorSections.pagesSummary(state.settings)) {
             field("Copies") {
-                Stepper(value: $state.settings.copies, in: 1...PrintCopies.maxCount) {
-                    Text("\(state.settings.copies)")
+                HStack {
+                    TextField("Copies", value: Binding(get: { state.settings.copies }, set: { (count: Int) in
+                        state.settings.copies = PrintCopies.clamp(count)
+                    }), format: .number)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 56)
+                    Stepper("Copies", value: $state.settings.copies, in: 1...PrintCopies.maxCount)
+                        .labelsHidden()
                 }
                 if rules.showCollate {
                     Toggle("Collate", isOn: $state.settings.collate)

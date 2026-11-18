@@ -287,7 +287,7 @@ public partial class MainWindow
             PrinterProblemText.Text = problems is { Count: > 0 } ? $"{problems[0].Title}. {problems[0].Advice}" : "";
 
             // Pages
-            if (!Equals(CopiesBox.SelectedItem, PrintCopies.Clamp(s.Copies))) CopiesBox.SelectedItem = PrintCopies.Clamp(s.Copies);
+            if (CopiesBox.Text != PrintCopies.Clamp(s.Copies).ToString()) CopiesBox.SelectedItem = PrintCopies.Clamp(s.Copies);
             CollateBox.Visibility = state.ShowCollate ? Visibility.Visible : Visibility.Collapsed;
             CollateBox.IsChecked = s.Collate;
             string range = ViewModel.PageRangeText;
@@ -450,6 +450,23 @@ public partial class MainWindow
     {
         _shownMarginMm = mm.ToString("0.##", CultureInfo.CurrentCulture);
         MarginMmBox.Text = _shownMarginMm;
+    }
+
+    private void Copies_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) Copies_Committed(sender, e);
+    }
+
+    /// <summary>A typed count is clamped to the allowed range; text that is not a number puts the old one back.</summary>
+    private void Copies_Committed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingUi || !IsLoaded) return;
+        if (int.TryParse(CopiesBox.Text.Trim(), out int copies) && copies != ViewModel.Settings.Copies)
+        {
+            ViewModel.Settings.Copies = PrintCopies.Clamp(copies);
+            ViewModel.SettingsEdited();
+        }
+        CopiesBox.Text = PrintCopies.Clamp(ViewModel.Settings.Copies).ToString();
     }
 
     private void MarginMm_KeyDown(object sender, KeyEventArgs e)
