@@ -342,12 +342,20 @@ public sealed partial class AppViewModel
         return parsed.IsSuccess ? parsed.Pages : null;
     }
 
-    /// <summary>The sheets the settings make of the documents; null with nothing to print or a page range that does not parse.</summary>
+    private IReadOnlyList<int>? _lastValidRange;
+
+    /// <summary>The sheets the settings make of the documents; null with nothing to print. A range that does not parse keeps the last one that did, so the preview stays while it is typed.</summary>
     public JobPlan? Plan()
     {
-        if (Documents.Count == 0) return null;
-        if (PageRangeText.Trim().Length > 0 && PageRangeIndexes() is null) return null;
-        return PrintJobs.Plan([.. Documents], PageRangeIndexes(), Settings, SelectedCapabilities, SelectedPrefs);
+        if (Documents.Count == 0)
+        {
+            _lastValidRange = null;
+            return null;
+        }
+        var range = PageRangeIndexes();
+        if (range is null && PageRangeText.Trim().Length > 0) range = _lastValidRange;
+        else _lastValidRange = range;
+        return PrintJobs.Plan([.. Documents], range, Settings, SelectedCapabilities, SelectedPrefs);
     }
 
     /// <summary>What the Print button says it does: "Print", "Print 5 sheets", "Print 5 sheets × 3", "Print the fronts".</summary>
@@ -390,7 +398,7 @@ public sealed partial class AppViewModel
     /// </summary>
     public SheetJob? SaveJob()
     {
-        if (Plan() is null) return null;
+        if (PageRangeError is not null || Plan() is null) return null;
         var settings = Settings with { Copies = 1 };
         var printer = SelectedPrinter ?? new PrinterInfo("pdf", "PDF file", null, null, PrinterRoute.Demo, null, false, PrinterState.Idle, [], []);
         IReadOnlyList<LoadedDocument> documents = [.. Documents];
@@ -420,7 +428,7 @@ public sealed partial class AppViewModel
 
     public async Task PrintAsync()
     {
-        if (!CanPrint || SelectedPrinter is not { } printer || Plan() is null) return;
+        if (!CanPrint || PageRangeError is not null || SelectedPrinter is not { } printer || Plan() is null) return;
         await PrintDocumentsAsync(new JobInputs(printer, SelectedCapabilities, Settings with { }, [.. Documents],
                                                 PageRangeIndexes(), PrintText.JobName([.. Documents.Select(d => d.Name)])));
     }

@@ -586,6 +586,23 @@ public sealed class AppViewModelTests
     }
 
     [Fact]
+    public async Task APageRangeThatDoesNotParseKeepsThePlanOfTheLastOneThatDid()
+    {
+        using var rig = new Rig(demo: true);
+        await rig.Model.RefreshPrintersAsync();
+        await rig.Model.AddFilesAsync(["a.pdf"]);
+        rig.Model.SetPageRange("1");
+        var sheets = rig.Model.Plan()!.Plan.Sheets.Count;
+
+        rig.Model.SetPageRange("1-x");
+
+        Assert.NotNull(rig.Model.PageRangeError);
+        Assert.Equal(sheets, rig.Model.Plan()!.Plan.Sheets.Count);
+        Assert.Null(rig.Model.SaveJob());
+        Assert.False(rig.Model.CanPrint);
+    }
+
+    [Fact]
     public async Task AFileThatCannotBeReadIsReportedAndTheOthersGoIn()
     {
         using var rig = new Rig();
