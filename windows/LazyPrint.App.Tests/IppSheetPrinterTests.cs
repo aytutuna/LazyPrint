@@ -196,6 +196,15 @@ public sealed class IppSheetPrinterTests : IDisposable
     }
 
     [Fact]
+    public async Task APhotoAtActualSizeAbove100PercentIsDrawnHereNotSentAsItIs()
+    {
+        var caps = Plain(jpeg: true, media: [LetterEntry(0)]);
+        var job = PrintFixtures.Job(PrintFixtures.Letter(s => { s.Scaling = Scaling.ActualSize; s.Scale = 120; }), 1,
+                                    PrintFixtures.Printer(PrinterRoute.Ipp), caps, new DocumentKind.Photo());
+        Assert.NotEqual("image/jpeg", await SentFormat(job, "jpeg bytes"));
+    }
+
+    [Fact]
     public async Task APdfThatNeedsShrinkingOnPaperWithAnEdgeIsDrawnHere()
     {
         var a4 = new[] { new LayoutSize(595, 842) };

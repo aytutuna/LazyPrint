@@ -109,7 +109,8 @@ public sealed class IppSheetPrinter(IPageRenderer pages, IOriginalFiles? files =
                                && (Math.Abs(placement.Frame.Width - paper.Width) <= PaperSizes.FitTolerance
                                    || Math.Abs(placement.Frame.Height - paper.Height) <= PaperSizes.FitTolerance)
                                && Math.Abs(Math.Min(photo.Width, photo.Height) - paper.Width) <= PaperSizes.FitTolerance
-                               && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance;
+                               && Math.Abs(Math.Max(photo.Width, photo.Height) - paper.Height) <= PaperSizes.FitTolerance
+                               && (job.Settings.Scale == 100 || job.Settings.Scaling is not (Scaling.ShrinkToFit or Scaling.ActualSize));
                 return ownSize ? (document.Kind, bytes, null) : null;
             default:
                 return null;
