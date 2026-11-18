@@ -139,12 +139,12 @@ struct PrintView: View {
         }
     }
 
-    /// The current task is the checked item; one that cannot be started says why after its title.
+    /// The current task is the checked item, and picking it again applies its settings again; one that cannot be started says why after its title.
     private func taskItem(_ definition: TaskDefinition) -> some View {
         let availability = state.availability(of: definition.task)
         let title = availability.isAvailable ? definition.title : "\(definition.title) \u{2013} \(availability.reason ?? "")"
-        let isCurrent = Binding(get: { state.currentTask == definition.task }, set: { (on: Bool) in
-            if on { pickTask(definition.task) }
+        let isCurrent = Binding(get: { state.currentTask == definition.task }, set: { (_: Bool) in
+            pickTask(definition.task)
         })
         return Toggle(isOn: isCurrent) {
             Label(title, systemImage: TaskSymbols.systemImage(definition.iconKey))
