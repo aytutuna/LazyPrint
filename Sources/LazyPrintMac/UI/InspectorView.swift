@@ -113,7 +113,7 @@ struct InspectorView: View {
         let printed = state.jobPlan?.plan.printedScale
         let printerMargin = PrintJobs.printerMargin(state.settings, printer: state.capabilities)
         let chosen = MarginChoices.millimetres(state.settings.margin, custom: state.settings.marginMm, printerEdge: printerMargin)
-        let edge = PrintJobs.printerEdge(state.settings, printer: state.capabilities)
+        let edge = PrintJobs.printerEdge(state.settings, printer: state.capabilities, photosOnly: state.photosOnly)
         let cutByEdge = rules.marginEnabled && (edge ?? 0) > (chosen * 10).rounded(.toNearestOrEven) / 10
         return InspectorSection(id: InspectorSections.layout, icon: "square.grid.2x2",
                                 summary: InspectorSections.layoutSummary(state.settings, printedScale: printed)) {
@@ -194,7 +194,7 @@ struct InspectorView: View {
                 if cutByEdge, let edge {
                     note(PrintText.printerEdgeNote(edge))
                 } else if rules.marginEnabled, state.settings.margin == .printer, edge != nil {
-                    note(PrintText.printerMarginSides(PrintJobs.area(state.settings, printer: state.capabilities).margins))
+                    note(PrintText.printerMarginSides(PrintJobs.area(state.settings, printer: state.capabilities, photosOnly: state.photosOnly).margins))
                 }
             }
         }

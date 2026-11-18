@@ -118,7 +118,7 @@ struct OptionsSheet: View {
         let printed: Int? = state.jobPlan?.plan.printedScale
         let printerMargin: Double = PrintJobs.printerMargin(state.settings, printer: state.capabilities)
         let chosen: Double = MarginChoices.millimetres(state.settings.margin, custom: state.settings.marginMm, printerEdge: printerMargin)
-        let photosOnly: Bool = PrintJobs.photosOnly(state.documents.map { (document: OpenedDocument) -> LoadedDocument in document.loaded })
+        let photosOnly: Bool = state.photosOnly
         let edge: Double? = PrintJobs.printerEdge(state.settings, printer: state.capabilities, photosOnly: photosOnly)
         let cutByEdge: Bool = rules.marginEnabled && (edge ?? 0) > (chosen * 10).rounded(.toNearestOrEven) / 10
         return Section(InspectorSections.title(InspectorSections.layout)) {

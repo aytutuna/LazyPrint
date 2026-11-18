@@ -464,6 +464,10 @@ public final class AppState: ObservableObject {
         documents.reduce(0) { $0 + $1.loaded.pages.count }
     }
 
+    public var photosOnly: Bool {
+        PrintJobs.photosOnly(documents.map { $0.loaded })
+    }
+
     /// The page range's problem ("Page 9 is past the end (8 pages)"); nil when it is empty or fine.
     public var pageRangeError: String? {
         let text = pageRange.trimmingCharacters(in: .whitespacesAndNewlines)
