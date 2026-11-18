@@ -563,10 +563,10 @@
                                                       AutomationProperties.Name="Scaling"
                                                       ToolTipService.ShowOnDisabled="True"
                                                       SelectionChanged="Setting_Changed" />
-                                            <DockPanel x:Name="ScaleRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                            <DockPanel x:Name="ScaleRow" Margin="0,8,0,0">
                                                 <TextBlock x:Name="ScaleText" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
                                                            VerticalAlignment="Center" Style="{StaticResource BodyText}" />
-                                                <Slider x:Name="ScaleSlider" Minimum="25" Maximum="400" SmallChange="5" LargeChange="25"
+                                                <Slider x:Name="ScaleSlider" Minimum="10" Maximum="400" SmallChange="5" LargeChange="25"
                                                         TickFrequency="5" IsSnapToTickEnabled="True"
                                                         AutomationProperties.Name="Scale"
                                                         ToolTip="Size of each page, in percent of its own"

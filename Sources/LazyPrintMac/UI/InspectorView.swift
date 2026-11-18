@@ -162,15 +162,14 @@ struct InspectorView: View {
                 }
                 .labelsHidden()
                 .disabled(rules.poster)
-                if rules.showScale {
-                    Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
-                        Text("\(state.settings.scale) %")
-                    }
-                    .accessibilityLabel("Scale")
-                    .accessibilityValue("\(state.settings.scale) %")
-                    if let printed, printed != state.settings.scale {
-                        note(PrintText.printsAt(printed))
-                    }
+                Stepper(value: $state.settings.scale, in: 10...400, step: 5) {
+                    Text("\(state.settings.scale) %")
+                }
+                .disabled(!rules.showScale)
+                .accessibilityLabel("Scale")
+                .accessibilityValue("\(state.settings.scale) %")
+                if rules.showScale, let printed, printed != state.settings.scale {
+                    note(PrintText.printsAt(printed))
                 }
             }
             field("Margins") {

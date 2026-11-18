@@ -323,8 +323,8 @@ public partial class MainWindow
             BordersBox.Visibility = state.ShowBorders ? Visibility.Visible : Visibility.Collapsed;
             BordersBox.IsChecked = s.PageBorders;
             ShowScalings(s, state);
-            ScaleRow.Visibility = state.ShowScale ? Visibility.Visible : Visibility.Collapsed;
-            ScaleSlider.Value = Math.Clamp(s.Scale, 25, 400);
+            ScaleRow.IsEnabled = state.ShowScale;
+            ScaleSlider.Value = Math.Clamp(s.Scale, 10, 400);
             ScaleText.Text = $"{s.Scale} %";
             var plan = ViewModel.Plan();
             if (state.ShowScale && plan is not null && plan.Plan.PrintedScale != s.Scale)
