@@ -582,15 +582,16 @@
                                                 <TextBlock DockPanel.Dock="Left" Style="{StaticResource ReasonGlyph}" Text="&#xE946;" />
                                                 <TextBlock x:Name="MarginReasonText" Style="{StaticResource ReasonText}" />
                                             </DockPanel>
-                                            <DockPanel x:Name="MarginMmRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                            <DockPanel x:Name="MarginMmRow" LastChildFill="False" Margin="0,8,0,0" Visibility="Collapsed">
                                                 <TextBlock Text="mm" DockPanel.Dock="Right" Margin="4,0,0,0"
                                                            VerticalAlignment="Center" Style="{StaticResource BodyText}" />
                                                 <TextBox x:Name="MarginMmBox" DockPanel.Dock="Right" Width="48" TextAlignment="Right"
                                                          AutomationProperties.Name="Margin in millimetres, typed"
                                                          LostFocus="MarginMm_Committed" KeyDown="MarginMm_KeyDown" />
-                                                <Slider x:Name="MarginMmSlider" Minimum="0" Maximum="50" SmallChange="0.1" LargeChange="1"
-                                                        AutomationProperties.Name="Margin in millimetres"
-                                                        ValueChanged="MarginMmSlider_ValueChanged" />
+                                                <Button x:Name="MarginMmUpButton" DockPanel.Dock="Right" Style="{StaticResource SmallIconButtonStyle}" Content="&#xE70E;"
+                                                        ToolTip="Increase margin" AutomationProperties.Name="Increase margin" Click="MarginMmUp_Click" />
+                                                <Button x:Name="MarginMmDownButton" DockPanel.Dock="Right" Style="{StaticResource SmallIconButtonStyle}" Content="&#xE70D;"
+                                                        ToolTip="Decrease margin" AutomationProperties.Name="Decrease margin" Click="MarginMmDown_Click" />
                                             </DockPanel>
                                             <TextBlock x:Name="MarginEdgeText" Margin="0,4,0,0" Visibility="Collapsed" Style="{StaticResource ReasonText}" />
                                         </StackPanel>

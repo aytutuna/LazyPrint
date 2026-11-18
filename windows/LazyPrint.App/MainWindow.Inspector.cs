@@ -344,8 +344,8 @@ public partial class MainWindow
             MarginBox.ToolTip = state.MarginReason;
             Show(MarginReasonRow, MarginReasonText, state.MarginReason);
             MarginMmRow.Visibility = s.Margin == MarginChoice.Custom ? Visibility.Visible : Visibility.Collapsed;
-            MarginMmSlider.IsEnabled = state.MarginEnabled;
-            MarginMmSlider.Value = Math.Clamp(s.MarginMm, 0, MarginChoices.MaxMillimetres);
+            MarginMmUpButton.IsEnabled = state.MarginEnabled;
+            MarginMmDownButton.IsEnabled = state.MarginEnabled;
             MarginMmBox.IsEnabled = state.MarginEnabled;
             if (!MarginMmBox.IsKeyboardFocused) ShowMarginMm(s.MarginMm);
             double? edge = PrintJobs.PrinterEdge(s, caps);
@@ -434,10 +434,14 @@ public partial class MainWindow
         ViewModel.SettingsEdited();
     }
 
-    private void MarginMmSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void MarginMmUp_Click(object sender, RoutedEventArgs e) => StepMarginMm(0.1);
+
+    private void MarginMmDown_Click(object sender, RoutedEventArgs e) => StepMarginMm(-0.1);
+
+    private void StepMarginMm(double by)
     {
         if (_updatingUi || !IsLoaded) return;
-        ViewModel.Settings.MarginMm = e.NewValue;
+        ViewModel.Settings.MarginMm = MarginChoices.Round(ViewModel.Settings.MarginMm + by);
         ShowMarginMm(ViewModel.Settings.MarginMm);
         ViewModel.SettingsEdited();
     }
@@ -451,6 +455,12 @@ public partial class MainWindow
     private void MarginMm_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) MarginMm_Committed(sender, e);
+        else if (e.Key == Key.Up || e.Key == Key.Down)
+        {
+            MarginMm_Committed(sender, e);
+            StepMarginMm(e.Key == Key.Up ? 0.1 : -0.1);
+            e.Handled = true;
+        }
     }
 
     /// <summary>A distance typed in, with a comma or a point, is taken to 0.01 mm; anything else puts the old one back.</summary>
