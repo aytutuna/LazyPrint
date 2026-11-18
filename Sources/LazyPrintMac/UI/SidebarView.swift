@@ -9,6 +9,7 @@ struct SidebarView: View {
     @Binding var showTroubleshooter: Bool
     @Binding var showAddPrinter: Bool
     @Binding var showPhone: Bool
+    @State private var details: PrinterInfo?
 
     var body: some View {
         List(selection: selection) {
@@ -17,7 +18,9 @@ struct SidebarView: View {
                     PrinterRow(printer: printer)
                         .tag(printer.id)
                         .contextMenu {
+                            Button("Printer details") { details = printer }
                             if printer.route == .demo {
+                                Divider()
                                 Toggle("Prints both sides", isOn: Binding(
                                     get: { state.demo.duplex },
                                     set: { on in Task { await state.setDemoDuplex(on) } }))
@@ -79,6 +82,9 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .sheet(item: $details) { printer in
+            PrinterDetailsView(printerId: printer.id)
+        }
     }
 
     /// The printer in use; picking another reads what it can do and lays the job out again.
