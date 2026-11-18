@@ -137,7 +137,7 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .addFilesRequested)) { _ in
-            if !state.isBusy { showImporter = true }
+            if !state.isBusy && !state.isAddingFiles { showImporter = true }
         }
         .onChange(of: state.isBusy) { _, busy in
             if !busy { takeQueued() }

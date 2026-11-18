@@ -181,7 +181,7 @@ private struct JobRow: View {
                         } label: {
                             Label("Print again", systemImage: "arrow.clockwise")
                         }
-                        .disabled(state.isBusy || state.duplexCard != nil)
+                        .disabled(state.isBusy || state.isAddingFiles || state.duplexCard != nil)
                         .accessibilityIdentifier("jobs.again")
                     }
                     if state.demoFolder(of: record) != nil {

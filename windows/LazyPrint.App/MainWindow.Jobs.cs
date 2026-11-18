@@ -33,6 +33,8 @@ public partial class MainWindow
             }
         }
         for (int i = _jobRows.Count - 1; i >= records.Count; i--) _jobRows.RemoveAt(i);
+        bool again = !ViewModel.IsBusy && !ViewModel.IsAddingFiles && ViewModel.ManualStep == DuplexStep.None;
+        foreach (var row in _jobRows) row.CanPrintAgain = again;
         EmptyJobs.Visibility = records.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

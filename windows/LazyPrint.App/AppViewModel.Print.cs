@@ -307,9 +307,12 @@ public sealed partial class AppViewModel
     /// <summary>Why the documents cannot be removed or moved; null when they can. The preview is of the job that waits for its backs.</summary>
     public string? DocumentsLockedReason => IsBusy ? "Printing…" : _manual is not null ? PrintText.FinishTwoSided : null;
 
+    /// <summary>The same, and while files are still opening, when the strip and the picker stay off.</summary>
+    public string? DocumentsEditLockedReason => DocumentsLockedReason ?? (IsAddingFiles ? "Opening files…" : null);
+
     public void RemoveDocument(LoadedDocument document)
     {
-        if (DocumentsLockedReason is not null) return;
+        if (DocumentsEditLockedReason is not null) return;
         int at = IndexOfDocument(document);
         if (at >= 0)
         {
@@ -332,7 +335,7 @@ public sealed partial class AppViewModel
     public void MoveDocument(LoadedDocument document, int offset)
     {
         int from = IndexOfDocument(document), to = from + offset;
-        if (DocumentsLockedReason is not null || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
+        if (DocumentsEditLockedReason is not null || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
         Documents.Move(from, to);
         NotifyAll();
     }

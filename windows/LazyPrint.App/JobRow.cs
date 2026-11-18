@@ -39,6 +39,19 @@ public sealed class JobRow(JobRecord record, string? folder) : INotifyPropertyCh
     public bool IsFinished => Record.State is JobState.Done or JobState.Failed or JobState.Canceled;
     public bool HasFolder => _folder is not null;
 
+    private bool _canPrintAgain = true;
+
+    public bool CanPrintAgain
+    {
+        get => _canPrintAgain;
+        set
+        {
+            if (_canPrintAgain == value) return;
+            _canPrintAgain = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanPrintAgain)));
+        }
+    }
+
     /// <summary>For screen readers and the row's tooltip: the name, the state and the rest.</summary>
     public string Description => $"{Name}, {StateText}, {Summary}";
 

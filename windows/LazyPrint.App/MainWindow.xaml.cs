@@ -356,7 +356,8 @@ public partial class MainWindow : Window
     private void SyncBanner()
     {
         // A task chosen behind the two-sided card would do nothing.
-        TaskButton.IsEnabled = !ViewModel.IsBusy && ViewModel.ManualStep == DuplexStep.None;
+        TaskButton.IsEnabled = !ViewModel.IsBusy && !ViewModel.IsAddingFiles && ViewModel.ManualStep == DuplexStep.None;
+        ExitTaskButton.IsEnabled = !ViewModel.IsBusy && ViewModel.ManualStep == DuplexStep.None;
         var visibility = ViewModel.CurrentTask is null ? Visibility.Collapsed : Visibility.Visible;
         TaskBannerGlyph.Visibility = visibility;
         TaskBannerText.Visibility = visibility;

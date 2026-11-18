@@ -25,7 +25,7 @@ struct DocumentStrip: View {
                     Label("Add files\u{2026}", systemImage: "plus")
                 }
                 .buttonStyle(.borderless)
-                .disabled(state.isBusy)
+                .disabled(state.isBusy || state.isAddingFiles)
                 .help("Add PDFs, pictures and text")
                 RecentMenu(open: openRecent)
             }
@@ -74,7 +74,7 @@ struct DocumentStrip: View {
             }
             .buttonStyle(.borderless)
             .controlSize(.small)
-            .disabled(state.isBusy)
+            .disabled(state.isBusy || state.isAddingFiles)
         }
         .padding(8)
         .frame(width: 112, alignment: .leading)

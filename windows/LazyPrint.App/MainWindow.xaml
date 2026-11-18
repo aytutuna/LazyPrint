@@ -740,7 +740,8 @@
                                                     ToolTip="Stop this job" Click="JobCancel_Click" />
                                             <Button x:Name="PrintAgainButton" Style="{StaticResource SubtleButtonStyle}"
                                                     local:Icon.Glyph="&#xE72C;" Content="Print again"
-                                                    ToolTip="Print this job once more" Click="JobAgain_Click" />
+                                                    ToolTip="Print this job once more" Click="JobAgain_Click"
+                                                    IsEnabled="{Binding CanPrintAgain}" />
                                             <Button x:Name="ShowFolderButton" Style="{StaticResource SubtleButtonStyle}"
                                                     local:Icon.Glyph="&#xE838;" Content="Show folder"
                                                     ToolTip="Show the pictures the Demo printer made" Click="JobFolder_Click" />

@@ -29,7 +29,7 @@ public partial class MainWindow
     /// <summary>Asks for files with the picker and takes them.</summary>
     private void AskForFiles()
     {
-        if (ViewModel.DocumentsLockedReason is not null) return;
+        if (ViewModel.DocumentsEditLockedReason is not null) return;
         var dialog = new OpenFileDialog
         {
             Title = "Add files",
@@ -45,7 +45,7 @@ public partial class MainWindow
     /// <summary>The Recent button: a menu of the files opened before, and Clear recent. Nothing opens when there are none.</summary>
     private void Recent_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.DocumentsLockedReason is not null || sender is not Button button) return;
+        if (ViewModel.DocumentsEditLockedReason is not null || sender is not Button button) return;
         var menu = new ContextMenu { PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
         foreach (string path in ViewModel.RecentPaths())
         {

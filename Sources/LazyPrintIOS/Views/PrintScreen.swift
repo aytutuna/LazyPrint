@@ -105,7 +105,7 @@ struct PrintScreen: View {
                         } label: {
                             Label("Leave the preset", systemImage: "xmark")
                         }
-                        .disabled(state.isBusy)
+                        .disabled(state.isBusy || state.hasBacksWaiting)
                         .accessibilityIdentifier("print.leaveTask")
                     }
                 }
@@ -153,7 +153,7 @@ struct PrintScreen: View {
         } label: {
             Label(PrintText.presetMenu, systemImage: "list.bullet")
         }
-        .disabled(state.isBusy)
+        .disabled(state.isBusy || state.isAddingFiles || state.hasBacksWaiting)
         .accessibilityIdentifier("print.preset")
     }
 
@@ -609,7 +609,7 @@ private struct DocumentBar: View {
                 .accessibilityIdentifier("documents.summary")
             Spacer(minLength: 8)
             Button("Edit", action: edit)
-                .disabled(state.isBusy)
+                .disabled(state.isBusy || state.isAddingFiles)
                 .accessibilityIdentifier("documents.edit")
             AddFilesMenu(identifier: "documents.add", pick: addFiles)
                 .disabled(state.isBusy || state.isAddingFiles)
