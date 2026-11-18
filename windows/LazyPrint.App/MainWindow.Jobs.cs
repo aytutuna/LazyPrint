@@ -62,9 +62,9 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Right-click, or the menu key, on the demo printer's row: a switch for printing both sides and "Out of paper", to try
-    /// the troubleshooter and the two-sided card. Other printers have no menu. The menu is opened here, at the list, because
-    /// a row's own menu would have to exist before the event reaches it.
+    /// Right-click, or the menu key, on a printer's row: its details, and on the demo printer's row a switch for printing
+    /// both sides and "Out of paper", to try the troubleshooter and the two-sided card. The menu is opened here, at the
+    /// list, because a row's own menu would have to exist before the event reaches it.
     /// </summary>
     private void PrinterList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
@@ -72,23 +72,31 @@ public partial class MainWindow
         var item = e.CursorLeft < 0
             ? PrinterList.ItemContainerGenerator.ContainerFromItem(PrinterList.SelectedItem) as ListBoxItem
             : RowItemOf(e.OriginalSource as DependencyObject);
-        if (item?.DataContext is not PrinterRow { Info.Route: PrinterRoute.Demo })
+        if (item?.DataContext is not PrinterRow row)
         {
             e.Handled = true;
             return;
         }
-        var duplex = new MenuItem { Header = "Prints both sides", IsCheckable = true, IsChecked = ViewModel.Demo.Duplex };
-        duplex.Click += async (_, _) => await ViewModel.SetDemoDuplexAsync(duplex.IsChecked);
-        var outOfPaper = new MenuItem { Header = "Out of paper", IsCheckable = true, IsChecked = ViewModel.Demo.OutOfPaper };
-        outOfPaper.Click += (_, _) => ViewModel.SetDemoOutOfPaper(outOfPaper.IsChecked);
-        new ContextMenu
+        var details = new MenuItem { Header = "Printer details" };
+        details.Click += (_, _) => new PrinterDetailsWindow(ViewModel, row.Id) { Owner = this }.ShowDialog();
+        var menu = new ContextMenu
         {
-            Items = { duplex, outOfPaper },
+            Items = { details },
             PlacementTarget = item,
             // From the keyboard the menu hangs from the row, not from wherever the mouse happens to be.
             Placement = e.CursorLeft < 0 ? PlacementMode.Bottom : PlacementMode.MousePoint,
-            IsOpen = true,
         };
+        if (row.Info.Route == PrinterRoute.Demo)
+        {
+            var duplex = new MenuItem { Header = "Prints both sides", IsCheckable = true, IsChecked = ViewModel.Demo.Duplex };
+            duplex.Click += async (_, _) => await ViewModel.SetDemoDuplexAsync(duplex.IsChecked);
+            var outOfPaper = new MenuItem { Header = "Out of paper", IsCheckable = true, IsChecked = ViewModel.Demo.OutOfPaper };
+            outOfPaper.Click += (_, _) => ViewModel.SetDemoOutOfPaper(outOfPaper.IsChecked);
+            menu.Items.Add(new Separator());
+            menu.Items.Add(duplex);
+            menu.Items.Add(outOfPaper);
+        }
+        menu.IsOpen = true;
         e.Handled = true;
     }
 
