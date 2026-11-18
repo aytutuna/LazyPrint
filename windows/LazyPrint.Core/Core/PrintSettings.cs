@@ -65,19 +65,26 @@ public sealed record PrintSettings : IJsonOnDeserialized
     public string PhotoSizeId { get; set; } = "page";
     public bool CutMarks { get; set; }
 
-    /// <summary>The file format, written on every save. A settings file without it was saved before the photo options were plain values.</summary>
-    public int Version => 2;
-
     // Read from a file saved while the layout was a style of its own; set once by OnDeserialized, never written.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LayoutStyle { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? PhotoFill { get; set; }
 
-    /// <summary>A file with a layout style gets the values that style forced; one without is already in the current form.</summary>
+    /// <summary>
+    /// A file with a layout style gets the values that style forced. One with a photo fill but no style comes from the builds
+    /// before the style was saved, whose 4x6 and cut marks were defaults only photo layouts used, so its style follows the task.
+    /// Anything else is already in the current form.
+    /// </summary>
     public void OnDeserialized()
     {
-        switch (LayoutStyle)
+        string? style = LayoutStyle ?? (PhotoFill is null ? null : TaskId switch
+        {
+            "photos" => "photoPrints",
+            "photoSheet" => "photoSheet",
+            _ => "pages",
+        });
+        switch (style)
         {
             case "photoPrints":
                 Scaling = PhotoFill == false ? Scaling.Fit : Scaling.Fill;
@@ -184,44 +191,7 @@ public static class SettingsStore
     /// <summary>Same as <see cref="Load()"/>, reading settings.json from <paramref name="directory"/> (tests).</summary>
     internal static PrintSettings? Load(string directory)
     {
-        string path = Path.Combine(directory, SettingsFile);
-        var settings = StoreFiles.Load<PrintSettings>(path);
-        if (settings is not null && IsBeforeVersion(path, out bool? photoFill))
-        {
-            settings.PhotoFill = photoFill;
-            // Builds before the layout style went away saved 4x6 and cut marks as defaults that only photo layouts used.
-            settings.LayoutStyle = settings.TaskId switch
-            {
-                "photos" => "photoPrints",
-                "photoSheet" => "photoSheet",
-                _ => "pages",
-            };
-            settings.OnDeserialized();
-        }
-        return settings;
-    }
-
-    /// <summary>True for a file with a photoFill but no version or layout style: only the builds before the layout style went away wrote that.</summary>
-    private static bool IsBeforeVersion(string path, out bool? photoFill)
-    {
-        photoFill = null;
-        try
-        {
-            using var document = System.Text.Json.JsonDocument.Parse(StoreFiles.ToUtf8(File.ReadAllBytes(path)));
-            var root = document.RootElement;
-            if (root.ValueKind != System.Text.Json.JsonValueKind.Object
-                || !root.TryGetProperty("photoFill", out var fill)
-                || root.TryGetProperty("version", out _)
-                || (root.TryGetProperty("layoutStyle", out var style) && style.ValueKind == System.Text.Json.JsonValueKind.String))
-                return false;
-            if (fill.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
-                photoFill = fill.GetBoolean();
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        return StoreFiles.Load<PrintSettings>(Path.Combine(directory, SettingsFile));
     }
 
     internal static void Save(PrintSettings settings, string directory) =>

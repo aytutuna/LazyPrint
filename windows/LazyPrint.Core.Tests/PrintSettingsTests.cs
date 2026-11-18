@@ -171,17 +171,7 @@ public sealed class PrintSettingsTests : IDisposable
     }
 
     [Fact]
-    public void Settings_WithAVersion_AreAlreadyCurrent()
-    {
-        File.WriteAllText(Settings, """{"version": 2, "taskId": "document", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
-        var s = SettingsStore.Load(_directory)!;
-        Assert.Equal("4x6", s.PhotoSizeId);
-        Assert.True(s.CutMarks);
-        Assert.Equal(MarginChoice.Normal, s.Margin);
-    }
-
-    [Fact]
-    public void Settings_WithoutAVersionOrLayoutStyleButAPhotoFill_ArePhotoOptionsOfTheirTask()
+    public void Settings_WithAPhotoFillButNoLayoutStyle_ArePhotoOptionsOfTheirTask()
     {
         File.WriteAllText(Settings, """{"taskId": "document", "photoFill": true, "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
         var document = SettingsStore.Load(_directory)!;
@@ -196,13 +186,10 @@ public sealed class PrintSettingsTests : IDisposable
         Assert.Equal(MarginChoice.None, photos.Margin);
         Assert.Equal(1, photos.PagesPerSheet);
         Assert.Equal(Scaling.Fit, photos.Scaling);
-
-        SettingsStore.Save(document, _directory);
-        Assert.Contains("\"version\": 2", File.ReadAllText(Settings));
     }
 
     [Fact]
-    public void Settings_WithNeitherAVersionNorAPhotoFill_AreLeftAsSaved()
+    public void Settings_WithNeitherAPhotoFillNorALayoutStyle_AreLeftAsSaved()
     {
         File.WriteAllText(Settings, """{"taskId": "document", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
         var s = SettingsStore.Load(_directory)!;

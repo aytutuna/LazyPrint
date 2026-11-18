@@ -193,15 +193,7 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(pages.margin, .normal)
     }
 
-    func test_settings_withAVersion_areAlreadyCurrent() throws {
-        try write(#"{"version": 2, "taskId": "document", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}"#, to: settingsURL)
-        let s = try XCTUnwrap(SettingsStore.load(in: directory))
-        XCTAssertEqual(s.photoSizeId, "4x6")
-        XCTAssertTrue(s.cutMarks)
-        XCTAssertEqual(s.margin, .normal)
-    }
-
-    func test_settings_withoutAVersionOrLayoutStyleButAPhotoFill_arePhotoOptionsOfTheirTask() throws {
+    func test_settings_withAPhotoFillButNoLayoutStyle_arePhotoOptionsOfTheirTask() throws {
         try write(#"{"taskId": "document", "photoFill": true, "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}"#, to: settingsURL)
         let document = try XCTUnwrap(SettingsStore.load(in: directory))
         XCTAssertEqual(document.photoSizeId, "page")
@@ -215,13 +207,9 @@ final class PrintSettingsTests: XCTestCase {
         XCTAssertEqual(photos.margin, MarginChoice.none)
         XCTAssertEqual(photos.pagesPerSheet, 1)
         XCTAssertEqual(photos.scaling, .fit)
-
-        SettingsStore.save(document, in: directory)
-        let json = try String(contentsOf: settingsURL, encoding: .utf8)
-        XCTAssertTrue(json.contains("\"version\" : 2"))
     }
 
-    func test_settings_withNeitherAVersionNorAPhotoFill_areLeftAsSaved() throws {
+    func test_settings_withNeitherAPhotoFillNorALayoutStyle_areLeftAsSaved() throws {
         try write(#"{"taskId": "document", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}"#, to: settingsURL)
         let s = try XCTUnwrap(SettingsStore.load(in: directory))
         XCTAssertEqual(s.photoSizeId, "4x6")
