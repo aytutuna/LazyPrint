@@ -491,7 +491,7 @@ struct PrintScreen: View {
         return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
     }
 
-    /// Options above Print, both always in reach. Print says what it does; greyed out, VoiceOver says why. Once a computer is
+    /// Options above Print, both always in reach. Print says what it does; greyed out, a caption says why. Once a computer is
     /// paired, Send to it sits beside Print.
     private var printBar: some View {
         let reason: String? = state.printDisabledReason
@@ -514,6 +514,12 @@ struct PrintScreen: View {
                     .accessibilityIdentifier("print.sendNote")
             } else {
                 printButton(reason)
+            }
+            if let reason {
+                Text(reason)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("print.disabledReason")
             }
             if state.isBusy {
                 HStack(spacing: 12) {
