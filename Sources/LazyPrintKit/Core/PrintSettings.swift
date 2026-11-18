@@ -53,6 +53,8 @@ public struct PrintSettings: Codable, Equatable, Sendable {
     /// A `PhotoSize` id: the most each print takes of its cell. "page" is the largest that fits.
     public var photoSizeId = "page"
     public var cutMarks = false
+    /// The file format, written on every save. A settings file without it was saved before the photo options were plain values.
+    private let version = 2
 
     public init() {}
 
@@ -80,7 +82,7 @@ public struct PrintSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case taskId, printerId, printerName, collate, color, quality, sides, pagesPerSheet, booklet, rightToLeft
-        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, photoSizeId, cutMarks
+        case pageBorders, scaling, scale, orientation, margin, marginMm, poster, paperId, mediaSource, mediaType, photoSizeId, cutMarks, version
     }
 
     // Read from a file saved while the layout was a style of its own; never written.
@@ -118,10 +120,14 @@ extension PrintSettings {
         // A file with a layout style gets the values that style forced; one without is already in the current form.
         let old = try decoder.container(keyedBy: LegacyKeys.self)
         guard let style = try? old.decodeIfPresent(String.self, forKey: .layoutStyle) else { return }
+        let fill = try? old.decodeIfPresent(Bool.self, forKey: .photoFill)
+        applyLegacyStyle(style, photoFill: fill)
+    }
+
+    mutating func applyLegacyStyle(_ style: String, photoFill: Bool?) {
         switch style {
         case "photoPrints":
-            let fill = try? old.decodeIfPresent(Bool.self, forKey: .photoFill)
-            scaling = fill == false ? .fit : .fill
+            scaling = photoFill == false ? .fit : .fill
             pagesPerSheet = 1
             sides = .oneSided
             booklet = false
@@ -226,7 +232,24 @@ public enum SettingsStore {
 
     /// Same as `load()`, reading settings.json from `directory` (tests).
     static func load(in directory: URL) -> PrintSettings? {
-        StoreFiles.load(PrintSettings.self, from: directory.appendingPathComponent(settingsFile))
+        let url = directory.appendingPathComponent(settingsFile)
+        guard var settings = StoreFiles.load(PrintSettings.self, from: url) else { return nil }
+        if isBeforeVersion(url) {
+            // Builds before the layout style went away saved 4x6 and cut marks as defaults that only photo layouts used.
+            switch settings.taskId {
+            case PrintTask.photos.rawValue: settings.applyLegacyStyle("photoPrints", photoFill: nil)
+            case PrintTask.photoSheet.rawValue: settings.applyLegacyStyle("photoSheet", photoFill: nil)
+            default: settings.applyLegacyStyle("pages", photoFill: nil)
+            }
+        }
+        return settings
+    }
+
+    /// True for a file with neither a version nor a layout style.
+    private static func isBeforeVersion(_ url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url), let json = try? StoreFiles.utf8JSON(data),
+              let root = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return false }
+        return root["version"] == nil && !(root["layoutStyle"] is String)
     }
 
     static func save(_ settings: PrintSettings, in directory: URL) {

@@ -65,6 +65,9 @@ public sealed record PrintSettings : IJsonOnDeserialized
     public string PhotoSizeId { get; set; } = "page";
     public bool CutMarks { get; set; }
 
+    /// <summary>The file format, written on every save. A settings file without it was saved before the photo options were plain values.</summary>
+    public int Version => 2;
+
     // Read from a file saved while the layout was a style of its own; set once by OnDeserialized, never written.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LayoutStyle { get; set; }
@@ -175,7 +178,36 @@ public static class SettingsStore
     internal static PrintSettings? Load(string directory)
     {
         string path = Path.Combine(directory, SettingsFile);
-        return StoreFiles.Load<PrintSettings>(path);
+        var settings = StoreFiles.Load<PrintSettings>(path);
+        if (settings is not null && IsBeforeVersion(path))
+        {
+            // Builds before the layout style went away saved 4x6 and cut marks as defaults that only photo layouts used.
+            settings.LayoutStyle = settings.TaskId switch
+            {
+                "photos" => "photoPrints",
+                "photoSheet" => "photoSheet",
+                _ => "pages",
+            };
+            settings.OnDeserialized();
+        }
+        return settings;
+    }
+
+    /// <summary>True for a file with neither a version nor a layout style.</summary>
+    private static bool IsBeforeVersion(string path)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(StoreFiles.ToUtf8(File.ReadAllBytes(path)));
+            var root = document.RootElement;
+            return root.ValueKind == System.Text.Json.JsonValueKind.Object
+                && !root.TryGetProperty("version", out _)
+                && !(root.TryGetProperty("layoutStyle", out var style) && style.ValueKind == System.Text.Json.JsonValueKind.String);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     internal static void Save(PrintSettings settings, string directory) =>

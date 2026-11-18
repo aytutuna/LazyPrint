@@ -171,13 +171,33 @@ public sealed class PrintSettingsTests : IDisposable
     }
 
     [Fact]
-    public void Settings_WithoutALayoutStyle_AreAlreadyCurrent()
+    public void Settings_WithAVersion_AreAlreadyCurrent()
     {
-        File.WriteAllText(Settings, """{"taskId": "photos", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
+        File.WriteAllText(Settings, """{"version": 2, "taskId": "document", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
         var s = SettingsStore.Load(_directory)!;
         Assert.Equal("4x6", s.PhotoSizeId);
         Assert.True(s.CutMarks);
         Assert.Equal(MarginChoice.Normal, s.Margin);
+    }
+
+    [Fact]
+    public void Settings_WithoutAVersionOrLayoutStyle_ArePhotoOptionsOfTheirTask()
+    {
+        File.WriteAllText(Settings, """{"taskId": "document", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal"}""");
+        var document = SettingsStore.Load(_directory)!;
+        Assert.Equal("page", document.PhotoSizeId);
+        Assert.False(document.CutMarks);
+        Assert.Equal(MarginChoice.Normal, document.Margin);
+
+        File.WriteAllText(Settings, """{"taskId": "photos", "photoSizeId": "4x6", "cutMarks": true, "margin": "normal", "pagesPerSheet": 4}""");
+        var photos = SettingsStore.Load(_directory)!;
+        Assert.Equal("4x6", photos.PhotoSizeId);
+        Assert.True(photos.CutMarks);
+        Assert.Equal(MarginChoice.None, photos.Margin);
+        Assert.Equal(1, photos.PagesPerSheet);
+
+        SettingsStore.Save(document, _directory);
+        Assert.Contains("\"version\": 2", File.ReadAllText(Settings));
     }
 
     [Fact]
