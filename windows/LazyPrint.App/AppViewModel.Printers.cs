@@ -111,6 +111,7 @@ public sealed partial class AppViewModel
     private bool _refreshing;
     /// <summary>When each queue's capabilities read last failed, by printer id.</summary>
     private readonly Dictionary<string, DateTimeOffset> _capabilityFailed = [];
+    private readonly HashSet<string> _capabilitiesLoading = [];
     private static readonly TimeSpan CapabilityRetry = TimeSpan.FromSeconds(30);
     internal Func<DateTimeOffset> Now { get; set; } = () => DateTimeOffset.UtcNow;
     private bool _lazyScanInstalled;
@@ -191,9 +192,6 @@ public sealed partial class AppViewModel
             }
             _printersRead = true;
             RebuildPrinters();
-            await LoadCapabilitiesAsync();
-            NotifyAll();
-            WriteLog();
             // A printer a queue was just matched to has not been asked yet.
             if (_printerInfos.Any(p => p.IppEndpoint is not null && !_ippReads.ContainsKey(p.Id) || IsPlainQueue(p) && !_hostReads.ContainsKey(p.Id)))
             {
@@ -204,6 +202,10 @@ public sealed partial class AppViewModel
         {
             _refreshing = false;
         }
+        // Outside the guard, so a queue that does not answer holds up only its own read.
+        await LoadCapabilitiesAsync();
+        NotifyAll();
+        WriteLog();
     }
 
     /// <summary>The rows from the queues and the network printers read last, with the demo printer as it is now.</summary>
@@ -276,6 +278,19 @@ public sealed partial class AppViewModel
     {
         if (SelectedPrinter is not { } printer || _capabilities.ContainsKey(printer.Id)) return;
         if (_capabilityFailed.TryGetValue(printer.Id, out var failed) && Now() - failed < CapabilityRetry) return;
+        if (!_capabilitiesLoading.Add(printer.Id)) return;
+        try
+        {
+            await ReadCapabilitiesAsync(printer);
+        }
+        finally
+        {
+            _capabilitiesLoading.Remove(printer.Id);
+        }
+    }
+
+    private async Task ReadCapabilitiesAsync(PrinterInfo printer)
+    {
         PrinterCapabilities? capabilities = null;
         switch (printer.Route)
         {
