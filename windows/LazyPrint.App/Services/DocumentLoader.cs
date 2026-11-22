@@ -109,10 +109,21 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     {
         if (!_texts.TryGetValue(document, out string? text) || document.Pages[0] == paper) return null;
         var pages = TextPages.Paginate(text, paper);
-        var laid = new LoadedDocument(document.Name, document.Kind, [.. pages.Select(_ => paper)]);
+        // The pages are new, so only a turn the whole file has can go with it.
+        int turn = document.Turns.Count > 0 && document.Turns.All(t => t == document.Turns[0]) ? document.Turns[0] : 0;
+        var laid = new LoadedDocument(document.Name, document.Kind, [.. pages.Select(_ => paper)]).Turned(null, turn);
         _sources.Add(laid, new TextSource(text, pages, paper));
         _texts.Add(laid, text);
         return laid;
+    }
+
+    public void Carry(LoadedDocument from, LoadedDocument to)
+    {
+        if (_sources.TryGetValue(from, out var source)) _sources.Add(to, source);
+        if (_files.TryGetValue(from, out byte[]? bytes)) _files.Add(to, bytes);
+        if (_jpegs.TryGetValue(from, out string? jpeg)) _jpegs.Add(to, jpeg);
+        if (_passwords.TryGetValue(from, out string? password)) _passwords.Add(to, password);
+        if (_texts.TryGetValue(from, out string? text)) _texts.Add(to, text);
     }
 
     private static Encoding SystemCodePage()
@@ -190,14 +201,25 @@ public sealed class DocumentLoader : IDocumentLoader, IPageRenderer, IOriginalFi
     public BitmapSource Render(LoadedDocument document, int page, LayoutRect? crop, int pixelWidth, int pixelHeight)
     {
         if (!_sources.TryGetValue(document, out var source)) throw new InvalidOperationException("The document was not opened by this loader.");
-        return source.Render(page, crop, pixelWidth, pixelHeight);
+        int turns = document.TurnsOf(page);
+        if (turns == 0) return source.Render(page, crop, pixelWidth, pixelHeight);
+
+        bool sideways = turns % 2 == 1;
+        var upright = crop is { } c ? PageTurns.Unturn(c, document.Pages[page], turns) : (LayoutRect?)null;
+        var picture = source.Render(page, upright, sideways ? pixelHeight : pixelWidth, sideways ? pixelWidth : pixelHeight);
+        var turned = new TransformedBitmap(picture, new RotateTransform(turns * 90));
+        turned.Freeze();
+        return turned;
     }
 
     public string? Password(LoadedDocument document) => _passwords.TryGetValue(document, out string? password) ? password : null;
 
+    public byte[]? PdfFile(LoadedDocument document) => _files.TryGetValue(document, out byte[]? bytes) ? bytes : null;
+
     public byte[]? OriginalFile(LoadedDocument document)
     {
-        if (_files.TryGetValue(document, out byte[]? bytes)) return bytes;
+        if (document.IsTurned) return null;
+        if (PdfFile(document) is { } bytes) return bytes;
         if (!_jpegs.TryGetValue(document, out string? path)) return null;
         try
         {

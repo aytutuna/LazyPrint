@@ -86,6 +86,60 @@ public class DocumentLoaderTests
         Pixels.AssertColor(Pixels.Green, rest, 16, 116);
     }
 
+    private LoadedDocument Turn(LoadedDocument document, int quarter)
+    {
+        var turned = document.Turned(null, quarter);
+        _loader.Carry(document, turned);
+        return turned;
+    }
+
+    [Fact]
+    public async Task ATurnedPdfPageIsRenderedTurned()
+    {
+        var document = Turn(await Open("rotated.pdf"), 1);
+
+        var bitmap = _loader.Render(document, 0, null, 61, 79);
+
+        // The band on the right edge goes to the bottom.
+        Pixels.AssertColor(Pixels.Yellow, bitmap, 30, 75);
+        Pixels.AssertColor(Pixels.Green, bitmap, 30, 10);
+    }
+
+    [Fact]
+    public async Task ACropOfATurnedPageIsOnTheTurnedPage()
+    {
+        var document = Turn(await Open("rotated.pdf"), 1);
+
+        var band = _loader.Render(document, 0, new LayoutRect(0, 692, 612, 100), 120, 20);
+
+        AssertAbout(120, 20, band);
+        Pixels.AssertColor(Pixels.Yellow, band, 3, 3);
+        Pixels.AssertColor(Pixels.Yellow, band, 116, 16);
+    }
+
+    [Fact]
+    public async Task ATurnedPictureIsRenderedTurned()
+    {
+        var document = Turn(await Open("halves-300dpi.png"), 1);
+
+        var bitmap = _loader.Render(document, 0, null, 36, 72);
+
+        Pixels.AssertColor(Pixels.Red, bitmap, 18, 10);
+        Pixels.AssertColor(Pixels.Blue, bitmap, 18, 62);
+    }
+
+    [Fact]
+    public async Task ATurnedDocumentHasNoOriginalFile()
+    {
+        var document = await Open("rotated.pdf");
+        var turned = Turn(document, 1);
+
+        Assert.NotNull(_loader.OriginalFile(document));
+        Assert.Null(_loader.OriginalFile(turned));
+        Assert.NotNull(_loader.PdfFile(turned));
+        Assert.NotNull(_loader.OriginalFile(Turn(turned, 3)));
+    }
+
     [Fact]
     public async Task APictureIsSizedByItsDensity()
     {

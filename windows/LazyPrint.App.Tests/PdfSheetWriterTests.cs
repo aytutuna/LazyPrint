@@ -148,6 +148,60 @@ public class PdfSheetWriterTests
         AssertColor(Pixels.Green, at(306, 396), "the middle");
     }
 
+    private LoadedDocument Turn(LoadedDocument document, int quarter)
+    {
+        var turned = document.Turned(null, quarter);
+        _loader.Carry(document, turned);
+        return turned;
+    }
+
+    // The same band as above, with the page turned by the user and the placement not turned.
+    [Theory]
+    [InlineData(0, 480, 396)]
+    [InlineData(1, 306, 570)]
+    [InlineData(2, 130, 396)]
+    [InlineData(3, 306, 222)]
+    public async Task APdfPageTheUserTurnedIsDrawnTurned(int turns, int bandX, int bandY)
+    {
+        var document = Turn(await Open("rotated.pdf"), turns);
+        var frame = turns % 2 == 1 ? new LayoutRect(153, 198, 306, 396) : new LayoutRect(108, 243, 396, 306);
+        var bytes = Write(document, Side(false, Place(0, document.Size(0), frame)));
+
+        var at = Read(bytes);
+
+        AssertColor(Pixels.Yellow, at(bandX, bandY), "the band");
+        AssertColor(Pixels.Green, at(306, 396), "the middle");
+        Assert.DoesNotContain("/Image", Encoding.Latin1.GetString(bytes));
+    }
+
+    [Fact]
+    public async Task ACropOfAPdfPageTheUserTurnedIsOnTheTurnedPage()
+    {
+        var document = Turn(await Open("rotated.pdf"), 1);
+        var side = Side(false, Place(0, document.Size(0), new LayoutRect(0, 100, 612, 100), 0, new LayoutRect(0, 692, 612, 100)));
+
+        var at = Read(Write(document, side));
+
+        AssertColor(Pixels.Yellow, at(300, 150), "the band");
+        AssertColor(Pixels.White, at(300, 300), "below it");
+    }
+
+    [Theory]
+    [InlineData(0, 206, 396, 406, 396)]
+    [InlineData(1, 306, 296, 306, 496)]
+    [InlineData(2, 406, 396, 206, 396)]
+    [InlineData(3, 306, 496, 306, 296)]
+    public async Task APictureTheUserTurnedIsDrawnTurned(int turns, int redX, int redY, int blueX, int blueY)
+    {
+        var document = Turn(await Open("halves-300dpi.png"), turns);
+        var frame = turns % 2 == 1 ? new LayoutRect(206, 196, 200, 400) : new LayoutRect(106, 296, 400, 200);
+
+        var at = Read(Write(document, Side(false, Place(0, document.Size(0), frame))));
+
+        AssertColor(Pixels.Red, at(redX, redY), "red half");
+        AssertColor(Pixels.Blue, at(blueX, blueY), "blue half");
+    }
+
     [Fact]
     public async Task APdfCropShowsOnlyItsPartOfThePage()
     {

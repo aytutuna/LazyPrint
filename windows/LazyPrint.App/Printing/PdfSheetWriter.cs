@@ -99,7 +99,7 @@ public sealed class PdfSheetWriter : IDisposable
         if (_sources.TryGetValue(index, out var known)) return known;
         PdfiumDocument? source = null;
         var document = _documents[index];
-        if (document.Kind is DocumentKind.Pdf && _files.OriginalFile(document) is { } bytes)
+        if (document.Kind is DocumentKind.Pdf && _files.PdfFile(document) is { } bytes)
         {
             source = PdfiumDocument.Open(bytes, _files.Password(document));
         }
@@ -149,14 +149,21 @@ public sealed class PdfSheetWriter : IDisposable
         var toShown = new Matrix(1, 0, 0, 1, -box.Left, -box.Bottom);
         toShown.Append(shownMatrix);
         double shownWidth = turn % 2 == 1 ? h : w, shownHeight = turn % 2 == 1 ? w : h;
-        var shown = placement.Crop is { } c ? new Rect(c.X, c.Y, c.Width, c.Height) : new Rect(0, 0, shownWidth, shownHeight);
+        // The crop is on the page after the user's turns, the form on the page before them.
+        int user = _documents[placement.Page.Document].TurnsOf(index);
+        var part = placement.Crop is { } c ? PageTurns.Unturn(c, new LayoutSize(shownWidth, shownHeight), user) : new LayoutRect(0, 0, shownWidth, shownHeight);
+        var shown = new Rect(part.X, part.Y, part.Width, part.Height);
         if (shown.Width <= 0 || shown.Height <= 0) return false;
 
         // PDFium makes a page's form with its /Rotate and the corner of its crop box taken out of the content: y up, the
         // page as shown, from its bottom-left. Its bounding box is the crop box, so a crop is a new crop box on the page
         // before it is taken over, and the form then is the cropped part alone.
         var matrix = new Matrix(1, 0, 0, -1, 0, shown.Height);
-        matrix.Scale(width / shown.Width, height / shown.Height);
+        var (turnedWidth, turnedHeight) = user % 2 == 1 ? (shown.Height, shown.Width) : (shown.Width, shown.Height);
+        // Turned about the origin, then back into the positive quadrant.
+        matrix.Rotate(user * 90);
+        matrix.Translate(user switch { 1 => shown.Height, 2 => shown.Width, _ => 0 }, user switch { 2 => shown.Height, 3 => shown.Width, _ => 0 });
+        matrix.Scale(width / turnedWidth, height / turnedHeight);
         matrix.Append(onto);
 
         var key = (placement.Page.Document, index, placement.Crop);

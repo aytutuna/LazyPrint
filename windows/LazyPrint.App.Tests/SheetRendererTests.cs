@@ -115,6 +115,49 @@ public class SheetRendererTests
         Pixels.AssertColor(Pixels.Blue, bitmap, blueX, blueY);
     }
 
+    private LoadedDocument Turn(LoadedDocument document, int quarter)
+    {
+        var turned = document.Turned(null, quarter);
+        _loader.Carry(document, turned);
+        return turned;
+    }
+
+    [Theory]
+    [InlineData(0, 480, 396)]
+    [InlineData(1, 306, 570)]
+    [InlineData(2, 130, 396)]
+    [InlineData(3, 306, 222)]
+    public async Task APdfPageTheUserTurnedIsDrawnTurned(int turns, int bandX, int bandY)
+    {
+        var (opened, _) = await Open("rotated.pdf");
+        var document = Turn(opened, turns);
+        var frame = turns % 2 == 1 ? new LayoutRect(153, 198, 306, 396) : new LayoutRect(108, 243, 396, 306);
+        var side = Side(false, Place(0, document.Size(0), frame));
+
+        var bitmap = await Sta(() => new SheetRenderer([document], _loader).Render(side, Letter, 72));
+
+        Pixels.AssertColor(Pixels.Yellow, bitmap, bandX, bandY);
+        Pixels.AssertColor(Pixels.Green, bitmap, 306, 396);
+    }
+
+    [Theory]
+    [InlineData(0, 206, 396, 406, 396)]
+    [InlineData(1, 306, 296, 306, 496)]
+    [InlineData(2, 406, 396, 206, 396)]
+    [InlineData(3, 306, 496, 306, 296)]
+    public async Task APictureTheUserTurnedIsDrawnTurned(int turns, int redX, int redY, int blueX, int blueY)
+    {
+        var (opened, _) = await Open("halves-300dpi.png");
+        var document = Turn(opened, turns);
+        var frame = turns % 2 == 1 ? new LayoutRect(206, 196, 200, 400) : new LayoutRect(106, 296, 400, 200);
+        var side = Side(false, Place(0, document.Size(0), frame));
+
+        var bitmap = await Sta(() => new SheetRenderer([document], _loader).Render(side, Letter, 72));
+
+        Pixels.AssertColor(Pixels.Red, bitmap, redX, redY);
+        Pixels.AssertColor(Pixels.Blue, bitmap, blueX, blueY);
+    }
+
     [Fact]
     public async Task ACropShowsOnlyItsPartOfThePage()
     {

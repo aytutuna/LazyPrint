@@ -35,6 +35,9 @@ public interface IDocumentLoader
     /// document, or a text one that already is that size.
     /// </summary>
     LoadedDocument? Relayout(LoadedDocument document, LayoutSize paper) => null;
+
+    /// <summary>Gives a document made from another (<see cref="LoadedDocument.Turned"/>) what the loader keeps of the first: its pages, file and password.</summary>
+    void Carry(LoadedDocument from, LoadedDocument to) { }
 }
 
 /// <summary>What is drawn on a side of a job made of drawing items; <paramref name="Turned"/> draws it upside down, as a manual back is.</summary>
@@ -93,10 +96,14 @@ public interface ISheetPrinter
 public interface IOriginalFiles
 {
     /// <summary>
-    /// The bytes of a PDF as loaded, or of an upright JPEG read from its file now; null for any other document, or a JPEG
-    /// whose file cannot be read any more. Reads the file, so not for the UI thread.
+    /// The bytes of a PDF as loaded, or of an upright JPEG read from its file now; null for any other document, a JPEG
+    /// whose file cannot be read any more, or a document the user has turned, which is never sent as it is. Reads the file,
+    /// so not for the UI thread.
     /// </summary>
     byte[]? OriginalFile(LoadedDocument document);
+
+    /// <summary>The bytes of a PDF as loaded, turned or not, for a writer that draws its pages itself.</summary>
+    byte[]? PdfFile(LoadedDocument document) => OriginalFile(document);
 
     /// <summary>The password a locked PDF was opened with; null for any other document.</summary>
     string? Password(LoadedDocument document) => null;
