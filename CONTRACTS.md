@@ -22,7 +22,7 @@ The Windows solution (`windows/LazyPrint.sln`):
 2. Any helper not listed in this document is `private`/`fileprivate` (Swift) or `private`/`internal` (C#).
 3. Coordinates:
    - Layout: points (1/72 inch), origin TOP-LEFT of the sheet as it goes into the printer (portrait, short edge first), x right, y down. A quarter turn is clockwise as seen on the sheet.
-   - Source pages: points, origin top-left of the page as it is shown (after a PDF page's `/Rotate` or a photo's orientation tag).
+   - Source pages: points, origin top-left of the page as it is shown (after a PDF page's `/Rotate` or a photo's orientation tag, then the user's turns in `LoadedDocument.turns`).
    - Pixels (rasters, bitmaps): origin top-left, x right, y down.
    - PDF user space and CoreGraphics: origin bottom-left; converted only where a sheet is drawn (`Render/`, the Windows `SheetRenderer`).
 4. Errors thrown across modules are `PrintError` (C# `PrintException` carrying a `PrintError`), which has `unreadable(sentence)` and `noPrinter` beside the IPP cases. The sentences for files that can't be printed are Core's `DocumentText` (`lockedPdf`, `notSupported`, `unreadable`, `noPages`, `noText`, and on Windows `needsHeif` and `needsWebP`; the password alert's `passwordTitle`, `passwordMessage` and `lockedLeftOut` are Swift only), used by both document loaders.
@@ -455,7 +455,15 @@ public enum PrinterMerge {
 ### Core/PrintJobs (from settings to sheets to a job)
 
 ```swift
-public struct LoadedDocument: Equatable, Sendable { public var name: String; public var kind: DocumentKind; public var pages: [LayoutSize] }
+public struct LoadedDocument: Equatable, Sendable {
+    public var name: String; public var kind: DocumentKind
+    public var pages: [LayoutSize]          // as the file shows them: /Rotate or the orientation tag applied, the user's turns not
+    public var turns: [Int]                 // the user's quarter turns clockwise per page, 0...3; empty means none turned
+    public func size(_ page: Int) -> LayoutSize            // pages[page], width and height swapped for an odd turn
+    public func turns(_ page: Int) -> Int                  // 0 when turns is empty
+    public func turned(page: Int?, by quarter: Int) -> LoadedDocument   // nil turns every page; -1 left, 1 right; wraps to 0...3
+    public var isTurned: Bool                              // any page turned
+}
 public struct JobPlan: Equatable, Sendable {
     public var plan: SheetPlan
     public var manualDuplex: Bool           // two-sided asked for and the printer can't: two passes
@@ -487,6 +495,8 @@ public struct JobRecord: Equatable, Identifiable, Sendable {   // the Jobs tab: 
     public var state: JobState; public var detail: String?; public var started: Date
 }
 ```
+
+Turning pages: the user turns a whole file (Rotate left and Rotate right on a file in the file list) or the pages on the side shown in the preview (the same two buttons beside the page arrows; with several pages on that side, all of them), a quarter turn at a time. The turns stay with the open file only: not in settings, presets or recent files, gone when the file is closed, and kept when the file list is reordered. `plan` lays out every page at `size(page)`, so a turn can change a side from portrait to landscape or the grid an N-up side picks; the renderers draw the page turned by `turns(page)` inside its slot, before the placement's own `turns`. A turned document is never sent as it is (Swift `originalFile`, C# `IOriginalFiles`); it goes as sheets. The labels are `PrintText.rotateLeft` and `PrintText.rotateRight` ("Rotate left", "Rotate right"). After a turn the preview stays on the side that holds the first page that was turned.
 
 A printer's capabilities (from IPP, or filled in by the system for a queue with no IPP twin) say whether it prints both sides and color, which papers it has and their margins; `PrintJobs.area` uses the matching `media-col-database` entry (borderless when `wantsBorderless` and the paper type suits), else the system's imageable area, else 0.25 in on every side.
 
