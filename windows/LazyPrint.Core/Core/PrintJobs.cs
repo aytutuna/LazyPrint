@@ -4,13 +4,36 @@ namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Core/PrintJobs.swift: from settings to sheets to a job.
 
-/// <summary>A document the user picked: its pages at the size they are shown.</summary>
+/// <summary>
+/// A document the user picked: its pages at the size the file shows them (a PDF page's /Rotate or a photo's orientation applied,
+/// the user's turns not). <see cref="Turns"/> are the user's quarter turns clockwise per page, 0 to 3; empty means none turned.
+/// </summary>
 public sealed record LoadedDocument(string Name, DocumentKind Kind, IReadOnlyList<LayoutSize> Pages)
 {
+    public IReadOnlyList<int> Turns { get; init; } = [];
+
     public bool Equals(LoadedDocument? other) =>
-        other is not null && Name == other.Name && Kind == other.Kind && Pages.SequenceEqual(other.Pages);
+        other is not null && Name == other.Name && Kind == other.Kind && Pages.SequenceEqual(other.Pages) && Turns.SequenceEqual(other.Turns);
 
     public override int GetHashCode() => HashCode.Combine(Name, Pages.Count);
+
+    /// <summary>A page's size as the user's turns leave it: width and height swap for an odd turn.</summary>
+    public LayoutSize Size(int page) => TurnsOf(page) % 2 == 1 ? new LayoutSize(Pages[page].Height, Pages[page].Width) : Pages[page];
+
+    public int TurnsOf(int page) => page < Turns.Count ? Turns[page] : 0;
+
+    /// <summary>The document with a page (null for every page) turned a quarter turn more: -1 left, 1 right, wrapping to 0 to 3.</summary>
+    public LoadedDocument Turned(int? page, int quarter)
+    {
+        var turns = new int[Pages.Count];
+        for (int i = 0; i < turns.Length; i++)
+        {
+            turns[i] = page is null || page == i ? ((TurnsOf(i) + quarter) % 4 + 4) % 4 : TurnsOf(i);
+        }
+        return this with { Turns = turns.Any(t => t != 0) ? turns : [] };
+    }
+
+    public bool IsTurned => Turns.Any(t => t != 0);
 }
 
 /// <summary>What a job will print.</summary>
@@ -121,7 +144,7 @@ public static class PrintJobs
                                PrinterCapabilities? printer, PrinterPrefs prefs)
     {
         var all = documents
-            .SelectMany((document, d) => document.Pages.Select((size, i) => new SourcePage(d, i, size)))
+            .SelectMany((document, d) => document.Pages.Select((_, i) => new SourcePage(d, i, document.Size(i))))
             .ToList();
         var chosen = pageRange?.Where(i => i >= 0 && i < all.Count) ?? Enumerable.Range(0, all.Count);
         var pages = PagePicker.Apply(chosen, settings.PageSelection, settings.ReverseOrder).Select(i => all[i]).ToList();

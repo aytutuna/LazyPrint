@@ -43,6 +43,10 @@ public static class PrintText
 
     public const string FinishTwoSided = "Finish the two-sided job first";
 
+    public const string RotateLeft = "Rotate left";
+
+    public const string RotateRight = "Rotate right";
+
     /// <summary>The iPhone stopped a job because the system took back the app's time in the background.</summary>
     public const string BackgroundExpired = "Lazy Print ran out of time in the background. Print again to finish.";
 

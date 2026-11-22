@@ -115,6 +115,68 @@ public class PrintJobsTests
         Assert.False(Plan([photo], settings, null).Plan.Duplex);
     }
 
+    // MARK: - Turning pages
+
+    [Fact]
+    public void TurningAPageSwapsItsSize()
+    {
+        var document = new LoadedDocument("Photo", new DocumentKind.Photo(), [new LayoutSize(432, 288), new LayoutSize(288, 432)]);
+        var turned = document.Turned(0, 1);
+        Assert.Equal(new LayoutSize(288, 432), turned.Size(0));
+        Assert.Equal(new LayoutSize(288, 432), turned.Size(1));
+        Assert.Equal(new LayoutSize(432, 288), turned.Turned(0, 1).Size(0));
+        Assert.Equal(new LayoutSize(432, 288), document.Pages[0]);
+    }
+
+    [Fact]
+    public void TurningWrapsInBothDirections()
+    {
+        var document = Doc(2);
+        Assert.Equal([3, 0], document.Turned(0, -1).Turns);
+        Assert.Equal(0, document.Turned(0, 1).Turned(0, 1).Turned(0, 1).Turned(0, 1).TurnsOf(0));
+        Assert.Equal(1, document.Turned(0, -1).Turned(0, -1).Turned(0, -1).TurnsOf(0));
+        Assert.Equal(2, document.Turned(1, 1).Turned(1, 1).TurnsOf(1));
+        Assert.False(document.Turned(0, -1).Turned(0, 1).IsTurned);
+    }
+
+    [Fact]
+    public void TurningAFileTurnsEveryPage()
+    {
+        var turned = Doc(3).Turned(1, 1).Turned(null, 1);
+        Assert.Equal([1, 2, 1], turned.Turns);
+        Assert.Equal(new LayoutSize(A4.Height, A4.Width), turned.Size(0));
+    }
+
+    [Fact]
+    public void AnUntouchedDocumentIsNotTurned()
+    {
+        var document = Doc(2);
+        Assert.False(document.IsTurned);
+        Assert.Equal(0, document.TurnsOf(1));
+        Assert.True(document.Turned(null, 1).IsTurned);
+        Assert.Equal(document, document.Turned(null, 4));
+    }
+
+    [Fact]
+    public void ATurnedPageIsPlannedAtItsTurnedSize()
+    {
+        var settings = Settings();
+        var upright = Plan([Doc(1)], settings, Epson).Plan.Sheets[0].Front.Placements[0];
+        var turned = Plan([Doc(1).Turned(0, 1)], settings, Epson).Plan.Sheets[0].Front.Placements[0];
+        Assert.Equal(new LayoutSize(A4.Height, A4.Width), turned.Page.Size);
+        Assert.Equal(0, upright.Turns);
+        Assert.Equal(1, turned.Turns % 2);
+    }
+
+    [Fact]
+    public void TurningPagesChangesTheGridOfASide()
+    {
+        var settings = Settings(s => s.PagesPerSheet = 2);
+        var upright = Plan([Doc(2)], settings, Epson).Plan.Sheets[0].Front.Placements;
+        var turned = Plan([Doc(2).Turned(null, 1)], settings, Epson).Plan.Sheets[0].Front.Placements;
+        Assert.NotEqual(upright.Select(p => p.Frame), turned.Select(p => p.Frame));
+    }
+
     // MARK: - Area
 
     [Fact]
