@@ -102,7 +102,7 @@ public interface IOriginalFiles
     /// </summary>
     byte[]? OriginalFile(LoadedDocument document);
 
-    /// <summary>The bytes of a PDF as loaded, turned or not, for a writer that draws its pages itself.</summary>
+    /// <summary>The bytes of a PDF as loaded, turned or not, for a writer that draws its pages itself. The default, for fakes, is the original file.</summary>
     byte[]? PdfFile(LoadedDocument document) => OriginalFile(document);
 
     /// <summary>The password a locked PDF was opened with; null for any other document.</summary>
