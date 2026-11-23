@@ -39,7 +39,13 @@ internal sealed class FakeLoader : IDocumentLoader
         if (Holds.TryGetValue(path, out var hold)) await hold.WaitAsync(token);
         return path.Contains(".bad", StringComparison.Ordinal)
             ? throw new InvalidOperationException("Lazy Print prints PDFs and pictures. Save it as a PDF first.")
-            : new LoadedDocument(Path.GetFileName(path), path.EndsWith(".txt", StringComparison.Ordinal) ? new DocumentKind.Imposed() : new DocumentKind.Pdf(false), Pages);
+            : new LoadedDocument(Path.GetFileName(path), Kind(path), Pages);
+    }
+
+    private static DocumentKind Kind(string path)
+    {
+        if (path.EndsWith(".txt", StringComparison.Ordinal)) return new DocumentKind.Imposed();
+        return path.EndsWith(".jpg", StringComparison.Ordinal) ? new DocumentKind.Photo() : new DocumentKind.Pdf(false);
     }
 
     /// <summary>A text file is one page whatever the paper, so a test sees the size change and nothing else.</summary>

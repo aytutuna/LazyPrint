@@ -30,6 +30,7 @@ internal sealed class NoNetworks : ICompanionNetworkSource
 
 public sealed class PhoneLinkTests : IDisposable
 {
+    private static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10, (byte)'J', (byte)'F', (byte)'I', (byte)'F', 0, 0xFF, 0xD9];
     private static readonly byte[] Pdf = Encoding.ASCII.GetBytes("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
 
     private readonly Rig _rig = new();
@@ -65,7 +66,8 @@ public sealed class PhoneLinkTests : IDisposable
     /// <summary>A package in the inbox as the server leaves it, then the bar told to look.</summary>
     private async Task Send(string batch, int index, int count, string name, string from = "Aytu's iPhone", DateTimeOffset? at = null)
     {
-        byte[] package = PrintPackage.Make(name, "application/pdf", batch, index, count, from, Pdf);
+        bool jpeg = name.EndsWith(".jpg", StringComparison.Ordinal);
+        byte[] package = PrintPackage.Make(name, jpeg ? "image/jpeg" : "application/pdf", batch, index, count, from, jpeg ? Jpeg : Pdf);
         await _service.Inbox.ReceiveAsync("phone-0001", $"{batch}-{index}", new MemoryStream(package), package.Length,
                                           at ?? DateTimeOffset.UtcNow, CancellationToken.None);
         _rig.Model.RefreshPhoneBatches();
@@ -177,9 +179,9 @@ public sealed class PhoneLinkTests : IDisposable
     {
         _rig.Model.Settings.PrinterId = PrinterMerge.DemoId;
         await _rig.Model.RefreshPrintersAsync();
-        await Send("batch-0001", 0, 1, "a.txt");
+        await Send("batch-0001", 0, 1, "a.jpg");
         Assert.True(await _rig.Model.UsePhoneBatchAsync(startNew: false));
-        string file = Path.Combine(_data, "Inbox", "batch-0001", "a.txt");
+        string file = Path.Combine(_data, "Inbox", "batch-0001", "a.jpg");
         await _rig.Model.PrintAsync();
 
         _rig.Model.TurnDocument(_rig.Model.Documents[0], 1);
