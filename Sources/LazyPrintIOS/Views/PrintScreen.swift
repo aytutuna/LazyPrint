@@ -428,11 +428,33 @@ struct PrintScreen: View {
     }
 
     private var previewBar: some View {
-        Text(positionText)
-            .monospacedDigit()
-            .accessibilityLabel(positionLabel)
-            .accessibilityIdentifier("preview.position")
-            .frame(minHeight: 32)
+        let sides: [Int] = sidesInView
+        return HStack(spacing: 0) {
+            rotateButton(PrintText.rotateLeft, symbol: "rotate.left", quarter: -1, identifier: "print.rotateLeft", sides: sides)
+            Spacer(minLength: 4)
+            Text(positionText)
+                .monospacedDigit()
+                .multilineTextAlignment(.center)
+                .accessibilityLabel(positionLabel)
+                .accessibilityIdentifier("preview.position")
+            Spacer(minLength: 4)
+            rotateButton(PrintText.rotateRight, symbol: "rotate.right", quarter: 1, identifier: "print.rotateRight", sides: sides)
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// Turns the pages on the sides in view a quarter turn.
+    private func rotateButton(_ label: String, symbol: String, quarter: Int, identifier: String, sides: [Int]) -> some View {
+        Button {
+            state.turnPages(onSides: sides, by: quarter)
+        } label: {
+            Image(systemName: symbol)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.borderless)
+        .disabled(!state.canTurnPages(onSides: sides))
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
     }
 
     /// What the plan did to the pages: blanks added, edges cut off.
@@ -634,8 +656,14 @@ private struct DocumentsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(Array(state.documents.enumerated()), id: \.offset) { _, document in
+                ForEach(Array(state.documents.enumerated()), id: \.offset) { index, document in
                     DocumentRow(document: document)
+                        .contextMenu {
+                            Button(PrintText.rotateLeft) { state.turn(at: index, by: -1) }
+                                .disabled(!state.canTurn)
+                            Button(PrintText.rotateRight) { state.turn(at: index, by: 1) }
+                                .disabled(!state.canTurn)
+                        }
                 }
                 .onMove { (from: IndexSet, to: Int) in
                     guard let index = from.first else { return }
@@ -710,6 +738,7 @@ private struct Thumbnail: View {
                     .interpolation(.high)
                     .scaledToFit()
                     .shadow(color: .black.opacity(0.25), radius: 2)
+                    .rotationEffect(.degrees(Double(document.loaded.turns(0)) * 90))
             } else {
                 Color.clear
             }

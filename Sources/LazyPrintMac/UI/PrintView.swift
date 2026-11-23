@@ -293,6 +293,23 @@ struct PrintView: View {
             }
             .disabled(now.sheet >= sheets.count - 1)
             .help("Next sheet")
+            Button {
+                state.turnPages(onSides: [state.previewSide], by: -1)
+            } label: {
+                Image(systemName: "rotate.left")
+            }
+            .disabled(!state.canTurnPages(onSides: [state.previewSide]))
+            .padding(.leading, 12)
+            .help(PrintText.rotateLeft)
+            .accessibilityLabel(PrintText.rotateLeft)
+            Button {
+                state.turnPages(onSides: [state.previewSide], by: 1)
+            } label: {
+                Image(systemName: "rotate.right")
+            }
+            .disabled(!state.canTurnPages(onSides: [state.previewSide]))
+            .help(PrintText.rotateRight)
+            .accessibilityLabel(PrintText.rotateRight)
             Spacer()
             if sheet.back != nil {
                 Picker("Side", selection: Binding(

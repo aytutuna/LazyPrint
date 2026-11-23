@@ -83,6 +83,10 @@ struct DocumentStrip: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(document.loaded.name), \(count)")
         .contextMenu {
+            Button(PrintText.rotateLeft) { state.turn(at: index, by: -1) }
+                .disabled(!state.canTurn)
+            Button(PrintText.rotateRight) { state.turn(at: index, by: 1) }
+                .disabled(!state.canTurn)
             if state.canEditInLazyPDF(document) {
                 Button("Lazy PDF") { state.editInLazyPDF(document) }
             }
@@ -103,6 +107,7 @@ private struct Thumbnail: View {
                     .interpolation(.high)
                     .scaledToFit()
                     .shadow(color: .black.opacity(0.25), radius: 2)
+                    .rotationEffect(.degrees(Double(document.loaded.turns(0)) * 90))
             } else {
                 Color.clear
             }

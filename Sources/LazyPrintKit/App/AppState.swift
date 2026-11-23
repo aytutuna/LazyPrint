@@ -78,6 +78,7 @@ struct PreviewKey: Equatable, Sendable {
     var dpi: Double
     var gray: Bool
     var documents: [URL]
+    var turns: [[Int]]
 }
 
 /// A two-sided job whose fronts are printed: the job to print the backs with, and the card it waits on.
@@ -608,6 +609,54 @@ public final class AppState: ObservableObject {
         replan()
     }
 
+    /// Turning waits for a job to end, as removing and moving do.
+    public var canTurn: Bool { !isBusy && manual == nil }
+
+    /// The pages on the sides (counted as `previewSide` is), each once.
+    private func pagesOn(_ sides: [Int]) -> [SourcePage] {
+        guard let plan = jobPlan else { return [] }
+        var pages = [SourcePage]()
+        for index in sides {
+            for placement in renderedSide(of: plan, at: index)?.side.placements ?? [] where !pages.contains(placement.page) {
+                pages.append(placement.page)
+            }
+        }
+        return pages
+    }
+
+    /// There is a page on one of the sides in view to turn.
+    public func canTurnPages(onSides sides: [Int]) -> Bool {
+        canTurn && !pagesOn(sides).isEmpty
+    }
+
+    /// Turns every page of a document a quarter turn: -1 left, 1 right. The turn stays with the open document.
+    public func turn(at index: Int, by quarter: Int) {
+        guard canTurn, documents.indices.contains(index) else { return }
+        documents[index].loaded = documents[index].loaded.turned(page: nil, by: quarter)
+        replan()
+    }
+
+    /// Turns the pages on the sides in view, then stays on the side that holds the first of them.
+    public func turnPages(onSides sides: [Int], by quarter: Int) {
+        let pages = pagesOn(sides).filter { documents.indices.contains($0.document) }
+        guard canTurn, let first = pages.first else { return }
+        for page in pages {
+            documents[page.document].loaded = documents[page.document].loaded.turned(page: page.index, by: quarter)
+        }
+        replan()
+        guard let turned = jobPlan else { return }
+        var all = [SheetSide]()
+        for sheet in turned.plan.sheets {
+            all.append(sheet.front)
+            if let back = sheet.back { all.append(back) }
+        }
+        if let holder = all.firstIndex(where: { side in
+            side.placements.contains { $0.page.document == first.document && $0.page.index == first.index }
+        }) {
+            previewSide = holder
+        }
+    }
+
     /// The pages the range asks for; nil for every page or a range that does not parse.
     func pageRangeIndexes() -> [Int]? {
         let text = pageRange.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -716,7 +765,8 @@ public final class AppState: ObservableObject {
 
     private func sideKey(_ index: Int) -> PreviewKey? {
         guard let plan = jobPlan, let side = renderedSide(of: plan, at: index) else { return nil }
-        return PreviewKey(side: side, area: plan.plan.area, dpi: previewScale * 72, gray: settings.color == .gray || grayOnlyPrinter, documents: documents.map { $0.url })
+        return PreviewKey(side: side, area: plan.plan.area, dpi: previewScale * 72, gray: settings.color == .gray || grayOnlyPrinter, documents: documents.map { $0.url },
+                          turns: documents.map { $0.loaded.turns })
     }
 
     private func drawnImage(_ key: PreviewKey) -> CGImage? {

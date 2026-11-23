@@ -1505,6 +1505,31 @@ final class AppStateSeamTests: XCTestCase {
     }
 
     @MainActor
+    func test_turningAFile_staysWithItWhenMoved() async throws {
+        let rig = try makeRig()
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 2, in: rig.folder),
+                                  try writePDF(named: "b.pdf", pages: 1, in: rig.folder)])
+
+        rig.state.turn(at: 0, by: 1)
+        rig.state.move(at: 0, by: 1)
+
+        XCTAssertEqual(rig.state.documents[1].loaded.turns, [1, 1])
+        XCTAssertFalse(rig.state.documents[0].loaded.isTurned)
+    }
+
+    @MainActor
+    func test_turningTheShownSide_turnsItsPagesAndStaysOnThem() async throws {
+        let rig = try makeRig()
+        await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 3, in: rig.folder)])
+        rig.state.previewSide = 1
+
+        rig.state.turnPages(onSides: [1], by: -1)
+
+        XCTAssertEqual(rig.state.documents[0].loaded.turns, [0, 3, 0])
+        XCTAssertEqual(rig.state.previewSide, 1)
+    }
+
+    @MainActor
     func test_thePageRange_goesWithTheLastDocumentOnly() async throws {
         let rig = try makeRig()
         await rig.state.addFiles([try writePDF(named: "a.pdf", pages: 2, in: rig.folder),
