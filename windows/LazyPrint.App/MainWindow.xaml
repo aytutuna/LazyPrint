@@ -347,6 +347,16 @@
                                     <Button x:Name="NextSheetButton" Style="{StaticResource IconButtonStyle}" Content="&#xE76C;"
                                             ToolTip="Next sheet" AutomationProperties.Name="Next sheet"
                                             Click="NextSheet_Click" />
+                                    <Button x:Name="RotateLeftButton" Style="{StaticResource IconButtonStyle}" Content="&#xE7AD;" Margin="12,0,0,0"
+                                            ToolTip="{x:Static core:PrintText.RotateLeft}" AutomationProperties.Name="{x:Static core:PrintText.RotateLeft}"
+                                            RenderTransformOrigin="0.5,0.5" Click="RotateLeft_Click">
+                                        <Button.RenderTransform>
+                                            <ScaleTransform ScaleX="-1" />
+                                        </Button.RenderTransform>
+                                    </Button>
+                                    <Button x:Name="RotateRightButton" Style="{StaticResource IconButtonStyle}" Content="&#xE7AD;"
+                                            ToolTip="{x:Static core:PrintText.RotateRight}" AutomationProperties.Name="{x:Static core:PrintText.RotateRight}"
+                                            Click="RotateRight_Click" />
                                 </StackPanel>
                             </DockPanel>
 
@@ -398,6 +408,8 @@
                                                             ContextMenuOpening="DocumentCard_ContextMenuOpening">
                                                         <Border.ContextMenu>
                                                             <ContextMenu>
+                                                                <MenuItem Header="{x:Static core:PrintText.RotateLeft}" Click="DocumentRotateLeft_Click" />
+                                                                <MenuItem Header="{x:Static core:PrintText.RotateRight}" Click="DocumentRotateRight_Click" />
                                                                 <MenuItem Header="Lazy PDF" Click="DocumentLazyPdf_Click" />
                                                             </ContextMenu>
                                                         </Border.ContextMenu>

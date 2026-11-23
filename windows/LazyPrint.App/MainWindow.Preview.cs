@@ -161,6 +161,7 @@ public partial class MainWindow
         SheetLabel.Text = $"{pages} · Sheet {_previewSheet + 1} of {sheets.Count}";
         PreviousSheetButton.IsEnabled = _previewSheet > 0;
         NextSheetButton.IsEnabled = _previewSheet < sheets.Count - 1;
+        RotateLeftButton.IsEnabled = RotateRightButton.IsEnabled = ViewModel.DocumentsEditLockedReason is null && side.Placements.Any(p => p.Page.Document >= 0);
         FaceTrack.Visibility = sheets[_previewSheet].Back is null ? Visibility.Collapsed : Visibility.Visible;
         bool wasUpdating = _updatingUi;
         _updatingUi = true;
@@ -190,6 +191,37 @@ public partial class MainWindow
     private void LookAt(int sheet)
     {
         _previewSheet = Math.Max(0, sheet);
+        _ = UpdatePreviewAsync();
+    }
+
+    private void RotateLeft_Click(object sender, RoutedEventArgs e) => TurnShownPages(-1);
+
+    private void RotateRight_Click(object sender, RoutedEventArgs e) => TurnShownPages(1);
+
+    /// <summary>Turns the pages on the side shown, then stays on the side that holds the first of them.</summary>
+    private void TurnShownPages(int quarter)
+    {
+        if (ViewModel.Plan() is not { } plan || _previewSheet >= plan.Plan.Sheets.Count) return;
+        var shown = plan.Plan.Sheets[_previewSheet];
+        var side = _previewBack ? shown.Back ?? shown.Front : shown.Front;
+        var pages = side.Placements.Where(p => p.Page.Document >= 0).Select(p => p.Page).ToList();
+        if (pages.Count == 0) return;
+
+        ViewModel.TurnPages(pages, quarter);
+        if (ViewModel.Plan() is { } turned)
+        {
+            for (int i = 0; i < turned.Plan.Sheets.Count; i++)
+            {
+                foreach (bool back in new[] { false, true })
+                {
+                    var holder = back ? turned.Plan.Sheets[i].Back : turned.Plan.Sheets[i].Front;
+                    if (holder is null || !holder.Placements.Any(p => p.Page.Document == pages[0].Document && p.Page.Index == pages[0].Index)) continue;
+                    (_previewSheet, _previewBack) = (i, back);
+                    _ = UpdatePreviewAsync();
+                    return;
+                }
+            }
+        }
         _ = UpdatePreviewAsync();
     }
 
@@ -373,7 +405,7 @@ public partial class MainWindow
 
     private async Task LoadThumbnailAsync(DocumentCard card)
     {
-        var size = card.Document.Pages[0];
+        var size = card.Document.Size(0);
         // The card shows it at most 104 × 76 DIPs; drawn at twice that.
         double scale = 2 * Math.Min(104 / size.Width, 76 / size.Height);
         int width = Math.Max(1, (int)(size.Width * scale)), height = Math.Max(1, (int)(size.Height * scale));
@@ -400,10 +432,27 @@ public partial class MainWindow
         if (CardOf(sender) is { } card) ViewModel.MoveDocument(card.Document, 1);
     }
 
-    /// <summary>A card's menu holds only Lazy PDF, so a card that cannot be opened there has no menu.</summary>
+    /// <summary>Lazy PDF is the menu's last item, and only a card that can be opened there has it.</summary>
     private void DocumentCard_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        if (CardOf(sender) is not { } card || !ViewModel.CanEditInLazyPdf(card.Document)) e.Handled = true;
+        if (CardOf(sender) is not { } card || sender is not FrameworkElement { ContextMenu: { } menu })
+        {
+            e.Handled = true;
+            return;
+        }
+        var items = menu.Items.OfType<MenuItem>().ToList();
+        items[^1].Visibility = ViewModel.CanEditInLazyPdf(card.Document) ? Visibility.Visible : Visibility.Collapsed;
+        items[0].IsEnabled = items[1].IsEnabled = ViewModel.DocumentsEditLockedReason is null;
+    }
+
+    private void DocumentRotateLeft_Click(object sender, RoutedEventArgs e)
+    {
+        if (CardOf(sender) is { } card) ViewModel.TurnDocument(card.Document, -1);
+    }
+
+    private void DocumentRotateRight_Click(object sender, RoutedEventArgs e)
+    {
+        if (CardOf(sender) is { } card) ViewModel.TurnDocument(card.Document, 1);
     }
 
     private void DocumentLazyPdf_Click(object sender, RoutedEventArgs e)

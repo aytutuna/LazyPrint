@@ -147,14 +147,20 @@ public sealed partial class AppViewModel
         {
             var old = Documents[i];
             if (_loader.Relayout(old, paper) is not { } laid) continue;
-            if (_sourcePaths.TryGetValue(old, out string? source)) _sourcePaths.Add(laid, source);
-            if (_takenFiles.TryGetValue(old, out string? taken))
-            {
-                _takenFiles.Remove(old);
-                _takenFiles.Add(laid, taken);
-            }
-            Documents[i] = laid;
+            ReplaceDocument(i, laid);
         }
+    }
+
+    private void ReplaceDocument(int at, LoadedDocument laid)
+    {
+        var old = Documents[at];
+        if (_sourcePaths.TryGetValue(old, out string? source)) _sourcePaths.Add(laid, source);
+        if (_takenFiles.TryGetValue(old, out string? taken))
+        {
+            _takenFiles.Remove(old);
+            _takenFiles.Add(laid, taken);
+        }
+        Documents[at] = laid;
     }
 
     private readonly List<string> _queuedFiles = [];
@@ -338,6 +344,35 @@ public sealed partial class AppViewModel
         if (DocumentsEditLockedReason is not null || from < 0 || to < 0 || to >= Documents.Count || to == from) return;
         Documents.Move(from, to);
         NotifyAll();
+    }
+
+    /// <summary>Turns every page of a document a quarter turn (-1 left, 1 right). The document is replaced by a turned one in the same place.</summary>
+    public void TurnDocument(LoadedDocument document, int quarter)
+    {
+        int at = IndexOfDocument(document);
+        if (DocumentsEditLockedReason is not null || at < 0) return;
+        TurnAt(at, document.Turned(null, quarter));
+        NotifyAll();
+    }
+
+    /// <summary>Turns the pages (as the plan names them, by document and page) a quarter turn.</summary>
+    public void TurnPages(IEnumerable<SourcePage> pages, int quarter)
+    {
+        if (DocumentsEditLockedReason is not null) return;
+        foreach (var group in pages.Distinct().GroupBy(page => page.Document))
+        {
+            if (group.Key < 0 || group.Key >= Documents.Count) continue;
+            var turned = Documents[group.Key];
+            foreach (var page in group) turned = turned.Turned(page.Index, quarter);
+            TurnAt(group.Key, turned);
+        }
+        NotifyAll();
+    }
+
+    private void TurnAt(int at, LoadedDocument turned)
+    {
+        _loader.Carry(Documents[at], turned);
+        ReplaceDocument(at, turned);
     }
 
     /// <summary>The pages the range asks for; null for every page or a range that does not parse.</summary>
