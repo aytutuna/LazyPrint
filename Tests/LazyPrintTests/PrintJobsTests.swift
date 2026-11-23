@@ -114,6 +114,56 @@ final class PrintJobsTests: XCTestCase {
         XCTAssertFalse(makePlan([photoDoc], settings, nil).plan.duplex)
     }
 
+    // MARK: - Turning pages
+
+    func test_turningAPageSwapsItsSize() {
+        let document = LoadedDocument(name: "Photo", kind: .photo, pages: [LayoutSize(width: 432, height: 288), LayoutSize(width: 288, height: 432)])
+        let turned = document.turned(page: 0, by: 1)
+        XCTAssertEqual(turned.size(0), LayoutSize(width: 288, height: 432))
+        XCTAssertEqual(turned.size(1), LayoutSize(width: 288, height: 432))
+        XCTAssertEqual(turned.turned(page: 0, by: 1).size(0), LayoutSize(width: 432, height: 288))
+        XCTAssertEqual(document.pages[0], LayoutSize(width: 432, height: 288))
+    }
+
+    func test_turningWrapsInBothDirections() {
+        let document = doc(2)
+        XCTAssertEqual(document.turned(page: 0, by: -1).turns, [3, 0])
+        XCTAssertEqual(document.turned(page: 0, by: 1).turned(page: 0, by: 1).turned(page: 0, by: 1).turned(page: 0, by: 1).turns(0), 0)
+        XCTAssertEqual(document.turned(page: 0, by: -1).turned(page: 0, by: -1).turned(page: 0, by: -1).turns(0), 1)
+        XCTAssertEqual(document.turned(page: 1, by: 1).turned(page: 1, by: 1).turns(1), 2)
+        XCTAssertFalse(document.turned(page: 0, by: -1).turned(page: 0, by: 1).isTurned)
+    }
+
+    func test_turningAFileTurnsEveryPage() {
+        let turned = doc(3).turned(page: 1, by: 1).turned(page: nil, by: 1)
+        XCTAssertEqual(turned.turns, [1, 2, 1])
+        XCTAssertEqual(turned.size(0), LayoutSize(width: a4.height, height: a4.width))
+    }
+
+    func test_anUntouchedDocument_isNotTurned() {
+        let document = doc(2)
+        XCTAssertFalse(document.isTurned)
+        XCTAssertEqual(document.turns(1), 0)
+        XCTAssertTrue(document.turned(page: nil, by: 1).isTurned)
+        XCTAssertEqual(document, document.turned(page: nil, by: 4))
+    }
+
+    func test_aTurnedPage_isPlannedAtItsTurnedSize() {
+        let settings = makeSettings()
+        let upright = makePlan([doc(1)], settings, epson).plan.sheets[0].front.placements[0]
+        let turned = makePlan([doc(1).turned(page: 0, by: 1)], settings, epson).plan.sheets[0].front.placements[0]
+        XCTAssertEqual(turned.page.size, LayoutSize(width: a4.height, height: a4.width))
+        XCTAssertEqual(upright.turns, 0)
+        XCTAssertEqual(turned.turns % 2, 1)
+    }
+
+    func test_turningPages_changesTheGridOfASide() {
+        let settings = makeSettings { $0.pagesPerSheet = 2 }
+        let upright = makePlan([doc(2)], settings, epson).plan.sheets[0].front.placements
+        let turned = makePlan([doc(2).turned(page: nil, by: 1)], settings, epson).plan.sheets[0].front.placements
+        XCTAssertNotEqual(upright.map(\.frame), turned.map(\.frame))
+    }
+
     // MARK: - Area
 
     func test_area_isTheMatchingDatabaseEntry() {

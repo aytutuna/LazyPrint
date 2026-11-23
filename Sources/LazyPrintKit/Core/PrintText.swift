@@ -53,6 +53,10 @@ public enum PrintText {
 
     public static let finishTwoSided = "Finish the two-sided job first"
 
+    public static let rotateLeft = "Rotate left"
+
+    public static let rotateRight = "Rotate right"
+
     /// The iPhone stopped a job because the system took back the app's time in the background.
     public static let backgroundExpired = "Lazy Print ran out of time in the background. Print again to finish."
 

@@ -2,17 +2,40 @@ import Foundation
 
 // Twin of windows/LazyPrint.Core/Core/PrintJobs.cs: from settings to sheets to a job.
 
-/// A document the user picked: its pages at the size they are shown.
+/// A document the user picked: its pages at the size the file shows them (a PDF page's `/Rotate` or a photo's orientation
+/// applied, the user's turns not). `turns` are the user's quarter turns clockwise per page, 0 to 3; empty means none turned.
 public struct LoadedDocument: Equatable, Sendable {
     public var name: String
     public var kind: DocumentKind
     public var pages: [LayoutSize]
+    public var turns: [Int]
 
-    public init(name: String, kind: DocumentKind, pages: [LayoutSize]) {
+    public init(name: String, kind: DocumentKind, pages: [LayoutSize], turns: [Int] = []) {
         self.name = name
         self.kind = kind
         self.pages = pages
+        self.turns = turns
     }
+
+    /// A page's size as the user's turns leave it: width and height swap for an odd turn.
+    public func size(_ page: Int) -> LayoutSize {
+        turns(page) % 2 == 1 ? LayoutSize(width: pages[page].height, height: pages[page].width) : pages[page]
+    }
+
+    public func turns(_ page: Int) -> Int { page < turns.count ? turns[page] : 0 }
+
+    /// The document with a page (nil for every page) turned a quarter turn more: -1 left, 1 right, wrapping to 0 to 3.
+    public func turned(page: Int?, by quarter: Int) -> LoadedDocument {
+        var next = pages.indices.map { i in
+            page == nil || page == i ? ((turns(i) + quarter) % 4 + 4) % 4 : turns(i)
+        }
+        if next.allSatisfy({ $0 == 0 }) { next = [] }
+        var copy = self
+        copy.turns = next
+        return copy
+    }
+
+    public var isTurned: Bool { turns.contains { $0 != 0 } }
 }
 
 /// What a job will print. `manualDuplex`: two-sided was asked for and the printer can't, so two passes. `passes` is one
@@ -142,8 +165,8 @@ public enum PrintJobs {
                             printer: PrinterCapabilities?, prefs: PrinterPrefs) -> JobPlan {
         var all = [SourcePage]()
         for (d, document) in documents.enumerated() {
-            for (i, size) in document.pages.enumerated() {
-                all.append(SourcePage(document: d, index: i, size: size))
+            for i in document.pages.indices {
+                all.append(SourcePage(document: d, index: i, size: document.size(i)))
             }
         }
         let chosen = (pageRange ?? Array(0..<all.count)).filter { $0 >= 0 && $0 < all.count }
