@@ -54,6 +54,8 @@ public final class DocumentLoader: DocumentLoading {
     }
 
     public func originalFile(_ document: OpenedDocument) -> URL? {
+        // A file the user turned is sent as sheets, not as it is.
+        if document.loaded.isTurned { return nil }
         switch document.source {
         case .pdf:
             // The pages of a text file are drawn here, not the file's own.
@@ -103,6 +105,11 @@ public final class DocumentLoader: DocumentLoading {
         guard let text = document.text, document.loaded.pages.first != paper,
               var laid = Self.layText(text, name: document.loaded.name, url: document.url, size: paper) else { return nil }
         laid.access = document.access
+        // The pages are new, so only a turn the whole file has can go with it.
+        let turns = document.loaded.turns
+        if let first = turns.first, turns.allSatisfy({ $0 == first }) {
+            laid.loaded = laid.loaded.turned(page: nil, by: first)
+        }
         return laid
     }
 

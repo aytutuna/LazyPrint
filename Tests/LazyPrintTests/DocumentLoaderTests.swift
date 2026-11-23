@@ -24,7 +24,7 @@ final class DocumentLoaderTests: XCTestCase {
     private func drawn(_ document: OpenedDocument, page: Int = 0, crop: LayoutRect? = nil, width: Double, height: Double,
                        dpi: Double = 72) throws -> SheetBitmap {
         let area = PrintableArea(paper: LayoutSize(width: width, height: height), margins: LayoutInsets(top: 0, left: 0, bottom: 0, right: 0))
-        let placement = Placement(page: SourcePage(document: 0, index: page, size: document.loaded.pages[page]),
+        let placement = Placement(page: SourcePage(document: 0, index: page, size: document.loaded.size(page)),
                                   frame: LayoutRect(x: 0, y: 0, width: width, height: height), turns: 0, crop: crop)
         let side = RenderedSide(side: SheetSide(placements: [placement], borders: false))
         return try SheetRenderer(documents: [document]).bitmap(side, area: area, dpi: dpi, gray: false)
@@ -81,6 +81,31 @@ final class DocumentLoaderTests: XCTestCase {
         Pixels.assertColor(Pixels.yellow, band, 16, 116)
         Pixels.assertColor(Pixels.green, rest, 3, 3)
         Pixels.assertColor(Pixels.green, rest, 16, 116)
+    }
+
+    private func turned(_ document: OpenedDocument, _ quarter: Int) -> OpenedDocument {
+        var copy = document
+        copy.loaded = document.loaded.turned(page: nil, by: quarter)
+        return copy
+    }
+
+    func test_pdf_aTurnedPageIsDrawnTurned() throws {
+        let document = turned(try DocumentFixtures.open("rotated.pdf"), 1)
+
+        let bitmap = try drawn(document, width: 61, height: 79)
+
+        // The band on the right edge goes to the bottom.
+        Pixels.assertColor(Pixels.yellow, bitmap, 30, 75)
+        Pixels.assertColor(Pixels.green, bitmap, 30, 10)
+    }
+
+    func test_pdf_aCropOfATurnedPageIsOnTheTurnedPage() throws {
+        let document = turned(try DocumentFixtures.open("rotated.pdf"), 1)
+
+        let band = try drawn(document, crop: LayoutRect(x: 0, y: 692, width: 612, height: 100), width: 120, height: 20)
+
+        Pixels.assertColor(Pixels.yellow, band, 3, 3)
+        Pixels.assertColor(Pixels.yellow, band, 116, 16)
     }
 
     func test_pdf_lockedIsRefused() {
@@ -151,6 +176,15 @@ final class DocumentLoaderTests: XCTestCase {
         Pixels.assertColor(Pixels.blue, blue, 37, 37)
         Pixels.assertColor(Pixels.red, red, 2, 2)
         Pixels.assertColor(Pixels.red, red, 37, 37)
+    }
+
+    func test_picture_aTurnedOneIsDrawnTurned() throws {
+        let document = turned(try DocumentFixtures.open("halves-300dpi.png"), 1)
+
+        let bitmap = try drawn(document, width: 36, height: 72)
+
+        Pixels.assertColor(Pixels.red, bitmap, 18, 10)
+        Pixels.assertColor(Pixels.blue, bitmap, 18, 62)
     }
 
     func test_gif_withSeveralFrames_isItsFirstFrame() throws {
@@ -315,6 +349,15 @@ final class DocumentLoaderTests: XCTestCase {
         let url = try writePicture(.jpeg, ext: "jpg", colors: [Pixels.red])
 
         XCTAssertEqual(loader.originalFile(try loader.load(url)), url)
+    }
+
+    func test_originalFile_ofATurnedDocument_isNil() throws {
+        let document = try DocumentFixtures.open("rotated.pdf")
+        let quarter = turned(document, 1)
+
+        XCTAssertNotNil(loader.originalFile(document))
+        XCTAssertNil(loader.originalFile(quarter))
+        XCTAssertNotNil(loader.originalFile(turned(quarter, 3)))
     }
 
     func test_originalFile_ofATurnedJpeg_isNil() throws {

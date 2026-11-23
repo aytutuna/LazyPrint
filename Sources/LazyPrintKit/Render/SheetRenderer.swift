@@ -117,17 +117,23 @@ public struct SheetRenderer {
         guard documents.indices.contains(placement.page.document) else { return }
         let document = documents[placement.page.document]
         let frame = placement.frame
-        let sideways = placement.turns % 2 != 0
+        // The user's turn comes before the placement's, so the page is drawn at both.
+        let user = document.loaded.turns(placement.page.index)
+        let turns = placement.turns + user
+        let sideways = turns % 2 != 0
         // The page as it lies before turning: the frame's shape, turned back.
         let width = sideways ? frame.height : frame.width
         let height = sideways ? frame.width : frame.height
         guard width > 0, height > 0 else { return }
 
+        // The crop is on the page after the user's turn, the drawing on the page before it.
+        let crop = placement.crop.map { Self.unturn($0, page: document.loaded.pages[placement.page.index], turns: user) }
+
         document.drawing.locked {
             context.saveGState()
             context.clip(to: CGRect(frame))
             context.translateBy(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
-            context.rotate(by: Double(placement.turns) * .pi / 2)
+            context.rotate(by: Double(turns) * .pi / 2)
             // Images and PDF pages come out upside down in the flipped space; flip back here.
             context.scaleBy(x: 1, y: -1)
             context.clip(to: CGRect(x: -width / 2, y: -height / 2, width: width, height: height))
@@ -135,17 +141,27 @@ public struct SheetRenderer {
             switch document.source {
             case .pdf(let pdf):
                 if let page = pdf.page(at: placement.page.index + 1) {
-                    drawPDF(page, annotated: document.annotatedPage(placement.page.index), crop: placement.crop, width: width,
+                    drawPDF(page, annotated: document.annotatedPage(placement.page.index), crop: crop, width: width,
                             height: height, in: context)
                 }
             case .picture(let source):
                 let index = placement.page.index
                 if document.loaded.pages.indices.contains(index) {
-                    drawPicture(source, index: index, size: document.loaded.pages[index], crop: placement.crop, width: width,
+                    drawPicture(source, index: index, size: document.loaded.pages[index], crop: crop, width: width,
                                 height: height, imageDpi: imageDpi, in: context)
                 }
             }
             context.restoreGState()
+        }
+    }
+
+    /// A crop given on the page after `turns` quarter turns clockwise, as it lies on `page`, the page before them.
+    private static func unturn(_ crop: LayoutRect, page: LayoutSize, turns: Int) -> LayoutRect {
+        switch turns {
+        case 1: return LayoutRect(x: crop.y, y: page.height - crop.x - crop.width, width: crop.height, height: crop.width)
+        case 2: return LayoutRect(x: page.width - crop.x - crop.width, y: page.height - crop.y - crop.height, width: crop.width, height: crop.height)
+        case 3: return LayoutRect(x: page.width - crop.y - crop.height, y: crop.x, width: crop.height, height: crop.width)
+        default: return crop
         }
     }
 

@@ -93,6 +93,52 @@ final class SheetRendererTests: XCTestCase {
     func test_quarterTurns_twoIsHalfATurn() throws { try assertQuarterTurns(2, red: (406, 396), blue: (206, 396)) }
     func test_quarterTurns_threeIsCounterclockwise() throws { try assertQuarterTurns(3, red: (306, 496), blue: (306, 296)) }
 
+    private func turned(_ document: OpenedDocument, _ quarter: Int) -> OpenedDocument {
+        var copy = document
+        copy.loaded = document.loaded.turned(page: nil, by: quarter)
+        return copy
+    }
+
+    // The page turned by the user, the placement not turned.
+    private func assertUserTurnsOfPdf(_ turns: Int, band: (Int, Int), line: UInt = #line) throws {
+        let document = turned(try DocumentFixtures.open("rotated.pdf"), turns)
+        let frame = turns % 2 == 1 ? rect(153, 198, 306, 396) : rect(108, 243, 396, 306)
+
+        let bitmap = try render([document], side([place(0, document.loaded.size(0), frame)]))
+
+        Pixels.assertColor(Pixels.yellow, bitmap, band.0, band.1, line: line)
+        Pixels.assertColor(Pixels.green, bitmap, 306, 396, line: line)
+    }
+
+    func test_userTurns_ofAPdfPage_none() throws { try assertUserTurnsOfPdf(0, band: (480, 396)) }
+    func test_userTurns_ofAPdfPage_one() throws { try assertUserTurnsOfPdf(1, band: (306, 570)) }
+    func test_userTurns_ofAPdfPage_two() throws { try assertUserTurnsOfPdf(2, band: (130, 396)) }
+    func test_userTurns_ofAPdfPage_three() throws { try assertUserTurnsOfPdf(3, band: (306, 222)) }
+
+    private func assertUserTurnsOfPicture(_ turns: Int, red: (Int, Int), blue: (Int, Int), line: UInt = #line) throws {
+        let document = turned(try DocumentFixtures.open("halves-300dpi.png"), turns)
+        let frame = turns % 2 == 1 ? rect(206, 196, 200, 400) : rect(106, 296, 400, 200)
+
+        let bitmap = try render([document], side([place(0, document.loaded.size(0), frame)]))
+
+        Pixels.assertColor(Pixels.red, bitmap, red.0, red.1, line: line)
+        Pixels.assertColor(Pixels.blue, bitmap, blue.0, blue.1, line: line)
+    }
+
+    func test_userTurns_ofAPicture_none() throws { try assertUserTurnsOfPicture(0, red: (206, 396), blue: (406, 396)) }
+    func test_userTurns_ofAPicture_one() throws { try assertUserTurnsOfPicture(1, red: (306, 296), blue: (306, 496)) }
+    func test_userTurns_ofAPicture_two() throws { try assertUserTurnsOfPicture(2, red: (406, 396), blue: (206, 396)) }
+    func test_userTurns_ofAPicture_three() throws { try assertUserTurnsOfPicture(3, red: (306, 496), blue: (306, 296)) }
+
+    func test_userTurns_cropOfATurnedPdfPageIsOnTheTurnedPage() throws {
+        let document = turned(try DocumentFixtures.open("rotated.pdf"), 1)
+
+        let bitmap = try render([document], side([place(0, document.loaded.size(0), rect(0, 100, 612, 100), crop: rect(0, 692, 612, 100))]))
+
+        Pixels.assertColor(Pixels.yellow, bitmap, 300, 150)
+        Pixels.assertColor(Pixels.white, bitmap, 300, 300)
+    }
+
     func test_crop_showsOnlyItsPartOfThePicture() throws {
         let document = try DocumentFixtures.open("halves-300dpi.png")
         let size = document.loaded.pages[0]
