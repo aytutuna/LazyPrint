@@ -81,7 +81,10 @@ public sealed partial class AppViewModel
     {
         foreach (var document in _heldTaken.ToArray())
         {
-            if (_againDocuments.Values.Any(documents => documents.Any(kept => ReferenceEquals(kept, document)))) continue;
+            if (!_takenFiles.TryGetValue(document, out string? path)) continue;
+            // A job may hold the document as it was before it was turned or set again, which is the same file.
+            if (_againDocuments.Values.Any(documents => documents.Any(kept =>
+                    ReferenceEquals(kept, document) || (_takenFiles.TryGetValue(kept, out string? keptPath) && keptPath == path)))) continue;
             _heldTaken.Remove(document);
             DeleteTaken(document);
         }
@@ -157,7 +160,7 @@ public sealed partial class AppViewModel
         if (_sourcePaths.TryGetValue(old, out string? source)) _sourcePaths.Add(laid, source);
         if (_takenFiles.TryGetValue(old, out string? taken))
         {
-            _takenFiles.Remove(old);
+            // The old one keeps its entry: a job that can print again may still hold it.
             _takenFiles.Add(laid, taken);
         }
         Documents[at] = laid;

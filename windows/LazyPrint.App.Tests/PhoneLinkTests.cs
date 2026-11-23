@@ -173,6 +173,25 @@ public sealed class PhoneLinkTests : IDisposable
     }
 
     [Fact]
+    public async Task ATakenFileStaysWhilePrintAgainNeedsItAfterTheDocumentWasTurnedAndRemoved()
+    {
+        _rig.Model.Settings.PrinterId = PrinterMerge.DemoId;
+        await _rig.Model.RefreshPrintersAsync();
+        await Send("batch-0001", 0, 1, "a.txt");
+        Assert.True(await _rig.Model.UsePhoneBatchAsync(startNew: false));
+        string file = Path.Combine(_data, "Inbox", "batch-0001", "a.txt");
+        await _rig.Model.PrintAsync();
+
+        _rig.Model.TurnDocument(_rig.Model.Documents[0], 1);
+        _rig.Model.RemoveDocument(_rig.Model.Documents[0]);
+
+        Assert.True(File.Exists(file));
+        string job = _rig.Model.Jobs[0].Id;
+        await _rig.Model.PrintAgainAsync(job);
+        Assert.Equal(2, _rig.Sheets.Passes.Count);
+    }
+
+    [Fact]
     public async Task ABatchWithNoTaskStartsNoneAndLeavesTheSettings()
     {
         _rig.Model.ClearTask();
