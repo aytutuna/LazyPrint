@@ -116,6 +116,7 @@ public struct SheetRenderer {
     private func drawPlacement(_ placement: Placement, imageDpi: Double, in context: CGContext) {
         guard documents.indices.contains(placement.page.document) else { return }
         let document = documents[placement.page.document]
+        guard document.loaded.pages.indices.contains(placement.page.index) else { return }
         let frame = placement.frame
         // The user's turn comes before the placement's, so the page is drawn at both.
         let user = document.loaded.turns(placement.page.index)

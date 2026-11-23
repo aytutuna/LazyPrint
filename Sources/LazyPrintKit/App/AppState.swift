@@ -610,7 +610,7 @@ public final class AppState: ObservableObject {
     }
 
     /// Turning waits for a job to end, as removing and moving do.
-    public var canTurn: Bool { !isBusy && manual == nil }
+    public var canTurn: Bool { !isBusy && !isAddingFiles && manual == nil }
 
     /// The pages on the sides (counted as `previewSide` is), each once.
     private func pagesOn(_ sides: [Int]) -> [SourcePage] {
