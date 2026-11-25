@@ -46,7 +46,7 @@ jobs:
           if ($upload.Length -lt 1MB) { throw "$upload is too small" }
       - name: Check the workflows
         shell: bash
-        run: bash scripts/check_workflows.sh
+        run: node scripts/check_workflows.js
       # The rules note is kept locally and ignored by git; nothing tracked may name it.
       - name: Check that the rules note is not in the repository
         shell: bash
