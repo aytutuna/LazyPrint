@@ -35,7 +35,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $arch" }
           }
       - name: Start the program
-        shell: pwsh
+        shell: powershell
         run: ./scripts/check_start.ps1 -Exe (Join-Path $env:RUNNER_TEMP 'publish-x64/LazyPrint.exe')
       - name: Pack the Store package
         shell: pwsh
