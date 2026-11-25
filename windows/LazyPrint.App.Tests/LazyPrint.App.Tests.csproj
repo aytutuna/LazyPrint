@@ -31,9 +31,10 @@
     <Compile Include="..\LazyPrint.Core.Tests\RasterReader.cs" Link="Shared\RasterReader.cs" />
   </ItemGroup>
 
-  <!-- The manifest the app embeds, parsed by ManifestTests. -->
+  <!-- The manifest the app embeds, parsed by ManifestTests, and the Store package's, read by PackagingTests. -->
   <ItemGroup>
     <None Include="..\LazyPrint.App\app.manifest" Link="app.manifest" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\store\windows\Package.appxmanifest" Link="Package.appxmanifest" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The fixtures the tests read (Tests/Fixtures at the repository root). -->

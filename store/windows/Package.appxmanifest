@@ -4,8 +4,9 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-         IgnorableNamespaces="uap rescap">
+         IgnorableNamespaces="uap desktop2 rescap">
 
   <Identity Name="PartnerCenterIdentityName"
             Publisher="CN=PartnerCenterPublisher"
@@ -93,4 +94,13 @@
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
+
+  <Extensions>
+    <!-- The phone link listens on port 52732. This rule follows the package through updates; an Allow rule on the exe path does not. -->
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="LazyPrint.exe">
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="52732" LocalPortMax="52732" Profile="all" />
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
 </Package>
