@@ -96,7 +96,9 @@
   </Capabilities>
 
   <Extensions>
-    <!-- The phone link listens on port 52732. This rule follows the package through updates; an Allow rule on the exe path does not. -->
+    <!-- The phone link listens on port 52732. This rule follows the package through updates; an Allow rule on the exe path does not.
+         When that port is taken the listener moves to another one, which this rule does not open; the phone window's firewall
+         check reads the port actually in use and says so. -->
     <desktop2:Extension Category="windows.firewallRules">
       <desktop2:FirewallRules Executable="LazyPrint.exe">
         <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="52732" LocalPortMax="52732" Profile="all" />
