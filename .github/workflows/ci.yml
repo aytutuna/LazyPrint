@@ -48,6 +48,27 @@ jobs:
         shell: bash
         run: bash scripts/check_workflows.sh
 
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Android platform
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0"
+      - name: Test
+        run: ./gradlew testDebugUnitTest --console=plain
+      # Unsigned: the upload key is not in CI. The bundle is built to prove that the release build, with shrinking, works.
+      - name: Build the release bundle
+        run: ./gradlew bundleRelease --console=plain
+
   macos:
     # Package.swift declares swift-tools-version 6.0 (the Swift 5 language mode), macOS 14 and
     # iOS 18. Xcode 16.4 is selected explicitly, as in Lazy Scan, so a change of the image's default
