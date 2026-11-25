@@ -145,10 +145,30 @@ public partial class MainWindow
     {
         double width = StageHost.ActualWidth - 2 * StagePadding, height = StageHost.ActualHeight - 2 * StagePadding;
         if (width <= 0 || height <= 0) return 96;
-        // Device pixels to a point of the sheet.
-        double scale = ZoomOf(paper) * DipsPerPoint * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        return DpiFor(ZoomOf(paper), VisualTreeHelper.GetDpi(this).DpiScaleX);
+    }
+
+    /// <summary>Device pixels to an inch of the sheet at a zoom and a screen scale, rounded up to a multiple of 12.</summary>
+    internal static int DpiFor(double zoom, double screenScale)
+    {
+        double scale = zoom * DipsPerPoint * screenScale;
         int dpi = (int)(Math.Ceiling(scale * 72 / 12) * 12);
         return Math.Clamp(dpi, LowestPreviewDpi, HighestPreviewDpi);
+    }
+
+    /// <summary>The window moved to a screen of another scale, or the scale was changed: the picture is drawn again for it.</summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        ForgetPreview();
+    }
+
+    internal bool PreviewIsDrawn => _previewKey is not null;
+
+    internal void ForgetPreview()
+    {
+        _previewKey = null;
+        SchedulePreview();
     }
 
     private void SyncPreviewBar(JobPlan plan)
