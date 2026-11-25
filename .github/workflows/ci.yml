@@ -47,6 +47,12 @@ jobs:
       - name: Check the workflows
         shell: bash
         run: bash scripts/check_workflows.sh
+      # The rules note is kept locally and ignored by git; nothing tracked may name it.
+      - name: Check that the rules note is not in the repository
+        shell: bash
+        run: |
+          if git ls-files | grep -qi '^contracts.md$'; then echo "The rules note is tracked"; exit 1; fi
+          if git grep -l 'CONTRACTS.md' -- . ':(exclude).github/workflows/ci.yml'; then echo "A tracked file names the rules note"; exit 1; fi
 
   android:
     runs-on: ubuntu-latest
