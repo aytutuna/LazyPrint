@@ -163,7 +163,7 @@ public partial class MainWindow
         ForgetPreview();
     }
 
-    internal bool PreviewIsDrawn => _previewKey is not null;
+    internal bool PreviewIsScheduled => _previewTimer.IsEnabled;
 
     internal void ForgetPreview()
     {

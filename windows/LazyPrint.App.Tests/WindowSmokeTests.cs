@@ -51,7 +51,8 @@ public sealed class WindowSmokeTests
     [Fact]
     public void TheMainWindowIsBuilt() => OnUi(() =>
     {
-        var window = new MainWindow();
+        using var folder = new TempFolder();
+        var window = new MainWindow(folder.Path, folder.Path);
         try { Lay(window); }
         finally { window.ViewModel.Shutdown(); }
     });
@@ -89,14 +90,26 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
-    public void ACrispPreviewIsDrawnAgainWhenTheScaleChanges() => OnUi(() =>
+    public void ThePreviewIsDrawnAgainWhenTheScreenScaleChanges() => OnUi(() =>
     {
-        var window = new MainWindow();
+        using var folder = new TempFolder();
+        var window = new MainWindow(folder.Path, folder.Path);
         try
         {
+            Assert.False(window.PreviewIsScheduled);
             window.ForgetPreview();
-            Assert.False(window.PreviewIsDrawn);
+            Assert.True(window.PreviewIsScheduled);
         }
         finally { window.ViewModel.Shutdown(); }
     });
+
+    private sealed class TempFolder : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "lazyprint-smoke-" + Guid.NewGuid().ToString("N"));
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path)) Directory.Delete(Path, true);
+        }
+    }
 }

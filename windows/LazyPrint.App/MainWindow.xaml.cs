@@ -31,13 +31,19 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _printerPoll = new() { Interval = PrinterPollInterval };
     private readonly DispatcherTimer _statusPoll = new() { Interval = StatusPollInterval };
 
-    public MainWindow()
+    public MainWindow() : this(null, null)
+    {
+    }
+
+    /// <param name="settingsDirectory">Where the settings are kept; the user's own folder when null (tests give a folder of their own).</param>
+    /// <param name="logDirectory">Where the log is kept; the user's own folder when null.</param>
+    internal MainWindow(string? settingsDirectory, string? logDirectory)
     {
         InitializeComponent();
         var demo = new DemoPrinterState();
         var sheets = new RoutingSheetPrinter(new SpoolerPrinter(_loader, _loader), new IppSheetPrinter(_loader, _loader), new DemoPrinter(_loader, demo));
-        ViewModel = new AppViewModel(new WindowsPrinters(), _loader, sheets, new WindowsSystemDiagnostics(), demo: demo,
-                                     network: new NetworkPrinters(), logDirectory: AppViewModel.DefaultLogDirectory);
+        ViewModel = new AppViewModel(new WindowsPrinters(), _loader, sheets, new WindowsSystemDiagnostics(), settingsDirectory: settingsDirectory,
+                                     demo: demo, network: new NetworkPrinters(), logDirectory: logDirectory ?? AppViewModel.DefaultLogDirectory);
         ViewModel.ConfirmCertificate = ConfirmCertificate;
         ViewModel.AskPassword = AskPassword;
         ViewModel.PropertyChanged += (_, _) => Dispatcher.BeginInvoke(RefreshFromViewModel);
