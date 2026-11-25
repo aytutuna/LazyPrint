@@ -3,8 +3,7 @@ using Xunit;
 
 namespace LazyPrint.Core.Tests;
 
-// Mirrored by Tests/LazyPrintTests/PrintSettingsTests.swift: the same cases. The files follow
-// CONTRACTS.md, Global rule 5.
+// Mirrored by Tests/LazyPrintTests/PrintSettingsTests.swift: the same cases.
 
 public sealed class PrintSettingsTests : IDisposable
 {

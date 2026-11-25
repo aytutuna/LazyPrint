@@ -16,10 +16,7 @@ The app has only been tested by its automated suites and by CI. It has not yet b
 
 The code is written twice. `windows/LazyPrint.Core` (C#) and `Sources/LazyPrintKit` (Swift) are twins: the same folders (`Core`, `Ipp`, `Layout`, `Companion`), the same file and type names, and the same tests in `windows/LazyPrint.Core.Tests` and `Tests/LazyPrintTests`. Golden files in `Tests/Fixtures` (`Documents`, `Ipp`, `Companion`) are read by both test suites, so the two sides are checked against the same bytes.
 
-`CONTRACTS.md` is the spec. It says what each module does, the names both sides use, the wire formats and what the tests check. Change it with the code.
-
 ```
-CONTRACTS.md          the spec
 Sources/LazyPrintKit  shared Swift core (no AppKit, UIKit or SwiftUI)
 Sources/LazyPrintMac  Mac views and system services
 Sources/LazyPrint     Mac app entry point

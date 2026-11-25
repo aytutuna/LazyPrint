@@ -1,8 +1,7 @@
 import XCTest
 @testable import LazyPrintKit
 
-// Mirrored by windows/LazyPrint.Core.Tests/PrintSettingsTests.cs: the same cases. The files follow
-// CONTRACTS.md, Global rule 5. Swift writes `"key" : value` where C# writes `"key": value`.
+// Mirrored by windows/LazyPrint.Core.Tests/PrintSettingsTests.cs: the same cases. Swift writes `"key" : value` where C# writes `"key": value`.
 
 final class PrintSettingsTests: XCTestCase {
     private var directory: URL!

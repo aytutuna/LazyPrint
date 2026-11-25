@@ -2,7 +2,7 @@ import Foundation
 import os
 
 // Twin of windows/LazyPrint.Core/Persistence.cs: Lazy Scan's StoreFiles, for the settings files of
-// Lazy Print (CONTRACTS.md, Global rule 5).
+// Lazy Print.
 
 private let storeLog = Logger(subsystem: "LazyPrint", category: "Persistence")
 

@@ -2,7 +2,7 @@ import XCTest
 @testable import LazyPrintKit
 
 // Mirrors windows/LazyPrint.Core.Tests/PersistenceTests.cs: the same cases. Settings files load
-// across versions (CONTRACTS.md, Global rule 5), shown on a small settings type of the test's own.
+// across versions, shown on a small settings type of the test's own.
 // The C# Decode case reads the files here instead (Swift has no Decode of its own), and the inaccessible
 // file is made so by permissions where C# holds it open.
 

@@ -4,7 +4,7 @@ The Windows app is .NET 10 and WPF. The solution is `LazyPrint.sln`, with four p
 
 `LazyPrint.Core` is the shared logic: page layout, the IPP codec and client, printer problems, settings, the troubleshooter and the phone link (`Companion/`). It targets plain `net10.0`. Its only package is `System.Security.Cryptography.ProtectedData`, which keeps the phone link's sync keys under DPAPI. `LazyPrint.App` is the WPF app and builds `LazyPrint.exe`. It targets `net10.0-windows10.0.19041.0` for the WinRT PDF and device-watcher APIs, and uses ZXing.Net for the pairing QR code. `LazyPrint.Core.Tests` and `LazyPrint.App.Tests` are xUnit projects. The App tests need WPF but no window and no printer; they use a loopback IPP printer and stand-in services.
 
-Core mirrors `Sources/LazyPrintKit` in the Swift package, with the same file and type names. The golden files both sides read are in `../Tests/Fixtures`. `../CONTRACTS.md` describes the app and the phone link in detail.
+Core mirrors `Sources/LazyPrintKit` in the Swift package, with the same file and type names. The golden files both sides read are in `../Tests/Fixtures`.
 
 ## Build, test, run
 

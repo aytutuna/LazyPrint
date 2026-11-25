@@ -8,7 +8,7 @@ using Xunit;
 namespace LazyPrint.Core.Tests;
 
 // Mirrored by Tests/LazyPrintTests/PersistenceTests.swift: the same cases. Settings files load
-// across versions (CONTRACTS.md, Global rule 5), shown on a small settings type of the test's own.
+// across versions, shown on a small settings type of the test's own.
 
 public enum Tone { Plain, Loud }
 

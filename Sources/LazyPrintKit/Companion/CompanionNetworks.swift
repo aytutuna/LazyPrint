@@ -142,7 +142,7 @@ extension ApprovedNetworksFile {
 }
 
 /// The networks the user approved for receiving from phones (companion-networks.json in the
-/// settings folder, Global rule 5 of CONTRACTS.md), by `CompanionNetwork.id`. Re-read for every check, so
+/// settings folder), by `CompanionNetwork.id`. Re-read for every check, so
 /// another window's change counts at once. Safe to use from any thread.
 public final class TrustedNetworkStore: @unchecked Sendable {
     public static let fileName = "companion-networks.json"

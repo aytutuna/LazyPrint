@@ -6,8 +6,8 @@ import Foundation
 /// The network printers added by address: ipp-hosts.json in the settings folder, a JSON list of
 /// address strings (["192.168.1.50", "printer.local:8631", "ipps://10.0.0.7"]). The "Add printer by
 /// address" dialog writes it, and entries written by hand keep working. Entries that do not parse as
-/// an address are kept but not used. The file follows the settings-file rules (CONTRACTS.md, Global
-/// rule 5): a file that does not decode is kept aside as ipp-hosts.unreadable-<timestamp>.json, one
+/// an address are kept but not used. The file follows the settings-file rules:
+/// a file that does not decode is kept aside as ipp-hosts.unreadable-<timestamp>.json, one
 /// that cannot be read is never overwritten.
 public final class IppHostList {
     public static let fileName = "ipp-hosts.json"

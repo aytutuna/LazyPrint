@@ -88,7 +88,7 @@ public sealed class ApprovedNetworksFile
 
 /// <summary>
 /// The networks the user approved for receiving from phones (companion-networks.json in the
-/// settings folder, rule 6 of CONTRACTS.md), by the Network List Manager's network id. Re-read for
+/// settings folder), by the Network List Manager's network id. Re-read for
 /// every check, so another window's change counts at once. Safe to use from any thread.
 /// </summary>
 public sealed class TrustedNetworkStore

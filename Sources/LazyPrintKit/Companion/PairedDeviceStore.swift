@@ -81,8 +81,8 @@ public enum PairedDeviceStoreError: Error, Equatable, Sendable {
     case notSaved
 }
 
-/// The phones paired with this desktop (companion-devices.json in the settings folder, Global rule 5 of
-/// CONTRACTS.md). Pairing makes a random 256-bit secret, hands it to the phone once and keeps only its
+/// The phones paired with this desktop (companion-devices.json in the settings folder).
+/// Pairing makes a random 256-bit secret, hands it to the phone once and keeps only its
 /// SHA-256; a request is accepted when its device id and secret match an entry. It also makes the phone's
 /// sync key for the cloud sync folder, kept in `syncKeyStore` (the Mac's Keychain), never in the file;
 /// without a store no key is made, and the phone is not offered the folder. The file is re-read

@@ -50,7 +50,7 @@ public sealed class IppTrustFile
 /// The trusted printer certificates (ipp-trust.json), safe to use from any thread. The file
 /// is re-read for every check and before every write, since several windows of the app may
 /// share it; certificates trusted while the file could not be written stay trusted for the
-/// rest of the session. It follows the settings-file rules (CONTRACTS.md, Global rule 5).
+/// rest of the session. It follows the settings-file rules of the other stores.
 /// </summary>
 public sealed class IppTrustStore
 {

@@ -6,8 +6,8 @@ namespace LazyPrint.Core;
 /// The network printers added by address: %APPDATA%\Lazy Print\ipp-hosts.json, a JSON list of
 /// address strings (["192.168.1.50", "printer.local:8631", "ipps://10.0.0.7"]). The "Add printer
 /// by address" dialog writes it, and entries written by hand keep working. Entries that do not
-/// parse as an address are kept but not used. The file follows the settings-file rules
-/// (CONTRACTS.md, Global rule 5): a file that does not decode is kept aside as
+/// parse as an address are kept but not used. The file follows the settings-file rules:
+/// a file that does not decode is kept aside as
 /// ipp-hosts.unreadable-&lt;timestamp&gt;.json, one that cannot be read is never overwritten.
 /// </summary>
 public sealed class IppHostList

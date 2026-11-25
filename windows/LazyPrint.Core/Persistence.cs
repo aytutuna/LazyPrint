@@ -10,7 +10,7 @@ using System.Text.Unicode;
 namespace LazyPrint.Core;
 
 // Twin of Sources/LazyPrintKit/Persistence/StoreFiles.swift: Lazy Scan's StoreFiles, for the
-// settings files of Lazy Print (CONTRACTS.md, Global rule 5).
+// settings files of Lazy Print.
 
 internal enum StoreReadStatus
 {

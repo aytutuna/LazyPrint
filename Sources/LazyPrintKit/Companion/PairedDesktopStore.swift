@@ -20,8 +20,8 @@ public enum PairedDesktopStoreError: Error, Equatable, LocalizedError, Sendable 
 }
 
 /// The desktop this phone is paired with: companion-desktop.json in the folder the shell gives (the
-/// iPhone's network folder, kept out of backups), following the settings-file rules (CONTRACTS.md,
-/// Global rule 5), and its secret and sync key in the `CompanionSecretStore`. One desktop at a time; pairing
+/// iPhone's network folder, kept out of backups), following the settings-file rules of the other stores,
+/// and its secret and sync key in the `CompanionSecretStore`. One desktop at a time; pairing
 /// with another replaces it. Safe to use from any thread.
 public final class PairedDesktopStore: @unchecked Sendable {
     public static let fileName = "companion-desktop.json"
