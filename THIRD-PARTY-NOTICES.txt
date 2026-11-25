@@ -57,7 +57,7 @@ ZXing.Net 0.16.11 (zxing.dll)
     Apache License 2.0, in full below. The app uses it only to draw the
     pairing QR code and makes no connections with it.
 
-PDFium 159.0.8152 (pdfium.dll, x64 and arm64)
+PDFium 160.0.8179 (pdfium.dll, x64 and arm64)
     Copyright 2014 The PDFium Authors. Its licence is the first text of
     section 3 below.
     Built by Benoit Blanchon, from https://github.com/bblanchon/pdfium-binaries
@@ -283,7 +283,7 @@ Apache License 2.0
 
 3. PDFium and the libraries built into it
 
-These are the licence files of the pdfium-binaries release chromium/8152 (win-x64), as they come.
+These are the licence files of the pdfium-binaries release chromium/8179 (win-x64), as they come.
 
 
 The release archive's LICENSE (build scripts and packaging)

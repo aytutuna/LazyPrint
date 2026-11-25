@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <!-- PDFium: the job as a vector PDF (Printing/PdfSheetWriter.cs). Its native pdfium.dll is copied for each runtime. -->
-    <PackageReference Include="bblanchon.PDFium.Win32" Version="159.0.8152" />
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="160.0.8179" />
     <!-- The pairing QR (Services/ZXingQrEncoder.cs). -->
     <PackageReference Include="ZXing.Net" Version="[0.16.11]" />
   </ItemGroup>
