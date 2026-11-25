@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: macappstore
@@ -23,6 +24,22 @@ jobs:
       APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
       APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
     steps:
+      # Uploads come only from a commit on main whose CI run passed.
+      - name: Check that CI passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          state=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$GITHUB_SHA" --jq .status)
+          if [ "$state" != "identical" ] && [ "$state" != "behind" ]; then
+            echo "$GITHUB_SHA is not on main. Upload from a main commit."
+            exit 1
+          fi
+          passed=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
+          if [ "$passed" = "0" ]; then
+            echo "CI has not passed on $GITHUB_SHA. Wait for a green run, or upload another commit."
+            exit 1
+          fi
       - name: Check the secrets
         run: |
           missing=""
