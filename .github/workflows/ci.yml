@@ -25,6 +25,28 @@ jobs:
         env:
           # The phone link's certificate tests use a certificate store of their own; on the runner only.
           LAZYPRINT_CERT_STORE_TESTS: '1'
+      # The Store package is built the way a release builds it (self-contained, x64 and arm64) and thrown away. A packing
+      # error, or a program that does not start, turns the job red.
+      - name: Publish
+        shell: pwsh
+        run: |
+          foreach ($arch in 'x64', 'arm64') {
+            dotnet publish windows/LazyPrint.App/LazyPrint.App.csproj -c Release -r "win-$arch" --self-contained -o (Join-Path $env:RUNNER_TEMP "publish-$arch")
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $arch" }
+          }
+      - name: Start the program
+        shell: pwsh
+        run: ./scripts/check_start.ps1 -Exe (Join-Path $env:RUNNER_TEMP 'publish-x64LazyPrint.exe')
+      - name: Pack the Store package
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'store'
+          ./scripts/make_msix.ps1 -X64 (Join-Path $env:RUNNER_TEMP 'publish-x64') -Arm64 (Join-Path $env:RUNNER_TEMP 'publish-arm64') -Out $out
+          $upload = Get-Item (Join-Path $out 'LazyPrint_*.msixupload')
+          if ($upload.Length -lt 1MB) { throw "$upload is too small" }
+      - name: Check the workflows
+        shell: bash
+        run: bash scripts/check_workflows.sh
 
   macos:
     # Package.swift declares swift-tools-version 6.0 (the Swift 5 language mode), macOS 14 and
@@ -55,12 +77,6 @@ jobs:
           bash scripts/make_app.sh
           plutil -lint "dist/Lazy Print.app/Contents/Info.plist"
           codesign --verify --deep "dist/Lazy Print.app"
-          ditto -c -k --keepParent "dist/Lazy Print.app" "$RUNNER_TEMP/LazyPrint-mac.zip"
-      - name: App
-        uses: actions/upload-artifact@v7
-        with:
-          name: lazyprint-mac
-          path: ${{ runner.temp }}/LazyPrint-mac.zip
 
   mac-store:
     # The sandboxed Mac App Store target (mac/project.yml), built on the image and Xcode macappstore.yml uploads with
