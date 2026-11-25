@@ -705,7 +705,7 @@ public class TroubleshooterTests
     }
 
     [Fact]
-    public void Actions_AreInTheContractsOrder()
+    public void Actions_AreInTheShownOrder()
     {
         Assert.Equal(["Refresh", "AddByAddress", "OpenPrinterSettings", "OpenNetworkSettings", "CopyDiagnostics", "OpenAppSettings",
                       "ClearStuckJobs", "ResumePrinter", "PrintTestPage"],

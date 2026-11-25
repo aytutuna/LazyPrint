@@ -24,7 +24,7 @@ public sealed class PrintSettingsTests : IDisposable
     private string Printers => Path.Combine(_directory, "printers.json");
 
     [Fact]
-    public void Defaults_AreTheContractsDefaults()
+    public void Defaults_AreTheStoredDefaults()
     {
         var s = new PrintSettings();
         Assert.Null(s.TaskId);

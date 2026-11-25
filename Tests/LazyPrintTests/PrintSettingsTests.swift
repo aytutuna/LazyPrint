@@ -26,7 +26,7 @@ final class PrintSettingsTests: XCTestCase {
         try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
     }
 
-    func test_defaults_areTheContractsDefaults() {
+    func test_defaults_areTheStoredDefaults() {
         let s = PrintSettings()
         XCTAssertNil(s.taskId)
         XCTAssertNil(s.printerId)

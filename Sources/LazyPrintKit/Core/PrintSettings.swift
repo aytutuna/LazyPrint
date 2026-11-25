@@ -14,7 +14,7 @@ public enum QualityChoice: String, Codable, CaseIterable, Sendable {
     case best
 }
 
-/// What the user chose for printing. Every property has a default, so older files load (Global rule 5).
+/// What the user chose for printing. Every property has a default, so older files load.
 public struct PrintSettings: Codable, Equatable, Sendable {
     /// The `PrintTask` raw value, kept as text so a newer task survives.
     public var taskId: String?

@@ -404,7 +404,7 @@ public struct InboxResponse: Equatable, Sendable {
     }
 }
 
-// MARK: - The messages as read: every property on its own and leniently (Global rule 5), the defaults below
+// MARK: - The messages as read: every property on its own and leniently, the defaults below
 // for anything missing, null, wrong-typed or unknown. Whole numbers decode as the C# twin's int and
 // long, so both read the same values.
 

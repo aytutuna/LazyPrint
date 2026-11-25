@@ -79,7 +79,7 @@ public enum PhoneOutboxError: Error, Equatable, LocalizedError, Sendable {
 }
 
 /// The files waiting to be sent to the paired desktop, oldest first: a folder of `.lppkg` files
-/// and outbox.json listing them (Global rule 5). A file stays until the desktop has it (201, or 200 for
+/// and outbox.json listing them. A file stays until the desktop has it (201, or 200 for
 /// one it had already) or the user removes it, across launches; entries whose file went are dropped
 /// when the folder is opened. Safe to use from any thread.
 public final class PhoneOutbox: @unchecked Sendable {

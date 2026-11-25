@@ -18,7 +18,7 @@ public enum QualityChoice
     Best,
 }
 
-/// <summary>What the user chose for printing. Every property has a default, so older files load (Global rule 5).</summary>
+/// <summary>What the user chose for printing. Every property has a default, so older files load.</summary>
 public sealed record PrintSettings : IJsonOnDeserialized
 {
     /// <summary>The <see cref="PrintTask"/> raw value, kept as text so a newer task survives.</summary>

@@ -2,7 +2,7 @@ using LazyPrint.Core;
 
 namespace LazyPrint.App.Services;
 
-/// <summary>Light, dark, or whatever Windows is set to. The first case is the default (Global rule 5).</summary>
+/// <summary>Light, dark, or whatever Windows is set to. The first case is the default.</summary>
 public enum AppAppearance
 {
     System,

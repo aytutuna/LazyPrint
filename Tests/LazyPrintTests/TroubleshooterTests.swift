@@ -620,7 +620,7 @@ final class TroubleshooterTests: XCTestCase {
         XCTAssertEqual([CheckStatus.ok, .tip, .warning, .problem].map(Troubleshooter.statusLabel), ["OK", "Tip", "Warning", "Problem"])
     }
 
-    func test_actions_areInTheContractsOrder() {
+    func test_actions_areInTheShownOrder() {
         XCTAssertEqual(TroubleshootAction.allCases.map(\.rawValue),
                        ["refresh", "addByAddress", "openPrinterSettings", "openNetworkSettings", "copyDiagnostics", "openAppSettings",
                         "clearStuckJobs", "resumePrinter", "printTestPage"])
