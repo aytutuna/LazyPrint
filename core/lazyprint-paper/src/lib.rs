@@ -3,9 +3,11 @@
 //! The paper size catalogue and the rules for reading, naming and matching sizes. Sizes are in points.
 
 mod catalogue;
+mod media;
 mod sizes;
 
 pub use catalogue::ALL;
+pub use media::*;
 pub use sizes::*;
 
 /// Where a size belongs in a list of sizes.
