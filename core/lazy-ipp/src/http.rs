@@ -72,10 +72,15 @@ impl Transport for TcpTransport {
         )
         .into_bytes();
         request.extend_from_slice(head);
-        let sent = send(&mut watched, &request, file.as_mut().map(|f| (f, body)));
-        if let Err(TransportError::Cancelled) = sent {
-            return Err(TransportError::Cancelled);
-        }
+        let sent = match send(&mut watched, &request, file.as_mut().map(|f| (f, body))) {
+            Ok(()) => Ok(()),
+            // The printer is still waiting for the rest of the body, so nothing would come back.
+            Err(SendError::Local(e)) => return Err(e),
+            Err(SendError::Socket(TransportError::Cancelled)) => {
+                return Err(TransportError::Cancelled);
+            }
+            Err(SendError::Socket(e)) => Err(e),
+        };
         // A printer that has made up its mind about a job (a 426, a 401) may answer before it has
         // read all of it and drop the rest, so what it said is still read.
         watched.last = Instant::now();
@@ -179,7 +184,11 @@ fn connection(e: io::Error) -> TransportError {
 
 fn describe(e: &io::Error) -> String {
     match e.kind() {
-        io::ErrorKind::ConnectionRefused => "it did not answer".into(),
+        io::ErrorKind::ConnectionRefused
+        | io::ErrorKind::ConnectionAborted
+        | io::ErrorKind::ConnectionReset
+        | io::ErrorKind::HostUnreachable
+        | io::ErrorKind::NetworkUnreachable => "it did not answer".into(),
         _ => e.to_string(),
     }
 }
@@ -254,9 +263,16 @@ fn resolve(address: &PrinterAddress) -> io::Result<Vec<SocketAddr>> {
     if let Ok(ip) = address.host.parse::<IpAddr>() {
         return Ok(vec![SocketAddr::new(ip, address.port)]);
     }
-    Ok((address.host.as_str(), address.port)
-        .to_socket_addrs()?
-        .collect())
+    (address.host.as_str(), address.port)
+        .to_socket_addrs()
+        .map(Iterator::collect)
+        .map_err(|e| io::Error::new(io::ErrorKind::HostUnreachable, e))
+}
+
+#[derive(Debug)]
+enum SendError {
+    Local(TransportError),
+    Socket(TransportError),
 }
 
 // The body is exactly `length` bytes, the size the Content-Length promised; a file that has
@@ -265,24 +281,27 @@ fn send(
     stream: &mut impl Write,
     head: &[u8],
     document: Option<(&mut std::fs::File, u64)>,
-) -> Result<(), TransportError> {
-    stream.write_all(head).map_err(connection)?;
+) -> Result<(), SendError> {
+    let socket = |e| SendError::Socket(connection(e));
+    stream.write_all(head).map_err(socket)?;
     if let Some((file, length)) = document {
         let mut left = length;
         let mut chunk = vec![0u8; 64 * 1024];
         while left > 0 {
             let want = chunk.len().min(left as usize);
-            let read = file.read(&mut chunk[..want]).map_err(connection)?;
+            let read = file
+                .read(&mut chunk[..want])
+                .map_err(|e| SendError::Local(connection(e)))?;
             if read == 0 {
-                return Err(TransportError::Connection(
+                return Err(SendError::Local(TransportError::Connection(
                     "the file changed while it was sent".into(),
-                ));
+                )));
             }
-            stream.write_all(&chunk[..read]).map_err(connection)?;
+            stream.write_all(&chunk[..read]).map_err(socket)?;
             left -= read as u64;
         }
     }
-    stream.flush().map_err(connection)
+    stream.flush().map_err(socket)
 }
 
 /// Reads one HTTP answer, skipping interim ones, within the size limits of a hostile printer.
@@ -471,11 +490,54 @@ mod tests {
         std::fs::write(&path, [7u8; 100]).unwrap();
         let mut file = std::fs::File::open(&path).unwrap();
         let mut out = vec![];
-        assert!(send(&mut out, b"", Some((&mut file, 150))).is_err());
+        assert!(matches!(
+            send(&mut out, b"", Some((&mut file, 150))),
+            Err(SendError::Local(_))
+        ));
         let mut file = std::fs::File::open(&path).unwrap();
         let mut out = vec![];
         send(&mut out, b"", Some((&mut file, 40))).unwrap();
         assert_eq!(out.len(), 40);
         std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn a_closed_socket_is_a_socket_error() {
+        struct Broken;
+        impl Write for Broken {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                Err(io::ErrorKind::BrokenPipe.into())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        assert!(matches!(
+            send(&mut Broken, b"x", None),
+            Err(SendError::Socket(_))
+        ));
+    }
+
+    #[test]
+    fn a_lookup_failure_or_a_dropped_connection_says_it_did_not_answer() {
+        // .invalid never resolves (RFC 6761).
+        let address = PrinterAddress {
+            secure: false,
+            host: "printer.invalid".into(),
+            port: 631,
+            resource_path: "ipp/print".into(),
+        };
+        let failure = resolve(&address).unwrap_err();
+        assert_eq!(describe(&failure), "it did not answer");
+        for kind in [
+            io::ErrorKind::HostUnreachable,
+            io::ErrorKind::NetworkUnreachable,
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::ConnectionRefused,
+        ] {
+            assert_eq!(describe(&kind.into()), "it did not answer");
+        }
+        assert_eq!(describe(&io::Error::other("disk")), "disk");
     }
 }
