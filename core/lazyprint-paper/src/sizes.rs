@@ -233,8 +233,12 @@ fn parse_number(text: &str) -> Option<f64> {
     text.parse().ok().filter(|v: &f64| v.is_finite())
 }
 
-/// The longest side a sheet from a printer's name may have, in points (10 m): a printer is not trusted with more.
-const MAX_SHEET: f64 = 28346.0;
+/// The longest side a sheet from a printer may have, in hundredths of a millimetre (10 m): a printer is not trusted
+/// with more. Names, media entries and the custom range all answer to it.
+pub(crate) const MAX_HUNDREDTHS: i32 = 1_000_000;
+
+/// `MAX_HUNDREDTHS` in points, with room for the rounding of a size written in millimetres.
+const MAX_SHEET: f64 = 28347.0;
 
 fn sheet_of(a: f64, b: f64) -> Option<LayoutSize> {
     (a <= MAX_SHEET && b <= MAX_SHEET).then_some(LayoutSize {
@@ -289,9 +293,9 @@ pub fn custom_range<'a>(names: impl IntoIterator<Item = &'a str> + Clone) -> Opt
     let (min, max) = (bound("min")?, bound("max")?);
     (min != max && min.0 <= max.0 && min.1 <= max.1).then_some(PaperRange {
         min_width: min.0,
-        max_width: max.0,
+        max_width: max.0.min(MAX_HUNDREDTHS),
         min_height: min.1,
-        max_height: max.1,
+        max_height: max.1.min(MAX_HUNDREDTHS),
     })
 }
 

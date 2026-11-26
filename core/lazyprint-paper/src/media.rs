@@ -1,3 +1,4 @@
+use crate::sizes::MAX_HUNDREDTHS;
 use crate::{
     CUSTOM_ID, FIT_TOLERANCE, PaperRange, auto, common_for, default_for_region, dimension_text,
     dimensions, display_order, group_label, id_for, match_size, media_size, points, points_of,
@@ -13,6 +14,9 @@ pub const COMMON_GROUP: &str = "Most common";
 
 /// The heading of the sizes a printer lists that the catalogue has no name for.
 pub const PRINTER_GROUP: &str = "Printer sizes";
+
+/// The most distinct sizes taken from a printer's lists; the work on them grows with the square of this.
+const MAX_LISTED: usize = 500;
 
 const TYPED_PREFIX: &str = "custom_sheet_";
 
@@ -87,7 +91,7 @@ impl MediaEntry {
     /// The printable area of this entry in points, or none for a variable size or an entry without margins.
     pub fn printable_area(&self) -> Option<PrintableArea> {
         let m = self.margins?;
-        if self.is_variable {
+        if self.is_variable || !self.is_sane() {
             return None;
         }
         let p = Self::hundredths_to_points;
@@ -103,6 +107,22 @@ impl MediaEntry {
                 right: p(m.right),
             },
         })
+    }
+
+    /// A size of at most 10 m and margins that leave something of the sheet; a printer's entry is no more than that.
+    fn is_sane(&self) -> bool {
+        let sized = (1..=MAX_HUNDREDTHS).contains(&self.width)
+            && (1..=MAX_HUNDREDTHS).contains(&self.height);
+        sized
+            && self.margins.is_none_or(|m| {
+                let (t, l, b, r) = (m.top, m.left, m.bottom, m.right);
+                t >= 0
+                    && l >= 0
+                    && b >= 0
+                    && r >= 0
+                    && i64::from(l) + i64::from(r) < i64::from(self.width)
+                    && i64::from(t) + i64::from(b) < i64::from(self.height)
+            })
     }
 
     fn sheet(&self) -> LayoutSize {
@@ -152,7 +172,7 @@ impl PrinterMedia {
             let Some(margins) = entry.margins else {
                 continue;
             };
-            if entry.is_variable {
+            if entry.is_variable || !entry.is_sane() {
                 continue;
             }
             let p = MediaEntry::hundredths_to_points;
@@ -180,13 +200,14 @@ impl PrinterMedia {
         let mut add = |size: Option<LayoutSize>| {
             if let Some(s) = size
                 && s.width > 0.0
+                && found.len() < MAX_LISTED
                 && !found.iter().any(|&f| same(f, s))
             {
                 found.push(s);
             }
         };
         for entry in self.media_col_database.iter().chain(&self.media_col_ready) {
-            if entry.is_variable || entry.width <= 0 || entry.height <= 0 {
+            if entry.is_variable || !entry.is_sane() {
                 continue;
             }
             add(Some(entry.sheet()));
