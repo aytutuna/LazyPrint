@@ -84,9 +84,11 @@ impl PaperRange {
     /// The sheet (portrait, in points) moved into the range.
     pub fn clamp(&self, paper: LayoutSize) -> LayoutSize {
         let w = (paper.width * 2540.0 / 72.0)
-            .clamp(f64::from(self.min_width), f64::from(self.max_width));
+            .max(f64::from(self.min_width))
+            .min(f64::from(self.max_width));
         let h = (paper.height * 2540.0 / 72.0)
-            .clamp(f64::from(self.min_height), f64::from(self.max_height));
+            .max(f64::from(self.min_height))
+            .min(f64::from(self.max_height));
         LayoutSize {
             width: w.min(h) * 72.0 / 2540.0,
             height: w.max(h) * 72.0 / 2540.0,
@@ -228,7 +230,17 @@ fn parse_number(text: &str) -> Option<f64> {
     {
         return None;
     }
-    text.parse().ok()
+    text.parse().ok().filter(|v: &f64| v.is_finite())
+}
+
+/// The longest side a sheet from a printer's name may have, in points (10 m): a printer is not trusted with more.
+const MAX_SHEET: f64 = 28346.0;
+
+fn sheet_of(a: f64, b: f64) -> Option<LayoutSize> {
+    (a <= MAX_SHEET && b <= MAX_SHEET).then_some(LayoutSize {
+        width: a.min(b),
+        height: a.max(b),
+    })
 }
 
 /// `name` as the width and height written in the end of a PWG name or custom bound, with `unit` of the first of
@@ -258,10 +270,7 @@ pub fn pwg_size(name: &str) -> Option<LayoutSize> {
         return None;
     }
     let (a, b) = dimensions_of(parts[parts.len() - 1], 72.0 / 25.4, 72.0)?;
-    Some(LayoutSize {
-        width: a.min(b),
-        height: a.max(b),
-    })
+    sheet_of(a, b)
 }
 
 /// The range a printer takes from the "custom_min_" and "custom_max_" names in its media list (width first, as
@@ -278,7 +287,7 @@ pub fn custom_range<'a>(names: impl IntoIterator<Item = &'a str> + Clone) -> Opt
         })
     };
     let (min, max) = (bound("min")?, bound("max")?);
-    (min != max).then_some(PaperRange {
+    (min != max && min.0 <= max.0 && min.1 <= max.1).then_some(PaperRange {
         min_width: min.0,
         max_width: max.0,
         min_height: min.1,
@@ -318,10 +327,7 @@ fn custom_media_size(text: &str) -> Option<Option<LayoutSize>> {
     if a <= 0.0 || b <= 0.0 {
         return Some(None);
     }
-    Some(Some(LayoutSize {
-        width: a.min(b) * factor,
-        height: a.max(b) * factor,
-    }))
+    Some(sheet_of(a * factor, b * factor))
 }
 
 /// The size of a media name as a printer or CUPS gives it: a PWG name, a PPD name ("A4", "Letter", "EnvDL") with an
