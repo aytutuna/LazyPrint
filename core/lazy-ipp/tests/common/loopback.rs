@@ -43,6 +43,8 @@ pub enum Answer {
     BusyAfter(u64),
     /// Stays silent this long, then drops the connection.
     Silent(Duration),
+    /// Starts an answer and sends a byte of its headers every 50 ms for this long.
+    Trickle(Duration),
 }
 
 type Handler = Box<dyn Fn(&Received) -> Option<Answer> + Send>;
@@ -193,6 +195,13 @@ fn serve(
             let _ = write_http(&mut stream, 503, b"", &[("Retry-After", retry.as_str())]);
         }
         Answer::Silent(wait) => std::thread::sleep(wait),
+        Answer::Trickle(total) => {
+            let started = std::time::Instant::now();
+            let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nX: ");
+            while started.elapsed() < total && stream.write_all(b"y").is_ok() {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
     }
 }
 

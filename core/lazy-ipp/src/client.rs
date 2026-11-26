@@ -41,13 +41,16 @@ pub enum TransportError {
     Handshake { certificate_seen: bool },
     /// The answer is bigger than [`MAX_RESPONSE`].
     TooLarge,
+    /// The transport cannot make this kind of connection (TLS, for one without it); that says nothing about the printer.
+    Unsupported,
     /// The request was stopped by [`Client::cancel_flag`].
     Cancelled,
 }
 
 /// One HTTP POST of an IPP request to a printer: `head` is the encoded operation, `document` a file
 /// sent after it in the same body. The body has a Content-Length and is never chunked. `timeout` is an
-/// idle one, re-armed with every chunk written and every chunk of the answer read. A secure
+/// idle one, re-armed with every chunk written and every chunk of the answer read. The request
+/// ends with [`TransportError::Cancelled`] soon after `cancel` is set. A secure
 /// transport checks the printer's certificate with the [`CertificateValidator`] and refuses the
 /// connection when it says no.
 pub trait Transport {
@@ -57,6 +60,7 @@ pub trait Transport {
         head: &[u8],
         document: Option<&Path>,
         timeout: Duration,
+        cancel: &AtomicBool,
     ) -> Result<HttpResponse, TransportError>;
 }
 
@@ -433,6 +437,7 @@ impl<T: Transport> Client<T> {
                 Some(self.unreachable("no secure connection"))
             }
             TransportError::Connection(reason) => Some(self.unreachable(&reason)),
+            TransportError::Unsupported => Some(self.unreachable("no secure connection")),
             TransportError::Timeout => {
                 self.rejection();
                 Some(self.unreachable("it did not answer in time"))
@@ -464,9 +469,9 @@ impl<T: Transport> Client<T> {
         self.options.clock.start();
         let mut retry = 0;
         loop {
-            let response = self
-                .transport
-                .post(&self.address, head, document, timeout)?;
+            let response =
+                self.transport
+                    .post(&self.address, head, document, timeout, &self.cancel)?;
             let busy = is_retryable_http(response.status)
                 || Message::decode(&response.body).is_ok_and(|(m, _)| is_retryable_ipp(m.code));
             if !busy {

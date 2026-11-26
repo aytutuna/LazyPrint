@@ -604,3 +604,76 @@ fn the_fixtures_decode_through_the_client_too() {
     let mut client = client(&printer_, &FakeClock::default());
     assert_eq!(client.capabilities().unwrap().name, "EPSON ET-4850 Series");
 }
+
+fn answer_of(raw: Vec<u8>) -> PrintError {
+    let printer_ = Loopback::new();
+    printer_.script(vec![Answer::Raw(raw)]);
+    client(&printer_, &FakeClock::default()).job(1).unwrap_err()
+}
+
+#[test]
+fn a_chunk_size_that_overflows_the_total_is_a_bad_response() {
+    for size in ["ffffffffffffffff", "7fffffffffffffff", "ffffffff"] {
+        let raw = format!(
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n1\r\nA\r\n{size}\r\n"
+        );
+        assert_eq!(answer_of(raw.into_bytes()), PrintError::BadResponse);
+    }
+}
+
+#[test]
+fn endless_interim_answers_are_refused() {
+    let raw = "HTTP/1.1 100 Continue\r\n\r\n".repeat(10);
+    assert_eq!(answer_of(raw.into_bytes()), PrintError::BadResponse);
+}
+
+#[test]
+fn a_printer_trickling_its_answer_is_given_up_on() {
+    let printer_ = Loopback::new();
+    printer_.script(vec![Answer::Trickle(Duration::from_secs(5))]);
+    let options = Options {
+        request_timeout: Duration::from_millis(300),
+        ..Default::default()
+    };
+    let mut client = Client::new(
+        TcpTransport,
+        printer_.address(),
+        "Fake MFP",
+        USER,
+        None,
+        options,
+    );
+    let started = std::time::Instant::now();
+    assert!(matches!(
+        client.job(1).unwrap_err(),
+        PrintError::Unreachable { .. }
+    ));
+    assert!(started.elapsed() < Duration::from_secs(3));
+}
+
+#[test]
+fn the_cancel_flag_ends_a_request_that_is_waiting_for_the_printer() {
+    let printer_ = Loopback::new();
+    printer_.script(vec![Answer::Silent(Duration::from_secs(4))]);
+    let options = Options {
+        request_timeout: Duration::from_secs(30),
+        ..Default::default()
+    };
+    let mut client = Client::new(
+        TcpTransport,
+        printer_.address(),
+        "Fake MFP",
+        USER,
+        None,
+        options,
+    );
+    let flag = client.cancel_flag();
+    let stopper = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        flag.store(true, std::sync::atomic::Ordering::Relaxed);
+    });
+    let started = std::time::Instant::now();
+    assert_eq!(client.job(1).unwrap_err(), PrintError::Cancelled);
+    assert!(started.elapsed() < Duration::from_secs(2));
+    stopper.join().unwrap();
+}

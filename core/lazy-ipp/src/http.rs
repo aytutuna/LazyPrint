@@ -7,18 +7,25 @@
 
 use crate::address::PrinterAddress;
 use crate::client::{HttpResponse, MAX_RESPONSE, Transport, TransportError};
+use std::fmt;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6, TcpStream, ToSocketAddrs};
 use std::path::Path;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 const MAX_HEADER_LINE: usize = 8 * 1024;
 const MAX_HEADERS: usize = 64;
 const CLOSED: &str = "the connection was closed";
+const MAX_INTERIM: usize = 2;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+// How often a blocked read or write looks at the cancel flag.
+const SLICE: Duration = Duration::from_millis(100);
+// A whole answer may take this many idle timeouts, so a printer trickling bytes cannot hold a request for ever.
+const ANSWER_TIMEOUTS: u32 = 4;
 
-/// Plain ipp over `TcpStream`. An ipps address is refused with a handshake failure, since this
-/// transport has no TLS.
+/// Plain ipp over `TcpStream`. An ipps address is refused as unsupported, since this transport
+/// has no TLS.
 #[derive(Default)]
 pub struct TcpTransport;
 
@@ -29,17 +36,25 @@ impl Transport for TcpTransport {
         head: &[u8],
         document: Option<&Path>,
         timeout: Duration,
+        cancel: &AtomicBool,
     ) -> Result<HttpResponse, TransportError> {
         if address.secure {
-            return Err(TransportError::Handshake {
-                certificate_seen: false,
-            });
+            return Err(TransportError::Unsupported);
         }
-        let mut stream = connect(address, timeout)?;
-        stream.set_read_timeout(Some(timeout)).map_err(connection)?;
-        stream
-            .set_write_timeout(Some(timeout))
-            .map_err(connection)?;
+        if cancel.load(Ordering::Relaxed) {
+            return Err(TransportError::Cancelled);
+        }
+        let stream = connect(address, timeout)?;
+        let slice = Some(SLICE.min(timeout));
+        stream.set_read_timeout(slice).map_err(connection)?;
+        stream.set_write_timeout(slice).map_err(connection)?;
+        let mut watched = Watched {
+            stream: &stream,
+            cancel,
+            idle: timeout,
+            deadline: None,
+            last: Instant::now(),
+        };
 
         let length = head.len() as u64
             + match document {
@@ -53,10 +68,15 @@ impl Transport for TcpTransport {
         )
         .into_bytes();
         request.extend_from_slice(head);
-        let sent = send(&mut stream, &request, document);
+        let sent = send(&mut watched, &request, document);
+        if let Err(TransportError::Cancelled) = sent {
+            return Err(TransportError::Cancelled);
+        }
         // A printer that has made up its mind about a job (a 426, a 401) may answer before it has
         // read all of it and drop the rest, so what it said is still read.
-        match (read_response(&mut stream), sent) {
+        watched.last = Instant::now();
+        watched.deadline = Some(watched.last + timeout * ANSWER_TIMEOUTS);
+        match (read_response(&mut BufReader::new(watched)), sent) {
             (Err(TransportError::Connection(m)), Err(write_error)) if m == CLOSED => {
                 Err(write_error)
             }
@@ -65,7 +85,85 @@ impl Transport for TcpTransport {
     }
 }
 
+// The error a watched read or write gives when the cancel flag is set.
+#[derive(Debug)]
+struct Stopped;
+
+impl fmt::Display for Stopped {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("stopped")
+    }
+}
+
+impl std::error::Error for Stopped {}
+
+// A socket whose reads and writes give up when the flag is set, when nothing has moved for the idle
+// timeout, or when the deadline for the whole answer has passed.
+struct Watched<'a> {
+    stream: &'a TcpStream,
+    cancel: &'a AtomicBool,
+    idle: Duration,
+    deadline: Option<Instant>,
+    last: Instant,
+}
+
+impl Watched<'_> {
+    fn wait(&self, e: io::Error) -> io::Result<()> {
+        if !matches!(
+            e.kind(),
+            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut | io::ErrorKind::Interrupted
+        ) {
+            return Err(e);
+        }
+        if self.cancel.load(Ordering::Relaxed) {
+            return Err(io::Error::other(Stopped));
+        }
+        if self.last.elapsed() >= self.idle || self.deadline.is_some_and(|d| Instant::now() >= d) {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        Ok(())
+    }
+}
+
+impl Read for Watched<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            match self.stream.read(buf) {
+                Ok(n) => {
+                    if self.deadline.is_some_and(|d| Instant::now() >= d) {
+                        return Err(io::ErrorKind::TimedOut.into());
+                    }
+                    self.last = Instant::now();
+                    return Ok(n);
+                }
+                Err(e) => self.wait(e)?,
+            }
+        }
+    }
+}
+
+impl Write for Watched<'_> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        loop {
+            match self.stream.write(buf) {
+                Ok(n) => {
+                    self.last = Instant::now();
+                    return Ok(n);
+                }
+                Err(e) => self.wait(e)?,
+            }
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
+    }
+}
+
 fn connection(e: io::Error) -> TransportError {
+    if e.get_ref().is_some_and(|inner| inner.is::<Stopped>()) {
+        return TransportError::Cancelled;
+    }
     match e.kind() {
         io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock => TransportError::Timeout,
         _ => TransportError::Connection(describe(&e)),
@@ -115,7 +213,7 @@ fn resolve(address: &PrinterAddress) -> io::Result<Vec<SocketAddr>> {
 }
 
 fn send(
-    stream: &mut TcpStream,
+    stream: &mut impl Write,
     head: &[u8],
     document: Option<&Path>,
 ) -> Result<(), TransportError> {
@@ -134,10 +232,11 @@ fn send(
     stream.flush().map_err(connection)
 }
 
-fn read_response(stream: &mut TcpStream) -> Result<HttpResponse, TransportError> {
-    let mut reader = BufReader::new(stream);
+/// Reads one HTTP answer, skipping interim ones, within the size limits of a hostile printer.
+pub fn read_response(reader: &mut impl BufRead) -> Result<HttpResponse, TransportError> {
+    let mut interim = 0;
     loop {
-        let status_line = read_line(&mut reader)?;
+        let status_line = read_line(reader)?;
         let status = status_line
             .strip_prefix("HTTP/1.")
             .and_then(|rest| rest.get(2..5))
@@ -147,7 +246,7 @@ fn read_response(stream: &mut TcpStream) -> Result<HttpResponse, TransportError>
         let mut chunked = false;
         let mut retry_after = None;
         for count in 0.. {
-            let line = read_line(&mut reader)?;
+            let line = read_line(reader)?;
             if line.is_empty() {
                 break;
             }
@@ -166,18 +265,22 @@ fn read_response(stream: &mut TcpStream) -> Result<HttpResponse, TransportError>
             }
         }
         if (100..200).contains(&status) {
+            interim += 1;
+            if interim > MAX_INTERIM {
+                return Err(TransportError::TooLarge);
+            }
             continue; // an interim answer such as 100 Continue
         }
         let body = if status == 204 || status == 304 {
             vec![]
         } else if chunked {
-            read_chunked(&mut reader)?
+            read_chunked(reader)?
         } else if let Some(length) = length {
             if length > MAX_RESPONSE as u64 {
                 return Err(TransportError::TooLarge);
             }
             let mut body = vec![];
-            let read = (&mut reader)
+            let read = reader
                 .take(length)
                 .read_to_end(&mut body)
                 .map_err(connection)?;
@@ -189,7 +292,7 @@ fn read_response(stream: &mut TcpStream) -> Result<HttpResponse, TransportError>
             body
         } else {
             let mut body = vec![];
-            (&mut reader)
+            reader
                 .take(MAX_RESPONSE as u64 + 1)
                 .read_to_end(&mut body)
                 .map_err(connection)?;
@@ -222,7 +325,7 @@ fn read_chunked(reader: &mut impl BufRead) -> Result<Vec<u8>, TransportError> {
             }
             return Err(TransportError::TooLarge);
         }
-        if body.len() + size > MAX_RESPONSE {
+        if size > MAX_RESPONSE - body.len() {
             return Err(TransportError::TooLarge);
         }
         let start = body.len();

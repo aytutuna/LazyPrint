@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 const HP_UUID: &str = "4509a320-00a0-008f-00b6-9c93b9a1c2d3";
@@ -66,6 +66,7 @@ impl Transport for Scripted {
         _head: &[u8],
         document: Option<&Path>,
         _timeout: Duration,
+        _cancel: &AtomicBool,
     ) -> Result<HttpResponse, TransportError> {
         self.calls
             .borrow_mut()
@@ -431,4 +432,26 @@ fn a_first_use_certificate_of_a_known_printers_key_is_refused_before_the_documen
     assert_eq!(error.verdict, Verdict::Changed);
     assert_eq!(*calls.borrow(), [(true, false)]);
     assert_eq!(store.certificates().len(), 1);
+}
+
+#[test]
+fn the_tcp_transport_cannot_do_tls_and_that_is_not_a_printer_without_it() {
+    let printer_ = common::loopback::Loopback::new();
+    let dir = Dir::new();
+    let store = Arc::new(TrustStore::open(&dir.0));
+    let mut client = Client::new(
+        lazy_ipp::http::TcpTransport,
+        PrinterAddress::parse(&format!("ipps://127.0.0.1:{}", printer_.port)).unwrap(),
+        "Fake MFP",
+        "tester",
+        Some(validator(&store, None, None)),
+        Options::default(),
+    );
+    assert!(matches!(
+        client.job(42).unwrap_err(),
+        PrintError::Unreachable { .. }
+    ));
+    assert!(client.address().secure);
+    assert!(!client.not_encrypted());
+    assert!(printer_.requests().is_empty());
 }
