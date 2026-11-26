@@ -556,3 +556,79 @@ fn the_validator_pins_a_first_use_certificate_only_once_its_uuid_is_checked() {
     );
     assert!(fresh.knows(authority));
 }
+
+#[test]
+fn malformed_certificates_have_no_fingerprint() {
+    let good = certificate_der("certificate-p256.pem");
+    let with = |index: usize, value: u8| {
+        let mut copy = good.clone();
+        copy[index] = value;
+        copy
+    };
+    assert!(spki_fingerprint(&good).is_some());
+    assert!(spki_fingerprint(&[]).is_none());
+    assert!(spki_fingerprint(&[0x30]).is_none());
+    assert!(spki_fingerprint(&good[..100]).is_none());
+    assert!(spki_fingerprint(&good[..good.len() - 1]).is_none());
+    assert!(spki_fingerprint(&[good.clone(), vec![0]].concat()).is_none());
+    assert!(spki_fingerprint(&with(0, 0x31)).is_none());
+    assert!(spki_fingerprint(&with(1, 0x80)).is_none());
+    assert!(spki_fingerprint(&with(1, 0x85)).is_none());
+    assert!(spki_fingerprint(&[0x30, 0x84, 0xFF, 0xFF, 0xFF, 0xFF]).is_none());
+    assert!(spki_fingerprint(&with(4, 0x31)).is_none());
+    assert!(spki_fingerprint(&with(8, 0xBF)).is_none());
+}
+
+#[test]
+fn a_trust_file_with_a_byte_order_mark_or_in_utf16_loads() {
+    let text = String::from_utf8(fixture("ipp-trust-windows.json")).unwrap();
+    let text = text.trim_start_matches('\u{feff}');
+    let utf16 = |big: bool| {
+        let mut bytes = if big {
+            vec![0xFE, 0xFF]
+        } else {
+            vec![0xFF, 0xFE]
+        };
+        for unit in text.encode_utf16() {
+            bytes.extend(if big {
+                unit.to_be_bytes()
+            } else {
+                unit.to_le_bytes()
+            });
+        }
+        bytes
+    };
+    let utf32 = text
+        .chars()
+        .flat_map(|c| (c as u32).to_le_bytes())
+        .collect::<Vec<u8>>();
+    let files = [
+        [&[0xEF, 0xBB, 0xBF][..], text.as_bytes()].concat(),
+        utf16(true),
+        utf16(false),
+        [&[0xFF, 0xFE, 0, 0][..], &utf32].concat(),
+    ];
+    for (n, bytes) in files.iter().enumerate() {
+        let dir = Dir::new();
+        std::fs::write(dir.file(), bytes).unwrap();
+        assert_eq!(dir.store().certificates().len(), 2, "file {n}");
+        let aside = std::fs::read_dir(&dir.0).unwrap().count();
+        assert_eq!(aside, 1, "file {n} was moved aside");
+    }
+}
+
+#[test]
+fn a_learned_uuid_survives_a_reload_while_the_file_cannot_be_written() {
+    let dir = Dir::new();
+    let tmp = PathBuf::from(format!("{}.tmp", dir.file().display()));
+    std::fs::create_dir(&tmp).unwrap();
+    let store = dir.store();
+    store.trust(&fp(0), None, "192.168.1.20:443", "S").unwrap();
+    assert_eq!(
+        verdict(&store, &fp(0), Some(UUID), "192.168.1.20:443"),
+        Verdict::Trusted
+    );
+    // Any check reloads the file and applies the unsaved pins again.
+    verdict(&store, &fp(9), None, "10.0.0.1:443");
+    assert_eq!(entry(&store, &fp(0)).device_uuid, UUID_KEY);
+}

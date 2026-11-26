@@ -135,6 +135,12 @@ impl TrustStore {
                 learned = true;
             }
             if learned {
+                let pinned = inner.certificates[i].clone();
+                for (copy, _) in inner.unsaved.iter_mut() {
+                    if copy.fingerprint == pinned.fingerprint {
+                        *copy = pinned.clone();
+                    }
+                }
                 self.save(&mut inner);
             }
             return (Verdict::Trusted, None);
@@ -212,7 +218,9 @@ impl TrustStore {
             Read::Loaded(certificates) => certificates,
             Read::Missing => return,
             Read::Corrupt => {
-                keep_unreadable(&self.path);
+                if !keep_unreadable(&self.path) {
+                    inner.protected = true;
+                }
                 return;
             }
             Read::Inaccessible => {
@@ -333,8 +341,8 @@ fn read_file(path: &Path) -> Read {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Read::Missing,
         Err(_) => return Read::Inaccessible,
     };
-    match serde_json::from_slice::<Value>(&data) {
-        Ok(Value::Object(root)) => Read::Loaded(match root.get("certificates") {
+    match decode_text(&data).map(|text| serde_json::from_str::<Value>(&text)) {
+        Some(Ok(Value::Object(root))) => Read::Loaded(match root.get("certificates") {
             Some(Value::Array(entries)) => entries
                 .iter()
                 .filter_map(Value::as_object)
@@ -346,15 +354,98 @@ fn read_file(path: &Path) -> Read {
     }
 }
 
-// A file that does not decode is moved aside, so the next write does not destroy it.
-fn keep_unreadable(path: &Path) {
+// A file that does not decode is moved aside, so the next write does not destroy it. False when it
+// could not be moved: it is then left alone and no write may replace it.
+fn keep_unreadable(path: &Path) -> bool {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis());
-    let _ = std::fs::rename(
+    match std::fs::rename(
         path,
         path.with_file_name(format!("ipp-trust.unreadable-{stamp}.json")),
-    );
+    ) {
+        Ok(()) => true,
+        Err(e) => e.kind() == std::io::ErrorKind::NotFound,
+    }
+}
+
+// The text of a settings file as the other platforms read it: a byte-order mark wins, else the zero
+// bytes around the first (ASCII) character tell UTF-32 and UTF-16 from UTF-8. None when it is not
+// valid in its encoding.
+fn decode_text(bytes: &[u8]) -> Option<String> {
+    enum Encoding {
+        Utf8,
+        Utf16(bool),
+        Utf32(bool),
+    }
+    let (encoding, bom) = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        (Encoding::Utf8, 3)
+    } else if bytes.starts_with(&[0x00, 0x00, 0xFE, 0xFF]) {
+        (Encoding::Utf32(true), 4)
+    } else if bytes.starts_with(&[0xFF, 0xFE, 0x00, 0x00]) {
+        (Encoding::Utf32(false), 4)
+    } else if bytes.starts_with(&[0xFE, 0xFF]) {
+        (Encoding::Utf16(true), 2)
+    } else if bytes.starts_with(&[0xFF, 0xFE]) {
+        (Encoding::Utf16(false), 2)
+    } else if let [b0, b1, b2, b3, ..] = *bytes {
+        let (z0, z1, z2, z3) = (b0 == 0, b1 == 0, b2 == 0, b3 == 0);
+        if z0 && z1 && z2 {
+            (Encoding::Utf32(true), 0)
+        } else if z1 && z2 && z3 {
+            (Encoding::Utf32(false), 0)
+        } else if z0 && z2 {
+            (Encoding::Utf16(true), 0)
+        } else if z1 && z3 {
+            (Encoding::Utf16(false), 0)
+        } else {
+            (Encoding::Utf8, 0)
+        }
+    } else if let [b0, b1] = *bytes {
+        match (b0 == 0, b1 == 0) {
+            (true, _) => (Encoding::Utf16(true), 0),
+            (_, true) => (Encoding::Utf16(false), 0),
+            _ => (Encoding::Utf8, 0),
+        }
+    } else {
+        (Encoding::Utf8, 0)
+    };
+    let body = &bytes[bom..];
+    match encoding {
+        Encoding::Utf8 => String::from_utf8(body.to_vec()).ok(),
+        Encoding::Utf16(big) => {
+            let (units, rest) = body.as_chunks::<2>();
+            if !rest.is_empty() {
+                return None;
+            }
+            let units = units.iter().map(|u| {
+                if big {
+                    u16::from_be_bytes(*u)
+                } else {
+                    u16::from_le_bytes(*u)
+                }
+            });
+            char::decode_utf16(units)
+                .collect::<Result<String, _>>()
+                .ok()
+        }
+        Encoding::Utf32(big) => {
+            let (units, rest) = body.as_chunks::<4>();
+            if !rest.is_empty() {
+                return None;
+            }
+            units
+                .iter()
+                .map(|u| {
+                    char::from_u32(if big {
+                        u32::from_be_bytes(*u)
+                    } else {
+                        u32::from_le_bytes(*u)
+                    })
+                })
+                .collect()
+        }
+    }
 }
 
 /// The current time as an RFC 3339 UTC string.
@@ -639,22 +730,41 @@ struct Certificate<'a> {
 }
 
 impl<'a> Certificate<'a> {
+    // Certificate, tbsCertificate, the optional [0] version, then serialNumber, signature, issuer,
+    // validity, subject and subjectPublicKeyInfo, each bounded by its parent and the whole
+    // certificate ending with the data. The same walk as the Swift and C# SpkiFingerprint.
     fn parse(der: &'a [u8]) -> Option<Certificate<'a>> {
-        let (certificate, _) = der_element(der, 0x30)?;
-        let (tbs, _) = der_element(certificate.content, 0x30)?;
-        let mut rest = tbs.content;
-        // The optional [0] version, then the serial number, signature, issuer and validity.
-        if rest.first() == Some(&0xA0) {
-            rest = der_any(rest)?.1;
+        let certificate = read_element(der, 0, der.len())?;
+        if certificate.tag != 0x30 || certificate.end != der.len() {
+            return None;
         }
-        for _ in 0..4 {
-            rest = der_any(rest)?.1;
+        let tbs = read_element(der, certificate.content, certificate.end)?;
+        if tbs.tag != 0x30 {
+            return None;
         }
-        let (subject, rest) = der_element(rest, 0x30)?;
-        let (spki, _) = der_element(rest, 0x30)?;
+        let mut position = tbs.content;
+        if position < tbs.end && der[position] == 0xA0 {
+            position = read_element(der, position, tbs.end)?.end;
+        }
+        let mut subject = None;
+        for tag in [0x02, 0x30, 0x30, 0x30, 0x30] {
+            let element = read_element(der, position, tbs.end)?;
+            if element.tag != tag {
+                return None;
+            }
+            subject = Some(element);
+            position = element.end;
+        }
+        let spki = read_element(der, position, tbs.end)?;
+        let algorithm = read_element(der, spki.content, spki.end)?;
+        let key = read_element(der, algorithm.end, spki.end)?;
+        if spki.tag != 0x30 || algorithm.tag != 0x30 || key.tag != 0x03 || key.end != spki.end {
+            return None;
+        }
+        let subject = subject?;
         Some(Certificate {
-            spki: spki.whole,
-            subject_name: subject.content,
+            spki: &der[position..spki.end],
+            subject_name: &der[subject.content..subject.end],
         })
     }
 
@@ -694,6 +804,48 @@ impl<'a> Certificate<'a> {
         parts.reverse();
         parts.join(", ")
     }
+}
+
+#[derive(Clone, Copy)]
+struct Span {
+    tag: u8,
+    content: usize,
+    end: usize,
+}
+
+// The element at `offset` that ends by `limit`. Low tag numbers only; a length in the short form or
+// the long form of up to four bytes.
+fn read_element(der: &[u8], offset: usize, limit: usize) -> Option<Span> {
+    if limit > der.len() || offset.checked_add(2)? > limit {
+        return None;
+    }
+    let tag = der[offset];
+    if tag & 0x1F == 0x1F {
+        return None;
+    }
+    let first = der[offset + 1];
+    let mut position = offset + 2;
+    let length = if first < 0x80 {
+        first as usize
+    } else {
+        let count = (first & 0x7F) as usize;
+        if count == 0 || count > 4 || position + count > limit {
+            return None;
+        }
+        let length = der[position..position + count]
+            .iter()
+            .fold(0usize, |n, b| (n << 8) | *b as usize);
+        position += count;
+        length
+    };
+    if length > limit - position {
+        return None;
+    }
+    Some(Span {
+        tag,
+        content: position,
+        end: position + length,
+    })
 }
 
 struct Element<'a> {
