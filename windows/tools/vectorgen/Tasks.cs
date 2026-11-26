@@ -37,7 +37,7 @@ static class TasksGen
         for (int i = 0; i < 90; i++)
         {
             var s = RandomJson(rng);
-            var d = Directory.CreateTempSubdirectory().FullName;
+            var d = Directory.CreateDirectory(Path.Combine(Gen.Temp, Guid.NewGuid().ToString("N"))).FullName;
             File.WriteAllText(Path.Combine(d, "settings.json"), s.ToJsonString());
             var settings = (PrintSettings)typeof(SettingsStore).GetMethod("Load", BindingFlags.NonPublic | BindingFlags.Static, [typeof(string)])!.Invoke(null, [d])!;
             settings.Copies = rng.Next(1, 5);
@@ -47,7 +47,7 @@ static class TasksGen
             bool none = rng.Next(6) == 0;
             if (none) { two = false; types = []; }
             var result = TaskCatalog.Apply(task, settings, none ? null : cap);
-            var d2 = Directory.CreateTempSubdirectory().FullName;
+            var d2 = Directory.CreateDirectory(Path.Combine(Gen.Temp, Guid.NewGuid().ToString("N"))).FullName;
             typeof(SettingsStore).GetMethod("Save", BindingFlags.NonPublic | BindingFlags.Static, [typeof(PrintSettings), typeof(string)])!.Invoke(null, [result, d2]);
             applies.Add(new JsonObject
             {
