@@ -341,7 +341,7 @@ fn parse_port(text: &str) -> Result<u16, AddressError> {
 }
 
 /// A link-local IPv6 address with no zone: it cannot be reached, as discovery also finds.
-fn lacks_zone(host: &str) -> bool {
+pub(crate) fn lacks_zone(host: &str) -> bool {
     host.contains(':')
         && !host.contains('%')
         && host
