@@ -9,7 +9,7 @@ const H: usize = 40;
 
 fn golden(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../testdata/ipp/raster")
+        .join("../testdata/ipp/raster")
         .join(name);
     std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }

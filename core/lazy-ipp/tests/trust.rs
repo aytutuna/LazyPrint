@@ -1,5 +1,5 @@
 //! The cases of the C# and Swift IppTrustTests that do not need a TLS connection, with the printer
-//! certificates and the trust files both platforms wrote (testdata/ipp).
+//! certificates and the trust files both platforms wrote (core/testdata/ipp).
 
 mod common;
 

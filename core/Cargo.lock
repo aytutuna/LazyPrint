@@ -82,6 +82,45 @@ name = "lazy-raster"
 version = "0.1.0"
 
 [[package]]
+name = "lazyprint-jobs"
+version = "0.1.0"
+dependencies = [
+ "lazyprint-layout",
+ "lazyprint-paper",
+ "lazyprint-settings",
+ "serde_json",
+ "testdata-check",
+]
+
+[[package]]
+name = "lazyprint-layout"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "testdata-check",
+]
+
+[[package]]
+name = "lazyprint-paper"
+version = "0.1.0"
+dependencies = [
+ "lazyprint-layout",
+ "serde_json",
+ "testdata-check",
+]
+
+[[package]]
+name = "lazyprint-settings"
+version = "0.1.0"
+dependencies = [
+ "lazyprint-layout",
+ "serde",
+ "serde_json",
+ "testdata-check",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -118,6 +157,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]
@@ -173,6 +213,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "testdata-check"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

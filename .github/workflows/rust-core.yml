@@ -1,19 +1,18 @@
-name: rust-ipp
+name: Rust core
 
 on:
   push:
     branches: [main, 'ci/**']
     paths:
       - core/**
-      - testdata/ipp/**
       - Tests/Fixtures/Ipp/**
-      - .github/workflows/rust-ipp.yml
+      - .github/workflows/rust-core.yml
   pull_request:
+    branches: [main]
     paths:
       - core/**
-      - testdata/ipp/**
       - Tests/Fixtures/Ipp/**
-      - .github/workflows/rust-ipp.yml
+      - .github/workflows/rust-core.yml
   schedule:
     - cron: '23 4 * * 1'
 
@@ -23,7 +22,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_FUZZ: 0.13.2
-  CARGO_DENY: 0.22.1
   FUZZ_TOOLCHAIN: nightly-2026-11-20
 
 defaults:
@@ -31,56 +29,59 @@ defaults:
     working-directory: core
 
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: core
-          shared-key: ipp-check
-      - name: Test data is the copy of the fixtures
+      - name: Printer test data is the copy of the fixtures
         shell: bash
         run: |
-          cd ../testdata/ipp
+          cd testdata/ipp
           sha256sum --check --strict SHA256SUMS
           test "$(find . -type f ! -name SHA256SUMS | wc -l)" = "$(wc -l < SHA256SUMS)"
-          while read -r _ file; do cmp "${file#\*}" "../../Tests/Fixtures/Ipp/${file#\*}"; done < SHA256SUMS
+          while read -r _ file; do cmp "${file#\*}" "../../../Tests/Fixtures/Ipp/${file#\*}"; done < SHA256SUMS
           # tls-printer-a.p12 is the Swift tests' own TLS identity; the Rust tests do not read it.
           diff <(find . -type f ! -name SHA256SUMS | sort) \
-            <(cd ../../Tests/Fixtures/Ipp && find . -type f ! -name tls-printer-a.p12 | sort)
+            <(cd ../../../Tests/Fixtures/Ipp && find . -type f ! -name tls-printer-a.p12 | sort)
       - run: cargo fmt --check
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - run: cargo test --locked --workspace
-
-  test:
-    needs: check
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          workspaces: core
-          shared-key: ipp-test
-      - run: cargo test --locked --workspace
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   licenses:
     runs-on: ubuntu-latest
+    env:
+      CARGO_DENY: 0.22.1
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: core
-          shared-key: ipp-licenses
+          shared-key: licenses
       - run: cargo install cargo-deny --version "$CARGO_DENY" --locked
+      - run: cargo deny --version | grep -F "$CARGO_DENY"
       - run: cargo deny --locked check licenses bans sources
       - run: cargo deny --locked --manifest-path lazy-ipp/fuzz/Cargo.toml --config deny.toml check licenses bans sources
+      - name: Advisories, weekly only so a new report does not fail a push
+        if: github.event_name == 'schedule'
+        run: cargo deny --locked check advisories
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: core
+      - run: cargo test --workspace --locked
 
   fuzz:
-    needs: check
+    needs: lint
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +95,7 @@ jobs:
         with:
           workspaces: |
             core/lazy-ipp/fuzz
-          shared-key: ipp-fuzz
+          shared-key: fuzz
       - run: rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
       - run: cargo install cargo-fuzz --version "$CARGO_FUZZ" --locked
       - name: Corpus from the captured printer answers, requests and certificates
@@ -104,11 +105,11 @@ jobs:
           mkdir -p "$corpus"
           case "${{ matrix.target }}" in
             decode)
-              cp ../testdata/ipp/printers/*.bin ../testdata/ipp/requests/*.bin "$corpus" ;;
+              cp testdata/ipp/printers/*.bin testdata/ipp/requests/*.bin "$corpus" ;;
             txt)
-              cp ../testdata/ipp/txt-hp.txt "$corpus" ;;
+              cp testdata/ipp/txt-hp.txt "$corpus" ;;
             certificate)
-              for pem in ../testdata/ipp/*.pem; do
+              for pem in testdata/ipp/*.pem; do
                 grep -v -- '-----' "$pem" | base64 -d > "$corpus/$(basename "$pem" .pem).der"
               done ;;
             http)
