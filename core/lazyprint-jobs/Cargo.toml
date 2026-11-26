@@ -1,0 +1,16 @@
+[package]
+name = "lazyprint-jobs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+publish.workspace = true
+
+[dependencies]
+lazyprint-layout = { path = "../lazyprint-layout" }
+lazyprint-paper = { path = "../lazyprint-paper" }
+lazyprint-settings = { path = "../lazyprint-settings" }
+
+[dev-dependencies]
+serde_json.workspace = true
+testdata-check = { path = "../testdata-check" }
