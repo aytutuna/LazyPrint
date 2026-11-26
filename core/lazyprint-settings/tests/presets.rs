@@ -67,12 +67,7 @@ fn names_are_checked_against_the_built_in_and_the_saved_presets() {
         })
         .collect();
     for case in data["names"]["checks"].as_array().unwrap() {
-        let got = check_preset_name(
-            case["name"].as_str(),
-            &existing,
-            &built_in,
-            case["renaming"].as_str(),
-        );
+        let got = check_preset_name(case["name"].as_str(), &existing, case["renaming"].as_str());
         let name = match got {
             PresetNameCheck::Ok => "ok",
             PresetNameCheck::Empty => "empty",
@@ -212,4 +207,32 @@ fn built_in_presets_start_from_the_defaults() {
             "{case}"
         );
     }
+}
+
+#[test]
+fn case_folds_one_character_at_a_time() {
+    assert!(!same_name("Straße", "STRASSE"));
+    assert!(same_name("Ärger", "äRGER"));
+    let saved = vec![UserPreset {
+        name: "Strasse".into(),
+        settings: PrintSettings::default(),
+    }];
+    assert_eq!(
+        check_preset_name(Some("Straße"), &saved, None),
+        PresetNameCheck::Ok
+    );
+    assert!(find_preset(&saved, "Straße").is_none());
+}
+
+#[test]
+fn presets_are_written_as_they_are_read() {
+    let mut settings = PrintSettings::default();
+    settings.set_margin_mm(3.5);
+    let presets = vec![make_preset(" Sheet ", &settings)];
+    let text = serde_json::to_string(&presets).unwrap();
+    assert!(
+        text.starts_with(r#"[{"name":"Sheet","settings":{"#),
+        "{text}"
+    );
+    assert_eq!(presets_from_json(&text).unwrap(), presets);
 }

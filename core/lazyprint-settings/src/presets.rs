@@ -1,10 +1,12 @@
-use crate::{DecodeError, PrintSettings, lenient, parse_document};
+use crate::{DecodeError, PrintSettings, TASKS, lenient, parse_document};
 use lazyprint_layout::PageSelection;
+use serde::Serialize;
 use serde_json::Value;
 
 /// A name and the option values it sets: everything in the settings but the printer, the task, copies, the page
 /// selection and the order.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserPreset {
     pub name: String,
     pub settings: PrintSettings,
@@ -20,24 +22,31 @@ pub enum PresetNameCheck {
     Exists,
 }
 
-/// The names compare without regard to case.
+/// The names compare without regard to case, one character at a time as the platforms' own comparisons do: "ß" is not
+/// "SS".
 pub fn same_name(a: &str, b: &str) -> bool {
-    a.to_uppercase() == b.to_uppercase()
+    let fold = |c: char| {
+        let mut lower = c.to_lowercase();
+        match (lower.next(), lower.next()) {
+            (Some(one), None) => one,
+            _ => c,
+        }
+    };
+    a.chars().map(fold).eq(b.chars().map(fold))
 }
 
-/// Whether `name` can name a preset: not empty once trimmed, not a built-in preset's, and not another user preset's.
+/// Whether `name` can name a preset: not empty once trimmed, not a built-in preset's (the titles of `TASKS`), and not another user preset's.
 /// `renaming` is the preset being renamed, which may keep its own name.
 pub fn check_preset_name(
     name: Option<&str>,
     presets: &[UserPreset],
-    built_in_names: &[&str],
     renaming: Option<&str>,
 ) -> PresetNameCheck {
     let clean = name.unwrap_or("").trim();
     if clean.is_empty() {
         return PresetNameCheck::Empty;
     }
-    if built_in_names.iter().any(|n| same_name(n, clean)) {
+    if TASKS.iter().any(|t| same_name(t.title, clean)) {
         return PresetNameCheck::BuiltIn;
     }
     let taken = presets
