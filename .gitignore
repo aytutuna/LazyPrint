@@ -19,3 +19,7 @@ android/app/build/
 android/local.properties
 android/.idea/
 *.iml
+core/target/
+core/fuzz/target/
+core/fuzz/corpus/
+core/fuzz/artifacts/
