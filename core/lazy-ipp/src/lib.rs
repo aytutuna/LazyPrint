@@ -3,8 +3,10 @@
 
 pub mod address;
 pub mod capabilities;
+pub mod client;
 pub mod codec;
 pub mod formats;
+pub mod http;
 pub mod job;
 pub mod requests;
 pub mod retry;

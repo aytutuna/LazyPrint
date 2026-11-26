@@ -96,6 +96,16 @@ impl PrinterAddress {
         format!("{scheme}{authority}{}", self.path_text())
     }
 
+    /// The resource path as it goes in the request line, without the leading slash.
+    pub fn request_path(&self) -> String {
+        escape_path(&self.resource_path)
+    }
+
+    /// The Host header: "host:port", an IPv6 address in brackets and without its zone.
+    pub fn request_host(&self) -> String {
+        self.uri_authority(false)
+    }
+
     fn uri_authority(&self, zone: bool) -> String {
         let host = if zone {
             self.host.as_str()

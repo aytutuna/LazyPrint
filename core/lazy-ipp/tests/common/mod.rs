@@ -20,3 +20,5 @@ pub fn fixture(path: &str) -> Vec<u8> {
 pub fn printer(name: &str) -> Vec<u8> {
     fixture(&format!("printers/{name}.bin"))
 }
+
+pub mod loopback;
