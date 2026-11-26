@@ -16,7 +16,9 @@ use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::time::Duration;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 const USER: &str = "tester";
 
@@ -31,7 +33,7 @@ impl Clock for FakeClock {
         self.now.get()
     }
 
-    fn sleep(&self, wait: Duration) {
+    fn sleep(&self, wait: Duration, _cancel: &AtomicBool) {
         self.delays.borrow_mut().push(wait);
         self.now.set(self.now.get() + wait);
     }
@@ -559,7 +561,7 @@ fn a_printer_that_stays_silent_times_out_after_the_request_timeout() {
         None,
         options,
     );
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     assert_eq!(
         client.job(1).unwrap_err(),
         PrintError::Unreachable {
@@ -663,7 +665,7 @@ fn a_printer_trickling_its_answer_is_given_up_on() {
         None,
         options,
     );
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     assert!(matches!(
         client.job(1).unwrap_err(),
         PrintError::Unreachable { .. }
@@ -692,8 +694,98 @@ fn the_cancel_flag_ends_a_request_that_is_waiting_for_the_printer() {
         std::thread::sleep(Duration::from_millis(300));
         flag.store(true, std::sync::atomic::Ordering::Relaxed);
     });
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     assert_eq!(client.job(1).unwrap_err(), PrintError::Cancelled);
     assert!(started.elapsed() < Duration::from_secs(2));
     stopper.join().unwrap();
+}
+
+struct CancelsWhileWaiting;
+
+impl Clock for CancelsWhileWaiting {
+    fn elapsed(&self) -> Duration {
+        Duration::ZERO
+    }
+
+    fn sleep(&self, _wait: Duration, cancel: &AtomicBool) {
+        assert!(!cancel.load(Ordering::Relaxed));
+        cancel.store(true, Ordering::Relaxed);
+    }
+
+    fn start(&mut self) {}
+}
+
+#[test]
+fn a_cancel_during_the_wait_for_a_busy_printer_ends_the_request() {
+    let printer_ = Loopback::new();
+    printer_.handle(|_| Some(Answer::Http(503, vec![])));
+    let options = Options {
+        clock: Box::new(CancelsWhileWaiting),
+        ..Default::default()
+    };
+    let mut client = Client::new(
+        TcpTransport,
+        printer_.address(),
+        "Fake MFP",
+        USER,
+        None,
+        options,
+    );
+    assert_eq!(client.job(1).unwrap_err(), PrintError::Cancelled);
+    assert_eq!(printer_.requests().len(), 1);
+}
+
+#[test]
+fn the_system_clock_wait_ends_when_cancelled() {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let setter = cancel.clone();
+    let thread = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        setter.store(true, Ordering::Relaxed);
+    });
+    let started = Instant::now();
+    lazy_ipp::client::SystemClock::default().sleep(Duration::from_secs(10), &cancel);
+    thread.join().unwrap();
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+struct Timeouts(Rc<RefCell<Vec<Duration>>>);
+
+impl lazy_ipp::client::Transport for Timeouts {
+    fn post(
+        &mut self,
+        _address: &lazy_ipp::address::PrinterAddress,
+        _head: &[u8],
+        _document: Option<&std::path::Path>,
+        timeout: Duration,
+        _cancel: &AtomicBool,
+    ) -> Result<lazy_ipp::client::HttpResponse, lazy_ipp::client::TransportError> {
+        self.0.borrow_mut().push(timeout);
+        Err(lazy_ipp::client::TransportError::Timeout)
+    }
+}
+
+#[test]
+fn print_job_has_its_own_longer_timeout() {
+    let seen = Rc::new(RefCell::new(vec![]));
+    let options = Options {
+        request_timeout: Duration::from_secs(7),
+        print_timeout: Duration::from_secs(70),
+        ..Default::default()
+    };
+    let mut client = Client::new(
+        Timeouts(seen.clone()),
+        lazy_ipp::address::PrinterAddress::parse("ipp://127.0.0.1:631").unwrap(),
+        "Fake MFP",
+        USER,
+        None,
+        options,
+    );
+    let document = Document::new(10);
+    let _ = client.job(1);
+    let _ = client.print(&document.0, &ticket());
+    assert_eq!(
+        *seen.borrow(),
+        [Duration::from_secs(7), Duration::from_secs(70)]
+    );
 }

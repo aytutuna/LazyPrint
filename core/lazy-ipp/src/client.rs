@@ -112,7 +112,8 @@ impl std::error::Error for PrintError {}
 pub trait Clock {
     /// Time since the first attempt of a request.
     fn elapsed(&self) -> Duration;
-    fn sleep(&self, wait: Duration);
+    /// Waits, ending early once `cancel` is set.
+    fn sleep(&self, wait: Duration, cancel: &AtomicBool);
     /// Starts counting for the next request.
     fn start(&mut self);
 }
@@ -125,8 +126,15 @@ impl Clock for SystemClock {
         self.0.map_or(Duration::ZERO, |t| t.elapsed())
     }
 
-    fn sleep(&self, wait: Duration) {
-        std::thread::sleep(wait);
+    fn sleep(&self, wait: Duration, cancel: &AtomicBool) {
+        let end = Instant::now() + wait;
+        while !cancel.load(Ordering::Relaxed) {
+            let left = end.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                break;
+            }
+            std::thread::sleep(left.min(Duration::from_millis(20)));
+        }
     }
 
     fn start(&mut self) {
@@ -495,7 +503,10 @@ impl<T: Transport> Client<T> {
             if self.cancel.load(Ordering::Relaxed) {
                 return Err(TransportError::Cancelled);
             }
-            self.options.clock.sleep(wait);
+            self.options.clock.sleep(wait, &self.cancel);
+            if self.cancel.load(Ordering::Relaxed) {
+                return Err(TransportError::Cancelled);
+            }
             retry += 1;
         }
     }
