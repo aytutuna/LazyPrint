@@ -256,20 +256,27 @@ impl<T: Transport> Client<T> {
         {
             self.capabilities()?;
         }
-        let mut response = self.round_trip(
+        let (mut response, late) = self.round_trip_noting_cancel(
             |uri, user, id| requests::print_job(uri, user, ticket, id),
             Some(document),
         )?;
+        if late {
+            return Err(self.cancelled_after(&response));
+        }
         // A printer that refuses media-col is asked once more for the paper by its name.
         if response.code == status::CLIENT_ERROR_ATTRIBUTES_OR_VALUES_NOT_SUPPORTED
             && ticket.media.entry.is_some()
         {
             let mut plain = ticket.clone();
             plain.media.entry = None;
-            response = self.round_trip(
+            let late;
+            (response, late) = self.round_trip_noting_cancel(
                 |uri, user, id| requests::print_job(uri, user, &plain, id),
                 Some(document),
             )?;
+            if late {
+                return Err(self.cancelled_after(&response));
+            }
         }
         succeeded(&response)?;
         let job = Job::from_message(&response, None).ok_or(PrintError::BadResponse)?;
@@ -344,9 +351,33 @@ impl<T: Transport> Client<T> {
         build: impl Fn(&str, &str, i32) -> Message,
         document: Option<&Path>,
     ) -> Result<Message, PrintError> {
+        let (answer, late) = self.round_trip_noting_cancel(build, document)?;
+        if late {
+            return Err(PrintError::Cancelled);
+        }
+        Ok(answer)
+    }
+
+    /// As `round_trip`, but a cancel that came in as the answer arrived is reported beside the
+    /// answer, so a caller holding a new job can cancel it.
+    fn round_trip_noting_cancel(
+        &mut self,
+        build: impl Fn(&str, &str, i32) -> Message,
+        document: Option<&Path>,
+    ) -> Result<(Message, bool), PrintError> {
         let answer = self.exchange(build, document);
-        self.cancel.store(false, Ordering::Relaxed);
-        answer
+        let late = self.cancel.swap(false, Ordering::AcqRel);
+        Ok((answer?, late))
+    }
+
+    // A cancel that arrived with a Print-Job answer: the job it made is cancelled too.
+    fn cancelled_after(&mut self, response: &Message) -> PrintError {
+        if succeeded(response).is_ok()
+            && let Some(job) = Job::from_message(response, None)
+        {
+            let _ = self.cancel_job(job.id);
+        }
+        PrintError::Cancelled
     }
 
     fn exchange(

@@ -789,3 +789,47 @@ fn print_job_has_its_own_longer_timeout() {
         [Duration::from_secs(7), Duration::from_secs(70)]
     );
 }
+
+// Answers a Print-Job with job 5 and sets the cancel flag as it does, as a press of Cancel that
+// comes in while the answer is being read.
+struct CancelsAsItAnswers(Rc<RefCell<Vec<u16>>>);
+
+impl lazy_ipp::client::Transport for CancelsAsItAnswers {
+    fn post(
+        &mut self,
+        _address: &lazy_ipp::address::PrinterAddress,
+        head: &[u8],
+        _document: Option<&std::path::Path>,
+        _timeout: Duration,
+        cancel: &AtomicBool,
+    ) -> Result<lazy_ipp::client::HttpResponse, lazy_ipp::client::TransportError> {
+        let (request, _) = Message::decode(head).unwrap();
+        self.0.borrow_mut().push(request.code);
+        if request.code == 0x0002 {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        Ok(lazy_ipp::client::HttpResponse {
+            status: 200,
+            retry_after: None,
+            body: job_response(status::SUCCESSFUL_OK, 5, 3, &[]).encode(),
+        })
+    }
+}
+
+#[test]
+fn a_cancel_that_comes_with_the_answer_is_not_lost() {
+    let seen = Rc::new(RefCell::new(vec![]));
+    let mut client = Client::new(
+        CancelsAsItAnswers(seen.clone()),
+        lazy_ipp::address::PrinterAddress::parse("ipp://127.0.0.1:631").unwrap(),
+        "Fake MFP",
+        USER,
+        None,
+        Options::default(),
+    );
+    let error = client.print(&Document::new(10).0, &ticket()).unwrap_err();
+    assert_eq!(error, PrintError::Cancelled);
+    // The job the printer made is cancelled, and the flag is clear for the next request.
+    assert_eq!(*seen.borrow(), [0x0002, 0x0008]);
+    client.job(5).unwrap();
+}
