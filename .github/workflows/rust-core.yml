@@ -44,6 +44,7 @@ jobs:
           workspaces: core
           shared-key: licenses
       - run: cargo install cargo-deny --version "$CARGO_DENY" --locked
+      - run: cargo deny --version | grep -F "$CARGO_DENY"
       - run: cargo deny --locked check licenses bans sources
 
   test:

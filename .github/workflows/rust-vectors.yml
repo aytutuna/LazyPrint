@@ -7,6 +7,7 @@ on:
       - core/testdata/**
       - windows/LazyPrint.Core/**
       - windows/tools/vectorgen/**
+      - Tests/Fixtures/Ipp/**
       - .github/workflows/rust-vectors.yml
   pull_request:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - core/testdata/**
       - windows/LazyPrint.Core/**
       - windows/tools/vectorgen/**
+      - Tests/Fixtures/Ipp/**
       - .github/workflows/rust-vectors.yml
 
 permissions:
