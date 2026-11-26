@@ -22,16 +22,19 @@ pub struct JobPrinter {
     pub media_types: Vec<String>,
     pub media_sources: Vec<String>,
     pub color_modes: Vec<String>,
+    pub media_col_supported: Vec<String>,
+    pub print_scaling_supported: Vec<String>,
+    pub print_quality_supported: Vec<i32>,
 }
 
 impl JobPrinter {
-    fn can_two_sided(&self) -> bool {
+    pub(crate) fn can_two_sided(&self) -> bool {
         self.sides_supported
             .iter()
             .any(|s| s == "two-sided-long-edge")
     }
 
-    fn collates(&self) -> bool {
+    pub(crate) fn collates(&self) -> bool {
         self.multiple_document_handling
             .iter()
             .any(|s| s == COLLATED_COPIES)
@@ -44,10 +47,17 @@ impl JobPrinter {
     }
 
     /// The paper type to ask for: the chosen one when the printer lists it, else none and the printer picks.
-    fn listed_type<'a>(&self, settings: &'a PrintSettings) -> Option<&'a str> {
+    pub(crate) fn listed_type<'a>(&self, settings: &'a PrintSettings) -> Option<&'a str> {
         let t = settings.media_type.as_str();
         let listed = !t.is_empty() && t != AUTO_MEDIA && self.media_types.iter().any(|m| m == t);
         listed.then_some(t)
+    }
+
+    /// The tray to ask for: the chosen one when the printer lists it, else none and the printer picks.
+    pub(crate) fn listed_source<'a>(&self, settings: &'a PrintSettings) -> Option<&'a str> {
+        let s = settings.media_source.as_str();
+        let listed = !s.is_empty() && s != AUTO_MEDIA && self.media_sources.iter().any(|m| m == s);
+        listed.then_some(s)
     }
 }
 
@@ -132,7 +142,7 @@ impl JobContext<'_> {
     }
 
     /// The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks.
-    fn match_type<'a>(&self, settings: &'a PrintSettings) -> Option<&'a str> {
+    pub(crate) fn match_type<'a>(&self, settings: &'a PrintSettings) -> Option<&'a str> {
         Some(
             self.printer
                 .and_then(|p| p.listed_type(settings))

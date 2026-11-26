@@ -4,7 +4,9 @@ use lazyprint_layout::{
     LayoutInsets, LayoutOptions, LayoutRect, LayoutSize, PageSelection, PaperPath, PlanWarning,
     PrintableArea,
 };
-use lazyprint_paper::{MediaEntry, MediaMargins, PaperRange, PrinterMedia};
+use lazyprint_paper::{
+    MediaEntry, MediaMargins, MediaMember, MemberValue, PaperRange, PrinterMedia,
+};
 use lazyprint_settings::PrintSettings;
 use serde_json::Value;
 
@@ -59,6 +61,32 @@ fn same_rect(a: LayoutRect, b: LayoutRect, what: &str) {
     close(a.height, b.height, what);
 }
 
+fn members(v: &Value) -> Vec<MediaMember> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|m| MediaMember {
+            name: m["name"].as_str().unwrap().to_string(),
+            values: m["values"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|x| {
+                    if let Some(n) = x.get("integer") {
+                        MemberValue::Integer(n.as_i64().unwrap() as i32)
+                    } else if let Some(k) = x.get("keyword") {
+                        MemberValue::Keyword(k.as_str().unwrap().to_string())
+                    } else if let Some(c) = x.get("collection") {
+                        MemberValue::Collection(members(c))
+                    } else {
+                        MemberValue::Other(x["other"].as_str().unwrap().to_string())
+                    }
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 fn entries(v: &Value) -> Vec<MediaEntry> {
     v.as_array()
         .unwrap()
@@ -78,6 +106,7 @@ fn entries(v: &Value) -> Vec<MediaEntry> {
             }),
             media_type: e["type"].as_str().map(str::to_string),
             source: e["source"].as_str().map(str::to_string),
+            attributes: members(&e["attributes"]),
         })
         .collect()
 }
@@ -105,6 +134,12 @@ fn printer(v: &Value) -> JobPrinter {
         media_types: strings(&v["mediaTypes"]),
         media_sources: strings(&v["mediaSources"]),
         color_modes: strings(&v["colorModes"]),
+        media_col_supported: strings(&v["mediaColSupported"]),
+        print_scaling_supported: strings(&v["printScalingSupported"]),
+        print_quality_supported: nums(&v["printQualitySupported"])
+            .into_iter()
+            .map(|q| q as i32)
+            .collect(),
     }
 }
 
@@ -304,6 +339,58 @@ fn jobs_are_planned_like_the_reference() {
         close(sheet.height, size(&case["sheet"]).height, &what);
 
         let job = context.plan(&documents, range.as_deref(), &settings, &path);
+        let ticket = context.ticket(
+            &job,
+            &settings,
+            case["format"].as_str().unwrap(),
+            &format!("Job {n}"),
+            case["asIs"].as_bool().unwrap(),
+        );
+        let want = &case["ticket"];
+        assert_eq!(ticket.job_name, want["jobName"].as_str().unwrap(), "{what}");
+        assert_eq!(
+            ticket.document_format,
+            want["documentFormat"].as_str().unwrap(),
+            "{what}"
+        );
+        assert_eq!(
+            i64::from(ticket.copies),
+            want["copies"].as_i64().unwrap(),
+            "{what}"
+        );
+        assert_eq!(ticket.sides, want["sides"].as_str().unwrap(), "{what}");
+        assert_eq!(
+            ticket.color_mode,
+            want["colorMode"].as_str().unwrap(),
+            "{what}"
+        );
+        assert_eq!(
+            ticket.media.name,
+            want["media"]["name"].as_str().unwrap(),
+            "{what}"
+        );
+        assert_eq!(
+            ticket.media.entry,
+            want["media"]["entry"]
+                .is_array()
+                .then(|| members(&want["media"]["entry"])),
+            "{what}"
+        );
+        assert_eq!(
+            ticket.quality.map(i64::from),
+            want["quality"].as_i64(),
+            "{what}"
+        );
+        assert_eq!(
+            ticket.scaling.as_deref(),
+            want["scaling"].as_str(),
+            "{what}"
+        );
+        assert_eq!(
+            ticket.collated_copies,
+            want["collatedCopies"].as_bool().unwrap(),
+            "{what}"
+        );
         assert_eq!(
             job.manual_duplex,
             case["manualDuplex"].as_bool().unwrap(),
@@ -403,4 +490,20 @@ fn turning_pages_wraps_and_swaps_sizes() {
             assert_eq!(doc.size(i), size(s), "{case}");
         }
     }
+}
+
+#[test]
+fn job_states_are_named_as_the_contract() {
+    let states = [
+        JobState::Preparing,
+        JobState::Sending,
+        JobState::Waiting,
+        JobState::Printing,
+        JobState::Done,
+        JobState::Failed,
+        JobState::Canceled,
+        JobState::NeedsUser,
+    ];
+    let names: Vec<&str> = states.iter().map(|s| s.name()).collect();
+    assert_eq!(names, strings(&data()["jobStates"]));
 }

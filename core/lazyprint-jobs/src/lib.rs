@@ -5,6 +5,8 @@
 
 mod document;
 mod job;
+mod ticket;
 
 pub use document::*;
 pub use job::*;
+pub use ticket::*;

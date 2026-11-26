@@ -31,6 +31,39 @@ impl MediaMargins {
     }
 }
 
+/// A value of a media-col member, as far as the entries a printer lists and the ones a job sends use them. Any other
+/// kind a printer reports is kept as its name, so the member still goes back as it came.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MemberValue {
+    Integer(i32),
+    Keyword(String),
+    Collection(Vec<MediaMember>),
+    Other(String),
+}
+
+/// A named member of a media-col, with one or more values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MediaMember {
+    pub name: String,
+    pub values: Vec<MemberValue>,
+}
+
+impl MediaMember {
+    pub fn keyword(name: &str, value: &str) -> Self {
+        Self {
+            name: name.into(),
+            values: vec![MemberValue::Keyword(value.into())],
+        }
+    }
+
+    pub fn integer(name: &str, value: i32) -> Self {
+        Self {
+            name: name.into(),
+            values: vec![MemberValue::Integer(value)],
+        }
+    }
+}
+
 /// One media-col entry (of media-col-database or media-col-ready), sizes in hundredths of a millimetre as a printer
 /// reports them. A size the printer takes in a range (custom sizes) is variable: its upper bounds are the width and
 /// height, and it never matches a paper.
@@ -42,6 +75,8 @@ pub struct MediaEntry {
     pub margins: Option<MediaMargins>,
     pub media_type: Option<String>,
     pub source: Option<String>,
+    /// The members of the entry as the printer lists them: what a job sends to ask for it.
+    pub attributes: Vec<MediaMember>,
 }
 
 impl MediaEntry {

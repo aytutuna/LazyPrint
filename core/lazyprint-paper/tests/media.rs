@@ -41,6 +41,7 @@ fn entries(v: &Value) -> Vec<MediaEntry> {
             }),
             media_type: e["type"].as_str().map(str::to_string),
             source: e["source"].as_str().map(str::to_string),
+            attributes: Vec::new(),
         })
         .collect()
 }
