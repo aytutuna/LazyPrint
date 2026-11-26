@@ -597,6 +597,26 @@ fn the_cancel_flag_stops_the_next_request() {
 }
 
 #[test]
+fn a_cancelled_print_can_still_cancel_its_job() {
+    let printer_ = Loopback::new();
+    printer_.script(vec![
+        Answer::Silent(Duration::from_secs(4)),
+        Answer::Ipp(response(status::SUCCESSFUL_OK, vec![])),
+    ]);
+    let mut client = client(&printer_, &FakeClock::default());
+    let flag = client.cancel_flag();
+    let stopper = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        flag.store(true, std::sync::atomic::Ordering::Relaxed);
+    });
+    assert_eq!(client.job(1).unwrap_err(), PrintError::Cancelled);
+    stopper.join().unwrap();
+    client.cancel_job(7).unwrap();
+    let requests = printer_.requests();
+    assert_eq!(requests.last().unwrap().message().code, 0x0008);
+}
+
+#[test]
 fn the_fixtures_decode_through_the_client_too() {
     let printer_ = Loopback::new();
     let data = fixture("printers/epson-ecotank.bin");

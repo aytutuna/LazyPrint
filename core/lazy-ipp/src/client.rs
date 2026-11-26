@@ -212,7 +212,8 @@ impl<T: Transport> Client<T> {
         self.not_encrypted
     }
 
-    /// Set it to stop the request in progress at its next retry; the answer is [`PrintError::Cancelled`].
+    /// Set it to stop the request in progress, or the next one if none is; the answer is
+    /// [`PrintError::Cancelled`] and the flag is cleared when a request ends.
     pub fn cancel_flag(&self) -> Arc<AtomicBool> {
         self.cancel.clone()
     }
@@ -328,8 +329,19 @@ impl<T: Transport> Client<T> {
         succeeded(&response)
     }
 
-    /// Sends one request and returns the printer's answer, whatever its IPP status.
+    /// Sends one request and returns the printer's answer, whatever its IPP status. The cancel
+    /// flag is for this request only, so the Cancel-Job that follows a stopped print still goes out.
     fn round_trip(
+        &mut self,
+        build: impl Fn(&str, &str, i32) -> Message,
+        document: Option<&Path>,
+    ) -> Result<Message, PrintError> {
+        let answer = self.exchange(build, document);
+        self.cancel.store(false, Ordering::Relaxed);
+        answer
+    }
+
+    fn exchange(
         &mut self,
         build: impl Fn(&str, &str, i32) -> Message,
         document: Option<&Path>,
