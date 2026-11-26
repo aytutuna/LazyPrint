@@ -9,3 +9,5 @@
 *.png binary
 *.jpg binary
 *.lppkg binary
+# Shared vectors are hashed in SHA256SUMS.
+core/testdata/** -text
