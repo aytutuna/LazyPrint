@@ -142,8 +142,8 @@ fn the_margin_stays_at_a_hundredth_whatever_is_set() {
     s.set_margin_mm(0.05);
     s.set_margin_mm(s.margin_mm() + 0.1);
     assert_eq!(s.margin_mm(), 0.15);
-    s.set_margin_mm(2.71828);
-    assert_eq!(s.margin_mm(), 2.72);
+    s.set_margin_mm(1.23456);
+    assert_eq!(s.margin_mm(), 1.23);
     s.set_margin_mm(80.0);
     assert_eq!(s.margin_mm(), 50.0);
 }
@@ -153,7 +153,7 @@ fn a_number_out_of_range_resets_only_its_own_field() {
     let s = PrintSettings::from_json(r#"{"marginMm": 1e400, "scale": 50}"#).unwrap();
     assert_eq!(s.margin_mm(), 10.0);
     assert_eq!(s.scale, 50);
-    let s = PrintSettings::from_json(r#"{"scale": 1e400, "marginMm": 2.71828}"#).unwrap();
+    let s = PrintSettings::from_json(r#"{"scale": 1e400, "marginMm": 1.23456}"#).unwrap();
     assert_eq!(s.scale, 100);
-    assert_eq!(s.margin_mm(), 2.72);
+    assert_eq!(s.margin_mm(), 1.23);
 }
