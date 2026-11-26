@@ -44,7 +44,7 @@ impl Transport for TcpTransport {
         if cancel.load(Ordering::Relaxed) {
             return Err(TransportError::Cancelled);
         }
-        let stream = connect(address, timeout)?;
+        let stream = connect(address.clone(), timeout, cancel)?;
         // Socket timeouts would leave a Windows socket in an unknown state after each miss, so the
         // socket never blocks and Watched waits itself.
         stream.set_nonblocking(true).map_err(connection)?;
@@ -56,11 +56,15 @@ impl Transport for TcpTransport {
             last: Instant::now(),
         };
 
-        let length = head.len() as u64
-            + match document {
-                Some(path) => std::fs::metadata(path).map_err(connection)?.len(),
-                None => 0,
-            };
+        let mut file = match document {
+            Some(path) => Some(std::fs::File::open(path).map_err(connection)?),
+            None => None,
+        };
+        let body = match &file {
+            Some(file) => file.metadata().map_err(connection)?.len(),
+            None => 0,
+        };
+        let length = head.len() as u64 + body;
         let mut request = format!(
             "POST /{} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/ipp\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n",
             address.request_path(),
@@ -68,14 +72,16 @@ impl Transport for TcpTransport {
         )
         .into_bytes();
         request.extend_from_slice(head);
-        let sent = send(&mut watched, &request, document);
+        let sent = send(&mut watched, &request, file.as_mut().map(|f| (f, body)));
         if let Err(TransportError::Cancelled) = sent {
             return Err(TransportError::Cancelled);
         }
         // A printer that has made up its mind about a job (a 426, a 401) may answer before it has
         // read all of it and drop the rest, so what it said is still read.
         watched.last = Instant::now();
-        watched.deadline = Some(watched.last + timeout * ANSWER_TIMEOUTS);
+        watched.deadline = timeout
+            .checked_mul(ANSWER_TIMEOUTS)
+            .and_then(|whole| watched.last.checked_add(whole));
         match (read_response(&mut BufReader::new(watched)), sent) {
             (Err(TransportError::Connection(m)), Err(write_error)) if m == CLOSED => {
                 Err(write_error)
@@ -178,8 +184,48 @@ fn describe(e: &io::Error) -> String {
     }
 }
 
-fn connect(address: &PrinterAddress, timeout: Duration) -> Result<TcpStream, TransportError> {
-    let addresses = resolve(address).map_err(connection)?;
+// Name lookup and connecting run on their own thread, so that cancel and the timeout are seen
+// while they block; a thread that outlives its request ends by itself and drops its socket.
+fn connect(
+    address: PrinterAddress,
+    timeout: Duration,
+    cancel: &AtomicBool,
+) -> Result<TcpStream, TransportError> {
+    connect_via(move || resolve(&address), timeout, cancel)
+}
+
+fn connect_via(
+    lookup: impl FnOnce() -> io::Result<Vec<SocketAddr>> + Send + 'static,
+    timeout: Duration,
+    cancel: &AtomicBool,
+) -> Result<TcpStream, TransportError> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(dial(lookup, timeout));
+    });
+    let deadline = Instant::now().checked_add(timeout);
+    loop {
+        match receiver.recv_timeout(SLICE) {
+            Ok(result) => return result,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(TransportError::Connection("it did not answer".into()));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        if cancel.load(Ordering::Relaxed) {
+            return Err(TransportError::Cancelled);
+        }
+        if deadline.is_some_and(|d| Instant::now() >= d) {
+            return Err(TransportError::Timeout);
+        }
+    }
+}
+
+fn dial(
+    lookup: impl FnOnce() -> io::Result<Vec<SocketAddr>>,
+    timeout: Duration,
+) -> Result<TcpStream, TransportError> {
+    let addresses = lookup().map_err(connection)?;
     let mut last = TransportError::Connection("it did not answer".into());
     for socket in addresses {
         match TcpStream::connect_timeout(&socket, CONNECT_TIMEOUT.min(timeout)) {
@@ -213,21 +259,27 @@ fn resolve(address: &PrinterAddress) -> io::Result<Vec<SocketAddr>> {
         .collect())
 }
 
+// The body is exactly `length` bytes, the size the Content-Length promised; a file that has
+// shrunk since is an error here, not a printer left waiting for the rest.
 fn send(
     stream: &mut impl Write,
     head: &[u8],
-    document: Option<&Path>,
+    document: Option<(&mut std::fs::File, u64)>,
 ) -> Result<(), TransportError> {
     stream.write_all(head).map_err(connection)?;
-    if let Some(path) = document {
-        let mut file = std::fs::File::open(path).map_err(connection)?;
+    if let Some((file, length)) = document {
+        let mut left = length;
         let mut chunk = vec![0u8; 64 * 1024];
-        loop {
-            let read = file.read(&mut chunk).map_err(connection)?;
+        while left > 0 {
+            let want = chunk.len().min(left as usize);
+            let read = file.read(&mut chunk[..want]).map_err(connection)?;
             if read == 0 {
-                break;
+                return Err(TransportError::Connection(
+                    "the file changed while it was sent".into(),
+                ));
             }
             stream.write_all(&chunk[..read]).map_err(connection)?;
+            left -= read as u64;
         }
     }
     stream.flush().map_err(connection)
@@ -369,4 +421,61 @@ fn read_line(reader: &mut impl BufRead) -> Result<String, TransportError> {
         line.pop();
     }
     Ok(String::from_utf8_lossy(&line).into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancel_ends_a_lookup_that_does_not_come_back() {
+        let cancel = AtomicBool::new(true);
+        let started = Instant::now();
+        let result = connect_via(
+            || {
+                std::thread::sleep(Duration::from_secs(3));
+                Ok(vec![])
+            },
+            Duration::from_secs(10),
+            &cancel,
+        );
+        assert!(matches!(result, Err(TransportError::Cancelled)));
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn the_timeout_ends_a_lookup_that_does_not_come_back() {
+        let started = Instant::now();
+        let result = connect_via(
+            || {
+                std::thread::sleep(Duration::from_secs(3));
+                Ok(vec![])
+            },
+            Duration::from_millis(100),
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(result, Err(TransportError::Timeout)));
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn a_timeout_too_large_to_add_to_the_clock_does_not_panic() {
+        let cancel = AtomicBool::new(false);
+        let result = connect_via(|| Ok(vec![]), Duration::MAX, &cancel);
+        assert!(matches!(result, Err(TransportError::Connection(_))));
+    }
+
+    #[test]
+    fn a_file_that_shrank_is_an_error_and_a_longer_one_is_cut() {
+        let path = std::env::temp_dir().join(format!("lazy-ipp-send-{}", std::process::id()));
+        std::fs::write(&path, [7u8; 100]).unwrap();
+        let mut file = std::fs::File::open(&path).unwrap();
+        let mut out = vec![];
+        assert!(send(&mut out, b"", Some((&mut file, 150))).is_err());
+        let mut file = std::fs::File::open(&path).unwrap();
+        let mut out = vec![];
+        send(&mut out, b"", Some((&mut file, 40))).unwrap();
+        assert_eq!(out.len(), 40);
+        std::fs::remove_file(&path).unwrap();
+    }
 }
