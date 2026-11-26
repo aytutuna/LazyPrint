@@ -110,7 +110,7 @@ impl MediaEntry {
     }
 
     /// A size of at most 10 m and margins that leave something of the sheet; a printer's entry is no more than that.
-    fn is_sane(&self) -> bool {
+    pub fn is_sane(&self) -> bool {
         let sized = (1..=MAX_HUNDREDTHS).contains(&self.width)
             && (1..=MAX_HUNDREDTHS).contains(&self.height);
         sized

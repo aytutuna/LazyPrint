@@ -113,6 +113,7 @@ fn entries(v: &Value) -> Vec<MediaEntry> {
 
 fn printer(v: &Value) -> JobPrinter {
     JobPrinter {
+        documents_borderless: true,
         media: PrinterMedia {
             media_col_database: entries(&v["mediaColDatabase"]),
             media_col_ready: entries(&v["mediaColReady"]),
@@ -280,6 +281,7 @@ fn jobs_are_planned_like_the_reference() {
             .enumerate()
             .map(|(i, d)| LoadedDocument {
                 name: format!("Doc{i}"),
+                kind: DocumentKind::Pdf { encrypted: false },
                 pages: d["pages"].as_array().unwrap().iter().map(size).collect(),
                 turns: d["turns"]
                     .as_array()
@@ -303,7 +305,7 @@ fn jobs_are_planned_like_the_reference() {
         };
 
         same_options(&context.layout_options(&settings), &case["options"], &what);
-        let a = context.area(&settings);
+        let a = context.area(&settings, false);
         let want = area(&case["area"]);
         close(a.paper.width, want.paper.width, &what);
         close(a.paper.height, want.paper.height, &what);
@@ -316,7 +318,7 @@ fn jobs_are_planned_like_the_reference() {
             close(g, w, &what);
         }
         match (
-            context.printer_edge(&settings),
+            context.printer_edge(&settings, false),
             case["printerEdge"].as_f64(),
         ) {
             (None, None) => {}
@@ -453,6 +455,7 @@ fn turning_pages_wraps_and_swaps_sizes() {
     for case in data()["turned"].as_array().unwrap() {
         let mut doc = LoadedDocument::new(
             "D",
+            DocumentKind::Photo,
             vec![
                 LayoutSize {
                     width: 432.0,

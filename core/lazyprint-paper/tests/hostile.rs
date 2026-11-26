@@ -107,7 +107,9 @@ fn a_custom_range_above_ten_metres_is_refused() {
 fn the_paper_picker_reads_only_a_bounded_list_of_names() {
     let sized = |w: i32, h: i32| entry(w, h, margins(0, 0, 0, 0));
     let printer = PrinterMedia {
-        media_col_database: (0..500).map(|i| sized(10000 + i * 100, 30000 + i * 37)).collect(),
+        media_col_database: (0..500)
+            .map(|i| sized(10000 + i * 100, 30000 + i * 37))
+            .collect(),
         media_supported: (0..300_000)
             .map(|i| format!("custom_x_{}x{}mm", i + 1, i + 2))
             .collect(),
