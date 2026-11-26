@@ -1,3 +1,6 @@
+// Each test file uses a different part of this.
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 
 pub const PRINTERS: [&str; 4] = [
