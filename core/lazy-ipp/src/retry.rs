@@ -28,7 +28,7 @@ impl RetryPolicy {
     /// computed wait, kept within `[initial_delay, max_delay]`.
     pub fn delay_before(&self, retry: u32, retry_after: Option<Duration>) -> Duration {
         if let Some(asked) = retry_after {
-            return asked.clamp(self.initial_delay, self.max_delay);
+            return asked.max(self.initial_delay).min(self.max_delay);
         }
         let seconds = self.initial_delay.as_secs_f64() * self.multiplier.powi(retry as i32);
         if seconds >= self.max_delay.as_secs_f64() {
