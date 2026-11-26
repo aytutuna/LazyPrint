@@ -19,8 +19,8 @@ const MAX_HEADERS: usize = 64;
 const CLOSED: &str = "the connection was closed";
 const MAX_INTERIM: usize = 2;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-// How often a blocked read or write looks at the cancel flag.
-const SLICE: Duration = Duration::from_millis(100);
+// How long a read or write that would block waits before it looks at the flag and the clock again.
+const SLICE: Duration = Duration::from_millis(5);
 // A whole answer may take this many idle timeouts, so a printer trickling bytes cannot hold a request for ever.
 const ANSWER_TIMEOUTS: u32 = 4;
 
@@ -45,9 +45,9 @@ impl Transport for TcpTransport {
             return Err(TransportError::Cancelled);
         }
         let stream = connect(address, timeout)?;
-        let slice = Some(SLICE.min(timeout));
-        stream.set_read_timeout(slice).map_err(connection)?;
-        stream.set_write_timeout(slice).map_err(connection)?;
+        // Socket timeouts would leave a Windows socket in an unknown state after each miss, so the
+        // socket never blocks and Watched waits itself.
+        stream.set_nonblocking(true).map_err(connection)?;
         let mut watched = Watched {
             stream: &stream,
             cancel,
@@ -111,7 +111,7 @@ impl Watched<'_> {
     fn wait(&self, e: io::Error) -> io::Result<()> {
         if !matches!(
             e.kind(),
-            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut | io::ErrorKind::Interrupted
+            io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
         ) {
             return Err(e);
         }
@@ -121,6 +121,7 @@ impl Watched<'_> {
         if self.last.elapsed() >= self.idle || self.deadline.is_some_and(|d| Instant::now() >= d) {
             return Err(io::ErrorKind::TimedOut.into());
         }
+        std::thread::sleep(SLICE);
         Ok(())
     }
 }
