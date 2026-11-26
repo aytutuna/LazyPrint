@@ -53,7 +53,7 @@ pub struct PrintSettings {
     pub margin: MarginChoice,
     /// Millimetres to 0.01, 0 to 50; what `MarginChoice::Custom` means. Written without a decimal point when whole.
     #[serde(serialize_with = "write_millimetres")]
-    pub margin_mm: f64,
+    pub(crate) margin_mm: f64,
     /// 0 for no poster, else 2, 3 or 4 sheets across and down.
     pub poster: i32,
     /// Odd or even pages only, and the reverse order: asked for one job at a time, so not saved.
@@ -142,6 +142,15 @@ pub(crate) fn parse_document(text: &str) -> Result<Value, DecodeError> {
 }
 
 impl PrintSettings {
+    pub fn margin_mm(&self) -> f64 {
+        self.margin_mm
+    }
+
+    /// Kept to 0.01 mm and 0 to 50, whatever is typed or stepped to.
+    pub fn set_margin_mm(&mut self, millimetres: f64) {
+        self.margin_mm = round_margin(millimetres);
+    }
+
     /// Reads settings.json. A document that is not an object does not decode; inside it every field is read leniently,
     /// and a file saved while the layout was a style of its own gets the values that style forced.
     pub fn from_json(text: &str) -> Result<Self, DecodeError> {
@@ -173,7 +182,11 @@ impl PrintSettings {
             scale: lenient(o, "scale", d.scale),
             orientation: lenient(o, "orientation", d.orientation),
             margin: lenient(o, "margin", d.margin),
-            margin_mm: round_margin(lenient(o, "marginMm", d.margin_mm)),
+            margin_mm: round_margin(
+                Some(lenient(o, "marginMm", d.margin_mm))
+                    .filter(|mm: &f64| mm.is_finite())
+                    .unwrap_or(d.margin_mm),
+            ),
             poster: lenient(o, "poster", d.poster),
             page_selection: d.page_selection,
             reverse_order: d.reverse_order,

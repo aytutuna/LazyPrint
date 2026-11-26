@@ -55,10 +55,8 @@ fn defaults_are_the_stored_defaults() {
 fn a_whole_margin_is_written_without_a_decimal_point() {
     let text = serde_json::to_string(&PrintSettings::default()).unwrap();
     assert!(text.contains("\"marginMm\":10,"), "{text}");
-    let s = PrintSettings {
-        margin_mm: 3.5,
-        ..PrintSettings::default()
-    };
+    let mut s = PrintSettings::default();
+    s.set_margin_mm(3.5);
     assert!(
         serde_json::to_string(&s)
             .unwrap()
@@ -136,4 +134,26 @@ fn a_printer_remembers_and_brings_back_four_choices_and_two_more() {
             "{case}"
         );
     }
+}
+
+#[test]
+fn the_margin_stays_at_a_hundredth_whatever_is_set() {
+    let mut s = PrintSettings::default();
+    s.set_margin_mm(0.05);
+    s.set_margin_mm(s.margin_mm() + 0.1);
+    assert_eq!(s.margin_mm(), 0.15);
+    s.set_margin_mm(3.14159);
+    assert_eq!(s.margin_mm(), 3.14);
+    s.set_margin_mm(80.0);
+    assert_eq!(s.margin_mm(), 50.0);
+}
+
+#[test]
+fn a_number_out_of_range_resets_only_its_own_field() {
+    let s = PrintSettings::from_json(r#"{"marginMm": 1e400, "scale": 50}"#).unwrap();
+    assert_eq!(s.margin_mm(), 10.0);
+    assert_eq!(s.scale, 50);
+    let s = PrintSettings::from_json(r#"{"scale": 1e400, "marginMm": 3.14159}"#).unwrap();
+    assert_eq!(s.scale, 100);
+    assert_eq!(s.margin_mm(), 3.14);
 }

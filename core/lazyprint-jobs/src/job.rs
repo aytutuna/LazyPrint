@@ -126,10 +126,9 @@ impl JobContext<'_> {
 
     /// The distance `MarginChoice::Printer` keeps clear: the edge of the bordered area, 0.25 in without an entry.
     pub fn printer_margin(&self, settings: &PrintSettings) -> f64 {
-        edge_of(self.area(&PrintSettings {
-            margin: MarginChoice::Printer,
-            ..settings.clone()
-        }))
+        let mut printer_edge = settings.clone();
+        printer_edge.margin = MarginChoice::Printer;
+        edge_of(self.area(&printer_edge))
     }
 
     /// The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks.
@@ -153,7 +152,7 @@ impl JobContext<'_> {
             orientation: settings.orientation,
             margin: settings
                 .margin
-                .points(settings.margin_mm, self.printer_margin(settings)),
+                .points(settings.margin_mm(), self.printer_margin(settings)),
             margins: (settings.margin == MarginChoice::Printer)
                 .then(|| self.area(settings).margins),
             poster: u32::try_from(settings.poster).unwrap_or(0),
