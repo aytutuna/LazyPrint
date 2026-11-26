@@ -9,6 +9,7 @@ pub mod job;
 pub mod requests;
 pub mod retry;
 pub mod status;
+pub mod trust;
 pub mod txt;
 
 pub use codec::{Attribute, BadMessage, Group, Message, Operation, Value, Version, tag};
