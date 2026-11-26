@@ -47,7 +47,8 @@ jobs:
           test "$(find . -type f ! -name SHA256SUMS | wc -l)" = "$(wc -l < SHA256SUMS)"
           while read -r _ file; do cmp "${file#\*}" "../../Tests/Fixtures/Ipp/${file#\*}"; done < SHA256SUMS
           # tls-printer-a.p12 is the Swift tests' own TLS identity; the Rust tests do not read it.
-          diff <(find . -type f ! -name SHA256SUMS | sort) \n            <(cd ../../Tests/Fixtures/Ipp && find . -type f ! -name tls-printer-a.p12 | sort)
+          diff <(find . -type f ! -name SHA256SUMS | sort) \
+            <(cd ../../Tests/Fixtures/Ipp && find . -type f ! -name tls-printer-a.p12 | sort)
       - run: cargo fmt --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
