@@ -241,11 +241,44 @@ fn an_endless_nest_is_refused_without_overflowing_the_stack() {
 }
 
 #[test]
-fn more_groups_than_any_printer_sends_are_refused() {
+fn a_get_jobs_answer_with_hundreds_of_job_groups_decodes() {
+    let mut groups = vec![Group {
+        tag: tag::OPERATION_ATTRIBUTES,
+        attributes: vec![int("status", 0)],
+    }];
+    for id in 0..400 {
+        groups.push(Group {
+            tag: tag::JOB_ATTRIBUTES,
+            attributes: vec![int("job-id", id)],
+        });
+    }
+    let message = Message {
+        version: Version::V20,
+        code: 0,
+        request_id: 1,
+        groups,
+    };
+    assert_eq!(roundtrip(&message), message);
+}
+
+#[test]
+fn a_flood_of_empty_groups_is_refused() {
     let mut data = vec![0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01];
-    data.extend(std::iter::repeat_n(0x04, 65));
+    data.extend(std::iter::repeat_n(0x04, 100_001));
     data.push(0x03);
     assert!(Message::decode(&data).is_err());
+}
+
+#[test]
+fn a_value_longer_than_the_wire_allows_is_cut_and_the_rest_keeps_its_framing() {
+    let message = single(vec![
+        Attribute::one("long", Value::Keyword("k".repeat(90_000))),
+        int("after", 5),
+    ]);
+    let decoded = roundtrip(&message);
+    let attributes = &decoded.groups[0].attributes;
+    assert_eq!(attributes[0].values[0], Value::Keyword("k".repeat(65_535)));
+    assert_eq!(attributes[1], int("after", 5));
 }
 
 #[test]

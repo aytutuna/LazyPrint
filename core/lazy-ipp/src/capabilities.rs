@@ -78,8 +78,12 @@ impl PaperRange {
 
     /// The sheet (portrait, in points) moved into the range.
     pub fn clamp(&self, paper: (f64, f64)) -> (f64, f64) {
-        let w = (paper.0 * 2540.0 / 72.0).clamp(self.min_width as f64, self.max_width as f64);
-        let h = (paper.1 * 2540.0 / 72.0).clamp(self.min_height as f64, self.max_height as f64);
+        let w = (paper.0 * 2540.0 / 72.0)
+            .max(self.min_width as f64)
+            .min(self.max_width as f64);
+        let h = (paper.1 * 2540.0 / 72.0)
+            .max(self.min_height as f64)
+            .min(self.max_height as f64);
         (w.min(h) * 72.0 / 2540.0, w.max(h) * 72.0 / 2540.0)
     }
 }

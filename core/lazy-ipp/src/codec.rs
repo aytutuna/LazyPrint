@@ -159,9 +159,9 @@ impl std::error::Error for BadMessage {}
 
 // Real printers nest two or three deep; a reply deeper than this is hostile and would overflow the stack.
 const MAX_DEPTH: usize = 16;
-// The biggest real answers (a media database of a few hundred entries) stay far below these; a message that goes
-// past them is built to make the reader allocate.
-const MAX_GROUPS: usize = 64;
+// The biggest real answers (a media database of a few hundred entries, a Get-Jobs reply with a group per job) stay far
+// below these; a message that goes past them is built to make the reader allocate.
+const MAX_GROUPS: usize = 100_000;
 const MAX_ITEMS: usize = 200_000;
 
 impl Message {
@@ -351,10 +351,13 @@ fn with_language(bytes: &[u8]) -> Option<String> {
     Some(String::from_utf8_lossy(text).into_owned())
 }
 
+// Lengths are 16 bits on the wire; a longer name or value is cut so the rest of the request keeps its framing.
 fn write_entry(out: &mut Vec<u8>, t: u8, name: &str, value: &[u8]) {
+    let name = &name.as_bytes()[..name.len().min(u16::MAX as usize)];
+    let value = &value[..value.len().min(u16::MAX as usize)];
     out.push(t);
     out.extend_from_slice(&(name.len() as u16).to_be_bytes());
-    out.extend_from_slice(name.as_bytes());
+    out.extend_from_slice(name);
     out.extend_from_slice(&(value.len() as u16).to_be_bytes());
     out.extend_from_slice(value);
 }

@@ -828,3 +828,30 @@ fn every_printer_fixture_gives_a_name() {
         assert!(!caps(name).name.is_empty(), "{name}");
     }
 }
+
+#[test]
+fn a_user_is_matched_to_their_jobs_whatever_the_case_of_their_letters() {
+    let job = |owner: &str| Group {
+        tag: tag::JOB_ATTRIBUTES,
+        attributes: vec![
+            int("job-id", 1),
+            Attribute::one("job-state", Value::Enum(3)),
+            Attribute::one("job-originating-user-name", Value::Name(owner.into())),
+        ],
+    };
+    let jobs = queued_jobs(&message(vec![job("AYŞE")]), "Ayşe");
+    assert!(jobs[0].can_cancel);
+}
+
+#[test]
+fn a_range_the_printer_gave_upside_down_does_not_panic_when_a_sheet_is_fitted() {
+    let range = PaperRange {
+        min_width: 30000,
+        max_width: 10000,
+        min_height: 40000,
+        max_height: 10000,
+    };
+    let (w, h) = range.clamp(LETTER);
+    assert!(w.is_finite() && h.is_finite());
+    assert!(!range.accepts(LETTER));
+}

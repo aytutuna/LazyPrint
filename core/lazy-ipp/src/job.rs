@@ -138,7 +138,7 @@ pub fn queued_jobs(response: &Message, user_name: &str) -> Vec<QueuedJob> {
         jobs.push(QueuedJob {
             id,
             name: text("job-name").unwrap_or_default(),
-            can_cancel: owner.eq_ignore_ascii_case(user_name),
+            can_cancel: owner.to_lowercase() == user_name.to_lowercase(),
             owner,
             state,
             pages: number("job-impressions-completed").unwrap_or(0),
