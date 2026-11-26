@@ -35,6 +35,9 @@ pub struct PrintSettings {
     pub task_id: Option<String>,
     /// The printer's id; none is the system's default printer.
     pub printer_id: Option<String>,
+    /// The name of that printer, for the iPhone to show while the printer has not been found again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub printer_name: Option<String>,
     /// 1 to 99. Not saved: each launch starts at 1.
     #[serde(skip)]
     pub copies: i32,
@@ -85,6 +88,7 @@ impl Default for PrintSettings {
         Self {
             task_id: None,
             printer_id: None,
+            printer_name: None,
             copies: 1,
             collate: true,
             color: ColorChoice::Color,
@@ -169,6 +173,7 @@ impl PrintSettings {
         let mut s = Self {
             task_id: lenient(o, "taskId", None),
             printer_id: lenient(o, "printerId", None),
+            printer_name: lenient(o, "printerName", None),
             copies: d.copies,
             collate: lenient(o, "collate", d.collate),
             color: lenient(o, "color", d.color),

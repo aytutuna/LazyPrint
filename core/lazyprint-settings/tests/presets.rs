@@ -236,3 +236,51 @@ fn presets_are_written_as_they_are_read() {
     );
     assert_eq!(presets_from_json(&text).unwrap(), presets);
 }
+
+#[test]
+fn the_printer_name_follows_swift_through_presets() {
+    let settings =
+        PrintSettings::from_json(r#"{"printerId":"p1","printerName":"HP LaserJet"}"#).unwrap();
+    assert_eq!(settings.printer_name.as_deref(), Some("HP LaserJet"));
+    assert_eq!(
+        serde_json::to_value(&settings).unwrap()["printerName"],
+        "HP LaserJet"
+    );
+
+    let task = apply_task(
+        PrintTask::Document,
+        &settings,
+        TaskPrinter {
+            two_sided_long_edge: false,
+            media_types: &[],
+        },
+    );
+    assert_eq!(task.printer_name.as_deref(), Some("HP LaserJet"));
+
+    let preset = make_preset("Mine", &settings);
+    assert_eq!(preset.settings.printer_name, None);
+    let other = PrintSettings::from_json(r#"{"printerName":"Brother"}"#).unwrap();
+    let applied = apply_preset(&preset, &other);
+    assert_eq!(applied.printer_name.as_deref(), Some("Brother"));
+    assert!(
+        serde_json::to_value(PrintSettings::default())
+            .unwrap()
+            .get("printerName")
+            .is_none()
+    );
+}
+
+#[test]
+fn many_distinct_paper_types_are_applied_quickly() {
+    let types: Vec<String> = (0..200_000).map(|i| format!("type-{i}")).collect();
+    let started = std::time::Instant::now();
+    apply_task(
+        PrintTask::Photos,
+        &PrintSettings::default(),
+        TaskPrinter {
+            two_sided_long_edge: false,
+            media_types: &types,
+        },
+    );
+    assert!(started.elapsed().as_secs() < 2);
+}

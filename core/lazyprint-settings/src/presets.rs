@@ -69,6 +69,7 @@ pub fn make_preset(name: &str, settings: &PrintSettings) -> UserPreset {
         name: name.trim().to_string(),
         settings: PrintSettings {
             printer_id: None,
+            printer_name: None,
             task_id: None,
             copies: 1,
             page_selection: PageSelection::All,
@@ -83,6 +84,7 @@ pub fn make_preset(name: &str, settings: &PrintSettings) -> UserPreset {
 pub fn apply_preset(preset: &UserPreset, settings: &PrintSettings) -> PrintSettings {
     PrintSettings {
         printer_id: settings.printer_id.clone(),
+        printer_name: settings.printer_name.clone(),
         task_id: None,
         copies: settings.copies,
         page_selection: settings.page_selection,
