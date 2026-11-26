@@ -597,7 +597,12 @@ fn shown(page: LayoutSize, cell: LayoutRect, scaling: Scaling, turn: bool) -> Fi
     } else {
         (page.width, page.height)
     };
-    if scaling == Scaling::Fill && width > 0.0 && height > 0.0 {
+    if scaling == Scaling::Fill
+        && width > 0.0
+        && height > 0.0
+        && cell.width > 0.0
+        && cell.height > 0.0
+    {
         let fill = (cell.width / width).max(cell.height / height);
         let (shown_width, shown_height) = (cell.width / fill, cell.height / fill);
         let (crop_width, crop_height) = if turn {

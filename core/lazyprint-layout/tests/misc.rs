@@ -142,3 +142,33 @@ fn photo_sizes() {
     }
     assert_eq!(photo_size("nonsense").id, "page");
 }
+
+#[test]
+fn fill_on_a_cell_without_area_has_no_crop_to_infinity() {
+    let area = PrintableArea {
+        paper: LayoutSize {
+            width: 612.0,
+            height: 792.0,
+        },
+        margins: LayoutInsets::default(),
+    };
+    let options = LayoutOptions {
+        scaling: Scaling::Fill,
+        margin: 400.0,
+        ..LayoutOptions::default()
+    };
+    let page = SourcePage {
+        document: 0,
+        index: 0,
+        size: LayoutSize {
+            width: 612.0,
+            height: 792.0,
+        },
+    };
+    let plan = plan_sheets(&[page], &options, area);
+    for p in plan.sheets.iter().flat_map(|s| &s.front.placements) {
+        for r in [Some(p.frame), p.crop].into_iter().flatten() {
+            assert!([r.x, r.y, r.width, r.height].iter().all(|v| v.is_finite()));
+        }
+    }
+}
