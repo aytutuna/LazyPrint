@@ -9,3 +9,5 @@
 *.png binary
 *.jpg binary
 *.lppkg binary
+# The Rust core reads this copy of the IPP fixtures and checks it against SHA256SUMS.
+testdata/ipp/** -text
