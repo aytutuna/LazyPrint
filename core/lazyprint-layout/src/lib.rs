@@ -2,10 +2,14 @@
 
 //! Where pages go on sheets. Everything is in points (1/72 inch), origin top-left, x right, y down.
 
+mod duplex;
+mod imposition;
 mod pages;
 mod photo;
 mod types;
 
+pub use duplex::*;
+pub use imposition::*;
 pub use pages::*;
 pub use photo::*;
 pub use types::*;
