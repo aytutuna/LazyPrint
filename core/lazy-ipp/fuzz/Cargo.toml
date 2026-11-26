@@ -19,5 +19,26 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "http"
+path = "fuzz_targets/http.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "certificate"
+path = "fuzz_targets/certificate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "txt"
+path = "fuzz_targets/txt.rs"
+test = false
+doc = false
+bench = false
+
 # Not a member of the core workspace: cargo-fuzz builds it with its own nightly flags.
 [workspace]
