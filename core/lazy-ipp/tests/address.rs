@@ -212,6 +212,15 @@ fn a_zone_of_zero_or_none_is_no_zone_and_a_named_one_is_refused() {
 }
 
 #[test]
+fn a_zone_written_for_a_url_reads_back_as_the_same_address() {
+    let address = PrinterAddress::parse("[fe80::1%12]:8631").unwrap();
+    let url = address.request_url();
+    assert_eq!(url, "http://[fe80::1%2512]:8631/ipp/print");
+    assert_eq!(PrinterAddress::parse(&url).unwrap(), address);
+    assert_eq!(PrinterAddress::parse(&url).unwrap().host, "fe80::1%12");
+}
+
+#[test]
 fn bad_addresses_say_what_is_wrong() {
     use AddressError::*;
     for (text, error) in [
@@ -232,6 +241,11 @@ fn bad_addresses_say_what_is_wrong() {
         ("[fe80::1%nosuch0]", BadHost),
         ("fe80::1%99999999999", BadHost),
         ("ipp://[fe80::1%nosuch0]:8631", NotAnAddress),
+        ("ftp://host:99999", NotAnAddress),
+        ("1ipp://host", NotAnAddress),
+        ("ipp://bad_host!", NotAnAddress),
+        ("ftp://bad_host!", NotAnAddress),
+        ("ipp://user@host:99999", NotAnAddress),
         ("fe80::1a2b:3c4d:5e6f:7a8b", NeedsZone),
         ("[fe80::1%0]:8631", NeedsZone),
         ("ipp://[fe80::1]", NeedsZone),

@@ -256,35 +256,19 @@ impl Eq for PrinterAddress {}
 
 fn parse_url(value: &str) -> Result<PrinterAddress, AddressError> {
     let (scheme, rest) = value.split_once("://").ok_or(AddressError::NotAnAddress)?;
+    if !is_scheme(scheme) {
+        return Err(AddressError::NotAnAddress);
+    }
     let scheme = scheme.to_ascii_lowercase();
     let (authority, path) = match rest.find(['/', '?', '#']) {
         Some(i) => (&rest[..i], &rest[i..]),
         None => (rest, ""),
     };
-    if authority.is_empty() {
-        return Err(AddressError::NotAnAddress);
-    }
-    let (secure, default_port) = match scheme.as_str() {
-        "ipp" => (false, DEFAULT_PORT),
-        "ipps" => (true, DEFAULT_PORT),
-        "http" => (false, 80),
-        "https" => (true, 443),
-        _ if scheme
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c)) =>
-        {
-            return Err(AddressError::BadScheme);
-        }
-        _ => return Err(AddressError::NotAnAddress),
+    let (user_info, authority) = match authority.rsplit_once('@') {
+        Some((user_info, rest)) => (user_info, rest),
+        None => ("", authority),
     };
-    let authority = match authority.rsplit_once('@') {
-        Some((user_info, _)) if !user_info.is_empty() => return Err(AddressError::UserInfo),
-        Some((_, rest)) => rest,
-        None => authority,
-    };
-    if authority.is_empty() {
-        return Err(AddressError::NotAnAddress);
-    }
+    let bracketed = authority.starts_with('[');
     let (host, port) = if let Some(inner) = authority.strip_prefix('[') {
         let close = inner.find(']').ok_or(AddressError::NotAnAddress)?;
         let after = &inner[close + 1..];
@@ -299,15 +283,26 @@ fn parse_url(value: &str) -> Result<PrinterAddress, AddressError> {
             None => (authority, None),
         }
     };
-    if host.is_empty() {
+    let port = match port {
+        Some("") | None => None,
+        Some(p) => Some(parse_port(p).map_err(|_| AddressError::NotAnAddress)?),
+    };
+    if host.is_empty() || !(bracketed || is_plausible_host(host)) {
         return Err(AddressError::NotAnAddress);
     }
-    let port = match port {
-        Some("") | None => default_port,
-        Some(p) => parse_port(p).map_err(|_| AddressError::NotAnAddress)?,
+    let (secure, default_port) = match scheme.as_str() {
+        "ipp" => (false, DEFAULT_PORT),
+        "ipps" => (true, DEFAULT_PORT),
+        "http" => (false, 80),
+        "https" => (true, 443),
+        _ => return Err(AddressError::BadScheme),
     };
-    let is_v6 = host.contains(':');
-    let host = normalize_host(host).ok_or(if is_v6 {
+    if !user_info.is_empty() {
+        return Err(AddressError::UserInfo);
+    }
+    // RFC 6874 writes the zone's "%" as "%25".
+    let host = host.replacen("%25", "%", 1);
+    let host = normalize_host(&host).ok_or(if bracketed {
         AddressError::NotAnAddress
     } else {
         AddressError::BadHost
@@ -321,13 +316,25 @@ fn parse_url(value: &str) -> Result<PrinterAddress, AddressError> {
     Ok(PrinterAddress {
         secure,
         host,
-        port,
+        port: port.unwrap_or(default_port),
         resource_path: if path.is_empty() {
             DEFAULT_PATH.to_string()
         } else {
             path.to_string()
         },
     })
+}
+
+// A scheme as a URL writes it: a letter, then letters, digits and + - .
+fn is_scheme(text: &str) -> bool {
+    let mut chars = text.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+        && chars.all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
+}
+
+// What a URL's host may be before `normalize_host` reads it: digits and dots, or a DNS name.
+fn is_plausible_host(host: &str) -> bool {
+    host.bytes().all(|b| b.is_ascii_digit() || b == b'.') || is_dns_name(host)
 }
 
 fn parse_port(text: &str) -> Result<u16, AddressError> {
