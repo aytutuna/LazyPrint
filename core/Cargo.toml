@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["lazy-raster"]
+members = ["lazy-ipp", "lazy-raster"]
 
 [workspace.package]
 version = "0.1.0"
