@@ -9,7 +9,11 @@ fn misc() -> Value {
 }
 
 fn strs(v: &Value) -> Vec<usize> {
-    v.as_array().unwrap().iter().map(|n| n.as_u64().unwrap() as usize).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n.as_u64().unwrap() as usize)
+        .collect()
 }
 
 fn path(v: &Value) -> PaperPath {
