@@ -125,6 +125,14 @@ final class IppDiscoveryTests: XCTestCase {
         XCTAssertEqual(IppUrlText.authority(address.requestURLText), "[fe80::1%12]:8631")
     }
 
+    func testAZoneWrittenForAUrlReadsAsTheZone() throws {
+        for text in ["http://[fe80::1%2512]:8631/ipp/print", "ipp://[fe80::1%2512]:8631"] {
+            let address = try PrinterAddress.parse(text)
+            XCTAssertEqual(address.host, "fe80::1%12", text)
+            XCTAssertEqual(address.port, 8631, text)
+        }
+    }
+
     /// The loopback interface's name, as the system's interface-name lookup takes it.
     private let loopbackName = "lo0"
 

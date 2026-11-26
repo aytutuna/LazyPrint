@@ -229,7 +229,9 @@ public struct PrinterAddress: Hashable, CustomStringConvertible, Sendable {
             error = "Leave out the user name and password; printers do not need them."
             return nil
         }
-        guard let host = IppHostText.normalizeHost(parts.host) else {
+        // RFC 6874 writes the zone's "%" as "%25", as requestURLText does.
+        let hostText = parts.bracketed ? parts.host.replacingOccurrences(of: "%25", with: "%") : parts.host
+        guard let host = IppHostText.normalizeHost(hostText) else {
             if parts.bracketed {
                 error = "That is not a valid address."
             } else {

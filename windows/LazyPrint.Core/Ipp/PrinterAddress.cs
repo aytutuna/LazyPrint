@@ -216,7 +216,9 @@ public sealed class PrinterAddress : IEquatable<PrinterAddress>
             error = "Leave out the user name and password; printers do not need them.";
             return false;
         }
-        if (NormalizeHost(uri.DnsSafeHost) is not { } host)
+        // RFC 6874 writes the zone's "%" as "%25".
+        string hostText = uri.HostNameType == UriHostNameType.IPv6 ? uri.DnsSafeHost.Replace("%25", "%") : uri.DnsSafeHost;
+        if (NormalizeHost(hostText) is not { } host)
         {
             error = uri.HostNameType == UriHostNameType.IPv6
                 ? "That is not a valid address."

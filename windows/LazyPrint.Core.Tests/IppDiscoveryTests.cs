@@ -121,6 +121,16 @@ public class IppDiscoveryTests
         Assert.Equal("[fe80::1%12]:8631", address.Authority);
     }
 
+    [Theory]
+    [InlineData("http://[fe80::1%2512]:8631/ipp/print")]
+    [InlineData("ipp://[fe80::1%2512]:8631")]
+    public void AZoneWrittenForAUrlReadsAsTheZone(string text)
+    {
+        var address = PrinterAddress.Parse(text);
+        Assert.Equal("fe80::1%12", address.Host);
+        Assert.Equal(8631, address.Port);
+    }
+
     /// <summary>The loopback interface's name, as the system's interface-name lookup takes it.</summary>
     private static string LoopbackName =>
         OperatingSystem.IsWindows() ? "loopback_0" : OperatingSystem.IsMacOS() ? "lo0" : "lo";
