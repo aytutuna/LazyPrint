@@ -1,0 +1,24 @@
+[graph]
+all-features = true
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+# The first licence of an OR expression that is on the list is the one taken; GPL, LGPL and AGPL are never on it.
+confidence-threshold = 0.93
+
+[licenses.private]
+ignore = true
+
+# libFuzzer's own licence; only the fuzz workspace has it.
+[[licenses.exceptions]]
+crate = "libfuzzer-sys"
+allow = ["NCSA"]
