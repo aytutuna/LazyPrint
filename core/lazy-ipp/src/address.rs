@@ -277,8 +277,13 @@ fn parse_url(value: &str) -> Result<PrinterAddress, AddressError> {
         }
         _ => return Err(AddressError::NotAnAddress),
     };
-    if authority.contains('@') {
-        return Err(AddressError::UserInfo);
+    let authority = match authority.rsplit_once('@') {
+        Some((user_info, _)) if !user_info.is_empty() => return Err(AddressError::UserInfo),
+        Some((_, rest)) => rest,
+        None => authority,
+    };
+    if authority.is_empty() {
+        return Err(AddressError::NotAnAddress);
     }
     let (host, port) = if let Some(inner) = authority.strip_prefix('[') {
         let close = inner.find(']').ok_or(AddressError::NotAnAddress)?;
@@ -310,7 +315,8 @@ fn parse_url(value: &str) -> Result<PrinterAddress, AddressError> {
     if lacks_zone(&host) {
         return Err(AddressError::NeedsZone);
     }
-    let path = unescape(path.split(['?', '#']).next().unwrap_or_default());
+    let flat = remove_dot_segments(path.split(['?', '#']).next().unwrap_or_default());
+    let path = unescape(&flat).unwrap_or(flat);
     let path = path.trim_matches('/');
     Ok(PrinterAddress {
         secure,
@@ -365,22 +371,29 @@ fn normalize_host(host: &str) -> Option<String> {
             .collect::<Option<_>>()?;
         return Some(Ipv4Addr::new(octets[0], octets[1], octets[2], octets[3]).to_string());
     }
-    let name = host.strip_suffix('.').unwrap_or(host);
-    let valid = !name.is_empty()
-        && name.len() <= 253
-        && name.split('.').all(|label| {
-            (1..=63).contains(&label.len())
-                && !label.starts_with('-')
-                && !label.ends_with('-')
-                && label
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-        });
-    valid.then(|| name.to_ascii_lowercase())
+    let name = host.trim_end_matches('.');
+    is_dns_name(host).then(|| name.to_lowercase())
 }
 
-// A zone has to be an interface number: a name only means something on the machine that owns the
-// interface, and the system's lookup of it is not available here. A zone of 0 or none is no zone.
+// A DNS name as .NET's Uri.CheckHostName takes one: labels of 1 to 63 characters, one trailing dot
+// allowed, each starting with a letter or digit and holding letters, digits, '-' and '_'. Letters
+// beyond ASCII make it an internationalized name.
+fn is_dns_name(host: &str) -> bool {
+    let mut labels: Vec<&str> = host.split('.').collect();
+    if labels.len() > 1 && labels.last().is_some_and(|l| l.is_empty()) {
+        labels.pop();
+    }
+    let other = |c: char| !c.is_ascii() && !c.is_whitespace() && !c.is_control();
+    labels.iter().all(|label| {
+        (1..=63).contains(&label.chars().count())
+            && label.chars().enumerate().all(|(i, c)| {
+                c.is_ascii_alphanumeric() || other(c) || (i > 0 && (c == '-' || c == '_'))
+            })
+    })
+}
+
+// A zone is an interface number, or on Unix the name of an interface on this machine, read as its
+// number. Windows takes only numbers. A zone of 0 or none is no zone.
 fn normalize_ipv6(text: &str) -> Option<String> {
     let (address, zone) = match text.split_once('%') {
         Some((a, z)) => (a, Some(z)),
@@ -390,13 +403,48 @@ fn normalize_ipv6(text: &str) -> Option<String> {
     let scope = match zone {
         None | Some("") => 0,
         Some(z) if z.bytes().all(|b| b.is_ascii_digit()) => z.parse::<u32>().ok()?,
-        Some(_) => return None,
+        Some(name) => interface_index(name)?,
     };
     Some(if scope == 0 {
         ip.to_string()
     } else {
         format!("{ip}%{scope}")
     })
+}
+
+#[cfg(unix)]
+fn interface_index(name: &str) -> Option<u32> {
+    unsafe extern "C" {
+        fn if_nametoindex(name: *const std::ffi::c_char) -> std::ffi::c_uint;
+    }
+    let name = std::ffi::CString::new(name).ok()?;
+    // SAFETY: the pointer is to a NUL-terminated string that outlives the call.
+    let index = unsafe { if_nametoindex(name.as_ptr()) };
+    (index > 0).then_some(index)
+}
+
+#[cfg(not(unix))]
+fn interface_index(_name: &str) -> Option<u32> {
+    None
+}
+
+// "a/./b/../c" becomes "a/c", as System.Uri does before the path is read; the leading slash goes.
+fn remove_dot_segments(path: &str) -> String {
+    let mut out: Vec<&str> = vec![];
+    let mut segments = path.split('/');
+    if path.starts_with('/') {
+        segments.next();
+    }
+    for segment in segments {
+        match segment {
+            "." => {}
+            ".." => {
+                out.pop();
+            }
+            _ => out.push(segment),
+        }
+    }
+    out.join("/")
 }
 
 fn escape_path(path: &str) -> String {
@@ -411,22 +459,21 @@ fn escape_path(path: &str) -> String {
     out
 }
 
-fn unescape(text: &str) -> String {
+// None when an escape is malformed or the bytes are not UTF-8: the path then stays as written.
+fn unescape(text: &str) -> Option<String> {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        let hex = |b: u8| (b as char).to_digit(16);
-        if bytes[i] == b'%'
-            && i + 2 < bytes.len()
-            && let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2]))
-        {
-            out.push((h * 16 + l) as u8);
+        if bytes[i] == b'%' {
+            let hex = |b: Option<&u8>| b.and_then(|b| (*b as char).to_digit(16));
+            let (h, l) = (hex(bytes.get(i + 1)), hex(bytes.get(i + 2)));
+            out.push((h? * 16 + l?) as u8);
             i += 3;
         } else {
             out.push(bytes[i]);
             i += 1;
         }
     }
-    String::from_utf8_lossy(&out).into_owned()
+    String::from_utf8(out).ok()
 }

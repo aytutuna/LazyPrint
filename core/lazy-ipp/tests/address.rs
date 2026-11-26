@@ -286,3 +286,65 @@ fn a_bare_host_that_did_not_answer_is_tried_over_ipps() {
             .is_none()
     );
 }
+
+#[test]
+fn host_names_follow_the_rules_of_the_swift_and_c_sharp_code() {
+    let host = |t: &str| PrinterAddress::parse(t).map(|a| a.host);
+    assert_eq!(host("yazıcı.local").unwrap(), "yazıcı.local");
+    assert_eq!(host("Drucker-Büro.local").unwrap(), "drucker-büro.local");
+    assert_eq!(host("printer-.local").unwrap(), "printer-.local");
+    assert_eq!(host("a_b.local").unwrap(), "a_b.local");
+    assert_eq!(host("_printer.local"), Err(AddressError::BadHost));
+    assert_eq!(host("-printer.local"), Err(AddressError::BadHost));
+    assert_eq!(host("a..local"), Err(AddressError::BadHost));
+    assert_eq!(host(&"a".repeat(64)), Err(AddressError::BadHost));
+    assert!(host(&"a".repeat(63)).is_ok());
+    let long = format!("{0}.{0}.{0}.{0}.{0}", "a".repeat(60));
+    assert!(host(&long).is_ok());
+}
+
+#[test]
+fn the_url_path_is_read_as_the_swift_and_c_sharp_code_reads_it() {
+    let path = |t: &str| PrinterAddress::parse(t).unwrap().resource_path;
+    assert_eq!(path("ipp://host/ipp/./print"), "ipp/print");
+    assert_eq!(path("ipp://host/x/../ipp/print"), "ipp/print");
+    assert_eq!(path("ipp://host/../ipp/print"), "ipp/print");
+    assert_eq!(path("ipp://h/a%20b"), "a b");
+    assert_eq!(path("ipp://h/a%20b%zz"), "a%20b%zz");
+    assert_eq!(path("ipp://h/%ff"), "%ff");
+    assert_eq!(path("ipp://h/a%2"), "a%2");
+    assert_eq!(path("ipp://h/ipp/print?x=%zz#f"), "ipp/print");
+}
+
+#[test]
+fn an_empty_user_info_is_allowed_and_a_full_one_is_not() {
+    assert_eq!(
+        PrinterAddress::parse("ipp://@10.0.0.7").unwrap().host,
+        "10.0.0.7"
+    );
+    assert_eq!(
+        PrinterAddress::parse("ipp://a@b@10.0.0.7").unwrap_err(),
+        AddressError::UserInfo
+    );
+    assert_eq!(
+        PrinterAddress::parse("ipp://@").unwrap_err(),
+        AddressError::NotAnAddress
+    );
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn an_interface_name_as_a_zone_is_read_as_its_number_on_unix() {
+    let name = if cfg!(target_os = "macos") {
+        "lo0"
+    } else {
+        "lo"
+    };
+    let address = PrinterAddress::parse(&format!("[fe80::1%{name}]:631")).unwrap();
+    assert!(address.host.starts_with("fe80::1%"));
+    assert!(
+        address.host["fe80::1%".len()..]
+            .bytes()
+            .all(|b| b.is_ascii_digit())
+    );
+}
