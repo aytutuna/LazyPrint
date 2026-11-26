@@ -455,3 +455,24 @@ fn the_tcp_transport_cannot_do_tls_and_that_is_not_a_printer_without_it() {
     assert!(!client.not_encrypted());
     assert!(printer_.requests().is_empty());
 }
+
+#[test]
+fn a_refusal_is_reported_when_the_request_then_times_out() {
+    let dir = Dir::new();
+    let store = Arc::new(TrustStore::open(&dir.0));
+    let (der, _) = certificate("certificate-p256.pem");
+    let v = validator(&store, None, None);
+    let seen = v.clone();
+    let (mut client, _) = client(
+        "ipps://slow.local",
+        Some(v),
+        Box::new(move |address, _| {
+            assert!(!seen.validate(&address.authority(), Some(&der), false));
+            Err(TransportError::Timeout)
+        }),
+    );
+    assert!(matches!(
+        client.job(42).unwrap_err(),
+        PrintError::Certificate(_)
+    ));
+}

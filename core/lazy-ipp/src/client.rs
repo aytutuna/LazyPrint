@@ -421,7 +421,9 @@ impl<T: Transport> Client<T> {
     fn failed(&mut self, error: TransportError, switched: &mut bool) -> Option<PrintError> {
         if matches!(
             error,
-            TransportError::Connection(_) | TransportError::Handshake { .. }
+            TransportError::Connection(_)
+                | TransportError::Handshake { .. }
+                | TransportError::Timeout
         ) && let Some(rejection) = self.rejection()
         {
             return Some(PrintError::Certificate(Box::new(rejection)));
@@ -450,10 +452,7 @@ impl<T: Transport> Client<T> {
             }
             TransportError::Connection(reason) => Some(self.unreachable(&reason)),
             TransportError::Unsupported => Some(self.unreachable("no secure connection")),
-            TransportError::Timeout => {
-                self.rejection();
-                Some(self.unreachable("it did not answer in time"))
-            }
+            TransportError::Timeout => Some(self.unreachable("it did not answer in time")),
             TransportError::TooLarge => Some(PrintError::BadResponse),
             TransportError::Cancelled => Some(PrintError::Cancelled),
         }
