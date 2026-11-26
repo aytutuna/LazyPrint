@@ -77,15 +77,15 @@ impl PrinterAddress {
         )
     }
 
-    /// Where requests are posted: the printer-uri over http or https, an IPv6 zone kept as "%12"
-    /// and the web's default port left out.
+    /// Where requests are posted: the printer-uri over http or https, an IPv6 zone written
+    /// "%25" + zone as RFC 6874 asks, and the web's default port left out.
     pub fn request_url(&self) -> String {
         let (scheme, web_port) = if self.secure {
             ("https://", 443)
         } else {
             ("http://", 80)
         };
-        let authority = self.uri_authority(true);
+        let authority = self.uri_authority(true).replace('%', "%25");
         let authority = if self.port == web_port {
             authority
                 .rsplit_once(':')

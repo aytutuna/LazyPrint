@@ -134,7 +134,7 @@ fn addresses_parse_and_normalize() {
             "ipp/print",
             "[fe80::1%12]:8631",
             "ipp://[fe80::1]:8631/ipp/print",
-            "http://[fe80::1%12]:8631/ipp/print",
+            "http://[fe80::1%2512]:8631/ipp/print",
         ),
         (
             "2001:DB8::5",
