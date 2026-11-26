@@ -1,0 +1,84 @@
+name: rust-ipp
+
+on:
+  push:
+    branches: [main, 'ci/**']
+    paths:
+      - core/**
+      - testdata/ipp/**
+      - Tests/Fixtures/Ipp/**
+      - .github/workflows/rust-ipp.yml
+  schedule:
+    - cron: '23 4 * * 1'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_FUZZ: 0.13.2
+  FUZZ_TOOLCHAIN: nightly-2026-11-20
+
+defaults:
+  run:
+    working-directory: core
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          workspaces: core
+      - name: Test data is the copy of the fixtures
+        shell: bash
+        run: |
+          cd ../testdata/ipp
+          sha256sum --check --strict SHA256SUMS
+          test "$(find . -type f ! -name SHA256SUMS | wc -l)" = "$(wc -l < SHA256SUMS)"
+          while read -r _ file; do cmp "${file#\*}" "../../Tests/Fixtures/Ipp/${file#\*}"; done < SHA256SUMS
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
+
+  test:
+    needs: check
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          workspaces: core
+      - run: cargo test --locked --workspace
+
+  fuzz:
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      FUZZ_SECONDS: ${{ github.event_name == 'schedule' && 1800 || 60 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          workspaces: |
+            core/lazy-ipp/fuzz
+      - run: rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
+      - run: cargo install cargo-fuzz --version "$CARGO_FUZZ" --locked
+      - name: Corpus from the captured printer answers and requests
+        run: |
+          mkdir -p lazy-ipp/fuzz/corpus/decode
+          cp ../testdata/ipp/printers/*.bin ../testdata/ipp/requests/*.bin lazy-ipp/fuzz/corpus/decode/
+      - name: Lock file is current
+        run: cargo fetch --locked --manifest-path lazy-ipp/fuzz/Cargo.toml
+      - name: Fuzz the decoder
+        working-directory: core/lazy-ipp
+        run: cargo "+$FUZZ_TOOLCHAIN" fuzz run decode -- -max_total_time="$FUZZ_SECONDS" -rss_limit_mb=2048
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: core/lazy-ipp/fuzz/artifacts

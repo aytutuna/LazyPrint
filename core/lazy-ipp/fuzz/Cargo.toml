@@ -1,0 +1,23 @@
+[package]
+name = "lazy-ipp-fuzz"
+version = "0.0.0"
+edition = "2024"
+license-file = "../../../LICENSE"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+lazy-ipp = { path = ".." }
+
+[[bin]]
+name = "decode"
+path = "fuzz_targets/decode.rs"
+test = false
+doc = false
+bench = false
+
+# Not a member of the core workspace: cargo-fuzz builds it with its own nightly flags.
+[workspace]

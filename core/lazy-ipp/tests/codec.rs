@@ -322,3 +322,32 @@ fn every_printer_fixture_reads_to_the_end_and_encodes_back() {
         }
     }
 }
+
+// A quick stand-in for the fuzz target on every test run: flipped, cut and filled bytes of the
+// fixtures must be refused or read, never panic, and what is read writes back to the same message.
+#[test]
+fn mutated_fixtures_never_panic() {
+    let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    for name in PRINTERS {
+        let original = printer(name);
+        for _ in 0..300 {
+            let mut data = original.clone();
+            for _ in 0..(next() % 6 + 1) {
+                let at = (next() % data.len() as u64) as usize;
+                data[at] = next() as u8;
+            }
+            if next() % 3 == 0 {
+                data.truncate((next() % data.len() as u64) as usize);
+            }
+            if let Ok((message, _)) = Message::decode(&data) {
+                assert_eq!(Message::decode(&message.encode()).unwrap().0, message);
+            }
+        }
+    }
+}
