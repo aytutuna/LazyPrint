@@ -851,7 +851,6 @@ fn read_element(der: &[u8], offset: usize, limit: usize) -> Option<Span> {
 struct Element<'a> {
     tag: u8,
     content: &'a [u8],
-    whole: &'a [u8],
 }
 
 fn der_any(data: &[u8]) -> Option<(Element<'_>, &[u8])> {
@@ -876,7 +875,6 @@ fn der_any(data: &[u8]) -> Option<(Element<'_>, &[u8])> {
         Element {
             tag,
             content: &whole[header..],
-            whole,
         },
         &data[end..],
     ))
