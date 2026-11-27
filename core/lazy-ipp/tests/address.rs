@@ -362,3 +362,22 @@ fn an_interface_name_as_a_zone_is_read_as_its_number_on_unix() {
             .all(|b| b.is_ascii_digit())
     );
 }
+
+#[test]
+fn the_canonical_text_reads_back_for_zones_starting_with_25() {
+    for zone in ["12", "25", "251"] {
+        for text in [
+            format!("ipps://[fe80::1%25{zone}]"),
+            format!("ipp://[fe80::1%25{zone}]:8631/printers/a"),
+            format!("[fe80::1%{zone}]:8631"),
+        ] {
+            let address = PrinterAddress::parse(&text).unwrap();
+            assert_eq!(address.host, format!("fe80::1%{zone}"), "{text}");
+            assert_eq!(
+                PrinterAddress::parse(&address.to_string()).unwrap(),
+                address,
+                "{text}"
+            );
+        }
+    }
+}

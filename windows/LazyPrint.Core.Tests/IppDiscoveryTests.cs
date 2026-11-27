@@ -131,6 +131,20 @@ public class IppDiscoveryTests
         Assert.Equal(8631, address.Port);
     }
 
+    [Theory]
+    [InlineData("12")]
+    [InlineData("25")]
+    [InlineData("251")]
+    public void TheCanonicalTextReadsBackForZonesStartingWith25(string zone)
+    {
+        foreach (string text in new[] { $"ipps://[fe80::1%25{zone}]", $"ipp://[fe80::1%25{zone}]:8631/printers/a", $"[fe80::1%{zone}]:8631" })
+        {
+            var address = PrinterAddress.Parse(text);
+            Assert.Equal("fe80::1%" + zone, address.Host);
+            Assert.Equal(address, PrinterAddress.Parse(address.ToString()));
+        }
+    }
+
     /// <summary>The loopback interface's name, as the system's interface-name lookup takes it.</summary>
     private static string LoopbackName =>
         OperatingSystem.IsWindows() ? "loopback_0" : OperatingSystem.IsMacOS() ? "lo0" : "lo";

@@ -76,7 +76,8 @@ public sealed class PrinterAddress : IEquatable<PrinterAddress>
         {
             return Port == DefaultPort ? bracketed : $"{bracketed}:{Port.ToString(CultureInfo.InvariantCulture)}";
         }
-        string text = (Secure ? "ipps://" : "ipp://") + bracketed;
+        // In a URL the zone's "%" is written "%25", so a zone starting with 25 reads back as it was.
+        string text = (Secure ? "ipps://" : "ipp://") + bracketed.Replace("%", "%25");
         if (Port != DefaultPort) text += ":" + Port.ToString(CultureInfo.InvariantCulture);
         if (ResourcePath != DefaultPath) text += "/" + EscapedPath;
         return text;

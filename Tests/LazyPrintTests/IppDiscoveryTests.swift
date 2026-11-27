@@ -125,6 +125,16 @@ final class IppDiscoveryTests: XCTestCase {
         XCTAssertEqual(IppUrlText.authority(address.requestURLText), "[fe80::1%12]:8631")
     }
 
+    func testTheCanonicalTextReadsBackForZonesStartingWith25() throws {
+        for zone in ["12", "25", "251"] {
+            for text in ["ipps://[fe80::1%25\(zone)]", "ipp://[fe80::1%25\(zone)]:8631/printers/a", "[fe80::1%\(zone)]:8631"] {
+                let address = try PrinterAddress.parse(text)
+                XCTAssertEqual(address.host, "fe80::1%" + zone, text)
+                XCTAssertEqual(try PrinterAddress.parse(address.description), address, text)
+            }
+        }
+    }
+
     func testAZoneWrittenForAUrlReadsAsTheZone() throws {
         for text in ["http://[fe80::1%2512]:8631/ipp/print", "ipp://[fe80::1%2512]:8631"] {
             let address = try PrinterAddress.parse(text)

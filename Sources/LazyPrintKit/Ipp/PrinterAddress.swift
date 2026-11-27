@@ -83,7 +83,8 @@ public struct PrinterAddress: Hashable, CustomStringConvertible, Sendable {
         if !secure && resourcePath == Self.defaultPath {
             return port == Self.defaultPort ? bracketedHost : bracketedHost + ":" + String(port)
         }
-        var text = (secure ? "ipps://" : "ipp://") + bracketedHost
+        // In a URL the zone's "%" is written "%25", so a zone starting with 25 reads back as it was.
+        var text = (secure ? "ipps://" : "ipp://") + bracketedHost.replacingOccurrences(of: "%", with: "%25")
         if port != Self.defaultPort {
             text += ":" + String(port)
         }

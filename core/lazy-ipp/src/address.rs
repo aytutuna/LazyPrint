@@ -231,10 +231,12 @@ impl fmt::Display for PrinterAddress {
                 write!(f, "{bracketed}:{}", self.port)
             };
         }
+        // In a URL the zone's "%" is written "%25", so a zone starting with 25 reads back as it was.
         write!(
             f,
-            "{}{bracketed}",
-            if self.secure { "ipps://" } else { "ipp://" }
+            "{}{}",
+            if self.secure { "ipps://" } else { "ipp://" },
+            bracketed.replace('%', "%25")
         )?;
         if self.port != DEFAULT_PORT {
             write!(f, ":{}", self.port)?;
@@ -301,7 +303,7 @@ fn parse_url(value: &str) -> Result<PrinterAddress, AddressError> {
         return Err(AddressError::UserInfo);
     }
     // RFC 6874 writes the zone's "%" as "%25".
-    let host = host.replacen("%25", "%", 1);
+    let host = host.replace("%25", "%");
     let host = normalize_host(&host).ok_or(if bracketed {
         AddressError::NotAnAddress
     } else {
