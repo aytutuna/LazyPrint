@@ -37,6 +37,8 @@ pub enum TransportError {
     Connection(String),
     /// The printer was silent for longer than the timeout.
     Timeout,
+    /// The document could not be read from this computer; the text says why.
+    Local(String),
     /// The TLS handshake failed; `certificate_seen` is set once it got as far as the printer's certificate.
     Handshake { certificate_seen: bool },
     /// The answer is bigger than [`MAX_RESPONSE`].
@@ -84,6 +86,8 @@ pub enum PrintError {
     NeedsSignIn,
     Certificate(Box<CertificateError>),
     Cancelled,
+    /// The document could not be read from this computer.
+    Local(String),
 }
 
 impl fmt::Display for PrintError {
@@ -93,6 +97,7 @@ impl fmt::Display for PrintError {
             PrintError::Unreachable { printer, reason } => {
                 write!(f, "can't reach {printer}: {reason}")
             }
+            PrintError::Local(reason) => write!(f, "can't read the document: {reason}"),
             PrintError::LostContact(printer) => write!(f, "lost contact with {printer}"),
             PrintError::Refused { status, detail } if detail.is_empty() => {
                 write!(f, "the printer refused the job (0x{status:04X})")
@@ -492,6 +497,7 @@ impl<T: Transport> Client<T> {
             TransportError::Connection(reason) => Some(self.unreachable(&reason)),
             TransportError::Unsupported => Some(self.unreachable("no secure connection")),
             TransportError::Timeout => Some(self.unreachable("it did not answer in time")),
+            TransportError::Local(reason) => Some(PrintError::Local(reason)),
             TransportError::TooLarge => Some(PrintError::BadResponse),
             TransportError::Cancelled => Some(PrintError::Cancelled),
         }

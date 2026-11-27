@@ -57,11 +57,11 @@ impl Transport for TcpTransport {
         };
 
         let mut file = match document {
-            Some(path) => Some(std::fs::File::open(path).map_err(connection)?),
+            Some(path) => Some(std::fs::File::open(path).map_err(local)?),
             None => None,
         };
         let body = match &file {
-            Some(file) => file.metadata().map_err(connection)?.len(),
+            Some(file) => file.metadata().map_err(local)?.len(),
             None => 0,
         };
         let length = head.len() as u64 + body;
@@ -84,6 +84,10 @@ impl Transport for TcpTransport {
         // A printer that has made up its mind about a job (a 426, a 401) may answer before it has
         // read all of it and drop the rest, so what it said is still read.
         watched.last = Instant::now();
+        // A printer that stopped reading is not waited for again; what it already sent is still read.
+        if matches!(sent, Err(TransportError::Timeout)) {
+            watched.idle = Duration::ZERO;
+        }
         watched.deadline = timeout
             .checked_mul(ANSWER_TIMEOUTS)
             .and_then(|whole| watched.last.checked_add(whole));
@@ -180,6 +184,10 @@ fn connection(e: io::Error) -> TransportError {
         io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock => TransportError::Timeout,
         _ => TransportError::Connection(describe(&e)),
     }
+}
+
+fn local(e: io::Error) -> TransportError {
+    TransportError::Local(e.to_string())
 }
 
 fn describe(e: &io::Error) -> String {
@@ -291,9 +299,9 @@ fn send(
             let want = chunk.len().min(left as usize);
             let read = file
                 .read(&mut chunk[..want])
-                .map_err(|e| SendError::Local(connection(e)))?;
+                .map_err(|e| SendError::Local(local(e)))?;
             if read == 0 {
-                return Err(SendError::Local(TransportError::Connection(
+                return Err(SendError::Local(TransportError::Local(
                     "the file changed while it was sent".into(),
                 )));
             }
@@ -539,5 +547,58 @@ mod tests {
             assert_eq!(describe(&kind.into()), "it did not answer");
         }
         assert_eq!(describe(&io::Error::other("disk")), "disk");
+    }
+
+    fn stalled_printer() -> (PrinterAddress, std::thread::JoinHandle<()>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = PrinterAddress {
+            secure: false,
+            host: "127.0.0.1".into(),
+            port: listener.local_addr().unwrap().port(),
+            resource_path: "ipp/print".into(),
+        };
+        let held = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            std::thread::sleep(Duration::from_secs(3));
+            drop(stream);
+        });
+        (address, held)
+    }
+
+    #[test]
+    fn a_printer_that_stops_reading_is_given_up_on_after_one_timeout() {
+        let (address, held) = stalled_printer();
+        let path = std::env::temp_dir().join(format!("lazy-ipp-stall-{}", std::process::id()));
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(256 * 1024 * 1024)
+            .unwrap();
+        let started = Instant::now();
+        let result = TcpTransport.post(
+            &address,
+            b"head",
+            Some(&path),
+            Duration::from_millis(400),
+            &AtomicBool::new(false),
+        );
+        let took = started.elapsed();
+        std::fs::remove_file(&path).unwrap();
+        assert!(matches!(result, Err(TransportError::Timeout)));
+        assert!(took < Duration::from_millis(700), "took {took:?}");
+        held.join().unwrap();
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_not_a_printer_that_cannot_be_reached() {
+        let (address, held) = stalled_printer();
+        let result = TcpTransport.post(
+            &address,
+            b"head",
+            Some(Path::new("no such folder/no such file.pdf")),
+            Duration::from_secs(5),
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(result, Err(TransportError::Local(_))));
+        held.join().unwrap();
     }
 }
