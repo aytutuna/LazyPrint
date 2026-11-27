@@ -25,7 +25,7 @@ pub fn urf_resolution(urf_supported: &[String]) -> i32 {
         .filter_map(|token| token.strip_prefix("RS"))
         .flat_map(|rest| rest.split('-'))
         .filter_map(|part| part.parse::<i32>().ok())
-        .filter(|dpi| *dpi > 0)
+        .filter(|dpi| (1..=crate::pwg::MAX_DPI).contains(dpi))
         .collect();
     if dpis.is_empty() || dpis.contains(&300) {
         300

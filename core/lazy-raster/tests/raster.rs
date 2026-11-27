@@ -348,6 +348,8 @@ fn pwg_resolution_is_300_when_listed_else_the_lowest() {
     assert_eq!(pwg_resolution(&[(600, 600), (150, 150)]), 150);
     assert_eq!(pwg_resolution(&[(600, 300)]), 300);
     assert_eq!(pwg_resolution(&[]), 300);
+    assert_eq!(pwg_resolution(&[(0, 0), (-600, -600), (600, 600)]), 600);
+    assert_eq!(pwg_resolution(&[(0, 0), (i32::MAX, i32::MAX)]), 300);
 }
 
 #[test]
@@ -463,6 +465,7 @@ fn urf_tokens_choose_resolution_and_sheet_back() {
     );
     assert_eq!(urf_resolution(&tokens(&["RS600"])), 600);
     assert_eq!(urf_resolution(&tokens(&["W8"])), 300);
+    assert_eq!(urf_resolution(&tokens(&["RS2000000000"])), 300);
     assert_eq!(urf_sheet_back(&tokens(&["DM1"])), "normal");
     assert_eq!(urf_sheet_back(&tokens(&["SRGB24", "DM2"])), "flipped");
     assert_eq!(urf_sheet_back(&tokens(&["DM3"])), "rotated");

@@ -24,6 +24,9 @@ pub struct PwgPageHeader {
     pub total_pages: u32,
 }
 
+/// The most dots per inch taken from a printer's list; a printer saying more is not believed.
+pub(crate) const MAX_DPI: i32 = 4800;
+
 /// The resolution a job goes at: 300 dpi when listed, else the lowest square one, else 300.
 pub fn pwg_resolution(supported: &[(i32, i32)]) -> i32 {
     if supported.contains(&(300, 300)) {
@@ -31,7 +34,7 @@ pub fn pwg_resolution(supported: &[(i32, i32)]) -> i32 {
     }
     supported
         .iter()
-        .filter(|(x, y)| x == y)
+        .filter(|(x, y)| x == y && (1..=MAX_DPI).contains(x))
         .map(|(x, _)| *x)
         .min()
         .unwrap_or(300)
