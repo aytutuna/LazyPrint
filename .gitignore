@@ -19,7 +19,3 @@ android/app/build/
 android/local.properties
 android/.idea/
 *.iml
-core/target/
-core/lazy-ipp/fuzz/target/
-core/lazy-ipp/fuzz/corpus/
-core/lazy-ipp/fuzz/artifacts/

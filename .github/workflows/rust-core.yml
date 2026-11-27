@@ -65,7 +65,9 @@ jobs:
       - run: cargo deny --locked --manifest-path lazy-ipp/fuzz/Cargo.toml --config deny.toml check licenses bans sources
       - name: Advisories, weekly only so a new report does not fail a push
         if: github.event_name == 'schedule'
-        run: cargo deny --locked check advisories
+        run: |
+          cargo deny --locked check advisories
+          cargo deny --locked --manifest-path lazy-ipp/fuzz/Cargo.toml --config deny.toml check advisories
 
   test:
     strategy:

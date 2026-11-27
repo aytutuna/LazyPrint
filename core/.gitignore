@@ -1,1 +1,3 @@
 target/
+lazy-ipp/fuzz/corpus/
+lazy-ipp/fuzz/artifacts/
