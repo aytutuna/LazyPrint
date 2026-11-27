@@ -384,3 +384,17 @@ fn mutated_fixtures_never_panic() {
         }
     }
 }
+
+#[test]
+fn a_long_string_is_cut_between_characters() {
+    let read = roundtrip(&single(vec![Attribute::one(
+        "job-name",
+        Value::Name("é".repeat(40_000)),
+    )]));
+    let Some(Value::Name(name)) = read.first("job-name") else {
+        panic!("no job-name")
+    };
+    assert_eq!(name.len(), 65_534);
+    assert!(!name.contains('\u{FFFD}'));
+    assert_eq!(roundtrip(&read), read);
+}

@@ -362,6 +362,15 @@ fn write_entry(out: &mut Vec<u8>, t: u8, name: &str, value: &[u8]) {
     out.extend_from_slice(value);
 }
 
+// A string cut at the last character boundary that fits, so a long value stays valid UTF-8.
+fn cut(s: &str) -> &[u8] {
+    let mut end = s.len().min(u16::MAX as usize);
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s.as_bytes()[..end]
+}
+
 fn write_value(out: &mut Vec<u8>, v: &Value, name: &str) {
     let ints = |values: &[i32]| {
         values
@@ -383,14 +392,14 @@ fn write_value(out: &mut Vec<u8>, v: &Value, name: &str) {
         Value::Range(lower, upper) => {
             write_entry(out, tag::RANGE_OF_INTEGER, name, &ints(&[*lower, *upper]))
         }
-        Value::Text(s) => write_entry(out, tag::TEXT, name, s.as_bytes()),
-        Value::Name(s) => write_entry(out, tag::NAME, name, s.as_bytes()),
-        Value::Keyword(s) => write_entry(out, tag::KEYWORD, name, s.as_bytes()),
-        Value::Uri(s) => write_entry(out, tag::URI, name, s.as_bytes()),
-        Value::UriScheme(s) => write_entry(out, tag::URI_SCHEME, name, s.as_bytes()),
-        Value::Charset(s) => write_entry(out, tag::CHARSET, name, s.as_bytes()),
-        Value::Language(s) => write_entry(out, tag::NATURAL_LANGUAGE, name, s.as_bytes()),
-        Value::MimeType(s) => write_entry(out, tag::MIME_MEDIA_TYPE, name, s.as_bytes()),
+        Value::Text(s) => write_entry(out, tag::TEXT, name, cut(s)),
+        Value::Name(s) => write_entry(out, tag::NAME, name, cut(s)),
+        Value::Keyword(s) => write_entry(out, tag::KEYWORD, name, cut(s)),
+        Value::Uri(s) => write_entry(out, tag::URI, name, cut(s)),
+        Value::UriScheme(s) => write_entry(out, tag::URI_SCHEME, name, cut(s)),
+        Value::Charset(s) => write_entry(out, tag::CHARSET, name, cut(s)),
+        Value::Language(s) => write_entry(out, tag::NATURAL_LANGUAGE, name, cut(s)),
+        Value::MimeType(s) => write_entry(out, tag::MIME_MEDIA_TYPE, name, cut(s)),
         Value::OutOfBand(t) => write_entry(out, *t, name, &[]),
         Value::Unknown { tag, value } => write_entry(out, *tag, name, value),
         Value::Collection(members) => {
