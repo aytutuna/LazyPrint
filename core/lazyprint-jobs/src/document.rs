@@ -1,19 +1,29 @@
 use lazyprint_layout::LayoutSize;
 
+/// What a document is, as far as the job's printing rules care.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DocumentKind {
+    Pdf { encrypted: bool },
+    Photo,
+    Imposed,
+}
+
 /// A document the user picked: its pages at the size the file shows them (a PDF page's /Rotate or a photo's
 /// orientation applied, the user's turns not). `turns` are the user's quarter turns clockwise per page, 0 to 3; empty
 /// means none turned.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoadedDocument {
     pub name: String,
+    pub kind: DocumentKind,
     pub pages: Vec<LayoutSize>,
     pub turns: Vec<u8>,
 }
 
 impl LoadedDocument {
-    pub fn new(name: &str, pages: Vec<LayoutSize>) -> Self {
+    pub fn new(name: &str, kind: DocumentKind, pages: Vec<LayoutSize>) -> Self {
         Self {
             name: name.to_string(),
+            kind,
             pages,
             turns: Vec::new(),
         }
@@ -60,4 +70,9 @@ impl LoadedDocument {
     pub fn is_turned(&self) -> bool {
         self.turns.iter().any(|&t| t != 0)
     }
+}
+
+/// Whether every document is a photo; a job with no documents is not one.
+pub fn photos_only(documents: &[LoadedDocument]) -> bool {
+    !documents.is_empty() && documents.iter().all(|d| d.kind == DocumentKind::Photo)
 }

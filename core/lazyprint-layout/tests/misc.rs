@@ -172,3 +172,29 @@ fn fill_on_a_cell_without_area_has_no_crop_to_infinity() {
         }
     }
 }
+
+#[test]
+fn fill_with_one_empty_side_still_fills() {
+    let area = PrintableArea {
+        paper: LayoutSize {
+            width: 612.0,
+            height: 792.0,
+        },
+        margins: LayoutInsets::default(),
+    };
+    let options = LayoutOptions {
+        scaling: Scaling::Fill,
+        margin: 306.0,
+        ..LayoutOptions::default()
+    };
+    let page = SourcePage {
+        document: 0,
+        index: 0,
+        size: LayoutSize {
+            width: 612.0,
+            height: 792.0,
+        },
+    };
+    let plan = plan_sheets(&[page], &options, area);
+    assert!(plan.printed_scale > 0, "{}", plan.printed_scale);
+}

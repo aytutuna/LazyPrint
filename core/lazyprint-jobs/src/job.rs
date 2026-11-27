@@ -1,4 +1,4 @@
-use crate::LoadedDocument;
+use crate::{LoadedDocument, photos_only};
 use lazyprint_layout::{
     DuplexPass, LayoutInsets, LayoutOptions, LayoutSize, MarginChoice, PHOTO_SIZES, PaperPath,
     PhotoSize, PlanWarning, PrintableArea, SheetPlan, SourcePage, is_duplex, manual_passes,
@@ -12,8 +12,10 @@ use lazyprint_settings::{ColorChoice, PrintSettings};
 const COLLATED_COPIES: &str = "separate-documents-collated-copies";
 
 /// What planning reads of a printer. A printer that is not known at all is `None` wherever one is taken.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JobPrinter {
+    /// The printer can lay documents out edge to edge. AirPrint can't, though it still does photos.
+    pub documents_borderless: bool,
     pub media: PrinterMedia,
     pub sides_supported: Vec<String>,
     /// The most copies the printer makes at once.
@@ -25,6 +27,24 @@ pub struct JobPrinter {
     pub media_col_supported: Vec<String>,
     pub print_scaling_supported: Vec<String>,
     pub print_quality_supported: Vec<i32>,
+}
+
+impl Default for JobPrinter {
+    fn default() -> Self {
+        Self {
+            documents_borderless: true,
+            media: PrinterMedia::default(),
+            sides_supported: Vec::new(),
+            copies_upper: 0,
+            multiple_document_handling: Vec::new(),
+            media_types: Vec::new(),
+            media_sources: Vec::new(),
+            color_modes: Vec::new(),
+            media_col_supported: Vec::new(),
+            print_scaling_supported: Vec::new(),
+            print_quality_supported: Vec::new(),
+        }
+    }
 }
 
 impl JobPrinter {
@@ -113,32 +133,41 @@ impl JobContext<'_> {
             .unwrap_or_else(|| Self::quarter_inch_area(size))
     }
 
-    /// The area a job with these settings is laid out on, and what the ticket's paper is matched from.
-    pub fn area(&self, settings: &PrintSettings) -> PrintableArea {
+    /// The area a job with these settings is laid out on, and what the ticket's paper is matched from. `photos_only`
+    /// is whether every document of the job is a photo (see `wants_borderless`).
+    pub fn area(&self, settings: &PrintSettings, photos_only: bool) -> PrintableArea {
         self.area_of(
             &settings.paper_id,
-            wants_borderless(settings),
+            self.wants_borderless(settings, photos_only),
             self.match_type(settings),
         )
     }
 
     /// How far the printer's own edge reaches in on the paper the settings print on, 0 when the layout is borderless;
     /// none when the printer has no entry for the paper (or there is no printer), where the edge is only a guess.
-    pub fn printer_edge(&self, settings: &PrintSettings) -> Option<f64> {
+    pub fn printer_edge(&self, settings: &PrintSettings, photos_only: bool) -> Option<f64> {
         let size = self.sheet(&settings.paper_id);
         self.printer?.media.match_entry(
             size,
-            wants_borderless(settings),
+            self.wants_borderless(settings, photos_only),
             self.match_type(settings),
         )?;
-        Some(edge_of(self.area(settings)))
+        Some(edge_of(self.area(settings, photos_only)))
     }
 
     /// The distance `MarginChoice::Printer` keeps clear: the edge of the bordered area, 0.25 in without an entry.
     pub fn printer_margin(&self, settings: &PrintSettings) -> f64 {
         let mut printer_edge = settings.clone();
         printer_edge.margin = MarginChoice::Printer;
-        edge_of(self.area(&printer_edge))
+        edge_of(self.area(&printer_edge, false))
+    }
+
+    /// Margin None asks for the whole sheet, whatever the layout and scaling. A printer that can't print documents
+    /// borderless (AirPrint) still can photos, so a job of photos alone asks for it. The printer may have no such
+    /// entry, then its edge stays.
+    pub fn wants_borderless(&self, settings: &PrintSettings, photos_only: bool) -> bool {
+        settings.margin == MarginChoice::None
+            && (photos_only || self.printer.is_none_or(|p| p.documents_borderless))
     }
 
     /// The paper type a borderless entry has to suit: the chosen one, automatic when the printer picks.
@@ -164,7 +193,7 @@ impl JobContext<'_> {
                 .margin
                 .points(settings.margin_mm(), self.printer_margin(settings)),
             margins: (settings.margin == MarginChoice::Printer)
-                .then(|| self.area(settings).margins),
+                .then(|| self.area(settings, false).margins),
             poster: u32::try_from(settings.poster).unwrap_or(0),
             cut_marks: settings.cut_marks,
             ..LayoutOptions::default()
@@ -175,10 +204,12 @@ impl JobContext<'_> {
     pub fn layout_options(&self, settings: &PrintSettings) -> LayoutOptions {
         let options = self.layout_of(settings);
         match photo_size(&settings.photo_size_id).size {
-            Some(print) if size_fits(&options, self.area(settings), print) => LayoutOptions {
-                cell_size: Some(print),
-                ..options
-            },
+            Some(print) if size_fits(&options, self.area(settings, false), print) => {
+                LayoutOptions {
+                    cell_size: Some(print),
+                    ..options
+                }
+            }
             _ => options,
         }
     }
@@ -188,7 +219,7 @@ impl JobContext<'_> {
     /// it.
     pub fn photo_sizes(&self, settings: &PrintSettings) -> Vec<&'static PhotoSize> {
         let options = self.layout_of(settings);
-        let area = self.area(settings);
+        let area = self.area(settings, false);
         PHOTO_SIZES
             .iter()
             .filter(|p| p.size.is_none_or(|size| size_fits(&options, area, size)))
@@ -236,7 +267,7 @@ impl JobContext<'_> {
                 backs_turned_after,
                 ..options
             },
-            self.area(settings),
+            self.area(settings, photos_only(documents)),
         );
         let passes = if manual {
             let (fronts, backs) = manual_passes(&plan, paper_path);
@@ -294,19 +325,13 @@ impl JobContext<'_> {
     }
 }
 
-/// Whether the layout asks for the paper without margins: margin None. The printer may have no such entry, then its
-/// edge stays.
-pub fn wants_borderless(settings: &PrintSettings) -> bool {
-    settings.margin == MarginChoice::None
-}
-
 /// The first ready paper of the printer that has a fixed size (media-col-ready, else media-ready), portrait, in points.
 fn loaded(printer: &JobPrinter) -> Option<LayoutSize> {
     let media = &printer.media;
     if let Some(entry) = media
         .media_col_ready
         .iter()
-        .find(|e| !e.is_variable && e.width > 0 && e.height > 0)
+        .find(|e| !e.is_variable && e.is_sane())
     {
         let (w, h) = (
             MediaEntry::hundredths_to_points(entry.width),

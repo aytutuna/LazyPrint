@@ -291,7 +291,8 @@ pub fn custom_range<'a>(names: impl IntoIterator<Item = &'a str> + Clone) -> Opt
         })
     };
     let (min, max) = (bound("min")?, bound("max")?);
-    (min != max && min.0 <= max.0 && min.1 <= max.1).then_some(PaperRange {
+    let reachable = min.0 <= MAX_HUNDREDTHS && min.1 <= MAX_HUNDREDTHS;
+    (reachable && min != max && min.0 <= max.0 && min.1 <= max.1).then_some(PaperRange {
         min_width: min.0,
         max_width: max.0.min(MAX_HUNDREDTHS),
         min_height: min.1,

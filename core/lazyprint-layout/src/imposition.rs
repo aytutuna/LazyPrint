@@ -600,8 +600,7 @@ fn shown(page: LayoutSize, cell: LayoutRect, scaling: Scaling, turn: bool) -> Fi
     if scaling == Scaling::Fill
         && width > 0.0
         && height > 0.0
-        && cell.width > 0.0
-        && cell.height > 0.0
+        && (cell.width > 0.0 || cell.height > 0.0)
     {
         let fill = (cell.width / width).max(cell.height / height);
         let (shown_width, shown_height) = (cell.width / fill, cell.height / fill);

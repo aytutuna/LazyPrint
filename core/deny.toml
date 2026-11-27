@@ -18,11 +18,6 @@ confidence-threshold = 0.93
 [licenses.private]
 ignore = true
 
-# libFuzzer's own licence; only the fuzz workspace has it.
-[[licenses.exceptions]]
-crate = "libfuzzer-sys"
-allow = ["NCSA"]
-
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"

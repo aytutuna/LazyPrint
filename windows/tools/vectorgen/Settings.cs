@@ -12,7 +12,7 @@ static class SettingsGen
     static T Call<T>(string name, params object[] args) =>
         (T)Store.GetMethod(name, Internal, args.Select(a => a.GetType()).ToArray())!.Invoke(null, args)!;
 
-    static string Dir() { var d = Path.Combine(Path.GetTempPath(), "lp-gen-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(d); return d; }
+    static string Dir() { var d = Path.Combine(Gen.Temp, Guid.NewGuid().ToString("N")); Directory.CreateDirectory(d); return d; }
 
     static string Roundtrip(string file, string text)
     {

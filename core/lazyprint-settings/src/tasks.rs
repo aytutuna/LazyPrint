@@ -1,5 +1,6 @@
 use crate::{AUTO, ColorChoice, PrintSettings, QualityChoice};
 use lazyprint_layout::{MarginChoice, Scaling, Sides};
+use std::collections::HashSet;
 
 /// The built-in presets. A task's raw value is what settings keep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -239,13 +240,12 @@ pub fn photo_media_type(types: &[String]) -> Option<&String> {
 
 /// The paper types a printer lists, without "auto".
 fn listed_types(types: &[String]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for t in types {
-        if !t.is_empty() && t != AUTO && !out.contains(t) {
-            out.push(t.clone());
-        }
-    }
-    out
+    let mut seen: HashSet<&str> = HashSet::new();
+    types
+        .iter()
+        .filter(|t| !t.is_empty() && *t != AUTO && seen.insert(t))
+        .cloned()
+        .collect()
 }
 
 /// A preset starts from the defaults; only the printer, its paper, tray, paper type and color, and this job's copies,
@@ -259,6 +259,7 @@ pub fn apply_task(
     let mut s = PrintSettings {
         task_id: Some(task.raw_value().into()),
         printer_id: settings.printer_id.clone(),
+        printer_name: settings.printer_name.clone(),
         paper_id: settings.paper_id.clone(),
         media_source: settings.media_source.clone(),
         media_type: kept_media_type(settings, &types),

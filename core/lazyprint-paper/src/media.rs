@@ -110,7 +110,7 @@ impl MediaEntry {
     }
 
     /// A size of at most 10 m and margins that leave something of the sheet; a printer's entry is no more than that.
-    fn is_sane(&self) -> bool {
+    pub fn is_sane(&self) -> bool {
         let sized = (1..=MAX_HUNDREDTHS).contains(&self.width)
             && (1..=MAX_HUNDREDTHS).contains(&self.height);
         sized
@@ -212,7 +212,7 @@ impl PrinterMedia {
             }
             add(Some(entry.sheet()));
         }
-        for name in self.media_supported.iter().chain(&self.media_ready) {
+        for name in self.names() {
             add(media_size(name));
         }
         found
@@ -221,11 +221,17 @@ impl PrinterMedia {
     /// The PWG name the printer lists (media-supported or media-ready) for a sheet; none when it lists none of that
     /// size.
     pub fn listed_name(&self, paper: LayoutSize) -> Option<&str> {
-        self.media_supported
-            .iter()
-            .chain(&self.media_ready)
+        self.names()
             .find(|name| pwg_size(name).is_some_and(|s| same(s, paper)))
             .map(String::as_str)
+    }
+
+    /// The names of media-supported, then media-ready, as many of each as `listed` can use.
+    fn names(&self) -> impl Iterator<Item = &String> {
+        self.media_supported
+            .iter()
+            .take(MAX_LISTED)
+            .chain(self.media_ready.iter().take(MAX_LISTED))
     }
 
     /// The printer lists no sizes, or this one is among them or in its custom range: nothing to say against it.

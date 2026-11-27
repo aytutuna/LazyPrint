@@ -94,3 +94,29 @@ fn a_printer_listing_thousands_of_sizes_is_cut_short() {
     };
     assert!(printer.listed().len() <= 500);
 }
+
+#[test]
+fn a_custom_range_above_ten_metres_is_refused() {
+    assert_eq!(
+        custom_range(["custom_min_20000x20000mm", "custom_max_30000x30000mm"]),
+        None
+    );
+}
+
+#[test]
+fn the_paper_picker_reads_only_a_bounded_list_of_names() {
+    let sized = |w: i32, h: i32| entry(w, h, margins(0, 0, 0, 0));
+    let printer = PrinterMedia {
+        media_col_database: (0..500)
+            .map(|i| sized(10000 + i * 100, 30000 + i * 37))
+            .collect(),
+        media_supported: (0..300_000)
+            .map(|i| format!("custom_x_{}x{}mm", i + 1, i + 2))
+            .collect(),
+        ..PrinterMedia::default()
+    };
+    let started = std::time::Instant::now();
+    let choices = paper_choices(Some(&printer), None, None);
+    assert!(choices.options.len() > 400);
+    assert!(started.elapsed().as_secs() < 5);
+}
