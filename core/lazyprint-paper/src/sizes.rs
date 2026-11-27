@@ -69,6 +69,24 @@ pub struct PaperRange {
 }
 
 impl PaperRange {
+    /// A range of sizes of at least 0.01 mm and at most 10 m that spans more than one size; the upper bounds are cut to
+    /// 10 m. None for an inverted or empty range, a lower bound out of reach, and a single size.
+    pub fn new(min_width: i32, max_width: i32, min_height: i32, max_height: i32) -> Option<Self> {
+        let reachable =
+            (1..=MAX_HUNDREDTHS).contains(&min_width) && (1..=MAX_HUNDREDTHS).contains(&min_height);
+        let range = Self {
+            min_width,
+            max_width: max_width.min(MAX_HUNDREDTHS),
+            min_height,
+            max_height: max_height.min(MAX_HUNDREDTHS),
+        };
+        (reachable
+            && range.min_width <= range.max_width
+            && range.min_height <= range.max_height
+            && (range.min_width != range.max_width || range.min_height != range.max_height))
+            .then_some(range)
+    }
+
     /// A sheet (portrait, in points) the range takes, held either way round.
     pub fn accepts(&self, paper: LayoutSize) -> bool {
         let (w, h) = (paper.width * 2540.0 / 72.0, paper.height * 2540.0 / 72.0);
@@ -291,13 +309,7 @@ pub fn custom_range<'a>(names: impl IntoIterator<Item = &'a str> + Clone) -> Opt
         })
     };
     let (min, max) = (bound("min")?, bound("max")?);
-    let reachable = min.0 <= MAX_HUNDREDTHS && min.1 <= MAX_HUNDREDTHS;
-    (reachable && min != max && min.0 <= max.0 && min.1 <= max.1).then_some(PaperRange {
-        min_width: min.0,
-        max_width: max.0.min(MAX_HUNDREDTHS),
-        min_height: min.1,
-        max_height: max.1.min(MAX_HUNDREDTHS),
-    })
+    PaperRange::new(min.0, max.0, min.1, max.1)
 }
 
 /// `Custom.612x792` and `w612h792`, in points unless a unit follows. None when the text is not of that form; Some(None)

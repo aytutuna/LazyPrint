@@ -73,6 +73,8 @@ name = "lazy-ipp"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "lazyprint-layout",
+ "lazyprint-paper",
  "serde_json",
  "sha2",
 ]

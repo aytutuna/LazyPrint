@@ -5,6 +5,7 @@ mod common;
 use common::fixture;
 use lazy_ipp::requests::*;
 use lazy_ipp::{Attribute, Message, Value, Version, tag};
+use lazyprint_paper::{MediaMember, MemberValue};
 
 const URI: &str = "ipp://printer.local:631/ipp/print";
 
@@ -20,18 +21,21 @@ fn int(name: &str, n: i32) -> Attribute {
     Attribute::one(name, Value::Integer(n))
 }
 
-fn a4_entry() -> Vec<Attribute> {
+fn a4_entry() -> Vec<MediaMember> {
     vec![
-        int("media-bottom-margin", 300),
-        int("media-left-margin", 300),
-        int("media-right-margin", 300),
-        Attribute::one(
-            "media-size",
-            Value::Collection(vec![int("x-dimension", 21000), int("y-dimension", 29700)]),
-        ),
-        Attribute::one("media-source", Value::Keyword("main".into())),
-        int("media-top-margin", 300),
-        Attribute::one("media-type", Value::Keyword("stationery".into())),
+        MediaMember::integer("media-bottom-margin", 300),
+        MediaMember::integer("media-left-margin", 300),
+        MediaMember::integer("media-right-margin", 300),
+        MediaMember {
+            name: "media-size".into(),
+            values: vec![MemberValue::Collection(vec![
+                MediaMember::integer("x-dimension", 21000),
+                MediaMember::integer("y-dimension", 29700),
+            ])],
+        },
+        MediaMember::keyword("media-source", "main"),
+        MediaMember::integer("media-top-margin", 300),
+        MediaMember::keyword("media-type", "stationery"),
     ]
 }
 
@@ -210,9 +214,22 @@ fn a_media_entry_is_sent_verbatim_as_media_col() {
     t.media.entry = Some(a4_entry());
     let request = print_job(URI, "anna", &t, 1);
     assert!(request.get("media").is_none());
+    let keyword = |name: &str, k: &str| Attribute::one(name, Value::Keyword(k.into()));
+    let expected = vec![
+        int("media-bottom-margin", 300),
+        int("media-left-margin", 300),
+        int("media-right-margin", 300),
+        Attribute::one(
+            "media-size",
+            Value::Collection(vec![int("x-dimension", 21000), int("y-dimension", 29700)]),
+        ),
+        keyword("media-source", "main"),
+        int("media-top-margin", 300),
+        keyword("media-type", "stationery"),
+    ];
     assert_eq!(
         request.first("media-col"),
-        Some(&Value::Collection(a4_entry()))
+        Some(&Value::Collection(expected))
     );
 }
 

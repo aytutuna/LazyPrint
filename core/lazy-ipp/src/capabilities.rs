@@ -1,12 +1,9 @@
 //! What a printer says about itself in Get-Printer-Attributes.
 
 use crate::codec::{Attribute, Message, Value, Version};
-
-/// The paper type the layout calls "automatic".
-pub const AUTO_MEDIA: &str = "auto";
-
-/// A size matches a sheet when each side is within this many points (0.05 in): rounding in drivers.
-pub const FIT_TOLERANCE: f64 = 0.05 * 72.0;
+use lazyprint_paper::{
+    MediaEntry, MediaMargins, MediaMember, MemberValue, PaperRange, PrinterMedia,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PrinterState {
@@ -14,78 +11,6 @@ pub enum PrinterState {
     Idle,
     Processing,
     Stopped,
-}
-
-/// The margins of a media-col entry, in hundredths of a millimetre.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MediaMargins {
-    pub top: i32,
-    pub left: i32,
-    pub bottom: i32,
-    pub right: i32,
-}
-
-impl MediaMargins {
-    pub fn is_zero(&self) -> bool {
-        self.top == 0 && self.left == 0 && self.bottom == 0 && self.right == 0
-    }
-}
-
-/// One media-col entry (of media-col-database or media-col-ready). Sizes are in hundredths of a
-/// millimetre, as a printer reports them. A size the printer takes in a range (custom sizes) has
-/// `is_variable` set and its upper bounds as `width` and `height`; it never matches a paper.
-/// `attributes` are the members a job sends as its media-col: the size, margins, type and source
-/// the printer lists in media-col-supported, without the printer-side members (media-key,
-/// media-size-name, media-info, ...) a database entry also carries.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MediaEntry {
-    pub attributes: Vec<Attribute>,
-    pub width: i32,
-    pub height: i32,
-    pub is_variable: bool,
-    pub margins: Option<MediaMargins>,
-    pub media_type: Option<String>,
-    pub source: Option<String>,
-}
-
-/// Hundredths of a millimetre as points.
-pub fn points(hundredths_mm: i32) -> f64 {
-    hundredths_mm as f64 * 72.0 / 2540.0
-}
-
-/// The sizes a printer takes in a range (custom sizes), in hundredths of a millimetre: the
-/// x-dimension is the width and the y-dimension the height, as media-size-supported lists them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PaperRange {
-    pub min_width: i32,
-    pub max_width: i32,
-    pub min_height: i32,
-    pub max_height: i32,
-}
-
-impl PaperRange {
-    /// A sheet (portrait, `(width, height)` in points) the range takes, held either way round.
-    pub fn accepts(&self, paper: (f64, f64)) -> bool {
-        let (w, h) = (paper.0 * 2540.0 / 72.0, paper.1 * 2540.0 / 72.0);
-        let within = |w: f64, h: f64| {
-            w >= self.min_width as f64
-                && w <= self.max_width as f64
-                && h >= self.min_height as f64
-                && h <= self.max_height as f64
-        };
-        within(w, h) || within(h, w)
-    }
-
-    /// The sheet (portrait, in points) moved into the range.
-    pub fn clamp(&self, paper: (f64, f64)) -> (f64, f64) {
-        let w = (paper.0 * 2540.0 / 72.0)
-            .max(self.min_width as f64)
-            .min(self.max_width as f64);
-        let h = (paper.1 * 2540.0 / 72.0)
-            .max(self.min_height as f64)
-            .min(self.max_height as f64);
-        (w.min(h) * 72.0 / 2540.0, w.max(h) * 72.0 / 2540.0)
-    }
 }
 
 /// One ink or toner supply. The level is a percent; -1 is unknown, -2 unavailable, -3 some left.
@@ -118,13 +43,8 @@ pub struct Capabilities {
     pub multiple_document_handling_supported: Vec<String>,
     /// The members media-col may carry ("media-size", "media-type", ...).
     pub media_col_supported: Vec<String>,
-    pub media_col_ready: Vec<MediaEntry>,
-    pub media_col_database: Vec<MediaEntry>,
-    pub media_ready: Vec<String>,
-    /// media-supported: the sizes by name ("iso_a3_297x420mm"), as a printer without a media-col-database lists them.
-    pub media_supported: Vec<String>,
-    /// What a custom size may be; `None` when the printer takes only the sizes it lists.
-    pub custom_paper: Option<PaperRange>,
+    /// The papers the printer lists and the range of custom sizes it takes.
+    pub media: PrinterMedia,
     pub media_type_supported: Vec<String>,
     pub media_source_supported: Vec<String>,
     pub print_quality_supported: Vec<i32>,
@@ -160,11 +80,7 @@ impl Default for Capabilities {
             copies_supported: (1, 1),
             multiple_document_handling_supported: vec![],
             media_col_supported: vec![],
-            media_col_ready: vec![],
-            media_col_database: vec![],
-            media_ready: vec![],
-            media_supported: vec![],
-            custom_paper: None,
+            media: PrinterMedia::default(),
             media_type_supported: vec![],
             media_source_supported: vec![],
             print_quality_supported: vec![],
@@ -200,43 +116,6 @@ impl Capabilities {
     /// The printer lists no print quality to choose from.
     pub fn no_quality(&self) -> bool {
         self.print_quality_supported.is_empty()
-    }
-
-    /// The database entry for a paper (portrait, `(width, height)` in points), each side within
-    /// [`FIT_TOLERANCE`]: the first with zero margins when `borderless`, else the first with
-    /// margins; the other kind when only that exists. A borderless entry also has to suit the paper
-    /// `media_type` (a paper type keyword, or [`AUTO_MEDIA`]): one without a type, one of that
-    /// type, or, for automatic, one of plain paper. A `None` type takes any entry. A borderless
-    /// entry that does not suit is the last resort, so a size listed only that way gives the same
-    /// entry whether or not borderless was asked for.
-    pub fn match_paper(
-        &self,
-        paper: (f64, f64),
-        borderless: bool,
-        media_type: Option<&str>,
-    ) -> Option<&MediaEntry> {
-        let mut other = None;
-        let mut unsuited = None;
-        for entry in &self.media_col_database {
-            let Some(margins) = entry.margins else {
-                continue;
-            };
-            if entry.is_variable
-                || (points(entry.width) - paper.0).abs() > FIT_TOLERANCE
-                || (points(entry.height) - paper.1).abs() > FIT_TOLERANCE
-            {
-                continue;
-            }
-            if margins.is_zero() == borderless {
-                if !borderless || type_fits(entry.media_type.as_deref(), media_type) {
-                    return Some(entry);
-                }
-                unsuited.get_or_insert(entry);
-                continue;
-            }
-            other.get_or_insert(entry);
-        }
-        other.or(unsuited)
     }
 
     /// Reads a Get-Printer-Attributes response; an attribute that is missing or of an unexpected
@@ -315,12 +194,17 @@ impl Capabilities {
                 _ => (1, 1),
             },
             multiple_document_handling_supported: strings("multiple-document-handling-supported"),
-            media_col_ready: entries("media-col-ready"),
-            media_col_database: entries("media-col-database"),
-            media_ready: strings("media-ready"),
-            media_supported: strings("media-supported"),
-            custom_paper: custom_range(message.get("media-size-supported"))
-                .or_else(|| custom_range_from_names(&strings("media-supported"))),
+            media: PrinterMedia {
+                media_col_ready: entries("media-col-ready"),
+                media_col_database: entries("media-col-database"),
+                media_ready: strings("media-ready"),
+                media_supported: strings("media-supported"),
+                custom_paper: custom_range(message.get("media-size-supported")).or_else(|| {
+                    lazyprint_paper::custom_range(
+                        strings("media-supported").iter().map(String::as_str),
+                    )
+                }),
+            },
             media_type_supported: strings("media-type-supported"),
             media_source_supported: strings("media-source-supported"),
             print_quality_supported: ints("print-quality-supported"),
@@ -353,15 +237,6 @@ impl Capabilities {
             more_info: first("printer-more-info"),
             supply_info_uri: first("printer-supply-info-uri"),
             media_col_supported,
-        }
-    }
-}
-
-fn type_fits(entry_type: Option<&str>, wanted: Option<&str>) -> bool {
-    match (entry_type, wanted) {
-        (None, _) | (_, None) => true,
-        (Some(e), Some(w)) => {
-            e == w || (w == AUTO_MEDIA && (e == "stationery" || e == "stationery-inkjet"))
         }
     }
 }
@@ -405,53 +280,11 @@ fn custom_range(sizes: Option<&Attribute>) -> Option<PaperRange> {
         ) else {
             continue;
         };
-        if x.0 != x.1 || y.0 != y.1 {
-            return Some(PaperRange {
-                min_width: x.0,
-                max_width: x.1,
-                min_height: y.0,
-                max_height: y.1,
-            });
+        if let Some(range) = PaperRange::new(x.0, x.1, y.0, y.1) {
+            return Some(range);
         }
     }
     None
-}
-
-/// The range a printer takes from the "custom_min_" and "custom_max_" names in its media list
-/// (width first, as written); `None` unless both are there and they differ.
-pub fn custom_range_from_names(names: &[String]) -> Option<PaperRange> {
-    let bound = |kind: &str| -> Option<(i32, i32)> {
-        names.iter().find_map(|name| {
-            let parts: Vec<&str> = name.trim().split('_').collect();
-            if parts.len() < 3 || parts[0] != "custom" || parts[1] != kind {
-                return None;
-            }
-            let last = parts[parts.len() - 1];
-            let unit = if last.ends_with("mm") {
-                100.0
-            } else if last.ends_with("in") {
-                2540.0
-            } else {
-                return None;
-            };
-            let (w, h) = last[..last.len() - 2].split_once('x')?;
-            let (w, h) = (w.parse::<f64>().ok()?, h.parse::<f64>().ok()?);
-            if !w.is_finite() || !h.is_finite() || w <= 0.0 || h <= 0.0 {
-                return None;
-            }
-            Some((
-                (w * unit).round_ties_even() as i32,
-                (h * unit).round_ties_even() as i32,
-            ))
-        })
-    };
-    let (min, max) = (bound("min")?, bound("max")?);
-    (min != max).then_some(PaperRange {
-        min_width: min.0,
-        max_width: max.0,
-        min_height: min.1,
-        max_height: max.1,
-    })
 }
 
 /// The text of a string-like value; octet strings are read as UTF-8.
@@ -555,21 +388,21 @@ const JOB_MEMBER_NAMES: [&str; 6] = [
     "media-source",
 ];
 
-fn job_members(members: &[Attribute], supported: &[String]) -> Vec<Attribute> {
+fn job_members(members: &[Attribute], supported: &[String]) -> Vec<MediaMember> {
     let mut kept = vec![];
     for member in members {
         if member.name == "media-size" {
             if let Some(Value::Collection(size)) = member.values.first()
-                && let Some(x @ Value::Integer(_)) = first_value(size, "x-dimension")
-                && let Some(y @ Value::Integer(_)) = first_value(size, "y-dimension")
+                && let Some(Value::Integer(x)) = first_value(size, "x-dimension")
+                && let Some(Value::Integer(y)) = first_value(size, "y-dimension")
             {
-                kept.push(Attribute::one(
-                    "media-size",
-                    Value::Collection(vec![
-                        Attribute::one("x-dimension", x.clone()),
-                        Attribute::one("y-dimension", y.clone()),
-                    ]),
-                ));
+                kept.push(MediaMember {
+                    name: "media-size".into(),
+                    values: vec![MemberValue::Collection(vec![
+                        MediaMember::integer("x-dimension", *x),
+                        MediaMember::integer("y-dimension", *y),
+                    ])],
+                });
             }
             continue;
         }
@@ -578,15 +411,16 @@ fn job_members(members: &[Attribute], supported: &[String]) -> Vec<Attribute> {
         {
             continue;
         }
-        let margin = member.name.ends_with("-margin");
-        if let Some(value) = member.values.first()
-            && (if margin {
-                matches!(value, Value::Integer(_))
-            } else {
-                text(value).is_some()
-            })
-        {
-            kept.push(Attribute::one(&member.name, value.clone()));
+        match member.values.first() {
+            Some(Value::Integer(v)) if member.name.ends_with("-margin") => {
+                kept.push(MediaMember::integer(&member.name, *v));
+            }
+            Some(value) if !member.name.ends_with("-margin") => {
+                if let Some(t) = text(value) {
+                    kept.push(MediaMember::keyword(&member.name, &t));
+                }
+            }
+            _ => {}
         }
     }
     kept

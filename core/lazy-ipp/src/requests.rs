@@ -5,6 +5,7 @@
 //! account name, or "iPhone" on the iPhone, and is the same for Cancel-Job or printers refuse it.
 
 use crate::codec::{Attribute, Group, Message, Operation, Value, Version, tag};
+use lazyprint_paper::{MediaMember, MemberValue};
 
 const NAME_LIMIT: usize = 255;
 
@@ -14,7 +15,7 @@ const NAME_LIMIT: usize = 255;
 /// when there is no entry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MediaChoice {
-    pub entry: Option<Vec<Attribute>>,
+    pub entry: Option<Vec<MediaMember>>,
     pub name: String,
 }
 
@@ -70,7 +71,7 @@ pub fn print_job(
         Value::Keyword(ticket.color_mode.clone()),
     ));
     job.push(match &ticket.media.entry {
-        Some(entry) => Attribute::one("media-col", Value::Collection(entry.clone())),
+        Some(entry) => Attribute::one("media-col", Value::Collection(attributes_of(entry))),
         None => Attribute::one("media", Value::Keyword(ticket.media.name.clone())),
     });
     if let Some(quality) = ticket.quality {
@@ -236,4 +237,22 @@ fn request(
             attributes,
         }],
     }
+}
+
+fn attributes_of(members: &[MediaMember]) -> Vec<Attribute> {
+    members
+        .iter()
+        .map(|m| Attribute {
+            name: m.name.clone(),
+            values: m
+                .values
+                .iter()
+                .map(|v| match v {
+                    MemberValue::Integer(n) => Value::Integer(*n),
+                    MemberValue::Keyword(k) | MemberValue::Other(k) => Value::Keyword(k.clone()),
+                    MemberValue::Collection(c) => Value::Collection(attributes_of(c)),
+                })
+                .collect(),
+        })
+        .collect()
 }

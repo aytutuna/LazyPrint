@@ -8,8 +8,10 @@ publish.workspace = true
 
 
 [dependencies]
+lazyprint-paper = { path = "../lazyprint-paper" }
 serde_json.workspace = true
 sha2 = "0.10"
 
 [dev-dependencies]
+lazyprint-layout = { path = "../lazyprint-layout" }
 base64 = "0.22"

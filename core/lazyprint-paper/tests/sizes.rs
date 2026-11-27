@@ -222,3 +222,19 @@ fn dimensions_in_the_regions_unit() {
         );
     }
 }
+
+#[test]
+fn a_range_is_made_only_from_a_sane_span() {
+    assert!(PaperRange::new(7620, 21590, 12700, 35560).is_some());
+    assert!(PaperRange::new(21590, 7620, 12700, 35560).is_none());
+    assert!(PaperRange::new(0, 21590, 12700, 35560).is_none());
+    assert!(PaperRange::new(-1, 21590, 12700, 35560).is_none());
+    assert!(PaperRange::new(1_000_001, 2_000_000, 1, 5).is_none());
+    assert!(PaperRange::new(21000, 21000, 29700, 29700).is_none());
+    assert_eq!(
+        PaperRange::new(7620, i32::MAX, 12700, 35560)
+            .unwrap()
+            .max_width,
+        1_000_000
+    );
+}

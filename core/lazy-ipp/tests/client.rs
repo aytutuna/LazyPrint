@@ -12,6 +12,7 @@ use lazy_ipp::job::{Job, JobState, QueuedJobState};
 use lazy_ipp::requests::{self, JobTicket, MediaChoice};
 use lazy_ipp::retry::RetryPolicy;
 use lazy_ipp::{Attribute, Message, Value, status, tag};
+use lazyprint_paper::MediaMember;
 use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::path::PathBuf;
@@ -176,10 +177,7 @@ fn a_printer_that_refuses_media_col_is_asked_once_more_with_the_media_name() {
     )]);
     let mut client = client(&printer_, &FakeClock::default());
     let mut rich = ticket();
-    rich.media.entry = Some(vec![Attribute::one(
-        "media-type",
-        Value::Keyword("stationery".into()),
-    )]);
+    rich.media.entry = Some(vec![MediaMember::keyword("media-type", "stationery")]);
     let job = client.print(&Document::new(1000).0, &rich).unwrap();
     assert_eq!(job.id, 42);
     let requests = printer_.requests();

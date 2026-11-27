@@ -11,11 +11,24 @@ use lazy_ipp::retry::RetryPolicy;
 use lazy_ipp::status::{self, status_name};
 use lazy_ipp::txt::{TxtRecord, uuid_key};
 use lazy_ipp::{Attribute, Group, Message, Value, Version, tag};
+use lazyprint_layout::LayoutSize;
+use lazyprint_paper::{
+    AUTO_MEDIA, MediaEntry, MediaMargins, MemberValue, PaperRange, PrinterMedia, custom_range,
+};
 use std::time::Duration;
 
-const A4: (f64, f64) = (210.0 * 72.0 / 25.4, 297.0 * 72.0 / 25.4);
-const LETTER: (f64, f64) = (612.0, 792.0);
-const PHOTO_4X6: (f64, f64) = (288.0, 432.0);
+const A4: LayoutSize = LayoutSize {
+    width: 210.0 * 72.0 / 25.4,
+    height: 297.0 * 72.0 / 25.4,
+};
+const LETTER: LayoutSize = LayoutSize {
+    width: 612.0,
+    height: 792.0,
+};
+const PHOTO_4X6: LayoutSize = LayoutSize {
+    width: 288.0,
+    height: 432.0,
+};
 
 fn caps(name: &str) -> Capabilities {
     Capabilities::from_message(&Message::decode(&printer(name)).unwrap().0)
@@ -64,7 +77,10 @@ fn entry(margin: i32, media_type: Option<&str>) -> MediaEntry {
 
 fn with_database(entries: Vec<MediaEntry>) -> Capabilities {
     Capabilities {
-        media_col_database: entries,
+        media: PrinterMedia {
+            media_col_database: entries,
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -98,9 +114,9 @@ fn hp_laserjet_is_read_as_a_mono_duplex_laser() {
             .any(|s| s == "separate-documents-collated-copies")
     );
     assert!(caps.media_col_supported.iter().any(|s| s == "media-size"));
-    assert_eq!(caps.media_col_database.len(), 8);
-    assert_eq!(caps.media_col_ready.len(), 1);
-    assert_eq!(caps.media_ready, ["na_letter_8.5x11in"]);
+    assert_eq!(caps.media.media_col_database.len(), 8);
+    assert_eq!(caps.media.media_col_ready.len(), 1);
+    assert_eq!(caps.media.media_ready, ["na_letter_8.5x11in"]);
     assert_eq!(caps.print_quality_supported, [3, 4, 5]);
     assert!(caps.print_scaling_supported.iter().any(|s| s == "fit"));
     assert_eq!(caps.output_bin_default.as_deref(), Some("face-down"));
@@ -128,7 +144,7 @@ fn hp_laserjet_is_read_as_a_mono_duplex_laser() {
 #[test]
 fn the_hp_letter_entry_gives_its_margins() {
     let caps = caps("hp-laserjet");
-    let entry = caps.match_paper(LETTER, false, None).unwrap();
+    let entry = caps.media.match_entry(LETTER, false, None).unwrap();
     assert_eq!((entry.width, entry.height), (21590, 27940));
     assert_eq!(
         entry.margins,
@@ -141,8 +157,8 @@ fn the_hp_letter_entry_gives_its_margins() {
     );
     assert_eq!(entry.media_type.as_deref(), Some("stationery"));
     assert_eq!(entry.source.as_deref(), Some("tray-1"));
-    assert!((points(entry.width) - 612.0).abs() < 0.5);
-    assert!((points(423) - 423.0 * 72.0 / 2540.0).abs() < 1e-9);
+    assert!((MediaEntry::hundredths_to_points(entry.width) - 612.0).abs() < 0.5);
+    assert!((MediaEntry::hundredths_to_points(423) - 423.0 * 72.0 / 2540.0).abs() < 1e-9);
 }
 
 #[test]
@@ -159,7 +175,7 @@ fn epson_ecotank_has_borderless_photo_entries() {
         ]
     );
     assert_eq!(caps.print_color_modes_supported, ["color", "monochrome"]);
-    assert_eq!(caps.media_col_database.len(), 12);
+    assert_eq!(caps.media.media_col_database.len(), 12);
     assert_eq!(caps.pwg_raster_resolutions, [(360, 360), (720, 720)]);
     assert_eq!(caps.pwg_raster_types, ["srgb_8", "sgray_8"]);
     assert_eq!(caps.pwg_raster_sheet_back.as_deref(), Some("normal"));
@@ -169,7 +185,7 @@ fn epson_ecotank_has_borderless_photo_entries() {
     assert_eq!(levels, [80, 55, 40, 70]);
     assert_eq!(caps.supplies[2].color, "#FF00FF");
 
-    let variable = caps.media_col_database.last().unwrap();
+    let variable = caps.media.media_col_database.last().unwrap();
     assert!(variable.is_variable);
     assert_eq!((variable.width, variable.height), (21590, 129700));
 }
@@ -177,7 +193,7 @@ fn epson_ecotank_has_borderless_photo_entries() {
 #[test]
 fn epson_match_picks_borderless_or_bordered_entries() {
     let caps = caps("epson-ecotank");
-    let plain = caps.match_paper(A4, false, None).unwrap();
+    let plain = caps.media.match_entry(A4, false, None).unwrap();
     assert_eq!(
         plain.margins,
         Some(MediaMargins {
@@ -189,14 +205,14 @@ fn epson_match_picks_borderless_or_bordered_entries() {
     );
     assert_eq!(plain.media_type.as_deref(), Some("stationery"));
 
-    let borderless = caps.match_paper(A4, true, None).unwrap();
+    let borderless = caps.media.match_entry(A4, true, None).unwrap();
     assert!(borderless.margins.unwrap().is_zero());
     assert_eq!(
         borderless.media_type.as_deref(),
         Some("photographic-glossy")
     );
 
-    let photo = caps.match_paper(PHOTO_4X6, true, None).unwrap();
+    let photo = caps.media.match_entry(PHOTO_4X6, true, None).unwrap();
     assert_eq!((photo.width, photo.height), (10160, 15240));
     assert_eq!(photo.source.as_deref(), Some("photo"));
 }
@@ -204,7 +220,7 @@ fn epson_match_picks_borderless_or_bordered_entries() {
 #[test]
 fn an_entrys_printer_side_members_are_not_what_a_job_sends() {
     let caps = caps("epson-ecotank");
-    let plain = caps.match_paper(A4, false, None).unwrap();
+    let plain = caps.media.match_entry(A4, false, None).unwrap();
     let names: Vec<&str> = plain.attributes.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(
         names,
@@ -223,7 +239,7 @@ fn an_entrys_printer_side_members_are_not_what_a_job_sends() {
         .iter()
         .find(|a| a.name == "media-size")
         .unwrap();
-    let Value::Collection(members) = &size.values[0] else {
+    let MemberValue::Collection(members) = &size.values[0] else {
         panic!("media-size is not a collection")
     };
     let member_names: Vec<&str> = members.iter().map(|m| m.name.as_str()).collect();
@@ -249,7 +265,7 @@ fn only_the_members_the_media_col_supported_list_names_are_kept() {
         ),
         Attribute::one("media-col-database", entry),
     ])]));
-    let names: Vec<&str> = caps.media_col_database[0]
+    let names: Vec<&str> = caps.media.media_col_database[0]
         .attributes
         .iter()
         .map(|a| a.name.as_str())
@@ -262,42 +278,58 @@ fn when_only_the_other_kind_exists_match_falls_back_to_it() {
     let caps = caps("hp-laserjet");
     assert!(
         !caps
-            .match_paper(LETTER, true, None)
+            .media
+            .match_entry(LETTER, true, None)
             .unwrap()
             .margins
             .unwrap()
             .is_zero()
     );
-    assert!(caps.match_paper((100.0, 100.0), false, None).is_none());
+    assert!(
+        caps.media
+            .match_entry(
+                LayoutSize {
+                    width: 100.0,
+                    height: 100.0
+                },
+                false,
+                None
+            )
+            .is_none()
+    );
 }
 
 #[test]
 fn borderless_only_suits_a_matching_paper_type() {
     let caps = caps("epson-ecotank");
     let zero = |e: Option<&MediaEntry>| e.unwrap().margins.unwrap().is_zero();
-    assert!(zero(caps.match_paper(A4, true, None)));
-    assert!(zero(caps.match_paper(
+    assert!(zero(caps.media.match_entry(A4, true, None)));
+    assert!(zero(caps.media.match_entry(
         A4,
         true,
         Some("photographic-glossy")
     )));
-    assert!(!zero(caps.match_paper(A4, true, Some("stationery"))));
-    assert!(!zero(caps.match_paper(A4, true, Some(AUTO_MEDIA))));
+    assert!(!zero(caps.media.match_entry(A4, true, Some("stationery"))));
+    assert!(!zero(caps.media.match_entry(A4, true, Some(AUTO_MEDIA))));
 
     let untyped = with_database(vec![entry(300, Some("stationery")), entry(0, None)]);
-    assert!(zero(untyped.match_paper(A4, true, Some("stationery"))));
+    assert!(zero(untyped.media.match_entry(
+        A4,
+        true,
+        Some("stationery")
+    )));
     let plain = with_database(vec![
         entry(300, Some("stationery")),
         entry(0, Some("stationery")),
     ]);
-    assert!(zero(plain.match_paper(A4, true, Some(AUTO_MEDIA))));
+    assert!(zero(plain.media.match_entry(A4, true, Some(AUTO_MEDIA))));
     let inkjet = with_database(vec![
         entry(300, Some("stationery")),
         entry(0, Some("stationery-inkjet")),
     ]);
-    assert!(zero(inkjet.match_paper(A4, true, Some(AUTO_MEDIA))));
+    assert!(zero(inkjet.media.match_entry(A4, true, Some(AUTO_MEDIA))));
     let only_borderless = with_database(vec![entry(0, Some("photographic-glossy"))]);
-    assert!(zero(only_borderless.match_paper(
+    assert!(zero(only_borderless.media.match_entry(
         A4,
         false,
         Some(AUTO_MEDIA)
@@ -308,7 +340,10 @@ fn borderless_only_suits_a_matching_paper_type() {
 fn a_borderless_entry_that_does_not_suit_is_the_last_resort() {
     let only = with_database(vec![entry(0, Some("photographic-glossy"))]);
     for borderless in [true, false] {
-        let found = only.match_paper(A4, borderless, Some(AUTO_MEDIA)).unwrap();
+        let found = only
+            .media
+            .match_entry(A4, borderless, Some(AUTO_MEDIA))
+            .unwrap();
         assert_eq!(found.media_type.as_deref(), Some("photographic-glossy"));
     }
 }
@@ -341,7 +376,7 @@ fn brother_laser_speaks_11_only_and_takes_pwg_and_pdf() {
     assert!(caps.multiple_document_handling_supported.is_empty());
     assert!(caps.urf_supported.is_empty());
     assert_eq!(caps.pwg_raster_sheet_back.as_deref(), Some("flipped"));
-    assert_eq!(caps.media_col_database.len(), 6);
+    assert_eq!(caps.media.media_col_database.len(), 6);
     assert_eq!(caps.supplies[0].level, 75);
 }
 
@@ -362,7 +397,7 @@ fn canon_pixma_is_airprint_only_with_low_ink() {
     assert_eq!(caps.supplies[1].level, 8);
     assert_eq!(caps.supplies[1].low_level, Some(10));
     assert_eq!(caps.media_source_supported, ["main", "photo"]);
-    let borderless = caps.match_paper(PHOTO_4X6, true, None).unwrap();
+    let borderless = caps.media.match_entry(PHOTO_4X6, true, None).unwrap();
     assert_eq!(
         borderless.media_type.as_deref(),
         Some("photographic-glossy")
@@ -379,7 +414,7 @@ fn missing_attributes_give_defaults() {
     assert!(caps.is_accepting_jobs);
     assert_eq!(caps.copies_supported, (1, 1));
     assert!(!caps.speaks_20());
-    assert!(caps.match_paper(A4, false, None).is_none());
+    assert!(caps.media.match_entry(A4, false, None).is_none());
 }
 
 #[test]
@@ -440,7 +475,7 @@ fn wrong_types_and_odd_values_are_read_leniently() {
     );
     assert_eq!(caps.sides_supported, ["one-sided"]);
     assert_eq!(caps.pwg_raster_resolutions, [(300, 300)]);
-    assert!(caps.media_col_database.is_empty());
+    assert!(caps.media.media_col_database.is_empty());
     assert_eq!(caps.supplies[0].level, -3);
     assert_eq!(caps.supplies[1].level, -1);
     assert_eq!(caps.supplies[1].low_level, None);
@@ -468,7 +503,7 @@ fn media_supported_and_the_custom_range_are_read() {
         ),
     ])]));
     assert_eq!(
-        caps.media_supported,
+        caps.media.media_supported,
         ["iso_a4_210x297mm", "na_ledger_11x17in"]
     );
     let range = PaperRange {
@@ -477,17 +512,24 @@ fn media_supported_and_the_custom_range_are_read() {
         min_height: 12700,
         max_height: 35560,
     };
-    assert_eq!(caps.custom_paper, Some(range));
+    assert_eq!(caps.media.custom_paper, Some(range));
     assert!(range.accepts(LETTER));
-    assert!(!range.accepts((10.0, 10.0)));
-    let (w, h) = range.clamp((10.0, 2000.0));
-    assert!((w - points(7620)).abs() < 1e-9 && (h - points(35560)).abs() < 1e-9);
+    assert!(!range.accepts(LayoutSize {
+        width: 10.0,
+        height: 10.0
+    }));
+    let clamped = range.clamp(LayoutSize {
+        width: 10.0,
+        height: 2000.0,
+    });
+    assert!((clamped.width - MediaEntry::hundredths_to_points(7620)).abs() < 1e-9);
+    assert!((clamped.height - MediaEntry::hundredths_to_points(35560)).abs() < 1e-9);
 }
 
 #[test]
 fn without_a_range_there_is_no_custom_size() {
     let caps = Capabilities::from_message(&message(vec![printer_group(vec![])]));
-    assert!(caps.custom_paper.is_none());
+    assert!(caps.media.custom_paper.is_none());
 }
 
 #[test]
@@ -507,8 +549,8 @@ fn the_custom_range_falls_back_to_the_min_and_max_names() {
         min_height: 12700,
         max_height: 35560,
     };
-    assert_eq!(caps.custom_paper, Some(range));
-    assert!(custom_range_from_names(&strings(&["custom_min_3x5in"])).is_none());
+    assert_eq!(caps.media.custom_paper, Some(range));
+    assert!(custom_range(["custom_min_3x5in"]).is_none());
 }
 
 #[test]
@@ -851,7 +893,55 @@ fn a_range_the_printer_gave_upside_down_does_not_panic_when_a_sheet_is_fitted() 
         min_height: 40000,
         max_height: 10000,
     };
-    let (w, h) = range.clamp(LETTER);
-    assert!(w.is_finite() && h.is_finite());
+    let fitted = range.clamp(LETTER);
+    assert!(fitted.width.is_finite() && fitted.height.is_finite());
     assert!(!range.accepts(LETTER));
+}
+
+fn size_range(x: Value, y: Value) -> Capabilities {
+    let size = Value::Collection(vec![
+        Attribute::one("x-dimension", x),
+        Attribute::one("y-dimension", y),
+    ]);
+    Capabilities::from_message(&message(vec![printer_group(vec![Attribute::one(
+        "media-size-supported",
+        size,
+    )])]))
+}
+
+#[test]
+fn a_hostile_media_size_range_is_not_a_custom_range() {
+    for (x, y) in [
+        (Value::Range(21590, 7620), Value::Range(12700, 35560)),
+        (Value::Range(-100, 21590), Value::Range(12700, 35560)),
+        (Value::Range(0, 21590), Value::Range(12700, 35560)),
+        (
+            Value::Range(2_000_000_000, 2_100_000_000),
+            Value::Range(1, 5),
+        ),
+    ] {
+        assert!(size_range(x, y).media.custom_paper.is_none());
+    }
+    let capped = size_range(Value::Range(7620, i32::MAX), Value::Range(12700, 35560));
+    assert_eq!(capped.media.custom_paper.unwrap().max_width, 1_000_000);
+}
+
+#[test]
+fn an_entry_with_margins_off_the_sheet_never_matches() {
+    let mut negative = entry(300, None);
+    negative.margins = Some(MediaMargins {
+        top: -500,
+        left: 300,
+        bottom: 300,
+        right: 300,
+    });
+    let mut wide = entry(300, None);
+    wide.margins = Some(MediaMargins {
+        top: 300,
+        left: 15000,
+        bottom: 300,
+        right: 15000,
+    });
+    let caps = with_database(vec![negative, wide]);
+    assert!(caps.media.match_entry(A4, false, None).is_none());
 }
