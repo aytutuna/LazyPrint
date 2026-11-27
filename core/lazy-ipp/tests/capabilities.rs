@@ -945,3 +945,67 @@ fn an_entry_with_margins_off_the_sheet_never_matches() {
     let caps = with_database(vec![negative, wide]);
     assert!(caps.media.match_entry(A4, false, None).is_none());
 }
+
+#[test]
+fn a_member_goes_back_with_the_tag_the_printer_used() {
+    use lazy_ipp::requests::{JobTicket, MediaChoice, print_job};
+    let entry = Value::Collection(vec![
+        Attribute::one("media-source", Value::Name("Tray 3 (Envelope)".into())),
+        Attribute::one("media-type", Value::Octets(b"custom".to_vec())),
+        Attribute::one(
+            "media-size",
+            Value::Collection(vec![int("x-dimension", 21000), int("y-dimension", 29700)]),
+        ),
+    ]);
+    let caps = Capabilities::from_message(&message(vec![printer_group(vec![Attribute::one(
+        "media-col-database",
+        entry,
+    )])]));
+    let ticket = JobTicket {
+        job_name: "Report".into(),
+        document_format: "application/pdf".into(),
+        copies: 1,
+        sides: "one-sided".into(),
+        color_mode: "color".into(),
+        media: MediaChoice {
+            entry: Some(caps.media.media_col_database[0].attributes.clone()),
+            name: "iso_a4_210x297mm".into(),
+        },
+        quality: None,
+        scaling: None,
+        collated_copies: false,
+        page_range: None,
+    };
+    let sent = print_job("ipp://printer.local:631/ipp/print", "tester", &ticket, 1);
+    let (sent, _) = Message::decode(&sent.encode()).unwrap();
+    let Some(Value::Collection(members)) = sent.first("media-col") else {
+        panic!("no media-col")
+    };
+    let value = |name: &str| members.iter().find(|a| a.name == name).unwrap().values[0].clone();
+    assert_eq!(
+        value("media-source"),
+        Value::Name("Tray 3 (Envelope)".into())
+    );
+    assert_eq!(value("media-type"), Value::Octets(b"custom".to_vec()));
+}
+
+#[test]
+fn a_huge_media_col_database_is_read_in_linear_time() {
+    let supported: Vec<String> = (0..50_000).map(|i| format!("media-typf{i}")).collect();
+    let supported: Vec<&str> = supported.iter().map(String::as_str).collect();
+    let entries: Vec<Value> = (0..2)
+        .map(|_| {
+            Value::Collection(
+                (0..25_000)
+                    .map(|_| Attribute::one("media-type", Value::Keyword("stationery".into())))
+                    .collect(),
+            )
+        })
+        .collect();
+    let started = std::time::Instant::now();
+    let _ = Capabilities::from_message(&message(vec![printer_group(vec![
+        Attribute::keywords("media-col-supported", &supported),
+        Attribute::new("media-col-database", entries),
+    ])]));
+    assert!(started.elapsed() < Duration::from_secs(2));
+}

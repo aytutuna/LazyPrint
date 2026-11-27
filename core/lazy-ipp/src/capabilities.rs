@@ -135,6 +135,8 @@ impl Capabilities {
                 .unwrap_or_default()
         };
         let media_col_supported = strings("media-col-supported");
+        let allowed = JOB_MEMBER_NAMES
+            .map(|n| media_col_supported.is_empty() || media_col_supported.iter().any(|s| s == n));
         let entries = |name: &str| -> Vec<MediaEntry> {
             message
                 .get(name)
@@ -142,7 +144,7 @@ impl Capabilities {
                     a.values
                         .iter()
                         .filter_map(|v| match v {
-                            Value::Collection(members) => entry(members, &media_col_supported),
+                            Value::Collection(members) => entry(members, &allowed),
                             _ => None,
                         })
                         .collect()
@@ -344,7 +346,7 @@ fn dimension(value: Option<&Value>) -> Option<(i32, bool)> {
     }
 }
 
-fn entry(members: &[Attribute], supported: &[String]) -> Option<MediaEntry> {
+fn entry(members: &[Attribute], allowed: &[bool; 6]) -> Option<MediaEntry> {
     let Some(Value::Collection(size)) = first_value(members, "media-size") else {
         return None;
     };
@@ -369,7 +371,7 @@ fn entry(members: &[Attribute], supported: &[String]) -> Option<MediaEntry> {
     });
     let label = |name: &str| first_value(members, name).and_then(text);
     Some(MediaEntry {
-        attributes: job_members(members, supported),
+        attributes: job_members(members, allowed),
         width,
         height,
         is_variable: width_range || height_range,
@@ -388,7 +390,7 @@ const JOB_MEMBER_NAMES: [&str; 6] = [
     "media-source",
 ];
 
-fn job_members(members: &[Attribute], supported: &[String]) -> Vec<MediaMember> {
+fn job_members(members: &[Attribute], allowed: &[bool; 6]) -> Vec<MediaMember> {
     let mut kept = vec![];
     for member in members {
         if member.name == "media-size" {
@@ -406,9 +408,10 @@ fn job_members(members: &[Attribute], supported: &[String]) -> Vec<MediaMember> 
             }
             continue;
         }
-        if !JOB_MEMBER_NAMES.contains(&member.name.as_str())
-            || (!supported.is_empty() && !supported.contains(&member.name))
-        {
+        let Some(at) = JOB_MEMBER_NAMES.iter().position(|n| *n == member.name) else {
+            continue;
+        };
+        if !allowed[at] {
             continue;
         }
         match member.values.first() {
@@ -416,8 +419,17 @@ fn job_members(members: &[Attribute], supported: &[String]) -> Vec<MediaMember> 
                 kept.push(MediaMember::integer(&member.name, *v));
             }
             Some(value) if !member.name.ends_with("-margin") => {
-                if let Some(t) = text(value) {
-                    kept.push(MediaMember::keyword(&member.name, &t));
+                let kept_value = match value {
+                    Value::Name(s) => Some(MemberValue::Name(s.clone())),
+                    Value::Text(s) => Some(MemberValue::Text(s.clone())),
+                    Value::Octets(b) => Some(MemberValue::Octets(b.clone())),
+                    _ => text(value).map(MemberValue::Keyword),
+                };
+                if let Some(v) = kept_value {
+                    kept.push(MediaMember {
+                        name: member.name.clone(),
+                        values: vec![v],
+                    });
                 }
             }
             _ => {}

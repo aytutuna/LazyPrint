@@ -35,14 +35,17 @@ impl MediaMargins {
     }
 }
 
-/// A value of a media-col member, as far as the entries a printer lists and the ones a job sends use them. Any other
-/// kind a printer reports is kept as its name, so the member still goes back as it came.
+/// A value of a media-col member, as far as the entries a printer lists and the ones a job sends use them. Name, Text
+/// and Octets keep the tag the printer used, so the member goes back the way it came.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MemberValue {
     Integer(i32),
     Keyword(String),
     Collection(Vec<MediaMember>),
     Other(String),
+    Name(String),
+    Text(String),
+    Octets(Vec<u8>),
 }
 
 /// A named member of a media-col, with one or more values.

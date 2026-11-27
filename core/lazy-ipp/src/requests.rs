@@ -250,6 +250,9 @@ fn attributes_of(members: &[MediaMember]) -> Vec<Attribute> {
                 .map(|v| match v {
                     MemberValue::Integer(n) => Value::Integer(*n),
                     MemberValue::Keyword(k) | MemberValue::Other(k) => Value::Keyword(k.clone()),
+                    MemberValue::Name(n) => Value::Name(n.clone()),
+                    MemberValue::Text(t) => Value::Text(t.clone()),
+                    MemberValue::Octets(b) => Value::Octets(b.clone()),
                     MemberValue::Collection(c) => Value::Collection(attributes_of(c)),
                 })
                 .collect(),
